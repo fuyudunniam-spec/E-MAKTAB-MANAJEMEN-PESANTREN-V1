@@ -1,5 +1,7 @@
-import { ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { ReactNode, useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import type { User, Session } from "@supabase/supabase-js";
 import { 
   LayoutDashboard, 
   Users, 
@@ -9,7 +11,8 @@ import {
   Package, 
   Store, 
   DollarSign,
-  Menu
+  Menu,
+  LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -30,7 +33,7 @@ interface LayoutProps {
   children: ReactNode;
 }
 
-const SidebarContent = ({ mobile = false }: { mobile?: boolean }) => {
+const SidebarContent = ({ mobile = false, onLogout }: { mobile?: boolean; onLogout: () => void }) => {
   const location = useLocation();
 
   return (
@@ -67,7 +70,15 @@ const SidebarContent = ({ mobile = false }: { mobile?: boolean }) => {
         })}
       </nav>
       
-      <div className="p-4 border-t border-sidebar-border">
+      <div className="p-4 border-t border-sidebar-border space-y-3">
+        <Button 
+          variant="outline" 
+          className="w-full justify-start gap-3"
+          onClick={onLogout}
+        >
+          <LogOut className="w-4 h-4" />
+          Keluar
+        </Button>
         <div className="bg-sidebar-accent rounded-lg p-4">
           <p className="text-sm font-medium text-sidebar-accent-foreground">
             Yayasan Anak Yatim
@@ -82,11 +93,50 @@ const SidebarContent = ({ mobile = false }: { mobile?: boolean }) => {
 };
 
 export const Layout = ({ children }: LayoutProps) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (!session) {
+          navigate("/auth");
+        }
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (!session) {
+        navigate("/auth");
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
+  };
+
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex w-64 bg-sidebar-background flex-col border-r border-sidebar-border">
-        <SidebarContent />
+        <SidebarContent onLogout={handleLogout} />
       </aside>
 
       {/* Mobile Header */}
@@ -98,7 +148,7 @@ export const Layout = ({ children }: LayoutProps) => {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-64 bg-sidebar-background">
-            <SidebarContent mobile />
+            <SidebarContent mobile onLogout={handleLogout} />
           </SheetContent>
         </Sheet>
         <h1 className="ml-4 font-bold text-lg">Pesantren Al-Bisri</h1>

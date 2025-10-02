@@ -12,6 +12,7 @@ import Donasi from "./pages/Donasi";
 import Inventaris from "./pages/Inventaris";
 import Koperasi from "./pages/Koperasi";
 import Keuangan from "./pages/Keuangan";
+import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,20 +23,51 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/santri" element={<Santri />} />
-            <Route path="/monitoring" element={<Monitoring />} />
-            <Route path="/tabungan" element={<Tabungan />} />
-            <Route path="/donasi" element={<Donasi />} />
-            <Route path="/inventaris" element={<Inventaris />} />
-            <Route path="/koperasi" element={<Koperasi />} />
-            <Route path="/keuangan" element={<Keuangan />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Layout>
+        <Routes>
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/" element={
+            <Layout>
+              <Dashboard />
+            </Layout>
+          } />
+          <Route path="/santri" element={
+            <Layout>
+              <Santri />
+            </Layout>
+          } />
+          <Route path="/monitoring" element={
+            <Layout>
+              <Monitoring />
+            </Layout>
+          } />
+          <Route path="/tabungan" element={
+            <Layout>
+              <Tabungan />
+            </Layout>
+          } />
+          <Route path="/donasi" element={
+            <Layout>
+              <Donasi />
+            </Layout>
+          } />
+          <Route path="/inventaris" element={
+            <Layout>
+              <Inventaris />
+            </Layout>
+          } />
+          <Route path="/koperasi" element={
+            <Layout>
+              <Koperasi />
+            </Layout>
+          } />
+          <Route path="/keuangan" element={
+            <Layout>
+              <Keuangan />
+            </Layout>
+          } />
+          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
