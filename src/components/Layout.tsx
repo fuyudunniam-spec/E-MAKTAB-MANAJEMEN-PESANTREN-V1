@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -39,16 +39,10 @@ const SidebarContent = ({ mobile = false, onLogout }: { mobile?: boolean; onLogo
   return (
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-sidebar-border">
-        <h1 
-          className="text-xl font-bold"
-          style={{ color: 'hsl(0 0% 100%)' }}
-        >
+        <h1 className="text-xl font-bold text-sidebar-foreground">
           Pesantren Al-Bisri
         </h1>
-        <p 
-          className="text-sm mt-1"
-          style={{ color: 'hsl(0 0% 100% / 0.7)' }}
-        >
+        <p className="text-sm text-sidebar-foreground/70 mt-1">
           Sistem Manajemen Terpadu
         </p>
       </div>
@@ -65,23 +59,9 @@ const SidebarContent = ({ mobile = false, onLogout }: { mobile?: boolean; onLogo
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-lg transition-all",
                 isActive
-                  ? "font-medium shadow-sm"
-                  : ""
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium shadow-sm"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               )}
-              style={{
-                backgroundColor: isActive ? 'hsl(0 0% 100%)' : 'transparent',
-                color: isActive ? 'hsl(160 84% 39%)' : 'hsl(0 0% 100%)'
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = 'hsl(160 70% 45%)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
             >
               <Icon className="w-5 h-5" />
               <span>{item.label}</span>
@@ -90,37 +70,20 @@ const SidebarContent = ({ mobile = false, onLogout }: { mobile?: boolean; onLogo
         })}
       </nav>
       
-      <div 
-        className="p-4 border-t space-y-3"
-        style={{ borderColor: 'hsl(160 70% 35%)' }}
-      >
+      <div className="p-4 border-t border-sidebar-border space-y-3">
         <Button 
           variant="outline" 
           className="w-full justify-start gap-3"
-          style={{
-            backgroundColor: 'transparent',
-            borderColor: 'hsl(0 0% 100% / 0.2)',
-            color: 'hsl(0 0% 100%)'
-          }}
           onClick={onLogout}
         >
           <LogOut className="w-4 h-4" />
           Keluar
         </Button>
-        <div 
-          className="rounded-lg p-4"
-          style={{ backgroundColor: 'hsl(160 70% 45%)' }}
-        >
-          <p 
-            className="text-sm font-medium"
-            style={{ color: 'hsl(0 0% 100%)' }}
-          >
+        <div className="bg-sidebar-accent rounded-lg p-4">
+          <p className="text-sm font-medium text-sidebar-accent-foreground">
             Yayasan Anak Yatim
           </p>
-          <p 
-            className="text-xs mt-1"
-            style={{ color: 'hsl(0 0% 100% / 0.7)' }}
-          >
+          <p className="text-xs text-sidebar-accent-foreground/70 mt-1">
             Al-Bisri © 2025
           </p>
         </div>
@@ -143,9 +106,6 @@ export const Layout = ({ children }: LayoutProps) => {
         
         if (!session) {
           navigate("/auth");
-        } else if (session && event === 'SIGNED_IN') {
-          // Redirect to dashboard when user signs in
-          navigate("/");
         }
       }
     );
@@ -175,13 +135,7 @@ export const Layout = ({ children }: LayoutProps) => {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Desktop Sidebar */}
-      <aside 
-        className="hidden lg:flex w-64 flex-col border-r"
-        style={{
-          backgroundColor: 'hsl(160 84% 39%)',
-          borderColor: 'hsl(160 70% 35%)'
-        }}
-      >
+      <aside className="hidden lg:flex w-64 bg-sidebar-background flex-col border-r border-sidebar-border">
         <SidebarContent onLogout={handleLogout} />
       </aside>
 
@@ -193,15 +147,7 @@ export const Layout = ({ children }: LayoutProps) => {
               <Menu className="w-5 h-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent 
-            side="left" 
-            className="p-0 w-64"
-            style={{ backgroundColor: 'hsl(160 84% 39%)' }}
-          >
-            <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-            <SheetDescription className="sr-only">
-              Main navigation menu for the application
-            </SheetDescription>
+          <SheetContent side="left" className="p-0 w-64 bg-sidebar-background">
             <SidebarContent mobile onLogout={handleLogout} />
           </SheetContent>
         </Sheet>
