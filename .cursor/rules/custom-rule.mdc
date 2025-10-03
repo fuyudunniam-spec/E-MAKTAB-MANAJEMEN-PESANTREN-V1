@@ -1,0 +1,8 @@
+---
+description:
+1. jangan otomatis membuat dokumentasi atau membuat summarize setiap habis edit, kecuali saya memerintahkan
+2. selalu pakai bahasa indonesia
+3. jangan menyimpulkan bahwa editanmu sudah benar, kecuali setelah saya verifikasi---
+globs:
+alwaysApply: true
+---
