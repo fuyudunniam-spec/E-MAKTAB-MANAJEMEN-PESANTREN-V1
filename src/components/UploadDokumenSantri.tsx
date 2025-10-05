@@ -174,8 +174,11 @@ const UploadDokumenSantri: React.FC<UploadDokumenSantriProps> = ({
         throw error;
       }
 
-      // Fix URLs for documents with old path format
-      const fixedDocuments = (data || []).map(doc => fixDocumentUrl(doc));
+      // Fix URLs for documents with old path format and ensure correct type
+      const fixedDocuments = (data || []).map(doc => ({
+        ...fixDocumentUrl(doc),
+        status_validasi: (doc.status_validasi || 'Perlu Perbaikan') as 'Valid' | 'Perlu Perbaikan' | 'Tidak Valid'
+      }));
       
       // Update database with fixed URLs if needed
       const documentsToUpdate = fixedDocuments.filter(doc => 

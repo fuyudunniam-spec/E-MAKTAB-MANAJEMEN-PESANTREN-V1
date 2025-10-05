@@ -16,7 +16,8 @@ import {
   Trash2,
   User,
   Clock,
-  MessageSquare
+  MessageSquare,
+  X
 } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -90,7 +91,12 @@ const DokumenVerifikasi: React.FC<DokumenVerifikasiProps> = ({
         .order('tanggal_upload', { ascending: false });
 
       if (error) throw error;
-      setDocuments(data || []);
+      // Map data to include nama_dokumen from kode_dokumen
+      const mappedData = (data || []).map(doc => ({
+        ...doc,
+        nama_dokumen: doc.kode_dokumen // Use kode_dokumen as nama_dokumen fallback
+      }));
+      setDocuments(mappedData);
     } catch (error) {
       console.error('Error loading documents:', error);
       toast.error('Gagal memuat dokumen');
@@ -136,13 +142,14 @@ const DokumenVerifikasi: React.FC<DokumenVerifikasiProps> = ({
 
       if (error) throw error;
 
-      if (data.success) {
+      if (data && typeof data === 'object' && 'success' in data && (data as any).success) {
         toast.success('Dokumen berhasil diverifikasi');
         setVerificationNote('');
         loadDocuments();
         loadCompleteness();
       } else {
-        toast.error(data.error || 'Gagal memverifikasi dokumen');
+        const errorMsg = data && typeof data === 'object' && 'error' in data ? (data as any).error : 'Gagal memverifikasi dokumen';
+        toast.error(errorMsg);
       }
     } catch (error) {
       console.error('Error verifying document:', error);

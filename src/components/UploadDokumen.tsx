@@ -237,8 +237,7 @@ const UploadDokumen: React.FC<UploadDokumenProps> = ({
         ));
       }, 200);
 
-      const result = await uploadFile.file;
-      const uploadedDoc = await uploadFile(result, uploadFile.kode_dokumen, uploadFile.nama_dokumen);
+      const uploadedDoc = await uploadFile(uploadFile.file, uploadFile.kode_dokumen, uploadFile.nama_dokumen);
 
       clearInterval(progressInterval);
 
