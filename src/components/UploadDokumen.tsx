@@ -224,25 +224,25 @@ const UploadDokumen: React.FC<UploadDokumenProps> = ({
     });
   }, [requiredDocs, santriId]);
 
-  const uploadFileWithProgress = async (uploadFile: UploadedFile) => {
+  const uploadFileWithProgress = async (fileToUpload: UploadedFile) => {
     try {
       setUploadedFiles(prev => prev.map(f => 
-        f.file === uploadFile.file ? { ...f, status: 'uploading', progress: 0 } : f
+        f.file === fileToUpload.file ? { ...f, status: 'uploading', progress: 0 } : f
       ));
 
       // Simulate progress (in real app, you'd use actual upload progress)
       const progressInterval = setInterval(() => {
         setUploadedFiles(prev => prev.map(f => 
-          f.file === uploadFile.file ? { ...f, progress: Math.min(f.progress + 10, 90) } : f
+          f.file === fileToUpload.file ? { ...f, progress: Math.min(f.progress + 10, 90) } : f
         ));
       }, 200);
 
-      const uploadedDoc = await uploadFile(uploadFile.file, uploadFile.kode_dokumen, uploadFile.nama_dokumen);
+      const uploadedDoc = await uploadFile(fileToUpload.file, fileToUpload.kode_dokumen, fileToUpload.nama_dokumen);
 
       clearInterval(progressInterval);
 
       setUploadedFiles(prev => prev.map(f => 
-        f.file === uploadFile.file ? { 
+        f.file === fileToUpload.file ? { 
           ...f, 
           status: 'success', 
           progress: 100, 
@@ -252,19 +252,19 @@ const UploadDokumen: React.FC<UploadDokumenProps> = ({
         } : f
       ));
 
-      toast.success(`Dokumen ${uploadFile.nama_dokumen} berhasil diupload`);
+      toast.success(`Dokumen ${fileToUpload.nama_dokumen} berhasil diupload`);
       loadExistingDocuments();
       onUploadComplete?.();
 
     } catch (error) {
       setUploadedFiles(prev => prev.map(f => 
-        f.file === uploadFile.file ? { 
+        f.file === fileToUpload.file ? { 
           ...f, 
           status: 'error', 
           error: error instanceof Error ? error.message : 'Upload gagal'
         } : f
       ));
-      toast.error(`Gagal upload ${uploadFile.nama_dokumen}`);
+      toast.error(`Gagal upload ${fileToUpload.nama_dokumen}`);
     }
   };
 
