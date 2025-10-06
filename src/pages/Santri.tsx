@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import SantriForm from "@/components/SantriForm";
 import UploadDokumenSantri from "@/components/UploadDokumenSantri";
+import SantriDetailView from "@/components/SantriDetailView";
 
 interface SantriData {
   id: string;
@@ -61,6 +62,8 @@ export default function Santri() {
   const [editingSantri, setEditingSantri] = useState<SantriData | null>(null);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedSantriForUpload, setSelectedSantriForUpload] = useState<SantriData | null>(null);
+  const [showDetailView, setShowDetailView] = useState(false);
+  const [selectedSantriForDetail, setSelectedSantriForDetail] = useState<SantriData | null>(null);
   const [stats, setStats] = useState({
     total: 0,
     reguler: 0,
@@ -295,8 +298,8 @@ export default function Santri() {
   };
 
   const handleViewProfile = (santri: SantriData) => {
-    setSelectedSantriForUpload(santri);
-    setShowUploadDialog(true);
+    setSelectedSantriForDetail(santri);
+    setShowDetailView(true);
   };
 
   const handleDownloadCSV = async () => {
@@ -703,6 +706,20 @@ export default function Santri() {
           statusAnak={selectedSantriForUpload.status_anak || ''}
           onUploadComplete={() => {
             refreshData();
+          }}
+        />
+      )}
+
+      {showDetailView && selectedSantriForDetail && (
+        <SantriDetailView
+          santriId={selectedSantriForDetail.id}
+          onClose={() => {
+            setShowDetailView(false);
+            setSelectedSantriForDetail(null);
+          }}
+          onEdit={() => {
+            setShowDetailView(false);
+            handleEditSantri(selectedSantriForDetail);
           }}
         />
       )}
