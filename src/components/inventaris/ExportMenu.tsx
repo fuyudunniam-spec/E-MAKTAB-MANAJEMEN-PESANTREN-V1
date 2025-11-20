@@ -65,7 +65,7 @@ const ExportMenu = memo(({ data, filters, type, disabled = false }: Props) => {
             "Satuan": item.satuan || "",
             "Harga Perolehan": item.harga_perolehan || 0,
             "Total Nilai": (item.jumlah || 0) * (item.harga_perolehan || 0),
-            "Supplier": item.supplier || "",
+            "Sumber": item.sumber || "",
             "Min Stock": item.min_stock || 0,
             "Tanggal Kedaluwarsa": item.tanggal_kedaluwarsa || "",
             "Keterangan": item.keterangan || "",

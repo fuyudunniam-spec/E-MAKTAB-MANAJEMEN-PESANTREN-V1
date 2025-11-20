@@ -8,6 +8,38 @@ export interface UserProfile {
   updated_at: string;
 }
 
+// Flag untuk mencegah spam error CORS di console
+let corsErrorShown = false;
+const CORS_ERROR_KEY = 'cors_error_shown';
+
+// Helper untuk menampilkan warning CORS hanya sekali
+function showCorsWarningOnce() {
+  if (corsErrorShown) return;
+  
+  // Cek sessionStorage juga untuk persist across page reloads
+  if (sessionStorage.getItem(CORS_ERROR_KEY)) {
+    corsErrorShown = true;
+    return;
+  }
+  
+  corsErrorShown = true;
+  sessionStorage.setItem(CORS_ERROR_KEY, 'true');
+  
+  console.warn('⚠️ auth.service: Supabase unreachable (CORS/523/timeout)');
+  console.warn('   🔧 SOLUSI: Konfigurasi CORS di Supabase Dashboard:');
+  console.warn('   1. Buka https://supabase.com/dashboard');
+  console.warn('   2. Pilih project → Settings → API');
+  console.warn('   3. Tambahkan "http://localhost:8080" ke Allowed Origins');
+  console.warn('   4. Lihat CORS_FIX_GUIDE.md untuk detail lengkap');
+  console.warn('   (Warning ini hanya ditampilkan sekali per session)');
+}
+
+// Reset flag saat CORS berhasil (untuk testing)
+export function resetCorsWarning() {
+  corsErrorShown = false;
+  sessionStorage.removeItem(CORS_ERROR_KEY);
+}
+
 export interface UserRole {
   id: string;
   user_id: string;
@@ -56,6 +88,19 @@ export async function getUserRoles(userId: string): Promise<string[]> {
     const { data, error } = result;
 
     if (error || !data) {
+      // Check if it's a CORS error - if so, skip fallback and return empty
+      const isCorsError = error?.message?.includes('CORS') || 
+                         error?.message?.includes('523') || 
+                         error?.message?.includes('Failed to fetch') ||
+                         error?.message?.includes('unreachable') ||
+                         error?.message?.includes('Access-Control-Allow-Origin') ||
+                         error?.message?.includes('520');
+      
+      if (isCorsError) {
+        showCorsWarningOnce();
+        return [];
+      }
+      
       if (error) {
         console.error('❌ auth.service: Error fetching user roles via direct query:', error);
         console.error('   Error code:', error.code, 'Error message:', error.message);
@@ -75,7 +120,19 @@ export async function getUserRoles(userId: string): Promise<string[]> {
         const { data: rpcData, error: rpcError } = rpcResult;
         
         if (rpcError || !rpcData) {
-          console.error('❌ auth.service: RPC function also failed:', rpcError);
+          // Check if it's a CORS error
+          const isCorsError = rpcError?.message?.includes('CORS') || 
+                             rpcError?.message?.includes('523') || 
+                             rpcError?.message?.includes('Failed to fetch') ||
+                             rpcError?.message?.includes('unreachable') ||
+                             rpcError?.message?.includes('Access-Control-Allow-Origin') ||
+                             rpcError?.message?.includes('520');
+          
+          if (isCorsError) {
+            showCorsWarningOnce();
+          } else {
+            console.error('❌ auth.service: RPC function also failed:', rpcError);
+          }
           return [];
         }
         
@@ -120,8 +177,20 @@ export async function getUserRoles(userId: string): Promise<string[]> {
     
     return roles;
   } catch (error: any) {
-    console.error('❌ auth.service: Error in getUserRoles:', error);
-    console.error('   Error type:', error?.constructor?.name);
+    // Check if it's a CORS error
+    const isCorsError = error?.message?.includes('CORS') || 
+                       error?.message?.includes('523') || 
+                       error?.message?.includes('Failed to fetch') ||
+                       error?.message?.includes('unreachable') ||
+                       error?.message?.includes('Access-Control-Allow-Origin') ||
+                       error?.message?.includes('520');
+    
+    if (isCorsError) {
+      showCorsWarningOnce();
+    } else {
+      console.error('❌ auth.service: Error in getUserRoles:', error);
+      console.error('   Error type:', error?.constructor?.name);
+    }
     // Always return empty array instead of throwing
     return [];
   }
@@ -135,18 +204,41 @@ export async function getUserRoles(userId: string): Promise<string[]> {
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   try {
     console.log('👤 auth.service: Fetching profile for user', userId);
-    const { data, error } = await supabase
+    
+    // Add timeout to prevent hanging on CORS/523 errors
+    const queryPromise = supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
+    
+    const timeoutPromise = new Promise((resolve) => {
+      setTimeout(() => resolve({ data: null, error: { message: 'Query timeout - Supabase unreachable', code: 'TIMEOUT' } }), 3000);
+    });
+
+    const result: any = await Promise.race([queryPromise, timeoutPromise]);
+    const { data, error } = result;
 
     if (error) {
-      // Profile might not exist yet - this is OK
+      // Handle different error types
       if (error.code === 'PGRST116') {
+        // Profile not found - this is OK
         console.warn('⚠️ auth.service: Profile not found for user', userId, '- this is OK, will use defaults');
         return null;
       }
+      
+      // Handle CORS/523 errors gracefully
+      if (error.message?.includes('CORS') || 
+          error.message?.includes('523') || 
+          error.message?.includes('Failed to fetch') ||
+          error.message?.includes('unreachable') ||
+          error.message?.includes('Access-Control-Allow-Origin') ||
+          error.code === 'TIMEOUT') {
+        showCorsWarningOnce();
+        // Return null gracefully - app can still work without profile
+        return null;
+      }
+      
       console.error('❌ auth.service: Error fetching user profile:', error);
       // Don't throw, return null instead
       return null;
@@ -154,7 +246,19 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 
     console.log('✅ auth.service: Found profile for user', userId);
     return data as UserProfile;
-  } catch (error) {
+  } catch (error: any) {
+    // Handle network errors gracefully
+    if (error?.message?.includes('CORS') || 
+        error?.message?.includes('523') || 
+        error?.message?.includes('Failed to fetch') ||
+        error?.message?.includes('unreachable') ||
+        error?.message?.includes('Access-Control-Allow-Origin') ||
+        error?.message?.includes('520')) {
+      showCorsWarningOnce();
+      return null;
+    }
+    
+    // Hanya log error jika bukan CORS error (untuk menghindari spam)
     console.error('❌ auth.service: Error in getUserProfile:', error);
     // Always return null instead of throwing
     return null;

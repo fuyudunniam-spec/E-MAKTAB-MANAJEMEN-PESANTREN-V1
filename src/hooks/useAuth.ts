@@ -47,17 +47,90 @@ export function useAuth() {
           return null;
         }),
         // Fetch santri data if user is santri
-        // Use RPC function to bypass potential RLS issues
-        supabase
-          .rpc('get_santri_by_user_id', { p_user_id: userId })
-          .then(({ data }) => {
-            // RPC returns array, get first item
-            return Array.isArray(data) && data.length > 0 ? data[0] : null;
-          })
-          .catch((err) => {
-            console.warn('Error fetching santri data:', err);
+        // Try RPC function first with timeout, fallback to direct query if RPC doesn't exist
+        (async () => {
+          try {
+            // Try RPC function first with timeout
+            const rpcPromise = supabase.rpc('get_santri_by_user_id', { p_user_id: userId });
+            const timeoutPromise = new Promise((resolve) => 
+              setTimeout(() => resolve({ data: null, error: { message: 'RPC timeout' } }), 3000)
+            );
+            
+            const result: any = await Promise.race([rpcPromise, timeoutPromise]);
+            const { data: rpcData, error: rpcError } = result;
+            
+            // Check if it's a CORS/network error - silently fail
+            const isNetworkError = rpcError && (
+              rpcError.message?.includes('CORS') || 
+              rpcError.message?.includes('520') || 
+              rpcError.message?.includes('523') || 
+              rpcError.message?.includes('Failed to fetch') ||
+              rpcError.message?.includes('unreachable') ||
+              rpcError.message?.includes('Access-Control-Allow-Origin') ||
+              rpcError.message?.includes('timeout')
+            );
+            
+            if (isNetworkError) {
+              // Silently fail for network errors, don't spam console
+              return null;
+            }
+            
+            if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
+              return rpcData[0];
+            }
+            
+            // Fallback: Query directly from santri table
+            // Note: This assumes there's a way to link user_id to santri
+            // If no direct link exists, return null
+            const { data: santriData, error: santriError } = await supabase
+              .from('santri')
+              .select('*')
+              .eq('created_by', userId)
+              .limit(1)
+              .maybeSingle();
+            
+            if (!santriError && santriData) {
+              return santriData;
+            }
+            
             return null;
-          })
+          } catch (err: any) {
+            // Check if it's a CORS/network error - silently fail
+            const isNetworkError = err?.message?.includes('CORS') || 
+                                  err?.message?.includes('520') || 
+                                  err?.message?.includes('523') || 
+                                  err?.message?.includes('Failed to fetch') ||
+                                  err?.message?.includes('unreachable') ||
+                                  err?.message?.includes('Access-Control-Allow-Origin');
+            
+            if (isNetworkError) {
+              // Silently fail for network errors
+              return null;
+            }
+            
+            // If RPC function doesn't exist (error 520/523 or CORS), try direct query
+            if (err?.code === 'PGRST204' || err?.message?.includes('CORS') || err?.message?.includes('520') || err?.message?.includes('523')) {
+              console.warn('RPC function not available, trying direct query:', err);
+              try {
+                const { data: santriData, error: santriError } = await supabase
+                  .from('santri')
+                  .select('*')
+                  .eq('created_by', userId)
+                  .limit(1)
+                  .maybeSingle();
+                
+                if (!santriError && santriData) {
+                  return santriData;
+                }
+              } catch (fallbackErr) {
+                console.warn('Fallback query also failed:', fallbackErr);
+              }
+            } else {
+              console.warn('Error fetching santri data:', err);
+            }
+            return null;
+          }
+        })()
       ]);
 
       const primaryRole = roles.length > 0 ? roles[0] : 'santri';

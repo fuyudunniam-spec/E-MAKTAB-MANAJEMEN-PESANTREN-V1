@@ -18,6 +18,7 @@ import {
   CreditCard,
   FileText
 } from "lucide-react";
+import ModuleHeader from '@/components/ModuleHeader';
 import {
   Table,
   TableBody,
@@ -251,19 +252,19 @@ const TagihanSantri: React.FC = () => {
     );
   };
 
+  const tabs = [
+    { label: 'Dashboard', path: '/keuangan-v3' },
+    { label: 'SPP & Tagihan', path: '/keuangan' },
+    { label: 'Tabungan', path: '/tabungan' },
+    { label: 'Donasi', path: '/donasi' }
+  ];
+
   return (
-    <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl lg:text-4xl font-bold text-foreground mb-2 flex items-center gap-3">
-            <DollarSign className="w-8 h-8 text-primary" />
-            Tagihan Santri
-          </h1>
-          <p className="text-muted-foreground">
-            Kelola tagihan dan pembayaran santri Reguler/Mahasiswa
-          </p>
-        </div>
+    <div className="space-y-6">
+      <ModuleHeader title="Pembayaran Santri" tabs={tabs} />
+      
+      {/* Action Button */}
+      <div className="flex justify-end">
         <Button 
           onClick={() => setShowGenerateDialog(true)}
           className="bg-gradient-primary hover:opacity-90"
@@ -274,60 +275,48 @@ const TagihanSantri: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="border-0 shadow-soft">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Tagihan</p>
-                <p className="text-lg font-bold text-primary">{formatRupiah(stats.total_tagihan)}</p>
-              </div>
-              <div className="p-3 bg-primary/10 rounded-lg">
-                <FileText className="w-6 h-6 text-primary" />
-              </div>
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Tagihan</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatRupiah(stats.total_tagihan)}</div>
+            <p className="text-xs text-muted-foreground">Semua periode</p>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-soft">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Dibayar</p>
-                <p className="text-lg font-bold text-green-600">{formatRupiah(stats.total_dibayar)}</p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <CheckCircle className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Dibayar</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{formatRupiah(stats.total_dibayar)}</div>
+            <p className="text-xs text-muted-foreground">Sudah dibayar</p>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-soft">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Sisa Tagihan</p>
-                <p className="text-lg font-bold text-amber-600">{formatRupiah(stats.total_sisa)}</p>
-              </div>
-              <div className="p-3 bg-amber-100 rounded-lg">
-                <AlertCircle className="w-6 h-6 text-amber-600" />
-              </div>
-            </div>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Sisa Tagihan</CardTitle>
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">{formatRupiah(stats.total_sisa)}</div>
+            <p className="text-xs text-muted-foreground">Belum lunas</p>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-soft">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Lunas</p>
-                <p className="text-2xl font-bold text-green-600">{stats.lunas}</p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <CheckCircle className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Lunas</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats.lunas}</div>
+            <p className="text-xs text-muted-foreground">Tagihan lunas</p>
           </CardContent>
         </Card>
       </div>
@@ -377,16 +366,20 @@ const TagihanSantri: React.FC = () => {
       {/* Tagihan List */}
       <Card className="border-0 shadow-soft">
         <CardHeader>
-          <CardTitle>Daftar Tagihan</CardTitle>
-          <CardDescription>
-            {filteredTagihan.length} tagihan ditemukan
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Daftar Tagihan</CardTitle>
+              <CardDescription className="mt-1">
+                {filteredTagihan.length} tagihan ditemukan
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8">
+            <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <p className="mt-2 text-sm text-muted-foreground">Memuat data...</p>
+              <p className="mt-3 text-sm text-muted-foreground">Memuat data...</p>
             </div>
           ) : filteredTagihan.length === 0 ? (
             <div className="text-center py-8">

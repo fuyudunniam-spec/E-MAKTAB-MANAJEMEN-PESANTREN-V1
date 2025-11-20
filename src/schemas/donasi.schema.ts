@@ -3,7 +3,7 @@ import { z } from "zod";
 // ================================================
 // DONATION TYPES
 // ================================================
-export const donationTypeEnum = z.enum(["cash", "in_kind", "pledge"], {
+export const donationTypeEnum = z.enum(["cash", "in_kind", "pledge", "mixed"], {
   errorMap: () => ({ message: "Pilih tipe donasi yang valid" })
 });
 
@@ -98,6 +98,20 @@ export const donationHeaderSchema = z.object({
     }
   }
   
+  // Validate mixed donations must have either cash_amount or items (or both)
+  if (data.donation_type === "mixed") {
+    const hasCash = data.cash_amount && data.cash_amount > 0;
+    // Items validation will be done in fullDonationSchema
+    // Here we just ensure cash_amount is valid if provided
+    if (data.cash_amount !== null && data.cash_amount !== undefined && data.cash_amount < 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Jumlah donasi tunai tidak boleh negatif",
+        path: ["cash_amount"]
+      });
+    }
+  }
+  
   // Validate received_date not before donation_date
   if (data.received_date && data.donation_date) {
     const donationDate = new Date(data.donation_date);
@@ -135,6 +149,9 @@ export const donationItemSchema = z.object({
     .nullable()
     .or(z.literal("")),
   
+  // Item type: inventory (masuk inventaris) or direct_consumption (langsung dikonsumsi)
+  item_type: z.enum(["inventory", "direct_consumption"]).default("inventory"),
+  
   // Quantity and UoM (REQUIRED)
   quantity: z.number()
     .positive("Jumlah harus lebih dari 0")
@@ -159,7 +176,7 @@ export const donationItemSchema = z.object({
       return !isNaN(d.getTime()) && d > new Date();
     }, "Tanggal kedaluwarsa harus di masa depan"),
   
-  // Mapping
+  // Mapping (only required for inventory items)
   mapped_item_id: z.string()
     .uuid("ID item tidak valid")
     .optional()
@@ -172,13 +189,18 @@ export const donationItemSchema = z.object({
     .nullable()
     .or(z.literal("")),
 }).superRefine((data, ctx) => {
-  // If mapped, must have mapped_item_id
-  if (data.mapping_status === "mapped" && !data.mapped_item_id) {
+  // If inventory type and mapped, must have mapped_item_id
+  if (data.item_type === "inventory" && data.mapping_status === "mapped" && !data.mapped_item_id) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "Item yang dipetakan harus memiliki ID item",
+      message: "Item inventaris yang dipetakan harus memiliki ID item",
       path: ["mapped_item_id"]
     });
+  }
+  
+  // Direct consumption items don't need mapping
+  if (data.item_type === "direct_consumption") {
+    // Can skip mapping requirement
   }
 });
 
@@ -226,6 +248,41 @@ export const fullDonationSchema = z.object({
       message: "Donasi tunai tidak boleh memiliki item barang",
       path: ["items"]
     });
+  }
+  
+  // Mixed donations must have either cash_amount or items (or both)
+  if (data.header.donation_type === "mixed") {
+    const hasCash = data.header.cash_amount && data.header.cash_amount > 0;
+    const hasItems = data.items && data.items.length > 0;
+    
+    if (!hasCash && !hasItems) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Donasi campuran harus memiliki minimal tunai atau barang",
+        path: ["header"]
+      });
+    }
+    
+    // Validate items if present
+    if (hasItems) {
+      data.items.forEach((item, index) => {
+        if (!item.quantity || item.quantity <= 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Item ${index + 1}: Jumlah harus lebih dari 0`,
+            path: ["items", index, "quantity"]
+          });
+        }
+        
+        if (!item.uom || item.uom.trim() === "") {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Item ${index + 1}: Satuan wajib diisi`,
+            path: ["items", index, "uom"]
+          });
+        }
+      });
+    }
   }
 });
 

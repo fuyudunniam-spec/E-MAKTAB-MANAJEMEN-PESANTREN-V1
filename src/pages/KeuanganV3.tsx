@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RefreshCw, Plus, FileText } from 'lucide-react';
+import { RefreshCw, Plus, FileText, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Import new dashboard components
@@ -26,9 +26,21 @@ import { AkunKasService } from '../services/akunKas.service';
   import { ExcelExporter } from '../utils/export/excelExporter';
 import { AlokasiPengeluaranService } from '../services/alokasiPengeluaran.service';
 import { supabase } from '../integrations/supabase/client';
+// Shared utilities untuk filtering (Phase 1 & 2 refactoring)
+import { 
+  excludeTabunganTransactions, 
+  applyTabunganExclusionFilter,
+  normalizeAkunKas 
+} from '../utils/keuanganFilters';
+// Service layer untuk chart data (Phase 3 refactoring)
+import { 
+  loadChartData as loadChartDataService
+} from '../services/keuanganChart.service';
 
 // Import existing components for modal
 import FormPengeluaranRinci from '../components/FormPengeluaranRinci';
+import FormPemasukanManual from '../components/FormPemasukanManual';
+import FormPenyesuaianSaldo from '../components/FormPenyesuaianSaldo';
 import ExportPDFDialogV3 from '../components/ExportPDFDialogV3';
 
 const KeuanganV3: React.FC = () => {
@@ -46,6 +58,8 @@ const KeuanganV3: React.FC = () => {
   
   // UI states
   const [showForm, setShowForm] = useState(false);
+  const [showFormPemasukan, setShowFormPemasukan] = useState(false);
+  const [showFormPenyesuaianSaldo, setShowFormPenyesuaianSaldo] = useState(false);
   const [showReports, setShowReports] = useState(false);
   const [showEditAccount, setShowEditAccount] = useState(false);
   const [showTransactionDetail, setShowTransactionDetail] = useState(false);
@@ -88,206 +102,14 @@ const KeuanganV3: React.FC = () => {
     }
   }, [selectedAccountFilter]);
 
-  const getMonthlyData = async (accountId?: string) => {
-    try {
-      // Get last 7 months of data
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setMonth(endDate.getMonth() - 6); // Last 7 months including current
-      
-      let query = supabase
-        .from('keuangan')
-        .select('tanggal, jenis_transaksi, jumlah, source_module, kategori, akun_kas_id')
-        .gte('tanggal', startDate.toISOString().split('T')[0])
-        .lte('tanggal', endDate.toISOString().split('T')[0]);
-      
-      // Exclude tabungan santri transactions
-      query = query.or('source_module.is.null,source_module.neq.tabungan_santri');
-        
-      if (accountId) {
-        query = query.eq('akun_kas_id', accountId);
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      
-      // Filter out tabungan transactions client-side (backup filtering)
-      const filteredData = data?.filter(transaction => {
-        // Exclude if source_module contains 'tabungan'
-        if (transaction.source_module && 
-            typeof transaction.source_module === 'string' &&
-            transaction.source_module.toLowerCase().includes('tabungan')) {
-          return false;
-        }
-        // Exclude if kategori is 'Tabungan Santri'
-        if (transaction.kategori === 'Tabungan Santri') {
-          return false;
-        }
-        return true;
-      }) || [];
-      
-      // Group by month
-      const monthlyStats: { [key: string]: { pemasukan: number; pengeluaran: number } } = {};
-      
-      // Initialize last 7 months
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date();
-        date.setMonth(date.getMonth() - i);
-        const monthKey = date.toISOString().substring(0, 7); // YYYY-MM format
-        const monthName = date.toLocaleDateString('id-ID', { month: 'short' });
-        monthlyStats[monthKey] = { pemasukan: 0, pengeluaran: 0 };
-      }
-      
-      // Process transactions
-      filteredData.forEach(transaction => {
-        const monthKey = transaction.tanggal.substring(0, 7);
-        if (monthlyStats[monthKey]) {
-          if (transaction.jenis_transaksi === 'Pemasukan') {
-            monthlyStats[monthKey].pemasukan += transaction.jumlah || 0;
-          } else if (transaction.jenis_transaksi === 'Pengeluaran') {
-            monthlyStats[monthKey].pengeluaran += transaction.jumlah || 0;
-          }
-        }
-      });
-      
-      // Convert to chart format
-      return Object.entries(monthlyStats)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([monthKey, stats]) => {
-          const date = new Date(monthKey + '-01');
-          const monthName = date.toLocaleDateString('id-ID', { month: 'short' });
-          return {
-            month: monthName,
-            pemasukan: stats.pemasukan,
-            pengeluaran: stats.pengeluaran
-          };
-        });
-        
-    } catch (error) {
-      console.error('Error loading monthly data:', error);
-      return [];
-    }
-  };
-
-  const getCategoryData = async (accountId?: string) => {
-    try {
-      console.log('🔍 getCategoryData called with:', { 
-        accountId, 
-        selectedAccountFilter,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Get current year expenditures
-      const currentYear = new Date().getFullYear();
-      const startDate = `${currentYear}-01-01`;
-      const endDate = `${currentYear}-12-31`;
-      
-      let query = supabase
-        .from('keuangan')
-        .select('kategori, jumlah, akun_kas_id, source_module, akun_kas:akun_kas_id(nama, managed_by)')
-        .eq('jenis_transaksi', 'Pengeluaran')
-        .gte('tanggal', startDate)
-        .lte('tanggal', endDate);
-      
-      // Exclude tabungan santri transactions
-      query = query.or('source_module.is.null,source_module.neq.tabungan_santri');
-        
-      if (accountId) {
-        console.log('🎯 Applying account filter:', accountId);
-        query = query.eq('akun_kas_id', accountId);
-      } else {
-        console.log('📊 Loading data from ALL accounts');
-      }
-      
-      const { data, error } = await query;
-      console.log('📈 Category data query result:', { 
-        data: data?.slice(0, 5), // Log first 5 entries to avoid spam
-        totalRecords: data?.length,
-        error, 
-        accountFilter: accountId,
-        uniqueAccounts: [...new Set(data?.map(d => d.akun_kas?.nama || 'Unknown'))]
-      });
-      if (error) throw error;
-      
-      // Filter out tabungan transactions client-side (backup filtering)
-      const filteredData = data?.filter(transaction => {
-        // Exclude if source_module contains 'tabungan'
-        if (transaction.source_module && 
-            typeof transaction.source_module === 'string' &&
-            transaction.source_module.toLowerCase().includes('tabungan')) {
-          return false;
-        }
-        // Exclude if kategori is 'Tabungan Santri'
-        if (transaction.kategori === 'Tabungan Santri') {
-          return false;
-        }
-        // Exclude if account is managed by tabungan module
-        if (transaction.akun_kas?.managed_by === 'tabungan') {
-          return false;
-        }
-        return true;
-      }) || [];
-      
-      // Group by category
-      const categoryStats: { [key: string]: number } = {};
-      let totalExpenditure = 0;
-      
-      filteredData.forEach(transaction => {
-        const category = transaction.kategori || 'Lainnya';
-        categoryStats[category] = (categoryStats[category] || 0) + (transaction.jumlah || 0);
-        totalExpenditure += transaction.jumlah || 0;
-      });
-      
-      // Convert to chart format with colors
-      const colors = ['#3b82f6', '#f59e0b', '#10b981', '#6b7280', '#ef4444', '#8b5cf6', '#f97316'];
-      
-      const result = Object.entries(categoryStats)
-        .map(([name, total], index) => ({
-          name,
-          value: totalExpenditure > 0 ? Math.round((total / totalExpenditure) * 100) : 0,
-          color: colors[index % colors.length]
-        }))
-        .sort((a, b) => b.value - a.value);
-      
-      console.log('📈 Final category data result:', {
-        totalExpenditure,
-        categoryCount: result.length,
-        topCategories: result.slice(0, 3),
-        accountFilter: accountId,
-        allCategories: Object.keys(categoryStats)
-      });
-      
-      return result;
-        
-    } catch (error) {
-      console.error('Error loading category data:', error);
-      return [];
-    }
-  };
-
+  // Chart data loading menggunakan service layer (Phase 3 refactoring)
   const loadChartData = async (accountId?: string) => {
     try {
       // Use passed accountId or fall back to current state
       const filterAccountId = accountId !== undefined ? accountId : selectedAccountFilter;
       
-      console.log('🚀 loadChartData started with:', { 
-        passedAccountId: accountId,
-        selectedAccountFilter,
-        filterAccountId,
-        timestamp: new Date().toISOString()
-      });
-      
-      const [monthlyData, categoryData] = await Promise.all([
-        getMonthlyData(filterAccountId),
-        getCategoryData(filterAccountId)
-      ]);
-      
-      console.log('📊 Chart data loaded:', {
-        monthlyDataLength: monthlyData.length,
-        categoryDataLength: categoryData.length,
-        categoryData: categoryData.map(c => ({ name: c.name, value: c.value })),
-        filterAccountId
-      });
+      // Load chart data menggunakan service layer
+      const { monthlyData, categoryData } = await loadChartDataService(filterAccountId);
       
       setMonthlyData(monthlyData);
       setCategoryData(categoryData);
@@ -309,8 +131,11 @@ const KeuanganV3: React.FC = () => {
         .filter(akun => akun.status === 'aktif')
         .reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
       
-      // Get recent transactions from supabase
+      // Get transactions from supabase
       // EXCLUDE transactions from tabungan module
+      // For auto-posted transactions (Donasi, Penjualan Inventaris), only get 'posted' status
+      // For manual entries, get all statuses (they can be filtered by user)
+      // OPTIMIZATION: Add default limit to improve initial load time (user can filter/load more if needed)
       let query = supabase
         .from('keuangan')
         .select(`
@@ -318,53 +143,327 @@ const KeuanganV3: React.FC = () => {
           akun_kas:akun_kas_id(nama, managed_by)
         `)
         .order('tanggal', { ascending: false })
-        .limit(50);
+        .order('created_at', { ascending: false })
+        .limit(500); // Default limit untuk mempercepat loading awal
       
-      // Exclude tabungan santri transactions
-      // Use .or() to exclude transactions with source_module = 'tabungan_santri'
-      // This allows NULL source_module (manual transactions) and other modules, but excludes tabungan
-      query = query.or('source_module.is.null,source_module.neq.tabungan_santri');
+      // Exclude tabungan santri transactions (using shared utility)
+      query = applyTabunganExclusionFilter(query);
       
       // Apply account filter if selected
       if (selectedAccountFilter) {
         query = query.eq('akun_kas_id', selectedAccountFilter);
       }
       
+      // IMPORTANT: Auto-posted transactions should always be 'posted' (they're final and valid)
+      // Only show 'posted' status for auto-posted transactions
+      // Manual entries can have any status (draft, pending, posted, cancelled)
+      // Note: This is handled in the query - we'll filter client-side for better UX
+      
       const { data: transactions, error } = await query;
       
       if (error) throw error;
       
-      // Filter out transactions from tabungan module (client-side filtering as backup)
-      // This handles cases where source_module might contain 'tabungan' in various forms
-      const filteredTransactions = transactions?.filter(transaction => {
-        // Exclude if source_module contains 'tabungan'
-        if (transaction.source_module && 
-            typeof transaction.source_module === 'string' &&
-            transaction.source_module.toLowerCase().includes('tabungan')) {
-          return false;
-        }
-        // Exclude if account is managed by tabungan module
-        if (transaction.akun_kas?.managed_by === 'tabungan') {
-          return false;
-        }
-        // Exclude if kategori is 'Tabungan Santri'
-        if (transaction.kategori === 'Tabungan Santri') {
-          return false;
-        }
-        return true;
-      }) || [];
+      // Filter out transactions from tabungan module (client-side filtering as backup using shared utility)
+      let filteredTransactions = excludeTabunganTransactions(transactions);
       
+      // IMPORTANT: For auto-posted transactions, ensure they're always 'posted' status
+      // If somehow they're not 'posted', update them (but this should rarely happen)
+      filteredTransactions = filteredTransactions.map(tx => {
+        const isAutoPosted = tx.auto_posted === true || 
+                            tx.referensi?.startsWith('inventory_sale:') ||
+                            tx.referensi?.startsWith('donation:') ||
+                            tx.referensi?.startsWith('pembayaran_santri:');
+        
+        // Auto-posted transactions should always be 'posted'
+        if (isAutoPosted && tx.status !== 'posted') {
+          console.warn('[KeuanganV3] Auto-posted transaction has non-posted status:', {
+            id: tx.id,
+            referensi: tx.referensi,
+            currentStatus: tx.status,
+            auto_posted: tx.auto_posted
+          });
+          // Don't modify the data here, but log it for investigation
+          // The migration should have fixed this, but if not, we'll handle it gracefully
+        }
+        
+        return tx;
+      });
+      
+      // Extract inventory transaction IDs from referensi and fetch catatan
+      const inventoryTransactionIds = filteredTransactions
+        .filter(t => t.referensi && typeof t.referensi === 'string' && t.referensi.startsWith('inventory_sale:'))
+        .map(t => {
+          const idStr = (t.referensi as string).replace('inventory_sale:', '').trim();
+          // Validate UUID format (basic check)
+          if (idStr && idStr.length === 36) {
+            return idStr;
+          }
+          return null;
+        })
+        .filter((id): id is string => id !== null);
+      
+      // Fetch transaksi_inventaris data for these IDs
+      // Include inventaris join to get nama_barang for complete description
+      let inventoryTransactionsMap: Record<string, any> = {};
+      if (inventoryTransactionIds.length > 0) {
+        const { data: inventoryTransactions } = await supabase
+          .from('transaksi_inventaris')
+          .select(`
+            id, 
+            catatan, 
+            sumbangan, 
+            harga_dasar,
+            jumlah,
+            inventaris:item_id(nama_barang)
+          `)
+          .in('id', inventoryTransactionIds);
+        
+        if (inventoryTransactions) {
+          inventoryTransactionsMap = inventoryTransactions.reduce((acc, ti) => {
+            acc[ti.id] = ti;
+            return acc;
+          }, {} as Record<string, any>);
+        }
+      }
+      
+      // Helper function to clean description - remove "Sumbangan: Rp 0" and hajat from donasi
+      const cleanDescription = (deskripsi: string, kategori?: string): string => {
+        if (!deskripsi) return deskripsi;
+        
+        let cleaned = deskripsi;
+        
+        // Remove hajat/doa dari deskripsi donasi TERLEBIH DAHULU
+        // Format: "Donasi tunai dari [nama] (Hajat: ...)" atau "Donasi dari [nama] (Hajat: ...)"
+        // Hapus pola seperti: " (Hajat: ...)" atau "(Hajat: ...)" dengan berbagai variasi
+        cleaned = cleaned.replace(/\s*\(Hajat:.*?\)/gi, '');
+        cleaned = cleaned.replace(/\s*\(Doa:.*?\)/gi, '');
+        cleaned = cleaned.replace(/\s*\(Hajat.*?\)/gi, ''); // Variasi tanpa titik dua
+        cleaned = cleaned.replace(/\s*\(Doa.*?\)/gi, ''); // Variasi tanpa titik dua
+        
+        // Remove "Donasi tunai dari" atau "Donasi dari" prefix untuk donasi (hanya nama donatur)
+        if (kategori === 'Donasi' || kategori === 'Donasi Tunai' || cleaned.includes('Donasi tunai dari') || cleaned.includes('Donasi dari')) {
+          cleaned = cleaned.replace(/^Donasi tunai dari\s+/i, '');
+          cleaned = cleaned.replace(/^Donasi dari\s+/i, '');
+        }
+        
+        // Remove "Sumbangan: Rp 0" patterns with various formats
+        // Pattern examples: 
+        // - ", Sumbangan: Rp 0"
+        // - ", Sumbangan: Rp 0,00"
+        // - ", Sumbangan: Rp 0.00"
+        // - ", Sumbangan: Rp 0,000"
+        // - "Sumbangan: Rp 0" (at the end)
+        // Match: comma (optional), "Sumbangan:", "Rp", optional spaces, "0" followed by optional decimal part
+        // IMPORTANT: Only remove if value is exactly 0, not if it's > 0
+        cleaned = cleaned.replace(/,\s*Sumbangan:\s*Rp\s*0([.,]0+)?\s*/gi, '');
+        
+        // Also handle if it's at the end without comma (but preceded by space or at start)
+        cleaned = cleaned.replace(/\s+Sumbangan:\s*Rp\s*0([.,]0+)?\s*/gi, '');
+        
+        // Clean up any double spaces or trailing commas/spaces
+        cleaned = cleaned.replace(/\s{2,}/g, ' ').replace(/,\s*$/, '').trim();
+        
+        return cleaned;
+      };
+
+      // Helper function to extract sumbangan info from catatan
+      const extractSumbanganInfo = (catatan: string): string | null => {
+        if (!catatan) return null;
+        const sumbanganMatch = catatan.match(/Sumbangan:\s*Rp\s*([\d.,]+)/i);
+        if (sumbanganMatch) {
+          const sumbanganValue = parseFloat(sumbanganMatch[1].replace(/[,.]/g, '')) || 0;
+          if (sumbanganValue > 0) {
+            return `Sumbangan: Rp ${sumbanganValue.toLocaleString('id-ID')}`;
+          }
+        }
+        return null;
+      };
+
+      // Helper function to normalize keuangan deskripsi format
+      // Convert "Penjualan X kepada Y" to "X / Y" format
+      const normalizeKeuanganDeskripsi = (deskripsi: string): string => {
+        if (!deskripsi) return deskripsi;
+        
+        // Pattern: "Penjualan [item] ([qty] unit) kepada [penerima]"
+        const match = deskripsi.match(/Penjualan\s+(.+?)\s+\((\d+)\s+unit\)\s+kepada\s+(.+)/i);
+        if (match) {
+          const [, item, qty, penerima] = match;
+          return `${item} (${qty} unit) / ${penerima}`;
+        }
+        
+        // Pattern: "Penjualan [item] ([qty] unit)" (no penerima)
+        const match2 = deskripsi.match(/Penjualan\s+(.+?)\s+\((\d+)\s+unit\)/i);
+        if (match2) {
+          const [, item, qty] = match2;
+          return `${item} (${qty} unit)`;
+        }
+        
+        return deskripsi;
+      };
+
+      // Helper function to check if deskripsi contains item name
+      // Returns true if deskripsi looks complete (has item name, not just "Penjualan - Harga Dasar")
+      const isDeskripsiComplete = (deskripsi: string): boolean => {
+        if (!deskripsi || deskripsi.trim() === '' || deskripsi === '-') return false;
+        
+        // Check if it's just "Penjualan - Harga Dasar" without item name
+        if (/^Penjualan\s*-\s*Harga\s+Dasar:/i.test(deskripsi.trim())) {
+          return false;
+        }
+        
+        // Check if it matches pattern "Penjualan [item] ([qty] unit)" - this is complete
+        if (/Penjualan\s+.+?\s+\(\d+\s+unit\)/i.test(deskripsi)) {
+          return true;
+        }
+        
+        // Check if it's normalized format "[item] ([qty] unit)" - this is also complete
+        if (/^.+?\s+\(\d+\s+unit\)/i.test(deskripsi.trim())) {
+          return true;
+        }
+        
+        // If it doesn't match known incomplete patterns, assume it's complete
+        return true;
+      };
+
+      // Helper function to build complete description for inventory sales
+      const buildInventorySaleDescription = (
+        keuanganDeskripsi: string,
+        catatan: string | null,
+        inventoryTx: any,
+        penerimaPembayar: string | null
+      ): string => {
+        // CRITICAL: Always prioritize inventaris.nama_barang if available
+        // This ensures we always have the item name, even if keuangan.deskripsi is incomplete
+        const itemName = inventoryTx?.inventaris?.nama_barang || null;
+        const jumlah = inventoryTx?.jumlah || null;
+        
+        // Normalize keuangan deskripsi format first
+        let normalizedDeskripsi = normalizeKeuanganDeskripsi(keuanganDeskripsi);
+        
+        // Check if keuangan.deskripsi is complete (has item name)
+        const deskripsiIsComplete = isDeskripsiComplete(normalizedDeskripsi);
+        
+        // If we have item name from inventaris, always use it to build complete description
+        if (itemName && jumlah !== null) {
+          // Build description from inventaris data (most reliable source)
+          let desc = `${itemName} (${jumlah} unit)`;
+          
+          // Add penerima if available
+          if (penerimaPembayar) {
+            desc += ` / ${penerimaPembayar}`;
+          }
+          
+          // Extract additional info from catatan if available
+          if (catatan) {
+            const sumbanganInfo = extractSumbanganInfo(catatan);
+            const hargaDasarMatch = catatan.match(/Harga Dasar:\s*Rp\s*([\d.,]+)/i);
+            const hargaDasar = hargaDasarMatch ? hargaDasarMatch[1] : '';
+            
+            // Only add harga dasar if not already in deskripsi and if catatan has it
+            if (hargaDasar && !normalizedDeskripsi.includes('Harga Dasar')) {
+              desc += ` - Harga Dasar: Rp ${hargaDasar}/unit`;
+            }
+            
+            // Add sumbangan if > 0
+            if (sumbanganInfo) {
+              desc += ` - ${sumbanganInfo}`;
+            }
+          }
+          
+          return desc;
+        }
+        
+        // Fallback: If keuangan.deskripsi is complete, use it (but add sumbangan if needed)
+        if (deskripsiIsComplete && normalizedDeskripsi && normalizedDeskripsi.trim() !== '' && normalizedDeskripsi !== '-') {
+          const sumbanganInfo = catatan ? extractSumbanganInfo(catatan) : null;
+          if (sumbanganInfo && !normalizedDeskripsi.includes('Sumbangan')) {
+            return `${normalizedDeskripsi} - ${sumbanganInfo}`;
+          }
+          return normalizedDeskripsi;
+        }
+        
+        // Final fallback: use catatan as-is (but this should rarely happen if inventaris data is available)
+        return catatan || keuanganDeskripsi || 'Penjualan Inventaris';
+      };
+
       // Transform transactions
-      const transformedTransactions = filteredTransactions.map(transaction => ({
-        ...transaction,
-        akun_kas_nama: (transaction.akun_kas?.nama || transaction.akun_kas_nama || '') || 'Kas Utama',
-        display_category: transaction.kategori || 'Lainnya',
-        source_type: transaction.sub_kategori || transaction.kategori || 'Manual',
-        display_description: (transaction.deskripsi || '') || (
-          (transaction.jenis_transaksi === 'Pemasukan' ? 'Pemasukan' : 'Pengeluaran') +
-          (transaction.kategori ? ` - ${transaction.kategori}` : '')
-        )
-      }));
+      const transformedTransactions = filteredTransactions.map(transaction => {
+        // For inventory sales, get catatan and inventory transaction info
+        let catatanFromInventaris = null;
+        let inventoryTx = null;
+        if (transaction.referensi && transaction.referensi.startsWith('inventory_sale:')) {
+          const transactionId = transaction.referensi.replace('inventory_sale:', '').trim();
+          inventoryTx = inventoryTransactionsMap[transactionId];
+          
+          // Debug logging untuk transaksi yang tidak memiliki inventaris data
+          if (!inventoryTx) {
+            console.warn('[KeuanganV3] Inventory transaction not found:', {
+              keuanganId: transaction.id,
+              referensi: transaction.referensi,
+              transactionId,
+              availableIds: Object.keys(inventoryTransactionsMap)
+            });
+          } else if (!inventoryTx.inventaris?.nama_barang) {
+            console.warn('[KeuanganV3] Inventory transaction missing nama_barang:', {
+              keuanganId: transaction.id,
+              transactionId,
+              inventoryTx: {
+                id: inventoryTx.id,
+                hasInventaris: !!inventoryTx.inventaris,
+                inventarisData: inventoryTx.inventaris
+              }
+            });
+          }
+          
+          if (inventoryTx && inventoryTx.catatan) {
+            catatanFromInventaris = inventoryTx.catatan;
+          }
+        }
+        
+        // Build description based on transaction type
+        let finalDeskripsi = '';
+        if (transaction.kategori === 'Penjualan Inventaris' && transaction.referensi?.startsWith('inventory_sale:')) {
+          // For inventory sales, use special logic to combine keuangan.deskripsi + catatan info
+          // CRITICAL: This function now ALWAYS uses inventaris.nama_barang if available
+          finalDeskripsi = buildInventorySaleDescription(
+            transaction.deskripsi || '',
+            catatanFromInventaris,
+            inventoryTx,
+            transaction.penerima_pembayar || null
+          );
+          
+          // Final safety check: if finalDeskripsi still doesn't have item name and we have inventoryTx, force rebuild
+          if (inventoryTx?.inventaris?.nama_barang && 
+              !finalDeskripsi.includes(inventoryTx.inventaris.nama_barang) &&
+              !finalDeskripsi.match(/^.+?\s+\(\d+\s+unit\)/i)) {
+            // Rebuild dengan memaksa menggunakan nama_barang
+            const itemName = inventoryTx.inventaris.nama_barang;
+            const jumlah = inventoryTx.jumlah || '';
+            finalDeskripsi = `${itemName} (${jumlah} unit)`;
+            if (transaction.penerima_pembayar) {
+              finalDeskripsi += ` / ${transaction.penerima_pembayar}`;
+            }
+            console.log('[KeuanganV3] Rebuilt description with forced item name:', finalDeskripsi);
+          }
+        } else {
+          // For other transactions, use catatan if available, otherwise use deskripsi
+          finalDeskripsi = catatanFromInventaris || transaction.deskripsi || '';
+        }
+        
+        // Clean description (remove "Sumbangan: Rp 0" and hajat from donasi)
+        const cleanedDeskripsi = cleanDescription(finalDeskripsi, transaction.kategori);
+        
+        return {
+          ...transaction,
+          akun_kas_nama: (transaction.akun_kas?.nama || transaction.akun_kas_nama || '') || 'Kas Utama',
+          display_category: transaction.kategori || 'Lainnya',
+          source_type: transaction.sub_kategori || transaction.kategori || 'Manual',
+          display_description: cleanedDeskripsi || (
+            (transaction.jenis_transaksi === 'Pemasukan' ? 'Pemasukan' : 'Pengeluaran') +
+            (transaction.kategori ? ` - ${transaction.kategori}` : '')
+          )
+        };
+      });
       
       // FIXED: Get accurate statistics using new getAkunKasStats function
       const akunKasStats = await getAkunKasStats(selectedAccountFilter);
@@ -383,8 +482,13 @@ const KeuanganV3: React.FC = () => {
       setRecentTransactions(transformedTransactions);
       setAkunKas(accounts);
       
-      // Load chart data after main data is loaded
-      await loadChartData(selectedAccountFilter);
+      // Load chart data after main data is loaded (non-blocking untuk mempercepat initial render)
+      // Use setTimeout to defer chart loading and improve perceived performance
+      setTimeout(() => {
+        loadChartData(selectedAccountFilter).catch(err => {
+          console.error('Error loading chart data:', err);
+        });
+      }, 100);
       
     } catch (error) {
       console.error('Error loading data:', error);
@@ -412,9 +516,14 @@ const KeuanganV3: React.FC = () => {
   };
 
   const handleFormSuccess = () => {
+    // Close all forms
     setShowForm(false);
+    setShowFormPemasukan(false);
+    setShowFormPenyesuaianSaldo(false);
+    // Reload data to reflect changes
     loadData();
-    toast.success('Pengeluaran berhasil disimpan');
+    loadChartData(selectedAccountFilter);
+    // Note: Toast messages are handled by individual form components
   };
 
   const handleEditSuccess = () => {
@@ -802,11 +911,25 @@ const KeuanganV3: React.FC = () => {
   };
 
   const handleEditTransaction = (transaction: any) => {
+    // Prevent editing auto-posted entries
+    if (transaction.auto_posted) {
+      const sourceModule = transaction.source_module || 'modul lain';
+      toast.error(`Transaksi ini berasal dari ${sourceModule} dan tidak dapat diedit. Edit dari modul sumber terlebih dahulu.`);
+      return;
+    }
+    
     setSelectedTransaction(transaction);
     setShowTransactionEdit(true);
   };
 
   const handleDeleteTransaction = async (transaction: any) => {
+    // Prevent deleting auto-posted entries
+    if (transaction.auto_posted) {
+      const sourceModule = transaction.source_module || 'modul lain';
+      toast.error(`Transaksi ini berasal dari ${sourceModule} dan tidak dapat dihapus. Hapus dari modul sumber terlebih dahulu.`);
+      return;
+    }
+    
     const confirmed = window.confirm(
       `Apakah Anda yakin ingin menghapus transaksi "${transaction.deskripsi || transaction.kategori}" senilai ${new Intl.NumberFormat('id-ID', {
         style: 'currency',
@@ -819,7 +942,15 @@ const KeuanganV3: React.FC = () => {
       try {
         // Use atomic RPC to delete and recalc saldo in one DB transaction
         const { error } = await supabase.rpc('delete_keuangan_and_recalc', { p_keuangan_id: transaction.id });
-        if (error) throw error;
+        
+        // Handle RLS policy error (403 Forbidden)
+        if (error) {
+          if (error.code === '42501' || error.message?.includes('permission denied') || error.message?.includes('policy')) {
+            toast.error('Transaksi ini tidak dapat dihapus karena berasal dari modul lain. Hapus dari modul sumber terlebih dahulu.');
+            return;
+          }
+          throw error;
+        }
         
         toast.success('Transaksi berhasil dihapus');
         // Refetch data to sync UI
@@ -834,18 +965,42 @@ const KeuanganV3: React.FC = () => {
 
   const handleDeleteAccount = async (account: any) => {
     console.log('handleDeleteAccount called with:', account); // Debug log
+    
+    // Check if account has transactions first
+    try {
+      const { data: checkResult, error: checkError } = await supabase
+        .rpc('check_akun_kas_deletable', { p_akun_kas_id: account.id });
+      
+      if (checkError) {
+        console.error('Error checking deletable:', checkError);
+      } else if (checkResult && !checkResult.deletable) {
+        toast.error(checkResult.reason || 'Akun kas masih memiliki transaksi dan tidak dapat dihapus');
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking deletable:', error);
+    }
+    
     const confirmed = window.confirm(
-      `Apakah Anda yakin ingin menghapus akun "${account.nama}"? Tindakan ini tidak dapat dibatalkan dan akan menghapus semua transaksi yang terkait dengan akun ini.`
+      `Apakah Anda yakin ingin menutup akun "${account.nama}"? Akun akan diubah statusnya menjadi "ditutup" dan tidak akan muncul di daftar akun aktif.`
     );
     
     if (confirmed) {
       try {
         await AkunKasService.delete(account.id);
-        toast.success('Akun berhasil dihapus');
+        toast.success('Akun berhasil ditutup');
         await loadData(); // Reload data
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error deleting account:', error);
-        toast.error('Gagal menghapus akun');
+        
+        // Enhanced error handling
+        if (error.message?.includes('masih memiliki') || error.message?.includes('transaksi')) {
+          toast.error('Tidak dapat menutup akun karena masih memiliki transaksi. Silakan pindahkan atau hapus transaksi terlebih dahulu.');
+        } else if (error.message?.includes('foreign key constraint') || error.message?.includes('RESTRICT')) {
+          toast.error('Tidak dapat menutup akun karena masih memiliki transaksi terkait.');
+        } else {
+          toast.error(`Gagal menutup akun: ${error.message || 'Terjadi kesalahan tidak diketahui'}`);
+        }
       }
     }
   };
@@ -855,7 +1010,7 @@ const KeuanganV3: React.FC = () => {
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center space-y-4">
           <RefreshCw className="h-8 w-8 animate-spin" />
-          <p className="text-muted-foreground">Memuat data keuangan...</p>
+          <p className="text-muted-foreground">Memuat data keuangan...</p >
         </div>
       </div>
     );
@@ -876,42 +1031,74 @@ const KeuanganV3: React.FC = () => {
   const selectedAccountName = currentSelectedAccount?.nama;
 
   return (
-    <div className="container mx-auto p-6 space-y-4 bg-gray-50 min-h-screen">
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 bg-white min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Keuangan Umum</h1>
-          <p className="text-muted-foreground">
-            Dashboard keuangan terpadu dengan tracking per santri
-          </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={refreshing}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowExportDialog(true)}
-          >
-            <FileText className="h-4 w-4 mr-2" />
-            Export PDF v3
-          </Button>
-          <Button size="sm" onClick={handleInputPengeluaran}>
-            <Plus className="h-4 w-4 mr-2" />
-            Input Pengeluaran
-          </Button>
+      {/* Modern Header Section */}
+      <div className="mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-light tracking-tight text-gray-900">Keuangan</h1>
+          </div>
+          
+          {/* Action Buttons - Grouped and Clean */}
+          <div className="flex items-center gap-2 flex-wrap justify-end ml-auto">
+            {/* Primary Actions */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Button 
+                size="sm" 
+                onClick={handleInputPengeluaran}
+                className="bg-gray-900 hover:bg-gray-800 text-white shadow-sm whitespace-nowrap text-xs sm:text-sm"
+              >
+                <Plus className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Pengeluaran</span>
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => setShowFormPemasukan(true)}
+                className="border-gray-200 hover:bg-gray-50 text-gray-700 whitespace-nowrap text-xs sm:text-sm"
+              >
+                <TrendingUp className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Pemasukan</span>
+              </Button>
+            </div>
+            
+            {/* Secondary Actions */}
+            <div className="flex items-center gap-2 border-l border-gray-200 pl-2 flex-shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowFormPenyesuaianSaldo(true)}
+                className="text-gray-600 hover:text-gray-900 hover:bg-gray-50 whitespace-nowrap text-xs sm:text-sm"
+              >
+                <RefreshCw className="h-4 w-4 sm:mr-2" />
+                <span className="hidden md:inline">Penyesuaian</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowExportDialog(true)}
+                className="text-gray-600 hover:text-gray-900 hover:bg-gray-50 whitespace-nowrap text-xs sm:text-sm"
+              >
+                <FileText className="h-4 w-4 sm:mr-2" />
+                <span className="hidden md:inline">Export</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="text-gray-600 hover:text-gray-900 hover:bg-gray-50 flex-shrink-0"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Section 1: Simplified Top Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Section 1: Account & Balance Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Account Cards */}
                 <div>
                   <StackedAccountCards
@@ -933,6 +1120,14 @@ const KeuanganV3: React.FC = () => {
             accountCount={totals.accountCount}
             selectedAccount={currentSelectedAccount}
             onViewAllAccounts={() => handleSelectAccount(undefined)}
+            onTransfer={() => {
+              // TODO: Implement transfer antar akun kas
+              toast.info('Fitur transfer antar akun akan segera tersedia');
+            }}
+            onRequest={() => {
+              // TODO: Implement request/pengajuan dana
+              toast.info('Fitur pengajuan dana akan segera tersedia');
+            }}
           />
         </div>
       </div>
@@ -969,9 +1164,6 @@ const KeuanganV3: React.FC = () => {
         onViewDetail={handleViewDetail}
         onEditTransaction={handleEditTransaction}
         onDeleteTransaction={handleDeleteTransaction}
-        onExportPDF={handleExportPDF}
-        onExportExcel={handleExportExcel}
-        onExportAll={handleExportAll}
       />
 
       {/* Modal for Input Pengeluaran */}
@@ -981,6 +1173,26 @@ const KeuanganV3: React.FC = () => {
             <DialogTitle>Input Pengeluaran</DialogTitle>
           </DialogHeader>
           <FormPengeluaranRinci onSuccess={handleFormSuccess} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal for Input Pemasukan Manual */}
+      <Dialog open={showFormPemasukan} onOpenChange={setShowFormPemasukan}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Input Pemasukan Manual</DialogTitle>
+          </DialogHeader>
+          <FormPemasukanManual onSuccess={handleFormSuccess} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal for Penyesuaian Saldo */}
+      <Dialog open={showFormPenyesuaianSaldo} onOpenChange={setShowFormPenyesuaianSaldo}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Penyesuaian Saldo Akun Kas</DialogTitle>
+          </DialogHeader>
+          <FormPenyesuaianSaldo onSuccess={handleFormSuccess} />
         </DialogContent>
       </Dialog>
 

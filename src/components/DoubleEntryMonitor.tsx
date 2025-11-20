@@ -71,6 +71,7 @@ const DoubleEntryMonitor: React.FC<DoubleEntryMonitorProps> = ({
   const hasIssues = (doubleEntries?.length || 0) > 0 || (orphanedEntries?.length || 0) > 0;
   const hasDoubleEntries = (doubleEntries?.length || 0) > 0;
   const hasOrphanedEntries = (orphanedEntries?.length || 0) > 0;
+  const isLoading = doubleEntriesLoading || summaryLoading || reconciliationLoading || orphanedLoading;
 
   const formatRupiah = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {

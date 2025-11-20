@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AkademikPloatingService, KelasOption, SantriLite } from '@/services/akademikPloating.service';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,8 @@ const PloatingKelasSimple: React.FC = () => {
   const [hasilCari, setHasilCari] = useState<SantriLite[]>([]);
   const [selectedSantri, setSelectedSantri] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [kategoriFilter, setKategoriFilter] = useState<string>('all');
 
   const selectedKelas = useMemo(() => kelasOptions.find(k => k.id === kelasId), [kelasOptions, kelasId]);
 
@@ -47,14 +49,25 @@ const PloatingKelasSimple: React.FC = () => {
   useEffect(() => { loadKelas(); }, []);
   useEffect(() => { if (kelasId) loadAnggota(kelasId); }, [kelasId]);
 
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
     try {
+      setSearching(true);
       const res = await AkademikPloatingService.searchSantri(query);
       setHasilCari(res);
+      // Reset filter jika kategori tidak ditemukan lagi
+      if (kategoriFilter !== 'all' && !res.some(s => (s.kategori || '').toLowerCase() === kategoriFilter.toLowerCase())) {
+        setKategoriFilter('all');
+      }
     } catch (e: any) {
       toast.error(e.message || 'Gagal mencari santri');
+    } finally {
+      setSearching(false);
     }
-  };
+  }, [query, kategoriFilter]);
+
+  useEffect(() => {
+    handleSearch();
+  }, [handleSearch]);
 
   const toggleSelect = (sid: string) => {
     setSelectedSantri(prev => prev.includes(sid) ? prev.filter(x => x !== sid) : [...prev, sid]);
@@ -86,6 +99,21 @@ const PloatingKelasSimple: React.FC = () => {
     }
   };
 
+  const kategoriOptions = useMemo(() => {
+    const set = new Set<string>();
+    hasilCari.forEach(item => {
+      if (item.kategori) {
+        set.add(item.kategori);
+      }
+    });
+    return Array.from(set);
+  }, [hasilCari]);
+
+  const filteredResults = useMemo(() => {
+    if (kategoriFilter === 'all') return hasilCari;
+    return hasilCari.filter(item => (item.kategori || '').toLowerCase() === kategoriFilter.toLowerCase());
+  }, [hasilCari, kategoriFilter]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -112,14 +140,44 @@ const PloatingKelasSimple: React.FC = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="md:col-span-2">
+          <div className="md:col-span-2 flex flex-col gap-2">
             <div className="flex gap-2 items-end">
               <div className="flex-1">
                 <Label>Cari Santri</Label>
-                <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nama atau NISN" />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSearch();
+                    }
+                  }}
+                  placeholder="Nama atau ID Santri"
+                />
               </div>
-              <Button onClick={handleSearch}>Cari</Button>
-              <Button variant="secondary" onClick={addSelected}><Plus className="w-4 h-4 mr-2" />Tambah Terpilih</Button>
+              <div className="w-40">
+                <Label>Kategori</Label>
+                <Select value={kategoriFilter} onValueChange={setKategoriFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua kategori" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Kategori</SelectItem>
+                    {kategoriOptions.map(k => (
+                      <SelectItem key={k} value={k}>
+                        {k}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleSearch} disabled={searching}>
+                {searching ? 'Mencari...' : 'Cari'}
+              </Button>
+              <Button variant="secondary" onClick={addSelected}>
+                <Plus className="w-4 h-4 mr-2" />
+                Tambah Terpilih
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -138,18 +196,25 @@ const PloatingKelasSimple: React.FC = () => {
                   <TableRow>
                     <TableHead className="w-10"></TableHead>
                     <TableHead>Nama</TableHead>
-                    <TableHead>NISN</TableHead>
+                    <TableHead>ID Santri</TableHead>
                     <TableHead>Kategori</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {hasilCari.map(s => (
+                  {filteredResults.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        {searching ? 'Mencari santri...' : 'Belum ada hasil. Coba kata kunci lain atau ubah filter kategori.'}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {filteredResults.map(s => (
                     <TableRow key={s.id}>
                       <TableCell>
                         <Checkbox checked={selectedSantri.includes(s.id)} onCheckedChange={() => toggleSelect(s.id)} />
                       </TableCell>
                       <TableCell className="font-medium">{s.nama_lengkap}</TableCell>
-                      <TableCell>{s.nisn || '-'}</TableCell>
+                      <TableCell>{s.id_santri || '-'}</TableCell>
                       <TableCell>{s.kategori || '-'}</TableCell>
                     </TableRow>
                   ))}
@@ -174,7 +239,7 @@ const PloatingKelasSimple: React.FC = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nama</TableHead>
-                    <TableHead>NISN</TableHead>
+                    <TableHead>ID Santri</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -182,7 +247,7 @@ const PloatingKelasSimple: React.FC = () => {
                   {anggota.map(s => (
                     <TableRow key={s.id}>
                       <TableCell className="font-medium">{s.nama_lengkap}</TableCell>
-                      <TableCell>{s.nisn || '-'}</TableCell>
+                      <TableCell>{s.id_santri || '-'}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => removeMember(s.id)}>
                           <Trash2 className="w-4 h-4 text-red-600" />

@@ -24,6 +24,8 @@ interface Transaction {
   display_category?: string;
   source_type?: string;
   display_description?: string;
+  auto_posted?: boolean;
+  source_module?: string;
 }
 
 interface RecentActivitiesProps {
@@ -266,30 +268,47 @@ const RecentActivities: React.FC<RecentActivitiesProps> = ({
                 </div>
                 
                 {/* Actions */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onViewDetail?.(transaction)}>
-                      <Eye className="h-4 w-4 mr-2" />
-                      Lihat Detail
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onEditTransaction?.(transaction)}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => onDeleteTransaction?.(transaction)}
-                      className="text-red-600"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Hapus
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex items-center gap-2">
+                  {transaction.auto_posted && (
+                    <Badge variant="outline" className="text-xs" title="Transaksi auto-post dari modul lain (hanya bisa dilihat)">
+                      Auto-posted
+                    </Badge>
+                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onViewDetail?.(transaction)}>
+                        <Eye className="h-4 w-4 mr-2" />
+                        Lihat Detail
+                      </DropdownMenuItem>
+                      {/* Hide edit/delete for auto-posted entries */}
+                      {!transaction.auto_posted && (
+                        <>
+                          <DropdownMenuItem onClick={() => onEditTransaction?.(transaction)}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => onDeleteTransaction?.(transaction)}
+                            className="text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Hapus
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      {transaction.auto_posted && (
+                        <DropdownMenuItem disabled className="text-muted-foreground">
+                          <span className="text-xs">Edit/Hapus tidak tersedia untuk transaksi auto-post</span>
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             ))
           )}

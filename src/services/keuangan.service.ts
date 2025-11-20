@@ -1,5 +1,12 @@
 import { supabase } from '@/integrations/supabase/client';
 // Fixed imports and functions for accurate statistics
+// Shared utilities untuk filtering (Phase 1 & 2 refactoring)
+import { 
+  excludeTabunganTransactions, 
+  applyTabunganExclusionFilter,
+  excludeTabunganAccounts,
+  isTabunganAccount
+} from '@/utils/keuanganFilters';
 
 export interface KeuanganData {
   jenis_transaksi: 'Pemasukan' | 'Pengeluaran';
@@ -73,16 +80,27 @@ export const addKeuanganTransaction = async (data: KeuanganData): Promise<any> =
     }
   }
   
+  // Deteksi apakah ini adalah fallback sistem (bukan manual user)
+  // Jika ada referensi yang mengindikasikan dari modul lain (inventaris, donasi, dll),
+  // maka ini adalah auto-posted system entry, bukan manual entry
+  const isSystemFallback = data.referensi && (
+    data.referensi.startsWith('inventaris:') ||
+    data.referensi.startsWith('inventory_sale:') ||
+    data.referensi.startsWith('donasi:') ||
+    data.referensi.startsWith('pembayaran_santri:')
+  );
+  
   // Insert transaksi with enhanced tracking
   const enhancedData = {
     ...data,
-    auto_posted: false, // Manual transactions are not auto-posted
+    // Set auto_posted = TRUE jika ini adalah fallback sistem, FALSE jika manual user
+    auto_posted: isSystemFallback ? true : (data.auto_posted ?? false),
     source_module: data.referensi?.split(':')[0] || null,
     source_id: data.referensi?.split(':')[1] || null,
     audit_trail: {
-      created_by: 'manual',
+      created_by: isSystemFallback ? 'system_fallback' : 'manual',
       created_at: new Date().toISOString(),
-      method: 'manual_entry'
+      method: isSystemFallback ? 'system_fallback' : 'manual_entry'
     }
   };
   
@@ -104,38 +122,31 @@ export const getKeuanganDashboardStats = async (): Promise<KeuanganStats> => {
   startOfMonth.setHours(0, 0, 0, 0);
 
   // Get total saldo dari akun_kas
-  // EXCLUDE accounts managed by tabungan module
+  // EXCLUDE accounts managed by tabungan module (using shared utility)
   const { data: akunKas } = await supabase
     .from('akun_kas')
     .select('saldo_saat_ini, managed_by')
     .eq('status', 'aktif');
 
-  // Only count accounts not managed by tabungan
-  const totalSaldo = akunKas
-    ?.filter(akun => akun.managed_by !== 'tabungan')
-    .reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0) || 0;
+  // Only count accounts not managed by tabungan (using shared utility)
+  const filteredAkunKas = excludeTabunganAccounts(akunKas);
+  const totalSaldo = filteredAkunKas.reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
 
   // Get pemasukan bulan ini (using improved filtering)
-  // Exclude tabungan transactions
+  // Exclude tabungan transactions (using shared utility)
   let pemasukanQuery = supabase
     .from('keuangan')
     .select('jumlah, auto_posted, source_module')
     .eq('jenis_transaksi', 'Pemasukan')
     .eq('status', 'posted')
-    .gte('tanggal', startOfMonth.toISOString())
-    .or('source_module.is.null,source_module.neq.tabungan_santri');
+    .gte('tanggal', startOfMonth.toISOString());
+  
+  pemasukanQuery = applyTabunganExclusionFilter(pemasukanQuery);
     
   const { data: pemasukan } = await pemasukanQuery;
 
-  // Filter out tabungan transactions and potential duplicates
-  const filteredPemasukan = pemasukan?.filter(item => {
-    if (item.source_module && 
-        typeof item.source_module === 'string' &&
-        item.source_module.toLowerCase().includes('tabungan')) {
-      return false;
-    }
-    return true;
-  }) || [];
+  // Filter out tabungan transactions and potential duplicates (using shared utility)
+  const filteredPemasukan = excludeTabunganTransactions(pemasukan);
   
   // Filter out potential duplicates (keep only one per source)
   const uniquePemasukan = filteredPemasukan.reduce((acc, item) => {
@@ -149,26 +160,20 @@ export const getKeuanganDashboardStats = async (): Promise<KeuanganStats> => {
   const pemasukanBulanIni = Array.from(uniquePemasukan).reduce((sum, item) => sum + (item.jumlah || 0), 0);
 
   // Get pengeluaran bulan ini
-  // Exclude tabungan transactions
+  // Exclude tabungan transactions (using shared utility)
   let pengeluaranQuery = supabase
     .from('keuangan')
     .select('jumlah, source_module')
     .eq('jenis_transaksi', 'Pengeluaran')
     .eq('status', 'posted')
-    .gte('tanggal', startOfMonth.toISOString())
-    .or('source_module.is.null,source_module.neq.tabungan_santri');
+    .gte('tanggal', startOfMonth.toISOString());
+  
+  pengeluaranQuery = applyTabunganExclusionFilter(pengeluaranQuery);
     
   const { data: pengeluaran } = await pengeluaranQuery;
   
-  // Filter out tabungan transactions
-  const filteredPengeluaran = pengeluaran?.filter(item => {
-    if (item.source_module && 
-        typeof item.source_module === 'string' &&
-        item.source_module.toLowerCase().includes('tabungan')) {
-      return false;
-    }
-    return true;
-  }) || [];
+  // Filter out tabungan transactions (using shared utility)
+  const filteredPengeluaran = excludeTabunganTransactions(pengeluaran);
 
   const pengeluaranBulanIni = filteredPengeluaran.reduce((sum, item) => sum + (item.jumlah || 0), 0);
 
@@ -215,8 +220,8 @@ export const getAkunKasStats = async (akunKasId?: string): Promise<AkunKasStats>
 
   let query = supabase.from('keuangan').select('*');
 
-  // Exclude tabungan santri transactions
-  query = query.or('source_module.is.null,source_module.neq.tabungan_santri');
+  // Exclude tabungan santri transactions (using shared utility)
+  query = applyTabunganExclusionFilter(query);
 
   // Filter by akun kas if provided
   if (akunKasId) {
@@ -226,23 +231,11 @@ export const getAkunKasStats = async (akunKasId?: string): Promise<AkunKasStats>
   const { data: allTransactions, error } = await query;
   if (error) throw error;
   
-  // Additional client-side filtering to exclude tabungan transactions
-  const filteredTransactions = allTransactions?.filter(transaction => {
-    // Exclude if source_module contains 'tabungan'
-    if (transaction.source_module && 
-        typeof transaction.source_module === 'string' &&
-        transaction.source_module.toLowerCase().includes('tabungan')) {
-      return false;
-    }
-    // Exclude if kategori is 'Tabungan Santri'
-    if (transaction.kategori === 'Tabungan Santri') {
-      return false;
-    }
-    return true;
-  }) || [];
+  // Additional client-side filtering to exclude tabungan transactions (using shared utility)
+  const filteredTransactions = excludeTabunganTransactions(allTransactions);
 
   // Get akun kas saldo
-  // EXCLUDE accounts managed by tabungan module from total saldo
+  // EXCLUDE accounts managed by tabungan module from total saldo (using shared utility)
   let totalSaldo = 0;
   if (akunKasId) {
     const { data: akunKas } = await supabase
@@ -251,8 +244,8 @@ export const getAkunKasStats = async (akunKasId?: string): Promise<AkunKasStats>
       .eq('id', akunKasId)
       .single();
     
-    // Only count if not managed by tabungan
-    if (akunKas && akunKas.managed_by !== 'tabungan') {
+    // Only count if not managed by tabungan (using shared utility)
+    if (akunKas && !isTabunganAccount(akunKas)) {
       totalSaldo = akunKas.saldo_saat_ini || 0;
     }
   } else {
@@ -261,10 +254,9 @@ export const getAkunKasStats = async (akunKasId?: string): Promise<AkunKasStats>
       .select('saldo_saat_ini, managed_by')
       .eq('status', 'aktif');
     
-    // Only count accounts not managed by tabungan
-    totalSaldo = allAkun
-      ?.filter(akun => akun.managed_by !== 'tabungan')
-      .reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0) || 0;
+    // Only count accounts not managed by tabungan (using shared utility)
+    const filteredAkun = excludeTabunganAccounts(allAkun);
+    totalSaldo = filteredAkun.reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
   }
 
   // Filter current month transactions (already filtered for tabungan)

@@ -4,18 +4,27 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Upload, Download, FileText, AlertCircle } from 'lucide-react';
+import { X, Upload, Download, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { createInventoryItem, listInventory } from '@/services/inventaris.service';
+import { exportToCSV } from '@/utils/inventaris.utils';
 
 interface ImportExportProps {
   onClose: () => void;
   mode: 'import' | 'export';
+  onImportSuccess?: () => void; // Callback untuk refresh data setelah import
+  inventoryData?: any[]; // Data inventaris untuk export (optional, akan fetch jika tidak ada)
 }
 
-const ImportExport = ({ onClose, mode }: ImportExportProps) => {
+const ImportExport = ({ onClose, mode, onImportSuccess, inventoryData }: ImportExportProps) => {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [exportFormat, setExportFormat] = useState('excel');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [importResult, setImportResult] = useState<{
+    success: number;
+    failed: number;
+    errors: string[];
+  } | null>(null);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -36,6 +45,51 @@ const ImportExport = ({ onClose, mode }: ImportExportProps) => {
     }
   };
 
+  // Parse CSV file
+  const parseCSV = (text: string): string[][] => {
+    const lines: string[][] = [];
+    let currentLine: string[] = [];
+    let currentField = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          currentField += '"';
+          i++; // Skip next quote
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        currentLine.push(currentField.trim());
+        currentField = '';
+      } else if ((char === '\n' || char === '\r') && !inQuotes) {
+        if (currentField || currentLine.length > 0) {
+          currentLine.push(currentField.trim());
+          lines.push(currentLine);
+          currentLine = [];
+          currentField = '';
+        }
+        if (char === '\r' && nextChar === '\n') {
+          i++; // Skip \n after \r
+        }
+      } else {
+        currentField += char;
+      }
+    }
+
+    // Add last line
+    if (currentField || currentLine.length > 0) {
+      currentLine.push(currentField.trim());
+      lines.push(currentLine);
+    }
+
+    return lines;
+  };
+
   const handleImport = async () => {
     if (!importFile) {
       toast.error('Pilih file terlebih dahulu');
@@ -43,18 +97,188 @@ const ImportExport = ({ onClose, mode }: ImportExportProps) => {
     }
 
     setIsProcessing(true);
+    setImportResult(null);
+
     try {
-      // Simulate import process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Here you would implement actual import logic
-      console.log('Importing file:', importFile.name);
-      
-      toast.success(`File ${importFile.name} berhasil diimpor!`);
-      onClose();
-    } catch (error) {
+      // Read file
+      const text = await importFile.text();
+      const lines = parseCSV(text);
+
+      if (lines.length < 2) {
+        toast.error('File CSV tidak valid. Minimal harus ada header dan 1 baris data.');
+        setIsProcessing(false);
+        return;
+      }
+
+      // Get header (first line)
+      const headers = lines[0].map(h => h.trim().toLowerCase());
+      console.log('CSV Headers:', headers);
+
+      // Map header indices
+      const headerMap: Record<string, number> = {};
+      headers.forEach((header, index) => {
+        headerMap[header] = index;
+      });
+
+      // Required fields mapping
+      const requiredFields = ['nama barang', 'tipe item', 'kategori', 'lokasi', 'kondisi', 'jumlah'];
+      const missingFields = requiredFields.filter(field => !headerMap[field]);
+
+      if (missingFields.length > 0) {
+        toast.error(`Kolom wajib tidak ditemukan: ${missingFields.join(', ')}`);
+        setIsProcessing(false);
+        return;
+      }
+
+      // Process data rows (skip header)
+      const dataRows = lines.slice(1);
+      let successCount = 0;
+      let failedCount = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        const rowNum = i + 2; // +2 karena header di line 1, dan index mulai dari 0
+
+        try {
+          // Extract data berdasarkan header
+          const getValue = (fieldName: string): string => {
+            const index = headerMap[fieldName];
+            return index !== undefined && row[index] ? row[index].trim() : '';
+          };
+
+          const namaBarang = getValue('nama barang');
+          const tipeItem = getValue('tipe item');
+          const kategori = getValue('kategori');
+          const zona = getValue('zona') || 'Gudang Utama';
+          const lokasi = getValue('lokasi');
+          const kondisi = getValue('kondisi');
+          const jumlah = getValue('jumlah');
+          const satuan = getValue('satuan') || 'pcs';
+          const hargaPerolehan = getValue('harga perolehan');
+          const sumber = getValue('sumber') || null;
+          const minStock = getValue('min stock');
+          const tanggalKedaluwarsa = getValue('tanggal kedaluwarsa');
+
+          // Validasi data wajib
+          if (!namaBarang || !tipeItem || !kategori || !lokasi || !kondisi || !jumlah) {
+            errors.push(`Baris ${rowNum}: Data wajib tidak lengkap`);
+            failedCount++;
+            continue;
+          }
+
+          // Validasi tipe item
+          if (tipeItem !== 'Aset' && tipeItem !== 'Komoditas') {
+            errors.push(`Baris ${rowNum}: Tipe Item harus "Aset" atau "Komoditas"`);
+            failedCount++;
+            continue;
+          }
+
+          // Validasi kondisi
+          const validKondisi = ['Baik', 'Rusak Ringan', 'Rusak Berat', 'Perlu Perbaikan'];
+          if (!validKondisi.includes(kondisi)) {
+            errors.push(`Baris ${rowNum}: Kondisi harus salah satu dari: ${validKondisi.join(', ')}`);
+            failedCount++;
+            continue;
+          }
+
+          // Parse numeric values
+          const jumlahNum = parseFloat(jumlah);
+          if (isNaN(jumlahNum) || jumlahNum < 0) {
+            errors.push(`Baris ${rowNum}: Jumlah harus berupa angka >= 0`);
+            failedCount++;
+            continue;
+          }
+
+          const hargaPerolehanNum = hargaPerolehan ? parseFloat(hargaPerolehan) : null;
+          if (hargaPerolehan && (isNaN(hargaPerolehanNum!) || hargaPerolehanNum! < 0)) {
+            errors.push(`Baris ${rowNum}: Harga Perolehan harus berupa angka >= 0`);
+            failedCount++;
+            continue;
+          }
+
+          const minStockNum = minStock ? parseFloat(minStock) : null;
+          if (minStock && (isNaN(minStockNum!) || minStockNum! < 0)) {
+            errors.push(`Baris ${rowNum}: Min Stock harus berupa angka >= 0`);
+            failedCount++;
+            continue;
+          }
+
+          // Validasi tanggal kedaluwarsa
+          let tanggalKedaluwarsaValid: string | null = null;
+          if (tanggalKedaluwarsa) {
+            const date = new Date(tanggalKedaluwarsa);
+            if (isNaN(date.getTime())) {
+              errors.push(`Baris ${rowNum}: Format tanggal kedaluwarsa tidak valid (gunakan YYYY-MM-DD)`);
+              failedCount++;
+              continue;
+            }
+            tanggalKedaluwarsaValid = tanggalKedaluwarsa;
+          }
+
+          // Validasi sumber
+          let sumberValid: 'Pembelian' | 'Donasi' | null = null;
+          if (sumber) {
+            if (sumber !== 'Pembelian' && sumber !== 'Donasi') {
+              errors.push(`Baris ${rowNum}: Sumber harus "Pembelian" atau "Donasi"`);
+              failedCount++;
+              continue;
+            }
+            sumberValid = sumber as 'Pembelian' | 'Donasi';
+          }
+
+          // Create inventory item
+          const payload = {
+            nama_barang: namaBarang,
+            tipe_item: tipeItem,
+            kategori: kategori,
+            zona: zona,
+            lokasi: lokasi,
+            kondisi: kondisi,
+            jumlah: jumlahNum,
+            satuan: satuan,
+            harga_perolehan: hargaPerolehanNum,
+            sumber: sumberValid,
+            min_stock: minStockNum,
+            has_expiry: !!tanggalKedaluwarsaValid,
+            tanggal_kedaluwarsa: tanggalKedaluwarsaValid,
+          };
+
+          await createInventoryItem(payload);
+          successCount++;
+
+        } catch (error: any) {
+          console.error(`Error importing row ${rowNum}:`, error);
+          errors.push(`Baris ${rowNum}: ${error.message || 'Error tidak diketahui'}`);
+          failedCount++;
+        }
+      }
+
+      // Set result
+      setImportResult({
+        success: successCount,
+        failed: failedCount,
+        errors: errors.slice(0, 10), // Max 10 errors untuk ditampilkan
+      });
+
+      // Show success message
+      if (successCount > 0) {
+        toast.success(
+          `Import berhasil! ${successCount} item berhasil diimpor${failedCount > 0 ? `, ${failedCount} gagal` : ''}`,
+          { duration: 5000 }
+        );
+        
+        // Refresh data
+        if (onImportSuccess) {
+          onImportSuccess();
+        }
+      } else {
+        toast.error(`Import gagal! Semua ${failedCount} item gagal diimpor`);
+      }
+
+    } catch (error: any) {
       console.error('Import error:', error);
-      toast.error('Gagal mengimpor file');
+      toast.error('Gagal mengimpor file: ' + error.message);
     } finally {
       setIsProcessing(false);
     }
@@ -63,28 +287,48 @@ const ImportExport = ({ onClose, mode }: ImportExportProps) => {
   const handleExport = async () => {
     setIsProcessing(true);
     try {
-      // Simulate export process
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Fetch data jika tidak disediakan
+      let dataToExport = inventoryData;
       
-      // Here you would implement actual export logic
-      const filename = `inventory_export_${new Date().toISOString().split('T')[0]}.${exportFormat === 'excel' ? 'xlsx' : 'csv'}`;
+      if (!dataToExport || dataToExport.length === 0) {
+        // Fetch semua data inventaris
+        const result = await listInventory({ page: 1, pageSize: 10000 }, {});
+        dataToExport = result.data || [];
+      }
+
+      if (dataToExport.length === 0) {
+        toast.error('Tidak ada data untuk diekspor');
+        setIsProcessing(false);
+        return;
+      }
+
+      // Format data untuk export sesuai template
+      const exportData = dataToExport.map((item) => ({
+        'Nama Barang': item.nama_barang || '',
+        'Tipe Item': item.tipe_item || '',
+        'Kategori': item.kategori || '',
+        'Zona': item.zona || '',
+        'Lokasi': item.lokasi || '',
+        'Kondisi': item.kondisi || '',
+        'Jumlah': item.jumlah || 0,
+        'Satuan': item.satuan || 'pcs',
+        'Harga Perolehan': item.harga_perolehan || 0,
+        'Sumber': item.sumber || '',
+        'Min Stock': item.min_stock || 0,
+        'Tanggal Kedaluwarsa': item.tanggal_kedaluwarsa || '',
+        'Total Nilai': (item.jumlah || 0) * (item.harga_perolehan || 0),
+        'Tanggal Dibuat': item.created_at || '',
+      }));
+
+      // Export menggunakan utility function
+      const filename = `inventaris_export_${new Date().toISOString().split('T')[0]}`;
+      exportToCSV(exportData, filename);
       
-      // Create a dummy download
-      const blob = new Blob(['Sample export data'], { type: 'application/octet-stream' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      
-      toast.success(`Data berhasil diekspor ke ${filename}`);
+      toast.success(`Data berhasil diekspor! ${dataToExport.length} item diekspor ke ${filename}.csv`);
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Export error:', error);
-      toast.error('Gagal mengekspor data');
+      toast.error('Gagal mengekspor data: ' + error.message);
     } finally {
       setIsProcessing(false);
     }
@@ -92,8 +336,8 @@ const ImportExport = ({ onClose, mode }: ImportExportProps) => {
 
   const downloadTemplate = () => {
     const templateData = [
-      ['Nama Barang', 'Tipe Item', 'Kategori', 'Zona', 'Lokasi', 'Kondisi', 'Jumlah', 'Satuan', 'Harga Perolehan', 'Supplier', 'Min Stock', 'Tanggal Kedaluwarsa'],
-      ['Contoh: Beras Cap Bandeng', 'Komoditas', 'Bahan Makanan', 'Gudang A', 'Lt. 1 Gudang', 'Baik', '50', 'kg', '15000', 'Supplier ABC', '10', '2024-12-31']
+      ['Nama Barang', 'Tipe Item', 'Kategori', 'Zona', 'Lokasi', 'Kondisi', 'Jumlah', 'Satuan', 'Harga Perolehan', 'Sumber', 'Min Stock', 'Tanggal Kedaluwarsa'],
+      ['Contoh: Beras Cap Bandeng', 'Komoditas', 'Bahan Makanan', 'Gudang A', 'Lt. 1 Gudang', 'Baik', '50', 'kg', '15000', 'Pembelian', '10', '2024-12-31']
     ];
     
     const csvContent = templateData.map(row => row.join(',')).join('\n');
@@ -176,6 +420,51 @@ const ImportExport = ({ onClose, mode }: ImportExportProps) => {
                 </div>
               </div>
 
+              {/* Import Result */}
+              {importResult && (
+                <div className={`border rounded-lg p-4 ${
+                  importResult.success > 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-start gap-3">
+                    {importResult.success > 0 ? (
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <h4 className={`font-medium mb-2 ${
+                        importResult.success > 0 ? 'text-green-900' : 'text-red-900'
+                      }`}>
+                        Hasil Import
+                      </h4>
+                      <div className={`text-sm space-y-1 ${
+                        importResult.success > 0 ? 'text-green-800' : 'text-red-800'
+                      }`}>
+                        <p>✅ Berhasil: {importResult.success} item</p>
+                        {importResult.failed > 0 && (
+                          <p>❌ Gagal: {importResult.failed} item</p>
+                        )}
+                        {importResult.errors.length > 0 && (
+                          <div className="mt-2">
+                            <p className="font-medium">Detail Error:</p>
+                            <ul className="list-disc list-inside space-y-1 mt-1">
+                              {importResult.errors.map((error, idx) => (
+                                <li key={idx} className="text-xs">{error}</li>
+                              ))}
+                            </ul>
+                            {importResult.errors.length >= 10 && (
+                              <p className="text-xs mt-1 italic">
+                                ... dan {importResult.failed - 10} error lainnya
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex gap-2 pt-4">
                 <Button 
@@ -187,7 +476,7 @@ const ImportExport = ({ onClose, mode }: ImportExportProps) => {
                   {isProcessing ? 'Mengimpor...' : 'Import Data'}
                 </Button>
                 <Button variant="outline" onClick={onClose}>
-                  Batal
+                  {importResult ? 'Tutup' : 'Batal'}
                 </Button>
               </div>
             </div>
@@ -213,7 +502,7 @@ const ImportExport = ({ onClose, mode }: ImportExportProps) => {
                   <ul className="text-sm text-gray-600 space-y-1">
                     <li>• Semua item inventaris</li>
                     <li>• Informasi stok dan harga</li>
-                    <li>• Data supplier dan lokasi</li>
+                    <li>• Data sumber (Pembelian/Donasi) dan lokasi</li>
                     <li>• Status kondisi barang</li>
                   </ul>
                 </div>

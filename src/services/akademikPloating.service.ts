@@ -1,7 +1,9 @@
 import { supabase } from '@/integrations/supabase/client';
+import { searchSantriStandard, SantriLite } from '@/utils/santri.utils';
 
-export interface KelasOption { id: string; nama_kelas: string; program: 'Madin'|'TPQ'|'Tahfid'|'Tahsin'; rombel?: string|null }
-export interface SantriLite { id: string; nama_lengkap: string; nisn?: string|null; kategori?: string|null }
+export interface KelasOption { id: string; nama_kelas: string; program: string; rombel?: string|null } // program fleksibel
+// Export SantriLite dari utils untuk konsistensi
+export type { SantriLite };
 
 export class AkademikPloatingService {
   static async getKelasOptions(): Promise<KelasOption[]> {
@@ -15,23 +17,18 @@ export class AkademikPloatingService {
     return (data || []) as KelasOption[];
   }
 
+  /**
+   * Search santri menggunakan utility function standar
+   * Menggunakan id_santri (bukan nisn) sebagai identifier
+   */
   static async searchSantri(keyword: string): Promise<SantriLite[]> {
-    const kw = keyword.trim();
-    const query = supabase.from('santri')
-      .select('id, nama_lengkap, nisn, kategori')
-      .limit(30);
-    if (kw) {
-      query.or(`nama_lengkap.ilike.%${kw}%,nisn.ilike.%${kw}%`);
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data || []) as SantriLite[];
+    return await searchSantriStandard(keyword, 30);
   }
 
   static async listAnggota(kelasId: string): Promise<SantriLite[]> {
     const { data, error } = await supabase
       .from('kelas_anggota')
-      .select('santri:santri_id(id, nama_lengkap, nisn, kategori)')
+      .select('santri:santri_id(id, nama_lengkap, id_santri, kategori)')
       .eq('kelas_id', kelasId)
       .eq('status', 'Aktif')
       .order('created_at', { ascending: true });

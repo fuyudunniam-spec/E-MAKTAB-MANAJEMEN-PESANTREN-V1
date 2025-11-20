@@ -131,9 +131,44 @@ export default function Auth() {
               const isSantri = rolesData?.some(r => r.role === 'santri');
               
               if (isSantri) {
-                // Get santri ID using RPC function
-                const { data: santriData, error: santriError } = await supabase
-                  .rpc('get_santri_by_user_id', { p_user_id: checkSession.user.id });
+                // Get santri ID using RPC function with timeout and error handling
+                let santriData: any = null;
+                let santriError: any = null;
+                
+                try {
+                  const result: any = await Promise.race([
+                    supabase.rpc('get_santri_by_user_id', { p_user_id: checkSession.user.id }),
+                    new Promise((resolve) => 
+                      setTimeout(() => resolve({ data: null, error: { message: 'RPC timeout' } }), 3000)
+                    )
+                  ]);
+                  
+                  santriData = result.data;
+                  santriError = result.error;
+                  
+                  // Check if it's a CORS/network error - silently fail
+                  if (santriError && (
+                    santriError.message?.includes('CORS') || 
+                    santriError.message?.includes('520') || 
+                    santriError.message?.includes('523') || 
+                    santriError.message?.includes('Failed to fetch') ||
+                    santriError.message?.includes('unreachable') ||
+                    santriError.message?.includes('Access-Control-Allow-Origin')
+                  )) {
+                    santriError = null; // Silently ignore network errors
+                    santriData = null;
+                  }
+                } catch (err: any) {
+                  // Silently handle network errors
+                  if (!err?.message?.includes('CORS') && 
+                      !err?.message?.includes('520') && 
+                      !err?.message?.includes('523') && 
+                      !err?.message?.includes('Failed to fetch')) {
+                    console.warn('⚠️ [Auth] Error fetching santri data:', err);
+                  }
+                  santriError = err;
+                  santriData = null;
+                }
                 
                 // RPC returns array, get first item
                 const santri = Array.isArray(santriData) && santriData.length > 0 ? santriData[0] : null;

@@ -536,9 +536,6 @@ const SantriProfileEnhanced = () => {
               {availableTabs.includes('wali') && (
                 <TabsTrigger value="wali">👥 Wali</TabsTrigger>
               )}
-              {availableTabs.includes('tagihan') && (
-                <TabsTrigger value="tagihan">💳 Tagihan</TabsTrigger>
-              )}
               {availableTabs.includes('dokumen') && (
                 <TabsTrigger value="dokumen">📄 Dokumen</TabsTrigger>
               )}
@@ -744,24 +741,14 @@ const SantriProfileEnhanced = () => {
             <TabsContent value="program" className="space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold">Program Santri</h3>
-                <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => navigate(`/ploating-kelas?santriId=${santriId}`)}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Tambah Program
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => navigate(`/santri/program-management/${santriId}`)}
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    Kelola Program
-                  </Button>
-                </div>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => navigate(`/ploating-kelas?santriId=${santriId}`)}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Atur Ploating Kelas
+                </Button>
               </div>
               <Card className="border-0 shadow-soft">
                 <CardHeader className="pb-4">
@@ -775,25 +762,15 @@ const SantriProfileEnhanced = () => {
                         Kelola program dan kelas yang diikuti santri
                       </p>
                     </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => navigate(`/ploating-kelas?santriId=${santriId}`)}
-                        className="flex items-center gap-2"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Tambah Program
-                      </Button>
-                      <Button 
-                        size="sm"
-                        onClick={() => navigate(`/santri/program-management/${santriId}`)}
-                        className="flex items-center gap-2"
-                      >
-                        <Settings className="w-4 h-4" />
-                        Kelola Program
-                      </Button>
-                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => navigate(`/ploating-kelas?santriId=${santriId}`)}
+                      className="flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Atur Ploating Kelas
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -802,26 +779,17 @@ const SantriProfileEnhanced = () => {
                       <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6">
                         <BookOpen className="w-10 h-10 text-muted-foreground" />
                       </div>
-                      <h3 className="text-xl font-semibold mb-2">Belum ditempatkan ke program</h3>
+                      <h3 className="text-xl font-semibold mb-2">Belum ditempatkan ke kelas</h3>
                       <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                        Santri belum ditempatkan ke program atau kelas tertentu. 
-                        Silakan lakukan penempatan untuk mengaktifkan sistem tagihan.
+                        Gunakan modul ploating kelas untuk menempatkan santri ke rombel yang sesuai.
                       </p>
                       <div className="flex gap-3 justify-center">
                         <Button 
-                          onClick={() => navigate(`/akademik/kelas?santriId=${santriId}`)}
+                          onClick={() => navigate(`/ploating-kelas?santriId=${santriId}`)}
                           className="flex items-center gap-2"
                         >
                           <BookOpen className="w-4 h-4" />
-                          Tempatkan ke Kelas
-                        </Button>
-                        <Button 
-                          variant="outline"
-                          onClick={() => navigate(`/santri/program-management/${santriId}`)}
-                          className="flex items-center gap-2"
-                        >
-                          <Settings className="w-4 h-4" />
-                          Kelola Program
+                          Buka Modul Ploating
                         </Button>
                       </div>
                     </div>
@@ -862,7 +830,7 @@ const SantriProfileEnhanced = () => {
                               </div>
 
                               {/* Biaya Info */}
-                              <div className="space-y-3">
+                              {!isBantuanRecipient && (
                                 <div className="bg-blue-50 p-4 rounded-lg">
                                   <h5 className="font-medium text-blue-900 mb-2">Informasi Biaya</h5>
                                   <div className="space-y-2 text-sm">
@@ -887,28 +855,30 @@ const SantriProfileEnhanced = () => {
                                     </div>
                                   </div>
                                 </div>
-                              </div>
+                              )}
 
                               {/* Actions */}
                               <div className="flex flex-col gap-2 justify-center">
                                 <Button 
                                   variant="outline" 
                                   size="sm"
-                                  onClick={() => navigate(`/santri/program-management/${santriId}?programId=${program.id}`)}
+                                  onClick={() => navigate(`/ploating-kelas?santriId=${santriId}`)}
                                   className="w-full"
                                 >
                                   <Edit className="w-4 h-4 mr-2" />
-                                  Edit Program
+                                  Atur Ploating
                                 </Button>
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => navigate(`/keuangan?tab=tagihan&santriId=${santriId}`)}
-                                  className="w-full"
-                                >
-                                  <CreditCard className="w-4 h-4 mr-2" />
-                                  Lihat Tagihan
-                                </Button>
+                                {!isBantuanRecipient && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    disabled
+                                    className="w-full"
+                                  >
+                                    <CreditCard className="w-4 h-4 mr-2" />
+                                    Skema Pembayaran (Segera)
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           </CardContent>
@@ -925,18 +895,24 @@ const SantriProfileEnhanced = () => {
                               </div>
                               <p className="text-sm text-muted-foreground">Program Aktif</p>
                             </div>
-                            <div className="text-center">
-                              <div className="text-2xl font-bold text-green-600">
-                                {formatRupiah(programData.reduce((sum, p) => sum + (p.total_biaya_final || 0), 0))}
-                              </div>
-                              <p className="text-sm text-muted-foreground">Total Biaya/Bulan</p>
-                            </div>
-                            <div className="text-center">
-                              <div className="text-2xl font-bold text-blue-600">
-                                {programData.reduce((sum, p) => sum + (p.subsidi_persen || 0), 0) / programData.length}%
-                              </div>
-                              <p className="text-sm text-muted-foreground">Rata-rata Subsidi</p>
-                            </div>
+                            {!isBantuanRecipient && (
+                              <>
+                                <div className="text-center">
+                                  <div className="text-2xl font-bold text-green-600">
+                                    {formatRupiah(programData.reduce((sum, p) => sum + (p.total_biaya_final || 0), 0))}
+                                  </div>
+                                  <p className="text-sm text-muted-foreground">Total Biaya/Bulan</p>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-2xl font-bold text-blue-600">
+                                    {programData.length > 0
+                                      ? Math.round((programData.reduce((sum, p) => sum + (p.subsidi_persen || 0), 0) / programData.length) * 10) / 10
+                                      : 0}%
+                                  </div>
+                                  <p className="text-sm text-muted-foreground">Rata-rata Subsidi</p>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -1042,30 +1018,6 @@ const SantriProfileEnhanced = () => {
                 </CardContent>
               </Card>
             </TabsContent>
-
-            {/* Tab: Tagihan (for non-bantuan) */}
-            {!isBantuanRecipient && (
-              <TabsContent value="tagihan" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Tagihan & Pembayaran</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-8">
-                      <CreditCard className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium mb-2">Manajemen Tagihan</h3>
-                      <p className="text-muted-foreground mb-4">
-                        Kelola tagihan dan pembayaran santri
-                      </p>
-                      <Button onClick={() => navigate('/keuangan?tab=tagihan')}>
-                        <CreditCard className="w-4 h-4 mr-2" />
-                        Kelola Tagihan
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            )}
 
             {/* Tab: Dokumen */}
             <TabsContent value="dokumen" className="space-y-6">

@@ -19,7 +19,7 @@ import { toast } from "sonner";
 
 interface Donation {
   id: string;
-  donation_type: 'cash' | 'in_kind' | 'pledge';
+  donation_type: 'cash' | 'in_kind' | 'pledge' | 'mixed';
   donor_name: string;
   donation_date: string;
   cash_amount?: number;
@@ -137,9 +137,25 @@ const DonasiReports = () => {
         };
       }
       acc[d.donor_name].count += 1;
+      
+      // Hitung totalCash untuk cash dan mixed donations
       if (d.donation_type === 'cash') {
         acc[d.donor_name].totalCash += d.cash_amount || 0;
+      } else if (d.donation_type === 'mixed') {
+        // Untuk mixed: cash_amount + nilai barang
+        const cashAmount = d.cash_amount || 0;
+        const itemsValue = donationItems
+          .filter(item => item.donation_id === d.id)
+          .reduce((sum, item) => sum + ((item.estimated_value || 0) * item.quantity), 0);
+        acc[d.donor_name].totalCash += cashAmount + itemsValue;
+      } else if (d.donation_type === 'in_kind') {
+        // Untuk in_kind: hanya nilai barang
+        const itemsValue = donationItems
+          .filter(item => item.donation_id === d.id)
+          .reduce((sum, item) => sum + ((item.estimated_value || 0) * item.quantity), 0);
+        acc[d.donor_name].totalCash += itemsValue;
       }
+      
       if (new Date(d.donation_date) > new Date(acc[d.donor_name].lastDonation)) {
         acc[d.donor_name].lastDonation = d.donation_date;
       }
@@ -291,52 +307,101 @@ const DonasiReports = () => {
           <CardTitle>Top 10 Donatur</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Rank</TableHead>
-                <TableHead>Nama Donatur</TableHead>
-                <TableHead>Total Donasi</TableHead>
-                <TableHead>Total Nilai Tunai</TableHead>
-                <TableHead>Terakhir Donasi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {topDonors.length === 0 ? (
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                    Belum ada data donatur
-                  </TableCell>
+                  <TableHead>Rank</TableHead>
+                  <TableHead>Nama Donatur</TableHead>
+                  <TableHead>Total Donasi</TableHead>
+                  <TableHead>Total Nilai Tunai</TableHead>
+                  <TableHead>Terakhir Donasi</TableHead>
                 </TableRow>
-              ) : (
-                topDonors.map(([name, stats], index) => (
-                  <TableRow key={name}>
-                    <TableCell>
-                      <Badge variant={index < 3 ? "default" : "outline"}>
-                        #{index + 1}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-muted-foreground" />
-                        {name}
-                      </div>
-                    </TableCell>
-                    <TableCell>{stats.count}x</TableCell>
-                    <TableCell className="font-semibold text-green-600">
-                      {formatRupiah(stats.totalCash)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Calendar className="w-3 h-3" />
-                        {formatDate(stats.lastDonation)}
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {topDonors.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      Belum ada data donatur
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  topDonors.map(([name, stats], index) => (
+                    <TableRow key={name}>
+                      <TableCell>
+                        <Badge variant={index < 3 ? "default" : "outline"}>
+                          #{index + 1}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-muted-foreground" />
+                          {name}
+                        </div>
+                      </TableCell>
+                      <TableCell>{stats.count}x</TableCell>
+                      <TableCell className="font-semibold text-green-600">
+                        {formatRupiah(stats.totalCash)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Calendar className="w-3 h-3" />
+                          {formatDate(stats.lastDonation)}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3">
+            {topDonors.length === 0 ? (
+              <div className="text-center text-muted-foreground py-8">
+                Belum ada data donatur
+              </div>
+            ) : (
+              topDonors.map(([name, stats], index) => (
+                <Card key={name} className="border-l-4 border-l-primary">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={index < 3 ? "default" : "outline"} className="text-sm">
+                          #{index + 1}
+                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-muted-foreground" />
+                          <span className="font-medium text-sm">{name}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Total Donasi</span>
+                        <span className="text-sm font-medium">{stats.count}x</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Total Nilai Tunai</span>
+                        <span className="text-sm font-semibold text-green-600">
+                          {formatRupiah(stats.totalCash)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t">
+                        <span className="text-xs text-muted-foreground">Terakhir Donasi</span>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Calendar className="w-3 h-3" />
+                          {formatDate(stats.lastDonation)}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -351,39 +416,83 @@ const DonasiReports = () => {
               Belum ada barang yang diterima ke gudang
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Jumlah</TableHead>
-                  <TableHead>Nilai Taksir</TableHead>
-                  <TableHead>Tanggal Posting</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Jumlah</TableHead>
+                      <TableHead>Nilai Taksir</TableHead>
+                      <TableHead>Tanggal Posting</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {postedItems.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.raw_item_name}</TableCell>
+                        <TableCell>
+                          {item.quantity} {item.uom}
+                        </TableCell>
+                        <TableCell>
+                          {item.estimated_value ? formatRupiah(item.estimated_value * item.quantity) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {item.posted_at ? formatDate(item.posted_at) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className="bg-green-100 text-green-800 border-green-200">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Diterima
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3">
                 {postedItems.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.raw_item_name}</TableCell>
-                    <TableCell>
-                      {item.quantity} {item.uom}
-                    </TableCell>
-                    <TableCell>
-                      {item.estimated_value ? formatRupiah(item.estimated_value * item.quantity) : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {item.posted_at ? formatDate(item.posted_at) : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className="bg-green-100 text-green-800 border-green-200">
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Diterima
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
+                  <Card key={item.id} className="border-l-4 border-l-green-500">
+                    <CardContent className="p-4">
+                      <div className="mb-3">
+                        <h4 className="font-medium text-sm mb-2">{item.raw_item_name}</h4>
+                        <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Diterima
+                        </Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">Jumlah</span>
+                          <span className="text-sm font-medium">
+                            {item.quantity} {item.uom}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">Nilai Taksir</span>
+                          <span className="text-sm font-semibold text-green-600">
+                            {item.estimated_value ? formatRupiah(item.estimated_value * item.quantity) : '-'}
+                          </span>
+                        </div>
+                        {item.posted_at && (
+                          <div className="flex justify-between items-center pt-2 border-t">
+                            <span className="text-xs text-muted-foreground">Tanggal Posting</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDate(item.posted_at)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -394,73 +503,180 @@ const DonasiReports = () => {
           <CardTitle>Ringkasan Semua Donasi</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tanggal</TableHead>
-                <TableHead>Donatur</TableHead>
-                <TableHead>Tipe</TableHead>
-                <TableHead>Nilai/Jumlah</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Posting</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {donations.slice(0, 20).map((donation) => (
-                <TableRow key={donation.id}>
-                  <TableCell>{formatDate(donation.donation_date)}</TableCell>
-                  <TableCell className="font-medium">{donation.donor_name}</TableCell>
-                  <TableCell>
-                    {donation.donation_type === 'cash' && (
-                      <Badge className="bg-green-100 text-green-800 border-green-200">Tunai</Badge>
-                    )}
-                    {donation.donation_type === 'in_kind' && (
-                      <Badge className="bg-blue-100 text-blue-800 border-blue-200">Barang</Badge>
-                    )}
-                    {donation.donation_type === 'pledge' && (
-                      <Badge className="bg-purple-100 text-purple-800 border-purple-200">Janji</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {donation.donation_type === 'cash' 
-                      ? formatRupiah(donation.cash_amount || 0)
-                      : `${donationItems.filter(i => i.donation_id === donation.id).length} item`
-                    }
-                  </TableCell>
-                  <TableCell>
-                    {donation.status === 'posted' && (
-                      <Badge className="bg-green-100 text-green-800 border-green-200">Diposting</Badge>
-                    )}
-                    {donation.status === 'received' && (
-                      <Badge className="bg-blue-100 text-blue-800 border-blue-200">Diterima</Badge>
-                    )}
-                    {donation.status === 'pending' && (
-                      <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Pending</Badge>
-                    )}
-                    {donation.status === 'cancelled' && (
-                      <Badge className="bg-red-100 text-red-800 border-red-200">Dibatalkan</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      {donation.posted_to_stock_at && (
-                        <Badge variant="outline" className="bg-green-50 text-xs">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Stok
-                        </Badge>
-                      )}
-                      {donation.posted_to_finance_at && (
-                        <Badge variant="outline" className="bg-blue-50 text-xs">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Keuangan
-                        </Badge>
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tanggal</TableHead>
+                  <TableHead>Donatur</TableHead>
+                  <TableHead>Tipe</TableHead>
+                  <TableHead>Nilai/Jumlah</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Posting</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {donations.slice(0, 20).map((donation) => {
+                  const items = donationItems.filter(i => i.donation_id === donation.id);
+                  const itemsValue = items.reduce((sum, item) => sum + ((item.estimated_value || 0) * item.quantity), 0);
+                  const totalValue = donation.donation_type === 'cash' 
+                    ? (donation.cash_amount || 0)
+                    : donation.donation_type === 'mixed'
+                    ? (donation.cash_amount || 0) + itemsValue
+                    : itemsValue;
+                  
+                  return (
+                    <TableRow key={donation.id}>
+                      <TableCell>{formatDate(donation.donation_date)}</TableCell>
+                      <TableCell className="font-medium">{donation.donor_name}</TableCell>
+                      <TableCell>
+                        {donation.donation_type === 'cash' && (
+                          <Badge className="bg-green-100 text-green-800 border-green-200">Tunai</Badge>
+                        )}
+                        {donation.donation_type === 'in_kind' && (
+                          <Badge className="bg-blue-100 text-blue-800 border-blue-200">Barang</Badge>
+                        )}
+                        {donation.donation_type === 'mixed' && (
+                          <Badge className="bg-orange-100 text-orange-800 border-orange-200">Campuran</Badge>
+                        )}
+                        {donation.donation_type === 'pledge' && (
+                          <Badge className="bg-purple-100 text-purple-800 border-purple-200">Janji</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {donation.donation_type === 'cash' 
+                          ? formatRupiah(donation.cash_amount || 0)
+                          : donation.donation_type === 'mixed'
+                          ? formatRupiah(totalValue)
+                          : `${items.length} item`
+                        }
+                      </TableCell>
+                      <TableCell>
+                        {donation.status === 'posted' && (
+                          <Badge className="bg-green-100 text-green-800 border-green-200">Diposting</Badge>
+                        )}
+                        {donation.status === 'received' && (
+                          <Badge className="bg-blue-100 text-blue-800 border-blue-200">Diterima</Badge>
+                        )}
+                        {donation.status === 'pending' && (
+                          <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Pending</Badge>
+                        )}
+                        {donation.status === 'cancelled' && (
+                          <Badge className="bg-red-100 text-red-800 border-red-200">Dibatalkan</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          {donation.posted_to_stock_at && (
+                            <Badge variant="outline" className="bg-green-50 text-xs">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Stok
+                            </Badge>
+                          )}
+                          {donation.posted_to_finance_at && (
+                            <Badge variant="outline" className="bg-blue-50 text-xs">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Keuangan
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3">
+            {donations.slice(0, 20).map((donation) => {
+              const items = donationItems.filter(i => i.donation_id === donation.id);
+              const itemsValue = items.reduce((sum, item) => sum + ((item.estimated_value || 0) * item.quantity), 0);
+              const totalValue = donation.donation_type === 'cash' 
+                ? (donation.cash_amount || 0)
+                : donation.donation_type === 'mixed'
+                ? (donation.cash_amount || 0) + itemsValue
+                : itemsValue;
+              
+              return (
+                <Card key={donation.id} className="border-l-4 border-l-primary">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h4 className="font-medium text-sm mb-1">{donation.donor_name}</h4>
+                        <p className="text-xs text-muted-foreground">{formatDate(donation.donation_date)}</p>
+                      </div>
+                      <div>
+                        {donation.donation_type === 'cash' && (
+                          <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">Tunai</Badge>
+                        )}
+                        {donation.donation_type === 'in_kind' && (
+                          <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">Barang</Badge>
+                        )}
+                        {donation.donation_type === 'mixed' && (
+                          <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-xs">Campuran</Badge>
+                        )}
+                        {donation.donation_type === 'pledge' && (
+                          <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-xs">Janji</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Nilai/Jumlah</span>
+                        <span className="text-sm font-semibold text-green-600">
+                          {donation.donation_type === 'cash' 
+                            ? formatRupiah(donation.cash_amount || 0)
+                            : donation.donation_type === 'mixed'
+                            ? formatRupiah(totalValue)
+                            : `${items.length} item`
+                          }
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Status</span>
+                        <div>
+                          {donation.status === 'posted' && (
+                            <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">Diposting</Badge>
+                          )}
+                          {donation.status === 'received' && (
+                            <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">Diterima</Badge>
+                          )}
+                          {donation.status === 'pending' && (
+                            <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200 text-xs">Pending</Badge>
+                          )}
+                          {donation.status === 'cancelled' && (
+                            <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">Dibatalkan</Badge>
+                          )}
+                        </div>
+                      </div>
+                      {(donation.posted_to_stock_at || donation.posted_to_finance_at) && (
+                        <div className="flex justify-between items-center pt-2 border-t">
+                          <span className="text-xs text-muted-foreground">Posting</span>
+                          <div className="flex gap-1">
+                            {donation.posted_to_stock_at && (
+                              <Badge variant="outline" className="bg-green-50 text-xs">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Stok
+                              </Badge>
+                            )}
+                            {donation.posted_to_finance_at && (
+                              <Badge variant="outline" className="bg-blue-50 text-xs">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Keuangan
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
           {donations.length > 20 && (
             <p className="text-sm text-muted-foreground text-center mt-4">
               Menampilkan 20 dari {donations.length} donasi

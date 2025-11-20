@@ -6,6 +6,7 @@ export interface DistributionTransaction {
   jumlah: number;
   penerima: string;
   penerima_santri_id?: string;
+  penerima_santri_id_santri?: string | null; // ID Santri yang lebih readable (BM250017)
   tanggal: string;
   catatan?: string;
   created_at: string;

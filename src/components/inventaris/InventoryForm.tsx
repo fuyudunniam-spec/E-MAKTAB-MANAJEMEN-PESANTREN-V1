@@ -22,7 +22,7 @@ const inventorySchema = z.object({
   jumlah: z.number().int("Jumlah harus berupa bilangan bulat").min(0, "Jumlah tidak boleh negatif"),
   satuan: z.string().min(1, "Satuan wajib diisi"),
   harga_perolehan: z.number().min(0, "Harga tidak boleh negatif").optional(),
-  supplier: z.string().optional(),
+  sumber: z.enum(["Pembelian", "Donasi"]).optional().nullable(),
   has_expiry: z.boolean().optional().default(false),
   tanggal_kedaluwarsa: z.string().optional().nullable(),
   min_stock: z.number().int("Min-stock harus bilangan bulat").min(0, "Min-stock tidak boleh negatif").default(10),
@@ -54,7 +54,7 @@ const InventoryForm = memo(({ isOpen, onClose, editingItem }: Props) => {
       jumlah: 0,
       satuan: "pcs",
       harga_perolehan: 0,
-      supplier: "",
+      sumber: null,
       has_expiry: false,
       tanggal_kedaluwarsa: null,
       min_stock: 10,
@@ -82,7 +82,7 @@ const InventoryForm = memo(({ isOpen, onClose, editingItem }: Props) => {
         jumlah: editingItem.jumlah || 0,
         satuan: editingItem.satuan || "pcs",
         harga_perolehan: editingItem.harga_perolehan || 0,
-        supplier: editingItem.supplier || "",
+        sumber: editingItem.sumber || null,
         has_expiry: editingItem.has_expiry || false,
         tanggal_kedaluwarsa: editingItem.tanggal_kedaluwarsa || null,
         min_stock: editingItem.min_stock || 10,
@@ -319,13 +319,21 @@ const InventoryForm = memo(({ isOpen, onClose, editingItem }: Props) => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="supplier">Supplier</Label>
-              <Input
-                {...form.register("supplier")}
-                placeholder="Nama supplier (opsional)"
-              />
-              {form.formState.errors.supplier && (
-                <p className="text-sm text-red-600">{form.formState.errors.supplier.message}</p>
+              <Label htmlFor="sumber">Sumber</Label>
+              <Select
+                value={form.watch("sumber") || undefined}
+                onValueChange={(value) => form.setValue("sumber", value as "Pembelian" | "Donasi")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih sumber (opsional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Pembelian">Pembelian</SelectItem>
+                  <SelectItem value="Donasi">Donasi</SelectItem>
+                </SelectContent>
+              </Select>
+              {form.formState.errors.sumber && (
+                <p className="text-sm text-red-600">{form.formState.errors.sumber.message}</p>
               )}
             </div>
 

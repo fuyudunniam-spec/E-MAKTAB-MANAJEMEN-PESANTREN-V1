@@ -40,6 +40,7 @@ export function useUpdateTransaction(id: string) {
     mutationFn: (payload: any) => updateTransaction(id, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["inventory-transactions"] });
+      qc.invalidateQueries({ queryKey: ["transactions-history"] });
       qc.invalidateQueries({ queryKey: ["inventory"] });
     },
   });
@@ -51,6 +52,7 @@ export function useDeleteTransaction() {
     mutationFn: deleteTransaction,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["inventory-transactions"] });
+      qc.invalidateQueries({ queryKey: ["transactions-history"] });
       qc.invalidateQueries({ queryKey: ["inventory"] });
     },
   });

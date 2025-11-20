@@ -134,6 +134,17 @@ export class ReportFormatterV3 {
   public static extractNamaFromAutoPost(deskripsi: string): string | null {
     if (!deskripsi) return null;
     
+    // Extract nama from "Donasi tunai dari Hambali (Hajat: ...)" -> "Hambali"
+    // Format baru dari trigger: "Donasi tunai dari [nama] (Hajat: ...)"
+    if (deskripsi.includes('Donasi tunai dari') || deskripsi.includes('Donasi dari')) {
+      // Hapus hajat terlebih dahulu
+      let cleaned = deskripsi.replace(/\s*\(Hajat:.*?\)/gi, '').replace(/\s*\(Doa:.*?\)/gi, '');
+      const match = cleaned.match(/(?:Donasi tunai dari|Donasi dari)\s+(.+?)(?:\s|$)/i);
+      if (match) {
+        return match[1].trim();
+      }
+    }
+    
     // Extract nama from "Auto-post dari donasi: Hambali" -> "Hambali"
     if (deskripsi.includes('Auto-post dari donasi:')) {
       const match = deskripsi.match(/Auto-post dari donasi:\s*(.+)$/);
@@ -159,23 +170,40 @@ export class ReportFormatterV3 {
   public static cleanAutoPostDescription(deskripsi: string): string {
     if (!deskripsi) return '-';
     
+    let cleaned = deskripsi;
+    
+    // Remove hajat/doa dari deskripsi donasi TERLEBIH DAHULU (sebelum menghapus prefix)
+    // Format: "Donasi tunai dari [nama] (Hajat: ...)" atau "Donasi dari [nama] (Hajat: ...)"
+    // Hapus pola seperti: " (Hajat: ...)" atau "(Hajat: ...)" dengan berbagai variasi
+    cleaned = cleaned.replace(/\s*\(Hajat:.*?\)/gi, '');
+    cleaned = cleaned.replace(/\s*\(Doa:.*?\)/gi, '');
+    cleaned = cleaned.replace(/\s*\(Hajat.*?\)/gi, ''); // Variasi tanpa titik dua
+    cleaned = cleaned.replace(/\s*\(Doa.*?\)/gi, ''); // Variasi tanpa titik dua
+    
     // Remove auto-post prefix and return clean description
-    if (deskripsi.includes('Auto-post dari donasi:')) {
-      const match = deskripsi.match(/Auto-post dari donasi:\s*(.+)$/);
-      return match ? match[1].trim() : deskripsi;
+    if (cleaned.includes('Auto-post dari donasi:')) {
+      const match = cleaned.match(/Auto-post dari donasi:\s*(.+)$/);
+      cleaned = match ? match[1].trim() : cleaned;
     }
     
-    if (deskripsi.includes('Auto-post dari penjualan:')) {
-      const match = deskripsi.match(/Auto-post dari penjualan:\s*(.+)$/);
-      return match ? match[1].trim() : deskripsi;
+    // Remove "Donasi tunai dari" atau "Donasi dari" prefix (format baru dari trigger)
+    cleaned = cleaned.replace(/^Donasi tunai dari\s+/i, '');
+    cleaned = cleaned.replace(/^Donasi dari\s+/i, '');
+    
+    if (cleaned.includes('Auto-post dari penjualan:')) {
+      const match = cleaned.match(/Auto-post dari penjualan:\s*(.+)$/);
+      cleaned = match ? match[1].trim() : cleaned;
     }
     
-    if (deskripsi.includes('Auto-post dari overhead:')) {
-      const match = deskripsi.match(/Auto-post dari overhead:\s*(.+)$/);
-      return match ? match[1].trim() : deskripsi;
+    if (cleaned.includes('Auto-post dari overhead:')) {
+      const match = cleaned.match(/Auto-post dari overhead:\s*(.+)$/);
+      cleaned = match ? match[1].trim() : cleaned;
     }
     
-    return deskripsi;
+    // Clean up any double spaces or trailing spaces
+    cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
+    
+    return cleaned || '-';
   }
 
   // Generate description from rincian_pengeluaran (detail items)

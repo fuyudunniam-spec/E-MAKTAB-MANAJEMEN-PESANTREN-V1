@@ -22,8 +22,13 @@ export type RumpunKelas = 'TPQ' | 'Madin' | 'Tahfidz';
 
 export interface SantriData {
   id?: string;
-  nisn?: string; // Renamed from nis
-  id_santri?: string; // Auto-generated ID
+  /**
+   * @deprecated Jangan gunakan nisn untuk identifier/search/display.
+   * Gunakan id_santri sebagai primary identifier.
+   * Field ini hanya untuk data historis/form external.
+   */
+  nisn?: string; // DEPRECATED: Hanya untuk data historis
+  id_santri?: string; // Primary identifier (auto-generated, format: KKYYNNNN)
   
   // Administrasi
   kategori: KategoriSantri;

@@ -149,8 +149,8 @@ const ModernInventoryTable = memo(({
                 )}
               </div>
             </TableHead>
-            <TableHead className="text-right">Nilai</TableHead>
-            <TableHead>Lokasi</TableHead>
+            <TableHead className="text-right hidden md:table-cell">Nilai</TableHead>
+            <TableHead className="hidden lg:table-cell">Lokasi</TableHead>
             <TableHead className="text-right">Aksi</TableHead>
           </TableRow>
         </TableHeader>
@@ -190,7 +190,7 @@ const ModernInventoryTable = memo(({
                     </Badge>
                   </div>
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right hidden md:table-cell">
                   <div className="space-y-1">
                     <div className="font-medium">{formatRupiah(totalValue)}</div>
                     <div className="text-xs text-gray-500">
@@ -198,7 +198,7 @@ const ModernInventoryTable = memo(({
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden lg:table-cell">
                   <div className="flex items-center space-x-1 text-sm text-gray-600">
                     <MapPin className="h-3 w-3" />
                     <span>{row.zona}</span>

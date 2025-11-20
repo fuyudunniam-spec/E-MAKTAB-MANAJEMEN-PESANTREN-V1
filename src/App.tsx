@@ -11,24 +11,21 @@ import Santri from "./pages/Santri";
 import SantriEnhanced from "./pages/SantriEnhanced";
 import SantriProfileEnhanced from "./pages/SantriProfileEnhanced";
 import SantriProfileMinimal from "./pages/SantriProfileMinimal";
+import SantriProfileMaster from "./pages/SantriProfileMaster";
 import SantriProfileFull from "./pages/SantriProfileFull";
 import Monitoring from "./pages/Monitoring";
 import Tabungan from "./pages/Tabungan";
 import TabunganRouter from "./pages/TabunganRouter";
 import TabunganSantriAdmin from "./pages/TabunganSantriAdmin";
 import LaporanTabungan from "./pages/LaporanTabungan";
-import Donasi from "./pages/Donasi";
-import DonasiRefactored from "./pages/DonasiRefactored";
-import DonasiV2 from "./pages/DonasiV2";
+import DonasiDashboard from "./pages/DonasiDashboard";
 import Inventaris from "./pages/Inventaris";
 import InventarisRefactored from "./pages/InventarisRefactored";
-import InventarisV2 from "./pages/InventarisV2";
-import InventarisV2Simple from "./pages/InventarisV2Simple";
+// Removed: InventarisV2, InventarisV2Simple - using new dashboard structure
 import InventarisTest from "./pages/InventarisTest";
 import InventarisDebug from "./pages/InventarisDebug";
 import Koperasi from "./pages/Koperasi";
 import Keuangan from "./pages/Keuangan";
-import KeuanganV3 from "./pages/KeuanganV3";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
@@ -38,23 +35,35 @@ import ChangePassword from "./pages/ChangePassword";
 // Removed: ProgramSantri, ApprovalSantri (no longer used)
 import PloatingKelas from "./pages/PloatingKelas";
 import TagihanSantri from "./pages/TagihanSantri";
-import ProgramSantriManagement from "./components/ProgramSantriManagement";
+import ProgramSantriBiayaManager from "./components/ProgramSantriBiayaManager";
 
 // Lazy imports for module dashboards
 const DashboardSantri = lazy(() => import('./modules/santri/DashboardSantri'));
 const DashboardKeuangan = lazy(() => import('./modules/keuangan/DashboardKeuangan'));
-const DashboardInventaris = lazy(() => import('./modules/inventaris/DashboardInventaris'));
 const DashboardAkademik = lazy(() => import('./modules/akademik/DashboardAkademik'));
 const MasterKelasPage = lazy(() => import('./modules/akademik/MasterKelasPage'));
 const PloatingKelasSimple = lazy(() => import('./modules/akademik/PloatingKelasSimple'));
+const SemesterManagementPage = lazy(() => import('./modules/akademik/SemesterManagementPage'));
+const PresensiKelasPage = lazy(() => import('./modules/akademik/PresensiKelasPage'));
+const SetoranHarianPage = lazy(() => import('./modules/akademik/SetoranHarianPage'));
+const PerizinanSantriPage = lazy(() => import('./modules/akademik/PerizinanSantriPage'));
+const JurnalPertemuanPage = lazy(() => import('./modules/akademik/JurnalPertemuanPage'));
+const DashboardPengajar = lazy(() => import('./modules/akademik/DashboardPengajar'));
+const ProfilPengajarPage = lazy(() => import('./modules/akademik/ProfilPengajarPage'));
 const DashboardAdmin = lazy(() => import('./modules/admin/DashboardAdmin'));
+// Temporarily use direct import instead of lazy loading to fix Vite bundling issue
+import UserManagementPage from './modules/admin/UserManagementPage';
 
 // Lazy imports for inventory modules
 const InventarisMasterPage = lazy(() => import('./modules/inventaris/MasterData/InventarisMasterPage'));
 const PenjualanPage = lazy(() => import('./modules/inventaris/Sales/PenjualanPage'));
 const DistribusiPage = lazy(() => import('./modules/inventaris/Distribution/DistribusiPage'));
-const TransactionHistoryPage = lazy(() => import('./modules/inventaris/Transactions/TransactionHistoryPage'));
+const DistribusiPaketPage = lazy(() => import('./modules/inventaris/Distribution/DistribusiPaketPage'));
+const MasterPaketPage = lazy(() => import('./modules/inventaris/Distribution/MasterPaketPage'));
 const KeuanganAuditPage = lazy(() => import('./pages/admin/KeuanganAuditPage'));
+const KeuanganV3 = lazy(() => import('./pages/KeuanganV3'));
+const InventarisDashboard = lazy(() => import('./pages/InventarisDashboard'));
+// Force rebuild for lazy load fix
 
 const queryClient = new QueryClient();
 
@@ -90,7 +99,7 @@ const App = () => (
             <Route path="/inventaris-dashboard" element={
               <Layout>
                 <Suspense fallback={<div>Loading...</div>}>
-                  <DashboardInventaris />
+                  <InventarisDashboard />
                 </Suspense>
               </Layout>
             } />
@@ -98,7 +107,7 @@ const App = () => (
             <Route path="/inventaris" element={
               <Layout>
                 <Suspense fallback={<div>Loading...</div>}>
-                  <DashboardInventaris />
+                  <InventarisDashboard />
                 </Suspense>
               </Layout>
             } />
@@ -123,10 +132,17 @@ const App = () => (
                 </Suspense>
               </Layout>
             } />
-            <Route path="/inventaris/transactions" element={
+            <Route path="/inventaris/distribution/distribusi-paket" element={
               <Layout>
                 <Suspense fallback={<div>Loading...</div>}>
-                  <TransactionHistoryPage />
+                  <DistribusiPaketPage />
+                </Suspense>
+              </Layout>
+            } />
+            <Route path="/inventaris/distribution/master-paket" element={
+              <Layout>
+                <Suspense fallback={<div>Loading...</div>}>
+                  <MasterPaketPage />
                 </Suspense>
               </Layout>
             } />
@@ -135,6 +151,16 @@ const App = () => (
                 <Suspense fallback={<div>Loading...</div>}>
                   <KeuanganAuditPage />
                 </Suspense>
+              </Layout>
+            } />
+            <Route path="/admin/users" element={
+              <Layout>
+                <UserManagementPage />
+              </Layout>
+            } />
+            <Route path="/admin/data-master" element={
+              <Layout>
+                <UserManagementPage />
               </Layout>
             } />
             <Route path="/akademik" element={
@@ -158,6 +184,55 @@ const App = () => (
                 </Suspense>
               </Layout>
             } />
+            <Route path="/akademik/semester" element={
+              <Layout>
+                <Suspense fallback={<div>Loading...</div>}>
+                  <SemesterManagementPage />
+                </Suspense>
+              </Layout>
+            } />
+            <Route path="/akademik/presensi" element={
+              <Layout>
+                <Suspense fallback={<div>Loading...</div>}>
+                  <PresensiKelasPage />
+                </Suspense>
+              </Layout>
+            } />
+            <Route path="/akademik/setoran" element={
+              <Layout>
+                <Suspense fallback={<div>Loading...</div>}>
+                  <SetoranHarianPage />
+                </Suspense>
+              </Layout>
+            } />
+            <Route path="/akademik/jurnal" element={
+              <Layout>
+                <Suspense fallback={<div>Loading...</div>}>
+                  <JurnalPertemuanPage />
+                </Suspense>
+              </Layout>
+            } />
+            <Route path="/akademik/pengajar" element={
+              <Layout>
+                <Suspense fallback={<div>Loading...</div>}>
+                  <DashboardPengajar />
+                </Suspense>
+              </Layout>
+            } />
+            <Route path="/akademik/pengajar/profil" element={
+              <Layout>
+                <Suspense fallback={<div>Loading...</div>}>
+                  <ProfilPengajarPage />
+                </Suspense>
+              </Layout>
+            } />
+            <Route path="/akademik/perizinan" element={
+              <Layout>
+                <Suspense fallback={<div>Loading...</div>}>
+                  <PerizinanSantriPage />
+                </Suspense>
+              </Layout>
+            } />
             <Route path="/administrasi" element={
               <Layout>
                 <Suspense fallback={<div>Loading...</div>}>
@@ -170,12 +245,12 @@ const App = () => (
                 <SantriEnhanced />
               </Layout>
             } />
-      <Route path="/santri/add" element={<SantriProfileFull mode="add" />} />
-      <Route path="/santri/profile" element={
-        <Layout>
-          <SantriProfileMinimal />
-        </Layout>
-      } />
+            <Route path="/santri/add" element={<SantriProfileFull mode="add" />} />
+            <Route path="/santri/profile" element={
+              <Layout>
+                <SantriProfileMaster />
+              </Layout>
+            } />
             <Route path="/santri/profile-enhanced" element={
               <Layout>
                 <SantriProfileEnhanced />
@@ -183,7 +258,7 @@ const App = () => (
             } />
             <Route path="/santri/program-management/:santriId" element={
               <Layout>
-                <ProgramSantriManagement />
+                <ProgramSantriBiayaManager />
               </Layout>
             } />
             <Route path="/monitoring" element={
@@ -208,29 +283,15 @@ const App = () => (
             } />
             <Route path="/donasi" element={
               <Layout>
-                <DonasiV2 />
+                <DonasiDashboard />
               </Layout>
             } />
-            <Route path="/donasi-refactored" element={
+            <Route path="/donasi-dashboard" element={
               <Layout>
-                <DonasiRefactored />
+                <DonasiDashboard />
               </Layout>
             } />
-            <Route path="/donasi-old" element={
-              <Layout>
-                <Donasi />
-              </Layout>
-            } />
-            <Route path="/inventaris" element={
-              <Layout>
-                <InventarisV2 />
-              </Layout>
-            } />
-            <Route path="/inventaris-v2" element={
-              <Layout>
-                <InventarisV2 />
-              </Layout>
-            } />
+            {/* Removed: Route /inventaris and /inventaris-v2 using InventarisV2 - now using new dashboard structure */}
             <Route path="/inventaris-test" element={
               <Layout>
                 <InventarisTest />
@@ -258,7 +319,9 @@ const App = () => (
             } />
             <Route path="/keuangan-v3" element={
               <Layout>
-                <KeuanganV3 />
+                <Suspense fallback={<div>Loading...</div>}>
+                  <KeuanganV3 />
+                </Suspense>
               </Layout>
             } />
             <Route path="/ploating-kelas" element={

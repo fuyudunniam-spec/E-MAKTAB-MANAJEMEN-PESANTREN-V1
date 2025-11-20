@@ -263,16 +263,12 @@ export class ProfileHelper {
    * Get available tabs based on santri category
    */
   static getAvailableTabs(kategori: string, tipePembayaran: string): string[] {
-    const baseTabs = ['info', 'program', 'wali', 'dokumen'];
-    
     if (kategori === 'Binaan Mukim' || kategori === 'Binaan Non-Mukim') {
       return ['info', 'bantuan', 'program', 'wali', 'dokumen'];
-    } else if (kategori === 'Mahasiswa') {
-      return ['info', 'program', 'wali', 'tagihan', 'dokumen'];
-    } else {
-      // Reguler
-      return ['info', 'program', 'wali', 'tagihan', 'dokumen'];
     }
+
+    // Reguler, Mahasiswa, and other categories share the same tabs now.
+    return ['info', 'program', 'wali', 'dokumen'];
   }
 
   /**

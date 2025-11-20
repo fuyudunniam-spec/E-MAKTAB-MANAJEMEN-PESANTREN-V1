@@ -38,8 +38,10 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ stats, selectedAccountName 
 
   const formatTrend = (trend: number) => {
     if (trend === 0) return 'Tidak ada data bulan lalu';
-    const sign = trend >= 0 ? '+' : '';
-    return `${sign}${trend}% dari bulan lalu`;
+    // Round to 2 decimal places untuk menghindari angka terlalu panjang
+    const roundedTrend = Math.round(trend * 100) / 100;
+    const sign = roundedTrend >= 0 ? '+' : '';
+    return `${sign}${roundedTrend.toFixed(2)}% dari bulan lalu`;
   };
 
   const cards: StatCard[] = [
@@ -86,39 +88,39 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ stats, selectedAccountName 
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Filter Badge */}
       {selectedAccountName && (
-        <div className="flex items-center space-x-2">
-          <Badge className="bg-blue-100 text-blue-800 border-blue-200">
-            Filtered by: {selectedAccountName}
+        <div className="flex items-center">
+          <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-xs px-2.5 py-1">
+            Filter: {selectedAccountName}
           </Badge>
         </div>
       )}
 
-      {/* Simplified Summary Cards */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card, index) => (
-          <Card key={index} className="hover:shadow-md transition-all duration-200 rounded-xl border-0 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+          <Card key={index} className="hover:shadow-md transition-shadow duration-200 rounded-lg border border-gray-200 bg-white">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 pt-4 px-4">
+              <CardTitle className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                 {card.title}
               </CardTitle>
-              <div className={card.color}>
+              <div className={`${card.color} opacity-70`}>
                 {card.icon}
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold mb-1">{card.value}</div>
+            <CardContent className="px-4 pb-4">
+              <div className="text-xl font-semibold text-gray-900 mb-1.5 tracking-tight">{card.value}</div>
               <div className={`flex items-center text-xs ${
-                card.trend.isPositive ? 'text-green-600' : 'text-red-600'
+                card.trend.isPositive ? 'text-emerald-600' : 'text-rose-600'
               }`}>
                 {card.trend.isPositive ? (
                   <ArrowUpRight className="h-3 w-3 mr-1" />
                 ) : (
                   <ArrowDownRight className="h-3 w-3 mr-1" />
                 )}
-                {card.trend.value}
+                <span>{card.trend.value}</span>
               </div>
             </CardContent>
           </Card>

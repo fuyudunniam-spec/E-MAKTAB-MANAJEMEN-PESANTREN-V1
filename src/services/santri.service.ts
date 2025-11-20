@@ -25,11 +25,12 @@ export interface UpdateSantriData {
 export class SantriService {
   /**
    * Get all active santri
+   * NOTE: Menggunakan id_santri (bukan nisn) sebagai identifier utama
    */
   static async getActive(): Promise<Santri[]> {
     const { data, error } = await supabase
       .from('santri')
-      .select('id, nama_lengkap, nisn, id_santri, status, created_at, updated_at')
+      .select('id, nama_lengkap, id_santri, kategori, status, created_at, updated_at')
       .eq('status', 'Aktif')
       .order('nama_lengkap');
 
@@ -39,11 +40,12 @@ export class SantriService {
 
   /**
    * Get all santri
+   * NOTE: Menggunakan id_santri (bukan nisn) sebagai identifier utama
    */
   static async getAll(): Promise<Santri[]> {
     const { data, error } = await supabase
       .from('santri')
-      .select('id, nama_lengkap, nisn, id_santri, status, created_at, updated_at')
+      .select('id, nama_lengkap, id_santri, kategori, status, created_at, updated_at')
       .order('nama_lengkap');
 
     if (error) throw error;
@@ -109,13 +111,15 @@ export class SantriService {
   }
 
   /**
-   * Search santri by name or NISN
+   * Search santri by name or ID Santri
+   * NOTE: Menggunakan id_santri (bukan nisn) sebagai identifier utama
+   * @param query - Nama lengkap atau ID Santri (format: KKYYNNNN, contoh: BM240001)
    */
   static async search(query: string): Promise<Santri[]> {
     const { data, error } = await supabase
       .from('santri')
-      .select('*')
-      .or(`nama_lengkap.ilike.%${query}%,nisn.ilike.%${query}%`)
+      .select('id, nama_lengkap, id_santri, kategori, status, created_at, updated_at')
+      .or(`nama_lengkap.ilike.%${query}%,id_santri.ilike.%${query}%`)
       .eq('status', 'Aktif')
       .order('nama_lengkap');
 

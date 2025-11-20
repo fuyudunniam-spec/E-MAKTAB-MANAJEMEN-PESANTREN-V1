@@ -39,8 +39,7 @@ const PenjualanPage = () => {
     { label: 'Dashboard', path: '/inventaris' },
     { label: 'Master Data', path: '/inventaris/master' },
     { label: 'Penjualan', path: '/inventaris/sales' },
-    { label: 'Distribusi', path: '/inventaris/distribution' },
-    { label: 'Riwayat', path: '/inventaris/transactions' }
+    { label: 'Distribusi', path: '/inventaris/distribution' }
   ];
 
   // Fetch real data from database
@@ -96,6 +95,12 @@ const PenjualanPage = () => {
       const totalNilai = (hargaDasar * jumlah) + sumbangan;
       const hargaSatuan = Math.max(0, Math.round((totalNilai / jumlah) * 100) / 100); // Round to 2 decimal places
       
+      // Format catatan: hanya tampilkan sumbangan jika > 0
+      const catatanSumbangan = sumbangan > 0 
+        ? `, Sumbangan: Rp ${sumbangan.toLocaleString('id-ID')}` 
+        : '';
+      const catatan = `Penjualan - Harga Dasar: Rp ${hargaDasar.toLocaleString('id-ID')}/unit${catatanSumbangan}`;
+      
       // Buat payload untuk transaksi
       const transactionData = {
         item_id: formData.item,
@@ -107,17 +112,29 @@ const PenjualanPage = () => {
         harga_satuan: hargaSatuan,
         penerima: formData.pembeli,
         tanggal: formData.tanggal,
-        catatan: `Penjualan - Harga Dasar: Rp ${hargaDasar.toLocaleString('id-ID')}/unit, Sumbangan: Rp ${sumbangan.toLocaleString('id-ID')}`
+        catatan: catatan
       };
       
       console.log('Creating/updating sales transaction:', transactionData);
       
-      if (editingSale) {
+      // Validasi: pastikan editingSale memiliki ID yang valid jika ini adalah update
+      if (editingSale && editingSale.id) {
         // Update existing transaction
         console.log('Updating transaction with ID:', editingSale.id);
-        const result = await updateTransaction(editingSale.id, transactionData);
-        console.log('Update result:', result);
-        toast.success('Transaksi berhasil diperbarui!');
+        try {
+          const result = await updateTransaction(editingSale.id, transactionData);
+          console.log('Update result:', result);
+          toast.success('Transaksi berhasil diperbarui!');
+        } catch (updateError: any) {
+          // Jika update gagal karena transaksi tidak ditemukan, coba create sebagai fallback
+          if (updateError.message?.includes('not found') || updateError.code === 'PGRST116') {
+            console.warn('Transaction not found for update, creating new transaction instead');
+            await createTransaction(transactionData);
+            toast.success('Transaksi penjualan berhasil disimpan!');
+          } else {
+            throw updateError;
+          }
+        }
       } else {
         // Create new transaction
         await createTransaction(transactionData);
@@ -340,7 +357,33 @@ const PenjualanPage = () => {
           <div className="flex gap-4">
             <Button 
               className="flex items-center gap-2"
-              onClick={() => setShowForm(!showForm)}
+              onClick={() => {
+                if (showForm) {
+                  // Jika form sedang terbuka, tutup dan reset
+                  setShowForm(false);
+                  setEditingSale(null);
+                  setFormData({
+                    item: '',
+                    jumlah: '',
+                    harga_dasar: '',
+                    sumbangan: '',
+                    pembeli: '',
+                    tanggal: new Date().toISOString().split('T')[0]
+                  });
+                } else {
+                  // Jika form tertutup, buka untuk create baru
+                  setShowForm(true);
+                  setEditingSale(null); // Pastikan editingSale null untuk create baru
+                  setFormData({
+                    item: '',
+                    jumlah: '',
+                    harga_dasar: '',
+                    sumbangan: '',
+                    pembeli: '',
+                    tanggal: new Date().toISOString().split('T')[0]
+                  });
+                }
+              }}
             >
               <Plus className="h-4 w-4" />
               {showForm ? 'Batal' : 'Transaksi Penjualan'}
@@ -463,7 +506,23 @@ const PenjualanPage = () => {
                 <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting ? 'Menyimpan...' : (editingSale ? 'Update Transaksi' : 'Simpan Transaksi')}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => setShowForm(false)} disabled={isSubmitting}>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowForm(false);
+                    setEditingSale(null); // Reset editingSale saat batal
+                    setFormData({
+                      item: '',
+                      jumlah: '',
+                      harga_dasar: '',
+                      sumbangan: '',
+                      pembeli: '',
+                      tanggal: new Date().toISOString().split('T')[0]
+                    });
+                  }} 
+                  disabled={isSubmitting}
+                >
                   Batal
                 </Button>
               </div>

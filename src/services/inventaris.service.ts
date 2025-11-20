@@ -2,6 +2,28 @@ import { supabase } from "@/integrations/supabase/client";
 import { addKeuanganTransaction } from "@/services/keuangan.service";
 import { AkunKasService } from "@/services/akunKas.service";
 
+// Helper untuk mendeteksi error CORS
+function isCorsError(error: any): boolean {
+  if (!error) return false;
+  const message = error.message || '';
+  return message.includes('CORS') || 
+         message.includes('523') || 
+         message.includes('Failed to fetch') ||
+         message.includes('unreachable') ||
+         message.includes('Access-Control-Allow-Origin') ||
+         message.includes('520');
+}
+
+// Helper untuk menampilkan error CORS dengan pesan yang jelas
+function handleCorsError(context: string) {
+  console.error(`❌ ${context}: Error CORS - Supabase tidak dapat diakses`);
+  console.error('   🔧 SOLUSI: Konfigurasi CORS di Supabase Dashboard');
+  console.error('   1. Buka https://supabase.com/dashboard');
+  console.error('   2. Pilih project → Settings → API');
+  console.error('   3. Tambahkan "http://localhost:8080" ke Allowed Origins');
+  console.error('   4. Lihat CORS_FIX_GUIDE.md untuk detail lengkap');
+}
+
 export type InventoryItem = {
   id: string;
   nama_barang: string;
@@ -13,7 +35,7 @@ export type InventoryItem = {
   jumlah?: number | null;
   satuan?: string | null;
   harga_perolehan?: number | null;
-  supplier?: string | null;
+  sumber?: 'Pembelian' | 'Donasi' | null;
   has_expiry?: boolean | null;
   tanggal_kedaluwarsa?: string | null;
   min_stock?: number | null;
@@ -116,6 +138,7 @@ export async function deleteInventoryItem(id: string) {
 export type TransactionFilters = {
   search?: string | null; // by nama_barang
   tipe?: "Masuk" | "Keluar" | "Stocktake" | "all" | null;
+  keluar_mode?: string | null; // Filter untuk mode keluar (Penjualan, Distribusi, dll)
   startDate?: string | null;
   endDate?: string | null;
 };
@@ -128,14 +151,23 @@ export async function listTransactions(
   const { page, pageSize } = pagination;
   
   // Join dengan inventaris untuk mendapatkan nama_barang
+  // Include referensi_distribusi_paket_id untuk mengelompokkan distribusi paket
   let query = supabase
     .from("transaksi_inventaris")
     .select(`
       *,
-      inventaris!inner(nama_barang, kategori, satuan)
+      inventaris!inner(nama_barang, kategori, satuan),
+      distribusi_paket:referensi_distribusi_paket_id(
+        id,
+        paket_id,
+        penerima,
+        tanggal_distribusi,
+        paket_sembako(nama_paket)
+      )
     `, { count: "exact" });
 
   if (filters.tipe && filters.tipe !== "all") query = query.eq("tipe", filters.tipe);
+  if (filters.keluar_mode && filters.keluar_mode !== "all") query = query.eq("keluar_mode", filters.keluar_mode);
   if (filters.startDate) query = query.gte("tanggal", filters.startDate);
   if (filters.endDate) query = query.lte("tanggal", filters.endDate);
 
@@ -208,7 +240,10 @@ export async function createTransaction(payload: Partial<InventoryTransaction>) 
     kategori_barang: (payload as any).kategori_barang || null,
     nama_barang: (payload as any).nama_barang || null,
     satuan: (payload as any).satuan || null,
+    // Mode fields
+    masuk_mode: (payload as any).masuk_mode || null,
     keluar_mode: (payload as any).keluar_mode || null,
+    referensi_koperasi_id: (payload as any).referensi_koperasi_id || null,
     // field breakdown penjualan agar trigger/ETL dapat bekerja
     harga_dasar: (payload as any).harga_dasar || null,
     sumbangan: (payload as any).sumbangan || null
@@ -226,15 +261,55 @@ export async function createTransaction(payload: Partial<InventoryTransaction>) 
   }
 
   // Insert dengan payload minimal
+  // Gunakan select sederhana untuk menghindari error 406
   const { data, error } = await supabase
     .from("transaksi_inventaris")
     .insert(minimalPayload)
-    .select()
+    .select('*')
     .single();
     
   if (error) {
+    if (isCorsError(error)) {
+      handleCorsError('inventaris.service: createTransaction');
+      // Throw error dengan pesan yang lebih jelas
+      const corsError = new Error('CORS Error: Supabase tidak dapat diakses. Silakan konfigurasi CORS di Supabase Dashboard.');
+      (corsError as any).isCorsError = true;
+      throw corsError;
+    }
+    
+    // Handle error 406 (Not Acceptable) atau PGRST116 (no rows)
+    if (error.code === 'PGRST116' || error.code === 'PGRST204' || error.message?.includes('406') || error.message?.includes('Not Acceptable') || error.message?.includes('Cannot coerce')) {
+      console.error("Insert error - mungkin field tidak valid atau transaksi belum tersimpan:", error);
+      console.error("Payload yang diinsert:", minimalPayload);
+      
+      // Coba insert lagi tanpa .single() untuk melihat apakah insert berhasil
+      const { data: retryData, error: retryError } = await supabase
+        .from("transaksi_inventaris")
+        .insert(minimalPayload)
+        .select('*');
+      
+      if (retryError) {
+        console.error("Retry insert juga gagal:", retryError);
+        throw retryError;
+      }
+      
+      // Jika retry berhasil tapi tidak ada data, berarti ada masalah lain
+      if (!retryData || retryData.length === 0) {
+        throw new Error('Transaksi berhasil diinsert tapi tidak bisa di-fetch. Mungkin ada masalah dengan RLS policy atau trigger.');
+      }
+      
+      // Gunakan data pertama dari retry
+      const insertedData = retryData[0];
+      return { ...insertedData, _keuanganPosted: false, _fallbackUsed: false } as any;
+    }
+    
     console.error("Insert error details:", error);
     throw error;
+  }
+  
+  // Pastikan data tidak null
+  if (!data) {
+    throw new Error('Transaksi berhasil diinsert tapi tidak ada data yang dikembalikan.');
   }
 
   // Log hasil untuk Stocktake
@@ -297,21 +372,114 @@ export async function createTransaction(payload: Partial<InventoryTransaction>) 
 export async function updateTransaction(id: string, payload: Partial<InventoryTransaction>) {
   console.log('updateTransaction called with:', { id, payload });
   
-  try {
-    // Use unique RPC function to avoid overloading conflicts
-    const { data, error } = await supabase.rpc('update_inventory_transaction_v2', {
-      p_transaction_id: id,
-      p_jumlah: payload.jumlah || null,
-      p_tanggal: payload.tanggal || null,
-      p_catatan: payload.catatan || null,
-      p_penerima: payload.penerima || null,
-      p_harga_satuan: payload.harga_satuan || null,
-      p_harga_dasar: (payload as any).harga_dasar || null,
-      p_sumbangan: (payload as any).sumbangan || null
-    });
+  // OPTIMASI: Deteksi apakah ini update sederhana (hanya field non-finansial)
+  // Field finansial: jumlah, harga_satuan, harga_total, harga_dasar, sumbangan
+  // Field non-finansial: tanggal, catatan, penerima
+  const hasFinancialChanges = 
+    payload.jumlah !== undefined ||
+    payload.harga_satuan !== undefined ||
+    (payload as any).harga_total !== undefined ||
+    (payload as any).harga_dasar !== undefined ||
+    (payload as any).sumbangan !== undefined;
+  
+  const hasNonFinancialChanges = 
+    payload.tanggal !== undefined ||
+    payload.catatan !== undefined ||
+    payload.penerima !== undefined;
+  
+  // Jika hanya field non-finansial yang berubah, gunakan direct UPDATE (lebih cepat)
+  if (!hasFinancialChanges && hasNonFinancialChanges) {
+    console.log('Fast path: Simple update (non-financial fields only)');
+    
+    const updateData: any = {};
+    if (payload.tanggal !== undefined) updateData.tanggal = payload.tanggal;
+    if (payload.catatan !== undefined) updateData.catatan = payload.catatan;
+    if (payload.penerima !== undefined) updateData.penerima = payload.penerima;
+    
+    const { data, error } = await supabase
+      .from('transaksi_inventaris')
+      .update(updateData)
+      .eq('id', id)
+      .select('*')
+      .single();
     
     if (error) {
-      console.error("RPC update error:", error);
+      console.error("Simple update error:", error);
+      throw error;
+    }
+    
+    // Sync tanggal ke keuangan jika ada keuangan_id (tanpa perlu fetch current transaction)
+    if (payload.tanggal !== undefined && data?.keuangan_id) {
+      try {
+        await supabase
+          .from('keuangan')
+          .update({ tanggal: payload.tanggal })
+          .eq('id', data.keuangan_id);
+      } catch (keuError) {
+        console.warn('Failed to sync tanggal to keuangan:', keuError);
+        // Don't throw - transaction update succeeded
+      }
+    }
+    
+    return data;
+  }
+  
+  // Full update path: ada perubahan finansial, perlu validasi dan sync keuangan
+  console.log('Full path: Update with financial changes');
+  
+  // Get current transaction to check if it's a sales transaction with keuangan_id
+  const { data: currentTx, error: fetchError } = await supabase
+    .from('transaksi_inventaris')
+    .select('id, tipe, keluar_mode, harga_total, keuangan_id, jumlah, harga_dasar, sumbangan, catatan, tanggal')
+    .eq('id', id)
+    .maybeSingle();
+  
+  if (fetchError) {
+    console.error("Error fetching current transaction:", fetchError);
+    throw fetchError;
+  }
+  
+  // If transaction doesn't exist, this is likely a create operation, not update
+  if (!currentTx) {
+    throw new Error(`Transaction with ID ${id} not found. Use createTransaction() instead.`);
+  }
+  
+  // Calculate new harga_total if it's a sales transaction
+  const isPenjualan = currentTx?.tipe === "Keluar" && currentTx?.keluar_mode === "Penjualan";
+  let newHargaTotal = (payload as any).harga_total !== undefined ? (payload as any).harga_total : currentTx?.harga_total || null;
+  
+  // Calculate harga_total if not provided but we have breakdown data
+  if (isPenjualan && newHargaTotal === null) {
+    const jumlah = payload.jumlah !== undefined ? payload.jumlah : currentTx?.jumlah || 0;
+    const hargaDasar = (payload as any).harga_dasar !== undefined ? (payload as any).harga_dasar : currentTx?.harga_dasar || 0;
+    const sumbangan = (payload as any).sumbangan !== undefined ? (payload as any).sumbangan : currentTx?.sumbangan || 0;
+    const calculatedHargaSatuan = hargaDasar + sumbangan;
+    newHargaTotal = calculatedHargaSatuan && jumlah ? calculatedHargaSatuan * jumlah : null;
+  }
+  
+  try {
+    // Use direct UPDATE for better performance (RPC mungkin lebih lambat)
+    const updateData: any = {};
+    if (payload.jumlah !== undefined) updateData.jumlah = payload.jumlah;
+    if (payload.tanggal !== undefined) updateData.tanggal = payload.tanggal;
+    if (payload.catatan !== undefined) updateData.catatan = payload.catatan;
+    if (payload.penerima !== undefined) updateData.penerima = payload.penerima;
+    if (payload.harga_satuan !== undefined) updateData.harga_satuan = payload.harga_satuan;
+    if ((payload as any).harga_dasar !== undefined) updateData.harga_dasar = (payload as any).harga_dasar;
+    if ((payload as any).sumbangan !== undefined) updateData.sumbangan = (payload as any).sumbangan;
+    if (newHargaTotal !== null && newHargaTotal !== currentTx?.harga_total) {
+      updateData.harga_total = newHargaTotal;
+    }
+    
+    const { data, error } = await supabase
+      .from('transaksi_inventaris')
+      .update(updateData)
+      .eq('id', id)
+      .select('*')
+      .single();
+    
+    if (error) {
+      console.error("Update error:", error);
       throw error;
     }
     
@@ -319,12 +487,45 @@ export async function updateTransaction(id: string, payload: Partial<InventoryTr
       throw new Error(`No data returned from update for ID ${id}`);
     }
     
-    console.log('RPC update successful:', data);
-    return data; // RPC returns JSON object directly
+    // Sync with keuangan if it's a sales transaction and harga_total changed
+    if (isPenjualan && currentTx?.keuangan_id) {
+      const needsKeuanganSync = 
+        (newHargaTotal !== null && newHargaTotal !== currentTx?.harga_total) ||
+        (payload.tanggal !== undefined && payload.tanggal !== currentTx?.tanggal) ||
+        (payload.catatan !== undefined && payload.catatan !== currentTx?.catatan);
+      
+      if (needsKeuanganSync) {
+        try {
+          const keuanganUpdate: any = {};
+          if (newHargaTotal !== null && newHargaTotal !== currentTx?.harga_total) {
+            keuanganUpdate.jumlah = newHargaTotal;
+          }
+          if (payload.tanggal !== undefined) {
+            keuanganUpdate.tanggal = payload.tanggal;
+          }
+          if (payload.catatan !== undefined) {
+            keuanganUpdate.deskripsi = payload.catatan || 'Penjualan inventaris';
+          }
+          
+          await supabase
+            .from('keuangan')
+            .update(keuanganUpdate)
+            .eq('id', currentTx.keuangan_id);
+          
+          console.log('Keuangan transaction synced:', { keuangan_id: currentTx.keuangan_id, updates: keuanganUpdate });
+        } catch (keuError) {
+          console.warn('Failed to sync keuangan transaction:', keuError);
+          // Don't throw - transaction update succeeded, keuangan sync is secondary
+        }
+      }
+    }
     
-  } catch (rpcError) {
-    console.error("RPC update failed:", rpcError);
-    throw rpcError;
+    console.log('Update successful:', data);
+    return data;
+    
+  } catch (updateError) {
+    console.error("Update failed:", updateError);
+    throw updateError;
   }
 }
 
@@ -334,21 +535,81 @@ export async function deleteTransaction(transactionId: string) {
     .from('transaksi_inventaris')
     .select('id, item_id, tipe, keluar_mode, jumlah, before_qty, after_qty, keuangan_id')
     .eq('id', transactionId)
-    .single();
+    .maybeSingle();
 
   if (fetchErr) {
     console.error('Fetch transaction before delete failed:', fetchErr);
     throw fetchErr;
   }
 
-  // 1) Hapus entri keuangan terkait (mencakup pola referensi lama dan baru)
+  // Jika transaksi tidak ditemukan, return early dengan pesan yang jelas
+  if (!trx) {
+    console.warn(`Transaction ${transactionId} not found, may have been already deleted`);
+    // Return success karena tujuan akhir (menghapus transaksi) sudah tercapai
+    return true;
+  }
+
+  // 1) Hapus entri keuangan terkait
+  // Prioritaskan keuangan_id jika tersedia (lebih spesifik dan aman)
   try {
-    await supabase
-      .from('keuangan')
-    .delete()
-      .or(`referensi.eq.inventaris:${transactionId},referensi.eq.inventory_sale:${transactionId}`);
-  } catch (keuErr) {
-    console.warn('Warning deleting related keuangan entry:', keuErr);
+    if (trx.keuangan_id) {
+      // Coba hapus menggunakan keuangan_id langsung
+      const { error: deleteError } = await supabase
+        .from('keuangan')
+        .delete()
+        .eq('id', trx.keuangan_id);
+      
+      if (deleteError) {
+        // Error 409 berarti entri tidak bisa dihapus karena constraint/trigger
+        // Ini biasanya terjadi jika auto_posted = FALSE (manual entry)
+        // Coba update auto_posted menjadi TRUE dulu, lalu hapus
+        if (deleteError.code === 'PGRST409' || deleteError.message?.includes('409')) {
+          console.warn(`⚠️ Tidak dapat menghapus entri keuangan ${trx.keuangan_id} langsung. Mencoba update auto_posted...`);
+          
+          // Update auto_posted menjadi TRUE agar bisa dihapus
+          const { error: updateError } = await supabase
+            .from('keuangan')
+            .update({ auto_posted: true })
+            .eq('id', trx.keuangan_id);
+          
+          if (!updateError) {
+            // Setelah update, coba hapus lagi
+            const { error: retryDeleteError } = await supabase
+              .from('keuangan')
+              .delete()
+              .eq('id', trx.keuangan_id);
+            
+            if (retryDeleteError) {
+              console.warn('⚠️ Masih tidak dapat menghapus entri keuangan setelah update auto_posted:', retryDeleteError);
+            }
+          } else {
+            console.warn('⚠️ Gagal update auto_posted:', updateError);
+          }
+        } else {
+          console.warn('⚠️ Error menghapus entri keuangan:', deleteError);
+        }
+      }
+    } else {
+      // Fallback: hapus berdasarkan referensi (hanya untuk auto_posted entries)
+      // Hanya hapus entri yang auto_posted = TRUE untuk menghindari error 409
+      const { error: deleteError } = await supabase
+        .from('keuangan')
+        .delete()
+        .or(`referensi.eq.inventaris:${transactionId},referensi.eq.inventory_sale:${transactionId}`)
+        .eq('auto_posted', true); // Hanya hapus auto-posted entries
+      
+      if (deleteError) {
+        console.warn('⚠️ Warning deleting related keuangan entry by referensi:', deleteError);
+      }
+    }
+  } catch (keuErr: any) {
+    // Tangani error yang tidak terduga
+    if (keuErr?.code === 'PGRST409' || keuErr?.message?.includes('409')) {
+      console.warn('⚠️ Error 409 Conflict saat menghapus entri keuangan. Entri mungkin terproteksi.');
+    } else {
+      console.warn('⚠️ Warning deleting related keuangan entry:', keuErr);
+    }
+    // Lanjutkan proses delete transaksi meskipun keuangan gagal dihapus
   }
 
   // 2) Kembalikan stok berdasarkan tipe transaksi
@@ -413,12 +674,18 @@ export async function deleteTransactions(ids: string[]) {
 }
 
 export async function getLowStock(minThreshold = 10) {
+  // Get all items first, then filter client-side for better accuracy
   const { data, error } = await supabase
     .from("inventaris")
-    .select("id,nama_barang,jumlah,min_stock")
-    .or(`jumlah.lt.${minThreshold},min_stock.lt.${minThreshold}`);
+    .select("id,nama_barang,jumlah,min_stock,kategori");
   if (error) throw error;
-  return (data || []) as Pick<InventoryItem, "id" | "nama_barang" | "jumlah" | "min_stock">[];
+  // Filter items where jumlah <= min_stock or jumlah < threshold
+  const filtered = (data || []).filter(item => {
+    const jumlah = item.jumlah || 0;
+    const minStock = item.min_stock || minThreshold;
+    return jumlah <= minStock || jumlah < minThreshold;
+  });
+  return filtered as Pick<InventoryItem, "id" | "nama_barang" | "jumlah" | "min_stock" | "kategori">[];
 }
 
 export async function getNearExpiry(days = 30) {
@@ -426,11 +693,11 @@ export async function getNearExpiry(days = 30) {
   const until = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from("inventaris")
-    .select("id,nama_barang,tanggal_kedaluwarsa,has_expiry")
+    .select("id,nama_barang,tanggal_kedaluwarsa,has_expiry,kategori")
     .eq("has_expiry", true)
     .lte("tanggal_kedaluwarsa", until);
   if (error) throw error;
-  return data || [];
+  return (data || []) as Pick<InventoryItem, "id" | "nama_barang" | "tanggal_kedaluwarsa" | "has_expiry" | "kategori">[];
 }
 
 // Ringkasan pemasukan dari penjualan inventaris

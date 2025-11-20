@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useCreateTransaction, useUpdateTransaction } from "@/hooks/useInventoryTransactions";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useInventoryList } from "@/hooks/useInventory";
 import { formatRupiah, parseRupiah } from "@/utils/inventaris.utils";
 
@@ -18,6 +18,7 @@ const transactionSchema = z.object({
   tipe: z.enum(["Masuk", "Keluar", "Stocktake"], {
     errorMap: () => ({ message: "Pilih tipe transaksi yang valid" })
   }),
+  masuk_mode: z.enum(["Donasi", "Pembelian"]).optional(),
   keluar_mode: z.enum(["Penjualan", "Distribusi"]).optional(),
   jumlah: z.number().int("Jumlah harus berupa bilangan bulat").min(1, "Jumlah minimal 1"),
   harga_satuan: z.number().min(0, "Harga tidak boleh negatif").optional(),
@@ -28,6 +29,7 @@ const transactionSchema = z.object({
   catatan: z.string().max(500, "Catatan maksimal 500 karakter").optional(),
   before_qty: z.number().int().min(0).optional(),
   after_qty: z.number().int().min(0).optional(),
+  referensi_koperasi_id: z.string().uuid().optional(),
 });
 
 type TransactionFormData = z.infer<typeof transactionSchema>;
@@ -55,6 +57,7 @@ const TransactionForm = memo(({ isOpen, onClose, editingTransaction, availableSt
     defaultValues: {
       item_id: "",
       tipe: "Masuk",
+      masuk_mode: "Donasi",
       keluar_mode: "Distribusi",
       jumlah: 1,
       harga_satuan: 0,
@@ -65,11 +68,70 @@ const TransactionForm = memo(({ isOpen, onClose, editingTransaction, availableSt
       catatan: "",
       before_qty: 0,
       after_qty: 0,
+      referensi_koperasi_id: undefined,
     }
   });
 
+  // Auto-populate form when editing
+  useEffect(() => {
+    if (editingTransaction && isOpen) {
+      // Extract harga_dasar dan sumbangan dari catatan jika ada (untuk penjualan)
+      let extractedHargaDasar = editingTransaction.harga_dasar || 0;
+      let extractedSumbangan = editingTransaction.sumbangan || 0;
+      
+      // Jika tidak ada di field langsung, coba extract dari catatan
+      if (!editingTransaction.harga_dasar && editingTransaction.catatan) {
+        const hargaDasarMatch = editingTransaction.catatan.match(/Harga Dasar: Rp\s*([\d.,]+)/i);
+        const sumbanganMatch = editingTransaction.catatan.match(/Sumbangan: Rp\s*([\d.,]+)/i);
+        
+        if (hargaDasarMatch) {
+          extractedHargaDasar = parseFloat(hargaDasarMatch[1].replace(/[,.]/g, '')) || 0;
+        }
+        if (sumbanganMatch) {
+          extractedSumbangan = parseFloat(sumbanganMatch[1].replace(/[,.]/g, '')) || 0;
+        }
+      }
+      
+      form.reset({
+        item_id: editingTransaction.item_id || "",
+        tipe: editingTransaction.tipe || "Masuk",
+        masuk_mode: editingTransaction.masuk_mode || (editingTransaction.tipe === "Masuk" ? "Donasi" : undefined),
+        keluar_mode: editingTransaction.keluar_mode || (editingTransaction.tipe === "Keluar" ? "Distribusi" : undefined),
+        jumlah: editingTransaction.jumlah || 1,
+        harga_satuan: editingTransaction.harga_satuan || 0,
+        harga_dasar: extractedHargaDasar,
+        sumbangan: extractedSumbangan,
+        penerima: editingTransaction.penerima || "",
+        tanggal: editingTransaction.tanggal || new Date().toISOString().split('T')[0],
+        catatan: editingTransaction.catatan || "",
+        before_qty: editingTransaction.before_qty || 0,
+        after_qty: editingTransaction.after_qty || 0,
+        referensi_koperasi_id: editingTransaction.referensi_koperasi_id || undefined,
+      });
+    } else if (!isOpen) {
+      // Reset form saat dialog ditutup
+      form.reset({
+        item_id: "",
+        tipe: "Masuk",
+        masuk_mode: "Donasi",
+        keluar_mode: "Distribusi",
+        jumlah: 1,
+        harga_satuan: 0,
+        harga_dasar: 0,
+        sumbangan: 0,
+        penerima: "",
+        tanggal: new Date().toISOString().split('T')[0],
+        catatan: "",
+        before_qty: 0,
+        after_qty: 0,
+        referensi_koperasi_id: undefined,
+      });
+    }
+  }, [editingTransaction, isOpen, form]);
+
   const selectedTipe = form.watch("tipe");
   const selectedItemId = form.watch("item_id");
+  const masukMode = form.watch("masuk_mode");
   const keluarMode = form.watch("keluar_mode");
   const hargaDasar = form.watch("harga_dasar");
   const sumbangan = form.watch("sumbangan");
@@ -93,19 +155,44 @@ const TransactionForm = memo(({ isOpen, onClose, editingTransaction, availableSt
         sumbangan: data.sumbangan || null,
       };
 
-      // Jika penjualan, hitung harga_satuan dari harga_dasar + sumbangan
-      if (data.tipe === "Keluar" && data.keluar_mode === "Penjualan") {
-        submitData.harga_satuan = (data.harga_dasar || 0) + (data.sumbangan || 0);
-        // Simpan breakdown di catatan
-        const breakdown = `Penjualan - Harga Dasar: Rp ${formatRupiah(data.harga_dasar || 0)}/unit, Sumbangan: Rp ${formatRupiah(data.sumbangan || 0)}`;
-        submitData.catatan = submitData.catatan 
-          ? `${breakdown} · ${submitData.catatan}` 
-          : breakdown;
-      } else if (data.tipe === "Keluar" && data.keluar_mode === "Distribusi") {
-        submitData.harga_satuan = null; // Distribusi tidak punya harga
-        submitData.catatan = submitData.catatan 
-          ? `Distribusi · ${submitData.catatan}` 
-          : "Distribusi";
+      // Handle masuk_mode
+      if (data.tipe === "Masuk") {
+        submitData.masuk_mode = data.masuk_mode || null;
+        // Jika Donasi, harga_satuan harus null
+        if (data.masuk_mode === "Donasi") {
+          submitData.harga_satuan = null;
+        }
+        // Jika Pembelian, harga_satuan harus ada
+        if (data.masuk_mode === "Pembelian" && !data.harga_satuan) {
+          submitData.harga_satuan = 0;
+        }
+      }
+      
+      // Handle keluar_mode
+      if (data.tipe === "Keluar") {
+        submitData.keluar_mode = data.keluar_mode || null;
+        
+        // Jika penjualan, hitung harga_satuan dari harga_dasar + sumbangan
+        if (data.keluar_mode === "Penjualan") {
+          // Hitung harga_satuan dan harga_total dari breakdown
+          const hargaSatuan = (data.harga_dasar || 0) + (data.sumbangan || 0);
+          const hargaTotal = hargaSatuan * data.jumlah;
+          submitData.harga_satuan = hargaSatuan;
+          submitData.harga_total = hargaTotal; // Set harga_total untuk sinkronisasi keuangan
+          // Simpan breakdown di catatan: hanya tampilkan sumbangan jika > 0
+          const sumbanganText = (data.sumbangan || 0) > 0 
+            ? `, Sumbangan: Rp ${formatRupiah(data.sumbangan || 0)}` 
+            : '';
+          const breakdown = `Penjualan - Harga Dasar: Rp ${formatRupiah(data.harga_dasar || 0)}/unit${sumbanganText}`;
+          submitData.catatan = submitData.catatan 
+            ? `${breakdown} · ${submitData.catatan}` 
+            : breakdown;
+        } else if (data.keluar_mode === "Distribusi") {
+          submitData.harga_satuan = null; // Distribusi tidak punya harga
+          submitData.catatan = submitData.catatan 
+            ? `Distribusi · ${submitData.catatan}` 
+            : "Distribusi";
+        }
       }
       
       // Debug: log data yang akan dikirim
@@ -143,14 +230,14 @@ const TransactionForm = memo(({ isOpen, onClose, editingTransaction, availableSt
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {editingTransaction ? "Edit Transaksi" : "Tambah Transaksi Baru"}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto max-h-[calc(90vh-120px)] pr-2">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="item_id">Item *</Label>
@@ -195,9 +282,33 @@ const TransactionForm = memo(({ isOpen, onClose, editingTransaction, availableSt
             </div>
           </div>
 
+          {selectedTipe === "Masuk" && (
+            <div>
+              <Label>Mode Transaksi Masuk</Label>
+              <Select
+                value={masukMode || "Donasi"}
+                onValueChange={(value: any) => {
+                  form.setValue("masuk_mode", value);
+                  // Reset harga jika Donasi
+                  if (value === "Donasi") {
+                    form.setValue("harga_satuan", 0);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Donasi">Donasi (Tanpa Harga Beli)</SelectItem>
+                  <SelectItem value="Pembelian">Pembelian (Dengan Harga Beli)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {selectedTipe === "Keluar" && (
             <div>
-              <Label>Mode Transaksi</Label>
+              <Label>Mode Transaksi Keluar</Label>
               <Select
                 value={keluarMode || "Distribusi"}
                 onValueChange={(value: any) => {
@@ -271,9 +382,9 @@ const TransactionForm = memo(({ isOpen, onClose, editingTransaction, availableSt
               )}
             </div>
 
-            {selectedTipe !== "Keluar" || keluarMode !== "Penjualan" ? (
+            {selectedTipe === "Masuk" && masukMode === "Pembelian" ? (
               <div>
-                <Label htmlFor="harga_satuan">Harga Satuan</Label>
+                <Label htmlFor="harga_satuan">Harga Beli per Unit</Label>
                 <Input
                   type="text"
                   placeholder="Rp 0"
@@ -287,9 +398,20 @@ const TransactionForm = memo(({ isOpen, onClose, editingTransaction, availableSt
                   <p className="text-sm text-red-600">{form.formState.errors.harga_satuan.message}</p>
                 )}
               </div>
-            ) : (
+            ) : selectedTipe === "Masuk" && masukMode === "Donasi" ? (
+              <div>
+                <Label htmlFor="harga_satuan">Harga Satuan</Label>
+                <Input
+                  type="text"
+                  placeholder="Tidak ada (Donasi)"
+                  disabled
+                  className="bg-gray-100"
+                />
+                <p className="text-xs text-gray-500 mt-1">Donasi tidak memiliki harga beli</p>
+              </div>
+            ) : selectedTipe === "Keluar" && keluarMode !== "Penjualan" ? (
               <div></div>
-            )}
+            ) : null}
           </div>
 
           {selectedTipe === "Stocktake" && (

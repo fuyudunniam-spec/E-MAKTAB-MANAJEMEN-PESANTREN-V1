@@ -302,6 +302,112 @@ obat_khusus: text;  // Untuk obat rutin yang perlu dikonsumsi
 
 ---
 
+## 🔑 IDENTIFIER SANTRI (CRITICAL!)
+
+### **Primary Identifier: `id_santri`**
+
+**Field**: `santri.id_santri` (VARCHAR(8), UNIQUE, NOT NULL after insert)
+
+**Format**: `KKYYNNNN`
+- `KK` = Kode Kategori (BM, BN, RG, MH)
+- `YY` = Tahun Angkatan (2 digit)
+- `NNNN` = Sequence Number (4 digit)
+
+**Contoh**: `BM240001`, `BN240012`, `RG240045`
+
+**Status**: 
+- ✅ **PRIMARY IDENTIFIER** - Gunakan untuk semua operasi (search, query, display)
+- ✅ **Auto-generated** - Tidak perlu input manual (trigger database)
+- ✅ **Immutable** - Tidak bisa diubah setelah dibuat
+- ✅ **REQUIRED** - Harus ada setelah insert
+
+### **Legacy Field: `nisn`**
+
+**Field**: `santri.nisn` (VARCHAR, nullable)
+
+**Status**:
+- ❌ **DEPRECATED untuk identifier** - Jangan gunakan untuk search/query/display
+- ⚠️ **Optional field** - Hanya untuk data historis/form external
+- 📝 **Boleh diisi** - Tapi tidak digunakan untuk operasi sistem
+- 🚫 **JANGAN SELECT** - Jangan include di select query untuk modul baru
+
+### **✅ Best Practice untuk Modul Baru:**
+
+```typescript
+// ✅ BENAR - Gunakan id_santri
+const query = supabase
+  .from('santri')
+  .select('id, nama_lengkap, id_santri, kategori')
+  .or(`nama_lengkap.ilike.%${kw}%,id_santri.ilike.%${kw}%`);
+
+// ❌ SALAH - Jangan gunakan nisn
+const query = supabase
+  .from('santri')
+  .select('id, nama_lengkap, nisn, kategori')  // JANGAN!
+  .or(`nama_lengkap.ilike.%${kw}%,nisn.ilike.%${kw}%`);  // JANGAN!
+```
+
+### **Interface Standard untuk Modul Baru:**
+
+```typescript
+// ✅ Interface yang benar
+export interface SantriLite {
+  id: string;              // UUID (internal)
+  nama_lengkap: string;
+  id_santri: string;       // Primary identifier (REQUIRED, bukan optional!)
+  kategori?: string;
+  // JANGAN include nisn di interface baru!
+}
+
+// ❌ Interface yang salah (jangan ditiru)
+export interface SantriLite {
+  id: string;
+  nama_lengkap: string;
+  nisn?: string;  // JANGAN!
+  id_santri?: string;  // Seharusnya REQUIRED, bukan optional
+}
+```
+
+### **Display di UI:**
+
+```typescript
+// ✅ Display yang benar
+<TableCell>{santri.id_santri || '-'}</TableCell>
+<Label>ID Santri: {santri.id_santri}</Label>
+<Input placeholder="Nama atau ID Santri" />
+
+// ❌ Display yang salah
+<TableCell>{santri.nisn || '-'}</TableCell>  // JANGAN!
+<Label>NISN: {santri.nisn}</Label>  // JANGAN!
+<Input placeholder="Nama atau NISN" />  // JANGAN!
+```
+
+### **Search Placeholder:**
+
+```typescript
+// ✅ Placeholder yang benar
+placeholder="Nama atau ID Santri"
+placeholder="Cari nama santri atau ID Santri"
+
+// ❌ Placeholder yang salah
+placeholder="Nama atau NISN"  // JANGAN!
+placeholder="Cari nama atau NISN"  // JANGAN!
+```
+
+### **Utility Function Standar:**
+
+Gunakan `src/utils/santri.utils.ts` untuk search santri:
+
+```typescript
+import { searchSantriStandard } from '@/utils/santri.utils';
+
+// ✅ Gunakan utility function standar
+const results = await searchSantriStandard('BM240001');
+// Returns: SantriLite[] dengan id_santri (bukan nisn)
+```
+
+---
+
 ## 🔑 KEY RULES
 
 ### **1. Konsistensi Penamaan**
@@ -323,6 +429,13 @@ obat_khusus: text;  // Untuk obat rutin yang perlu dikonsumsi
 - ✅ Document requirements → `requirement_dokumen` table
 - ✅ Document operations → `DocumentService`
 - ✅ Status values → Database ENUMs/constraints
+
+### **5. Identifier Santri (CRITICAL!)**
+- ✅ **SELALU** gunakan `id_santri` (bukan `nisn`) untuk identifier/search/display
+- ✅ **JANGAN** include `nisn` di select query untuk modul baru
+- ✅ **JANGAN** gunakan `nisn` di interface TypeScript untuk modul baru
+- ✅ Gunakan utility function `searchSantriStandard()` dari `src/utils/santri.utils.ts`
+- ✅ Placeholder: "Nama atau ID Santri" (bukan "Nama atau NISN")
 
 ---
 

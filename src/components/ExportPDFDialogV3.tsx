@@ -26,6 +26,7 @@ class LocalPDFExporter {
   }
   
   // Helper: Generate description from rincian_pengeluaran
+  // Format: "Nama Item Berat (Jumlah Unit)"
   static generateDescriptionFromDetails(rincianPengeluaran: any[]): string {
     if (!rincianPengeluaran || rincianPengeluaran.length === 0) {
       return '-';
@@ -36,7 +37,21 @@ class LocalPDFExporter {
     const itemDescriptions = items.map((item: any) => {
       const qty = item.jumlah || 1;
       const name = item.nama_item || 'Item';
-      return `${name} (${qty})`;
+      const satuan = item.satuan || 'unit';
+      // Format: "Nama Item Berat (Jumlah Unit)"
+      // Jika ada satuan yang menunjukkan berat (kg, Kg, g, gram), gabungkan dengan nama
+      if (satuan && (satuan.toLowerCase().includes('kg') || satuan.toLowerCase().includes('gram') || satuan.toLowerCase().includes('g'))) {
+        // Cek apakah nama sudah mengandung berat
+        const beratMatch = name.match(/(\d+)\s*(kg|Kg|g|gram)/i);
+        if (beratMatch) {
+          // Nama sudah mengandung berat, langsung pakai
+          return `${name} (${qty} ${satuan})`;
+        } else {
+          // Gabungkan nama dengan satuan sebagai berat
+          return `${name} ${satuan} (${qty} unit)`;
+        }
+      }
+      return `${name} (${qty} ${satuan})`;
     });
     if (remainingCount > 0) {
       itemDescriptions.push(`dan ${remainingCount} item lainnya`);
@@ -44,40 +59,234 @@ class LocalPDFExporter {
     return itemDescriptions.join(', ');
   }
   
-  // Helper: Clean auto-post description
-  static cleanAutoPostDescription(deskripsi: string): string {
-    if (!deskripsi) return '-';
-    if (deskripsi.includes('Auto-post dari donasi:')) {
-      const match = deskripsi.match(/Auto-post dari donasi:\s*(.+)$/);
-      return match ? match[1].trim() : deskripsi;
+  // Helper: Normalize keuangan deskripsi format
+  // Convert "Penjualan X kepada Y" to "X / Y" format
+  static normalizeKeuanganDeskripsi(deskripsi: string): string {
+    if (!deskripsi) return deskripsi;
+    
+    // Pattern: "Penjualan [item] ([qty] unit) kepada [penerima]"
+    const match = deskripsi.match(/Penjualan\s+(.+?)\s+\((\d+)\s+unit\)\s+kepada\s+(.+)/i);
+    if (match) {
+      const [, item, qty, penerima] = match;
+      return `${item} (${qty} unit) / ${penerima}`;
     }
-    if (deskripsi.includes('Auto-post dari penjualan:')) {
-      const match = deskripsi.match(/Auto-post dari penjualan:\s*(.+)$/);
-      return match ? match[1].trim() : deskripsi;
+    
+    // Pattern: "Penjualan [item] ([qty] unit)" (no penerima)
+    const match2 = deskripsi.match(/Penjualan\s+(.+?)\s+\((\d+)\s+unit\)/i);
+    if (match2) {
+      const [, item, qty] = match2;
+      return `${item} (${qty} unit)`;
     }
-    if (deskripsi.includes('Auto-post dari overhead:')) {
-      const match = deskripsi.match(/Auto-post dari overhead:\s*(.+)$/);
-      return match ? match[1].trim() : deskripsi;
-    }
+    
     return deskripsi;
   }
-  
-  // Helper: Extract nama from auto-post
-  static extractNamaFromAutoPost(deskripsi: string): string | null {
-    if (!deskripsi) return null;
-    if (deskripsi.includes('Auto-post dari donasi:')) {
-      const match = deskripsi.match(/Auto-post dari donasi:\s*(.+)$/);
-      return match ? match[1].trim() : null;
-    }
-    if (deskripsi.includes('Auto-post dari penjualan:')) {
-      const match = deskripsi.match(/Auto-post dari penjualan:\s*(.+)$/);
-      return match ? match[1].trim() : null;
-    }
-    if (deskripsi.includes('Auto-post dari overhead:')) {
-      const match = deskripsi.match(/Auto-post dari overhead:\s*(.+)$/);
-      return match ? match[1].trim() : null;
+
+  // Helper: Extract sumbangan info from catatan
+  static extractSumbanganInfo(catatan: string): string | null {
+    if (!catatan) return null;
+    const sumbanganMatch = catatan.match(/Sumbangan:\s*Rp\s*([\d.,]+)/i);
+    if (sumbanganMatch) {
+      const sumbanganValue = parseFloat(sumbanganMatch[1].replace(/[,.]/g, '')) || 0;
+      if (sumbanganValue > 0) {
+        return `Sumbangan: Rp ${sumbanganValue.toLocaleString('id-ID')}`;
+      }
     }
     return null;
+  }
+
+  // Helper: Check if deskripsi contains item name
+  static isDeskripsiComplete(deskripsi: string): boolean {
+    if (!deskripsi || deskripsi.trim() === '' || deskripsi === '-') return false;
+    
+    // Check if it's just "Penjualan - Harga Dasar" without item name
+    if (/^Penjualan\s*-\s*Harga\s+Dasar:/i.test(deskripsi.trim())) {
+      return false;
+    }
+    
+    // Check if it matches pattern "Penjualan [item] ([qty] unit)" - this is complete
+    if (/Penjualan\s+.+?\s+\(\d+\s+unit\)/i.test(deskripsi)) {
+      return true;
+    }
+    
+    // Check if it's normalized format "[item] ([qty] unit)" - this is also complete
+    if (/^.+?\s+\(\d+\s+unit\)/i.test(deskripsi.trim())) {
+      return true;
+    }
+    
+    // If it doesn't match known incomplete patterns, assume it's complete
+    return true;
+  }
+
+  // Helper: Build complete description for inventory sales (same logic as KeuanganV3.tsx)
+  static buildInventorySaleDescription(
+    keuanganDeskripsi: string,
+    catatan: string | null,
+    inventoryTx: any,
+    penerimaPembayar: string | null
+  ): string {
+    // CRITICAL: Always prioritize inventaris.nama_barang if available
+    // This ensures we always have the item name, even if keuangan.deskripsi is incomplete
+    const itemName = inventoryTx?.inventaris?.nama_barang || null;
+    const jumlah = inventoryTx?.jumlah || null;
+    
+    // Normalize keuangan deskripsi format first
+    let normalizedDeskripsi = LocalPDFExporter.normalizeKeuanganDeskripsi(keuanganDeskripsi);
+    
+    // Check if keuangan.deskripsi is complete (has item name)
+    const deskripsiIsComplete = LocalPDFExporter.isDeskripsiComplete(normalizedDeskripsi);
+    
+    // If we have item name from inventaris, always use it to build complete description
+    if (itemName && jumlah !== null) {
+      // Build description from inventaris data (most reliable source)
+      let desc = `${itemName} (${jumlah} unit)`;
+      
+      // Add penerima if available
+      if (penerimaPembayar) {
+        desc += ` / ${penerimaPembayar}`;
+      }
+      
+      // Extract additional info from catatan if available
+      if (catatan) {
+        const sumbanganInfo = LocalPDFExporter.extractSumbanganInfo(catatan);
+        const hargaDasarMatch = catatan.match(/Harga Dasar:\s*Rp\s*([\d.,]+)/i);
+        const hargaDasar = hargaDasarMatch ? hargaDasarMatch[1] : '';
+        
+        // Only add harga dasar if not already in deskripsi and if catatan has it
+        if (hargaDasar && !normalizedDeskripsi.includes('Harga Dasar')) {
+          desc += ` - Harga Dasar: Rp ${hargaDasar}/unit`;
+        }
+        
+        // Add sumbangan if > 0
+        if (sumbanganInfo) {
+          desc += ` - ${sumbanganInfo}`;
+        }
+      }
+      
+      return desc;
+    }
+    
+    // Fallback: If keuangan.deskripsi is complete, use it (but add sumbangan if needed)
+    if (deskripsiIsComplete && normalizedDeskripsi && normalizedDeskripsi.trim() !== '' && normalizedDeskripsi !== '-') {
+      const sumbanganInfo = catatan ? LocalPDFExporter.extractSumbanganInfo(catatan) : null;
+      if (sumbanganInfo && !normalizedDeskripsi.includes('Sumbangan')) {
+        return `${normalizedDeskripsi} - ${sumbanganInfo}`;
+      }
+      return normalizedDeskripsi;
+    }
+    
+    // Final fallback: use catatan as-is (but this should rarely happen if inventaris data is available)
+    return catatan || keuanganDeskripsi || 'Penjualan Inventaris';
+  }
+
+  // Helper: Clean description - remove "Sumbangan: Rp 0" if present
+  static cleanDescription(deskripsi: string): string {
+    if (!deskripsi) return deskripsi;
+    
+    // Remove "Sumbangan: Rp 0" patterns
+    let cleaned = deskripsi.replace(/,\s*Sumbangan:\s*Rp\s*0([.,]0+)?\s*/gi, '');
+    cleaned = cleaned.replace(/\s+Sumbangan:\s*Rp\s*0([.,]0+)?\s*/gi, '');
+    cleaned = cleaned.replace(/\s{2,}/g, ' ').replace(/,\s*$/, '').trim();
+    
+    return cleaned;
+  }
+
+  // Helper: Extract clean item description from penjualan inventaris (legacy - kept for backward compatibility)
+  // Format input: "Auto-post dari penjualan: Beras Rosita Merah (10 Kg) (1 unit) [Konsolidasi dari Kas Inventaris]"
+  // Format output: "Beras Rosita Merah 10 Kg (1 unit)"
+  static extractItemDescriptionFromPenjualan(deskripsi: string): string {
+    if (!deskripsi) return '-';
+    
+    // Hapus prefix "Auto-post dari penjualan:" atau "Penjualan"
+    let cleaned = deskripsi
+      .replace(/^Auto-post dari penjualan:\s*/i, '')
+      .replace(/^Penjualan\s+/i, '');
+    
+    // Hapus suffix seperti "[Konsolidasi dari Kas Inventaris]", "- CORRECTED", dll
+    cleaned = cleaned
+      .replace(/\s*\[.*?\]\s*/g, '') // Hapus [Konsolidasi dari Kas Inventaris]
+      .replace(/\s*-\s*CORRECTED\s*/gi, '') // Hapus - CORRECTED
+      .replace(/\s*-\s*.*$/g, '') // Hapus sisa setelah tanda -
+      .trim();
+    
+    // Pattern 1: "Beras X (25 Kg) (3 unit)" -> "Beras X 25 Kg (3 unit)"
+    // Mencari pola: nama item (berat dengan spasi) (jumlah unit)
+    const pattern1 = /^(.+?)\s*\((\d+)\s+(kg|Kg|g|gram|G|GRAM)\s*\)\s*\((\d+)\s+(unit|Unit|UNIT)\)\s*$/i;
+    let match1 = cleaned.match(pattern1);
+    if (match1) {
+      const [, nama, berat, satuanBerat, jumlah, satuanJumlah] = match1;
+      return `${nama.trim()} ${berat} ${satuanBerat} (${jumlah} ${satuanJumlah})`;
+    }
+    
+    // Pattern 2: "Beras X (25Kg) (3 unit)" atau "Beras X (5Kg) (8 unit)" -> "Beras X 25Kg (3 unit)"
+    const pattern2 = /^(.+?)\s*\((\d+)(kg|Kg|g|gram|G|GRAM)\s*\)\s*\((\d+)\s+(unit|Unit|UNIT)\)\s*$/i;
+    let match2 = cleaned.match(pattern2);
+    if (match2) {
+      const [, nama, berat, satuanBerat, jumlah, satuanJumlah] = match2;
+      return `${nama.trim()} ${berat}${satuanBerat} (${jumlah} ${satuanJumlah})`;
+    }
+    
+    // Pattern 3: "Beras X (75 unit)" -> "Beras X (75 unit)" (tidak ada berat, biarkan as is)
+    // Pattern 4: "Beras X 25 Kg (3 unit)" -> sudah benar, return as is
+    // Jika sudah dalam format yang benar atau tidak match pattern, return cleaned
+    return cleaned || '-';
+  }
+  
+  // Helper: Clean auto-post description (untuk non-penjualan)
+  static cleanAutoPostDescription(deskripsi: string): string {
+    if (!deskripsi) return '-';
+    
+    let cleaned = deskripsi;
+    
+    // Hapus hajat/doa dari deskripsi donasi TERLEBIH DAHULU (sebelum menghapus prefix)
+    // Format: "Donasi tunai dari [nama] (Hajat: ...)" atau "Donasi dari [nama] (Hajat: ...)"
+    cleaned = cleaned.replace(/\s*\(Hajat:.*?\)/gi, '');
+    cleaned = cleaned.replace(/\s*\(Doa:.*?\)/gi, '');
+    cleaned = cleaned.replace(/\s*\(Hajat.*?\)/gi, ''); // Variasi tanpa titik dua
+    cleaned = cleaned.replace(/\s*\(Doa.*?\)/gi, ''); // Variasi tanpa titik dua
+    
+    // Hapus prefix "Auto-post dari donasi:"
+    if (cleaned.includes('Auto-post dari donasi:')) {
+      const match = cleaned.match(/Auto-post dari donasi:\s*(.+)$/);
+      cleaned = match ? match[1].trim() : cleaned;
+    }
+    
+    // Hapus suffix "[Konsolidasi dari Kas Donasi]"
+    cleaned = cleaned.replace(/\s*\[Konsolidasi dari Kas Donasi\]\s*/gi, '');
+    
+    // Hapus prefix "Donasi tunai dari" jika ada (untuk format baru)
+    cleaned = cleaned.replace(/^Donasi tunai dari\s+/i, '');
+    cleaned = cleaned.replace(/^Donasi dari\s+/i, '');
+    
+    // Hapus prefix "Auto-post dari penjualan:"
+    if (cleaned.includes('Auto-post dari penjualan:')) {
+      // Gunakan fungsi khusus untuk penjualan inventaris
+      return LocalPDFExporter.extractItemDescriptionFromPenjualan(deskripsi);
+    }
+    
+    // Hapus prefix "Auto-post dari overhead:"
+    if (cleaned.includes('Auto-post dari overhead:')) {
+      const match = cleaned.match(/Auto-post dari overhead:\s*(.+)$/);
+      cleaned = match ? match[1].trim() : cleaned;
+    }
+    
+    // Jika ada "Penjualan" di awal tapi bukan auto-post
+    if (cleaned.toLowerCase().includes('penjualan') && !cleaned.includes('Auto-post')) {
+      return LocalPDFExporter.extractItemDescriptionFromPenjualan(deskripsi);
+    }
+    
+    return cleaned.trim() || '-';
+  }
+  
+  // Helper: Extract nama penerima/pembayar
+  static extractNamaPenerima(deskripsi: string, penerimaPembayar?: string): string {
+    // Prioritaskan penerima_pembayar jika ada
+    if (penerimaPembayar) {
+      return penerimaPembayar;
+    }
+    
+    // Jika tidak ada, coba ekstrak dari deskripsi (untuk kasus tertentu)
+    // Tapi biasanya penerima_pembayar sudah ada di field terpisah
+    return '-';
   }
   
   // Helper: Load image as base64
@@ -458,27 +667,66 @@ const fetchCashflowPerAccount = async (
     includeDraft
   });
   
-  // Build query
+  // Build query - include referensi untuk join dengan transaksi_inventaris
   let query = supabase
     .from('keuangan')
-    .select('id, tanggal, nomor_bukti, jenis_transaksi, kategori, deskripsi, jumlah, penerima_pembayar, status, rincian_pengeluaran(nama_item, jumlah, satuan, harga_satuan)')
+    .select('id, tanggal, nomor_bukti, jenis_transaksi, kategori, deskripsi, jumlah, penerima_pembayar, status, referensi, rincian_pengeluaran(nama_item, jumlah, satuan, harga_satuan)')
     .eq('akun_kas_id', accountId)
     .gte('tanggal', startDate.toISOString().split('T')[0])
     .lte('tanggal', endDate.toISOString().split('T')[0])
     .order('tanggal', { ascending: true });
   
   // Filter status
+  // IMPORTANT: Auto-posted transactions (Donasi, Penjualan Inventaris) are always 'posted' and final
+  // Status filter only applies to manual entries
   if (includeDraft) {
     // Sertakan semua transaksi aktif (posted, draft, Selesai, cancelled)
+    // But auto-posted transactions should always be 'posted'
     query = query.in('status', ['posted', 'draft', 'Selesai', 'selesai', 'cancelled']);
   } else {
     // Default: hanya posted
+    // Note: Auto-posted transactions are always 'posted', so this is correct
     query = query.eq('status', 'posted');
   }
   
   const { data: txs } = await query;
   
   console.log('[EXPORT PDF] Fetched transactions:', txs?.length || 0, 'records');
+
+  // Extract inventory transaction IDs from referensi and fetch catatan
+  const inventoryTransactionIds = (txs || [])
+    .filter(t => t.referensi && typeof t.referensi === 'string' && t.referensi.startsWith('inventory_sale:'))
+    .map(t => {
+      const idStr = (t.referensi as string).replace('inventory_sale:', '').trim();
+      if (idStr && idStr.length === 36) {
+        return idStr;
+      }
+      return null;
+    })
+    .filter((id): id is string => id !== null);
+  
+  // Fetch transaksi_inventaris data for these IDs
+  let inventoryTransactionsMap: Record<string, any> = {};
+  if (inventoryTransactionIds.length > 0) {
+    const { data: inventoryTransactions } = await supabase
+      .from('transaksi_inventaris')
+      .select(`
+        id, 
+        catatan, 
+        sumbangan, 
+        harga_dasar,
+        jumlah,
+        inventaris:item_id(nama_barang)
+      `)
+      .in('id', inventoryTransactionIds);
+    
+    if (inventoryTransactions) {
+      inventoryTransactionsMap = inventoryTransactions.reduce((acc, ti) => {
+        acc[ti.id] = ti;
+        return acc;
+      }, {} as Record<string, any>);
+    }
+  }
 
   const all = txs || [];
   const totalPemasukan = all.filter(t => t.jenis_transaksi === 'Pemasukan').reduce((s, t) => s + (t.jumlah || 0), 0);
@@ -497,44 +745,142 @@ const fetchCashflowPerAccount = async (
 
   const incomeRows = all
     .filter(t => t.jenis_transaksi === 'Pemasukan')
-    .map(t => ({
-      tanggal: LocalPDFExporter.formatDate(t.tanggal),
-      noBukti: t.nomor_bukti || (t.id || '').slice(0, 8),
-      kategori: t.kategori || '-',
-      deskripsi: t.deskripsi || t.kategori || '-',
-      jumlah: t.jumlah || 0,
-    }));
+    .map(t => {
+      // For inventory sales, get catatan and inventory transaction info
+      let catatanFromInventaris = null;
+      let inventoryTx = null;
+      if (t.referensi && t.referensi.startsWith('inventory_sale:')) {
+        const transactionId = t.referensi.replace('inventory_sale:', '');
+        inventoryTx = inventoryTransactionsMap[transactionId];
+        if (inventoryTx && inventoryTx.catatan) {
+          catatanFromInventaris = inventoryTx.catatan;
+        }
+      }
+      
+      // Build description based on transaction type
+      let finalDeskripsi = '';
+      if (t.kategori === 'Penjualan Inventaris' && t.referensi?.startsWith('inventory_sale:')) {
+        // For inventory sales, use special logic to combine keuangan.deskripsi + catatan info
+        finalDeskripsi = LocalPDFExporter.buildInventorySaleDescription(
+          t.deskripsi || '',
+          catatanFromInventaris,
+          inventoryTx,
+          t.penerima_pembayar || null
+        );
+      } else {
+        // For other transactions (donasi, etc), use existing logic
+        let deskripsi = t.deskripsi || t.kategori || '-';
+        
+        // Untuk donasi - bersihkan format lama
+        if (deskripsi && (deskripsi.includes('Auto-post dari donasi') || deskripsi.includes('Donasi tunai dari'))) {
+          deskripsi = LocalPDFExporter.cleanAutoPostDescription(deskripsi);
+        }
+        
+        // Gabungkan dengan penerima jika ada dan berbeda dengan deskripsi
+        const penerima = t.penerima_pembayar || '-';
+        const isDonasi = t.kategori === 'Donasi' || t.kategori === 'Donasi Tunai';
+        // Untuk donasi, jika deskripsi sudah sama dengan penerima_pembayar, tidak perlu tambahkan "/"
+        finalDeskripsi = (penerima !== '-' && !isDonasi) || (penerima !== '-' && isDonasi && deskripsi !== penerima) 
+          ? `${deskripsi} / ${penerima}` 
+          : deskripsi;
+      }
+      
+      // Clean description (remove "Sumbangan: Rp 0")
+      const cleanedDeskripsi = LocalPDFExporter.cleanDescription(finalDeskripsi);
+      
+      return {
+        tanggal: LocalPDFExporter.formatDate(t.tanggal),
+        noBukti: t.nomor_bukti || (t.id || '').slice(0, 8),
+        kategori: t.kategori || '-',
+        deskripsi: cleanedDeskripsi || '-',
+        jumlah: t.jumlah || 0,
+      };
+    });
 
   const expenseRows = all
     .filter(t => t.jenis_transaksi === 'Pengeluaran')
-    .map(t => ({
-      tanggal: LocalPDFExporter.formatDate(t.tanggal),
-      noBukti: t.nomor_bukti || (t.id || '').slice(0, 8),
-      kategori: t.kategori || '-',
-      deskripsi: t.deskripsi || t.kategori || '-',
-      jumlah: t.jumlah || 0,
-    }));
+    .map(t => {
+      // Generate description from rincian_pengeluaran if available
+      let deskripsi = '-';
+      if (t.rincian_pengeluaran && t.rincian_pengeluaran.length > 0) {
+        deskripsi = LocalPDFExporter.generateDescriptionFromDetails(t.rincian_pengeluaran);
+      } else if (t.deskripsi) {
+        deskripsi = LocalPDFExporter.cleanAutoPostDescription(t.deskripsi);
+      }
+      
+      // Gabungkan dengan penerima jika ada
+      const penerima = t.penerima_pembayar || '-';
+      const deskripsiFinal = penerima !== '-' ? `${deskripsi} / ${penerima}` : deskripsi;
+      
+      return {
+        tanggal: LocalPDFExporter.formatDate(t.tanggal),
+        noBukti: t.nomor_bukti || (t.id || '').slice(0, 8),
+        kategori: t.kategori || '-',
+        deskripsi: deskripsiFinal,
+        jumlah: t.jumlah || 0,
+      };
+    });
 
   const combinedRows = all.map(t => {
-    // Generate description from rincian_pengeluaran if available
-    let finalDeskripsi = '-';
-    if (t.jenis_transaksi === 'Pengeluaran' && t.rincian_pengeluaran && t.rincian_pengeluaran.length > 0) {
-      finalDeskripsi = LocalPDFExporter.generateDescriptionFromDetails(t.rincian_pengeluaran);
-    } else if (t.deskripsi) {
-      finalDeskripsi = LocalPDFExporter.cleanAutoPostDescription(t.deskripsi);
+    // For inventory sales, get catatan and inventory transaction info
+    let catatanFromInventaris = null;
+    let inventoryTx = null;
+    if (t.referensi && t.referensi.startsWith('inventory_sale:')) {
+      const transactionId = t.referensi.replace('inventory_sale:', '');
+      inventoryTx = inventoryTransactionsMap[transactionId];
+      if (inventoryTx && inventoryTx.catatan) {
+        catatanFromInventaris = inventoryTx.catatan;
+      }
     }
     
-    // Extract nama from auto-post description or use penerima_pembayar
-    const namaPenerima = LocalPDFExporter.extractNamaFromAutoPost(t.deskripsi) || t.penerima_pembayar || '-';
+    // Build description based on transaction type
+    let finalDeskripsi = '-';
+    if (t.jenis_transaksi === 'Pengeluaran' && t.rincian_pengeluaran && t.rincian_pengeluaran.length > 0) {
+      // Generate description from rincian_pengeluaran if available (untuk pengeluaran)
+      finalDeskripsi = LocalPDFExporter.generateDescriptionFromDetails(t.rincian_pengeluaran);
+    } else if (t.jenis_transaksi === 'Pemasukan' && t.kategori === 'Penjualan Inventaris' && t.referensi?.startsWith('inventory_sale:')) {
+      // For inventory sales, use special logic to combine keuangan.deskripsi + catatan info
+      finalDeskripsi = LocalPDFExporter.buildInventorySaleDescription(
+        t.deskripsi || '',
+        catatanFromInventaris,
+        inventoryTx,
+        t.penerima_pembayar || null
+      );
+    } else if (t.deskripsi) {
+      // Untuk pemasukan lainnya (donasi, etc), gunakan fungsi pembersihan
+      if (t.jenis_transaksi === 'Pemasukan' && (t.deskripsi.includes('Auto-post dari penjualan') || t.deskripsi.includes('Penjualan'))) {
+        finalDeskripsi = LocalPDFExporter.extractItemDescriptionFromPenjualan(t.deskripsi);
+      } else {
+        finalDeskripsi = LocalPDFExporter.cleanAutoPostDescription(t.deskripsi);
+      }
+    }
+    
+    // Clean description (remove "Sumbangan: Rp 0")
+    finalDeskripsi = LocalPDFExporter.cleanDescription(finalDeskripsi);
+    
+    // Extract nama penerima/pembayar
+    const namaPenerima = LocalPDFExporter.extractNamaPenerima(t.deskripsi || '', t.penerima_pembayar);
     
     // Combine deskripsi and penerima with "/" separator
-    const deskripsiPenerima = `${finalDeskripsi}/${namaPenerima}`;
+    // Format: "Nama Item Berat (Jumlah Unit) / Penerima"
+    // Untuk donasi, jika deskripsi sudah sama dengan penerima_pembayar, tidak perlu tambahkan "/"
+    // Untuk penjualan inventaris, penerima sudah termasuk di finalDeskripsi, jadi tidak perlu ditambahkan lagi
+    const isDonasi = t.kategori === 'Donasi' || t.kategori === 'Donasi Tunai';
+    const isPenjualanInventaris = t.kategori === 'Penjualan Inventaris';
+    
+    let deskripsiPenerima = finalDeskripsi;
+    if (!isPenjualanInventaris) {
+      // Untuk non-penjualan inventaris, tambahkan penerima jika ada
+      deskripsiPenerima = (namaPenerima !== '-' && !isDonasi) || (namaPenerima !== '-' && isDonasi && finalDeskripsi !== namaPenerima)
+        ? `${finalDeskripsi} / ${namaPenerima}` 
+        : finalDeskripsi;
+    }
     
     return {
       tanggal: LocalPDFExporter.formatDate(t.tanggal),
       noBukti: t.nomor_bukti || (t.id || '').slice(0, 8),
       kategori: t.kategori || '-',
-      deskripsi_penerima: deskripsiPenerima,
+      deskripsi_penerima: deskripsiPenerima || '-',
       pemasukan: t.jenis_transaksi === 'Pemasukan' ? (t.jumlah || 0) : 0,
       pengeluaran: t.jenis_transaksi === 'Pengeluaran' ? (t.jumlah || 0) : 0,
     };
@@ -560,7 +906,7 @@ const fetchCashflowPerAccount = async (
 };
 const getComprehensiveReportData = async (period: PeriodFilter, accountId?: string) => {
   try {
-    // Get cash flow data
+    // Get cash flow data - include referensi untuk join dengan transaksi_inventaris
     let q1 = supabase
       .from('keuangan')
       .select(`
@@ -573,6 +919,64 @@ const getComprehensiveReportData = async (period: PeriodFilter, accountId?: stri
       .order('tanggal', { ascending: false });
     if (accountId) q1 = q1.eq('akun_kas_id', accountId);
     const { data: cashFlowData } = await q1;
+    
+    // Process cashFlowData to enhance descriptions for inventory sales
+    if (cashFlowData && cashFlowData.length > 0) {
+      // Extract inventory transaction IDs
+      const inventoryTransactionIds = cashFlowData
+        .filter(t => t.referensi && typeof t.referensi === 'string' && t.referensi.startsWith('inventory_sale:'))
+        .map(t => {
+          const idStr = (t.referensi as string).replace('inventory_sale:', '').trim();
+          if (idStr && idStr.length === 36) {
+            return idStr;
+          }
+          return null;
+        })
+        .filter((id): id is string => id !== null);
+      
+      // Fetch transaksi_inventaris data
+      let inventoryTransactionsMap: Record<string, any> = {};
+      if (inventoryTransactionIds.length > 0) {
+        const { data: inventoryTransactions } = await supabase
+          .from('transaksi_inventaris')
+          .select(`
+            id, 
+            catatan, 
+            sumbangan, 
+            harga_dasar,
+            jumlah,
+            inventaris:item_id(nama_barang)
+          `)
+          .in('id', inventoryTransactionIds);
+        
+        if (inventoryTransactions) {
+          inventoryTransactionsMap = inventoryTransactions.reduce((acc, ti) => {
+            acc[ti.id] = ti;
+            return acc;
+          }, {} as Record<string, any>);
+        }
+      }
+      
+      // Enhance descriptions for inventory sales
+      cashFlowData.forEach((t: any) => {
+        if (t.kategori === 'Penjualan Inventaris' && t.referensi?.startsWith('inventory_sale:')) {
+          const transactionId = t.referensi.replace('inventory_sale:', '');
+          const inventoryTx = inventoryTransactionsMap[transactionId];
+          const catatanFromInventaris = inventoryTx?.catatan || null;
+          
+          // Build complete description
+          t.deskripsi = LocalPDFExporter.buildInventorySaleDescription(
+            t.deskripsi || '',
+            catatanFromInventaris,
+            inventoryTx,
+            t.penerima_pembayar || null
+          );
+          
+          // Clean description
+          t.deskripsi = LocalPDFExporter.cleanDescription(t.deskripsi);
+        }
+      });
+    }
 
     // Get student aid data using the complete function
     const studentAidData = await getStudentAidReport(period);

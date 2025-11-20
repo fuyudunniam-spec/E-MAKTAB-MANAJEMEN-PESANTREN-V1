@@ -32,6 +32,11 @@ export interface ValidationSummary {
   score: number; // 0-100
 }
 
+interface ValidationCounters {
+  total: number;
+  passed: number;
+}
+
 export class SantriDataValidator {
   /**
    * Validate santri data consistency across all modules
@@ -39,8 +44,10 @@ export class SantriDataValidator {
   static async validateSantriData(santriId: string): Promise<ValidationResult> {
     const errors: ValidationError[] = [];
     const warnings: ValidationWarning[] = [];
-    let totalChecks = 0;
-    let passedChecks = 0;
+    const counters: ValidationCounters = {
+      total: 0,
+      passed: 0
+    };
 
     try {
       // Get santri basic data
@@ -62,17 +69,16 @@ export class SantriDataValidator {
 
       // Run all validation checks
       await Promise.all([
-        this.validateBasicData(santriData, errors, warnings, totalChecks, passedChecks),
-        this.validateAcademicData(santriId, santriData, errors, warnings, totalChecks, passedChecks),
-        this.validateFinancialData(santriId, santriData, errors, warnings, totalChecks, passedChecks),
-        this.validateDocumentData(santriId, santriData, errors, warnings, totalChecks, passedChecks),
-        this.validateWaliData(santriId, santriData, errors, warnings, totalChecks, passedChecks),
-        this.validateBantuanData(santriId, santriData, errors, warnings, totalChecks, passedChecks)
+        this.validateBasicData(santriData, errors, warnings, counters),
+        this.validateAcademicData(santriId, santriData, errors, warnings, counters),
+        this.validateFinancialData(santriId, santriData, errors, warnings, counters),
+        this.validateDocumentData(santriId, santriData, errors, warnings, counters),
+        this.validateWaliData(santriId, santriData, errors, warnings, counters)
       ]);
 
-      const score = totalChecks > 0 ? Math.round((passedChecks / totalChecks) * 100) : 0;
+      const score = counters.total > 0 ? Math.round((counters.passed / counters.total) * 100) : 0;
 
-      return this.createValidationResult(errors, warnings, totalChecks, passedChecks, score);
+      return this.createValidationResult(errors, warnings, counters.total, counters.passed, score);
 
     } catch (error) {
       console.error('Error validating santri data:', error);
@@ -83,7 +89,7 @@ export class SantriDataValidator {
         severity: 'critical',
         suggestion: 'Coba lagi atau hubungi administrator'
       });
-      return this.createValidationResult(errors, warnings, 0, 0);
+      return this.createValidationResult(errors, warnings, counters.total, counters.passed);
     }
   }
 
@@ -94,8 +100,7 @@ export class SantriDataValidator {
     santriData: any, 
     errors: ValidationError[], 
     warnings: ValidationWarning[], 
-    totalChecks: number, 
-    passedChecks: number
+    counters: ValidationCounters
   ) {
     const checks = [
       { field: 'nama_lengkap', required: true, message: 'Nama lengkap harus diisi' },
@@ -106,7 +111,7 @@ export class SantriDataValidator {
     ];
 
     checks.forEach(check => {
-      totalChecks++;
+      counters.total++;
       if (!santriData[check.field] || santriData[check.field].trim() === '') {
         errors.push({
           module: 'core',
@@ -116,14 +121,14 @@ export class SantriDataValidator {
           suggestion: `Silakan lengkapi ${check.field}`
         });
       } else {
-        passedChecks++;
+        counters.passed++;
       }
     });
 
     // Validate category-specific fields
     const requiredFields = ProfileHelper.getRequiredFields(santriData.kategori, santriData.status_sosial);
     requiredFields.forEach(field => {
-      totalChecks++;
+      counters.total++;
       if (!santriData[field.key] || santriData[field.key].toString().trim() === '') {
         errors.push({
           module: 'core',
@@ -133,7 +138,7 @@ export class SantriDataValidator {
           suggestion: `Lengkapi ${field.label}`
         });
       } else {
-        passedChecks++;
+        counters.passed++;
       }
     });
   }
@@ -146,41 +151,69 @@ export class SantriDataValidator {
     santriData: any, 
     errors: ValidationError[], 
     warnings: ValidationWarning[], 
-    totalChecks: number, 
-    passedChecks: number
+    counters: ValidationCounters
   ) {
-    const { data: programData } = await supabase
-      .from('santri_kelas')
-      .select('*')
-      .eq('santri_id', santriId);
+    const { data: kelasAnggotaData } = await supabase
+      .from('kelas_anggota')
+      .select(`
+        id,
+        status,
+        tanggal_mulai,
+        tanggal_selesai,
+        kelas:kelas_id(
+          id,
+          nama_kelas,
+          program,
+          tingkat,
+          tahun_ajaran,
+          semester,
+          status
+        )
+      `)
+      .eq('santri_id', santriId)
+      .eq('status', 'Aktif');
 
-    totalChecks++;
-    if ((santriData.status_santri || santriData.status_baru) === 'Aktif' && (!programData || programData.length === 0)) {
+    counters.total++;
+    if ((santriData.status_santri || santriData.status_baru) === 'Aktif' && (!kelasAnggotaData || kelasAnggotaData.length === 0)) {
       errors.push({
         module: 'academic',
         field: 'program_assignment',
-        message: 'Santri aktif harus memiliki program yang ditugaskan',
+        message: 'Santri aktif harus tergabung ke kelas aktif',
         severity: 'high',
-        suggestion: 'Tempatkan santri ke program yang sesuai'
+        suggestion: 'Masukkan santri ke kelas melalui modul Ploating Kelas'
       });
     } else {
-      passedChecks++;
+      counters.passed++;
     }
 
     // Validate program consistency
-    if (programData && programData.length > 0) {
-      programData.forEach((program, index) => {
-        totalChecks++;
-        if (!program.program_id) {
+    if (kelasAnggotaData && kelasAnggotaData.length > 0) {
+      kelasAnggotaData.forEach((kelas, index) => {
+        counters.total++;
+        if (!kelas.kelas) {
           errors.push({
             module: 'academic',
-            field: `program_${index}`,
-            message: 'Program harus memiliki referensi ke kelas yang valid',
+            field: `kelas_${index}`,
+            message: 'Keanggotaan kelas harus terhubung ke data master kelas',
             severity: 'medium',
-            suggestion: 'Perbaiki referensi program'
+            suggestion: 'Perbaiki referensi kelas di modul Kelas Master'
           });
         } else {
-          passedChecks++;
+          counters.passed++;
+        }
+
+        if (kelas.tanggal_mulai || kelas.tanggal_selesai) {
+          counters.total++;
+          if (kelas.tanggal_mulai && kelas.tanggal_selesai && new Date(kelas.tanggal_mulai) > new Date(kelas.tanggal_selesai)) {
+            warnings.push({
+              module: 'academic',
+              field: `kelas_period_${index}`,
+              message: 'Tanggal mulai kelas lebih besar daripada tanggal selesai',
+              suggestion: 'Periksa kembali periode keanggotaan kelas'
+            });
+          } else {
+            counters.passed++;
+          }
         }
       });
     }
@@ -194,15 +227,9 @@ export class SantriDataValidator {
     santriData: any, 
     errors: ValidationError[], 
     warnings: ValidationWarning[], 
-    totalChecks: number, 
-    passedChecks: number
+    counters: ValidationCounters
   ) {
-    const [bantuanResult, tagihanResult, pembayaranResult] = await Promise.all([
-      supabase
-        .from('bantuan_aktif_santri')
-        .select('*')
-        .eq('santri_id', santriId)
-        .eq('status', 'aktif'),
+    const [tagihanResult, pembayaranResult] = await Promise.all([
       supabase
         .from('tagihan_santri')
         .select('*')
@@ -213,30 +240,12 @@ export class SantriDataValidator {
         .eq('santri_id', santriId)
     ]);
 
-    // Validate bantuan consistency
-    totalChecks++;
-    if (santriData.kategori === 'Binaan Mukim' || santriData.kategori === 'Binaan Non-Mukim') {
-      if (!bantuanResult.data || bantuanResult.data.length === 0) {
-        errors.push({
-          module: 'financial',
-          field: 'bantuan',
-          message: 'Santri binaan harus memiliki bantuan aktif',
-          severity: 'high',
-          suggestion: 'Buat pengajuan bantuan untuk santri'
-        });
-      } else {
-        passedChecks++;
-      }
-    } else {
-      passedChecks++;
-    }
-
     // Validate payment consistency
     if (tagihanResult.data && tagihanResult.data.length > 0) {
       const totalTagihan = tagihanResult.data.reduce((sum, t) => sum + (t.total_tagihan || 0), 0);
       const totalPembayaran = pembayaranResult.data?.reduce((sum, p) => sum + (p.jumlah_bayar || 0), 0) || 0;
 
-      totalChecks++;
+      counters.total++;
       if (totalPembayaran > totalTagihan) {
         warnings.push({
           module: 'financial',
@@ -245,7 +254,7 @@ export class SantriDataValidator {
           suggestion: 'Periksa kembali data pembayaran'
         });
       } else {
-        passedChecks++;
+        counters.passed++;
       }
     }
   }
@@ -258,8 +267,7 @@ export class SantriDataValidator {
     santriData: any, 
     errors: ValidationError[], 
     warnings: ValidationWarning[], 
-    totalChecks: number, 
-    passedChecks: number
+    counters: ValidationCounters
   ) {
     const requiredDocs = ProfileHelper.getRequiredDocuments(santriData.kategori, santriData.status_sosial);
     
@@ -272,7 +280,7 @@ export class SantriDataValidator {
       uploadedDocs?.some(uploaded => uploaded.jenis_dokumen === reqDoc.jenis_dokumen)
     ).length;
 
-    totalChecks++;
+    counters.total++;
     if (dokumenWajibLengkap < requiredDocs.length) {
       const missingCount = requiredDocs.length - dokumenWajibLengkap;
       errors.push({
@@ -283,7 +291,7 @@ export class SantriDataValidator {
         suggestion: 'Upload dokumen yang belum lengkap'
       });
     } else {
-      passedChecks++;
+      counters.passed++;
     }
 
     // Check document verification status
@@ -309,15 +317,14 @@ export class SantriDataValidator {
     santriData: any, 
     errors: ValidationError[], 
     warnings: ValidationWarning[], 
-    totalChecks: number, 
-    passedChecks: number
+    counters: ValidationCounters
   ) {
     const { data: waliData } = await supabase
       .from('santri_wali')
       .select('*')
       .eq('santri_id', santriId);
 
-    totalChecks++;
+    counters.total++;
     if (!waliData || waliData.length === 0) {
       errors.push({
         module: 'wali',
@@ -327,7 +334,7 @@ export class SantriDataValidator {
         suggestion: 'Tambah data wali santri'
       });
     } else {
-      passedChecks++;
+      counters.passed++;
 
       // Check for main wali
       const mainWali = waliData.find(wali => wali.is_utama);
@@ -342,6 +349,7 @@ export class SantriDataValidator {
 
       // Check contact information
       const waliWithoutContact = waliData.filter(wali => !wali.no_whatsapp && !wali.no_telepon);
+      counters.total++;
       if (waliWithoutContact.length > 0) {
         warnings.push({
           module: 'wali',
@@ -349,54 +357,9 @@ export class SantriDataValidator {
           message: 'Beberapa wali tidak memiliki kontak',
           suggestion: 'Lengkapi informasi kontak wali'
         });
+      } else {
+        counters.passed++;
       }
-    }
-  }
-
-  /**
-   * Validate bantuan data consistency
-   */
-  private static async validateBantuanData(
-    santriId: string, 
-    santriData: any, 
-    errors: ValidationError[], 
-    warnings: ValidationWarning[], 
-    totalChecks: number, 
-    passedChecks: number
-  ) {
-    const { data: bantuanData } = await supabase
-      .from('bantuan_aktif_santri')
-      .select('*')
-      .eq('santri_id', santriId);
-
-    if (bantuanData && bantuanData.length > 0) {
-      bantuanData.forEach((bantuan, index) => {
-        totalChecks++;
-        if (!bantuan.nominal_per_bulan || bantuan.nominal_per_bulan <= 0) {
-          errors.push({
-            module: 'bantuan',
-            field: `nominal_${index}`,
-            message: 'Nominal bantuan harus lebih dari 0',
-            severity: 'medium',
-            suggestion: 'Periksa nominal bantuan'
-          });
-        } else {
-          passedChecks++;
-        }
-
-        totalChecks++;
-        if (!bantuan.tanggal_mulai) {
-          errors.push({
-            module: 'bantuan',
-            field: `tanggal_mulai_${index}`,
-            message: 'Tanggal mulai bantuan harus diisi',
-            severity: 'medium',
-            suggestion: 'Lengkapi tanggal mulai bantuan'
-          });
-        } else {
-          passedChecks++;
-        }
-      });
     }
   }
 

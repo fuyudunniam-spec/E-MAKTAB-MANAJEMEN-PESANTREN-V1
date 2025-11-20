@@ -448,7 +448,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5" />
-            Input Pengeluaran dengan Rincian & Alokasi Santri
+            Input Pengeluaran
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -580,9 +580,6 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
                   <Label className="text-sm font-medium text-blue-900 dark:text-blue-100">
                     Pilih Santri untuk Alokasi Langsung
                   </Label>
-                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                    Gunakan bagian "Alokasi Santri" di bawah untuk memilih santri spesifik
-                  </p>
                 </div>
               )}
             </div>

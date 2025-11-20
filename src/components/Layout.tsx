@@ -21,6 +21,7 @@ import {
   Crown,
   GraduationCap,
   FileText,
+  ClipboardCheck,
   ChevronDown,
   ChevronRight,
   TrendingUp,
@@ -28,7 +29,15 @@ import {
   UserCog,
   Key,
   BookOpen,
-  HandCoins
+  HandCoins,
+  CalendarCog,
+  Calendar,
+  UserPlus,
+  BookMarked,
+  CheckSquare,
+  Coins,
+  Receipt,
+  TrendingDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -45,6 +54,7 @@ interface MenuItem {
   label: string;
   path: string;
   badge?: string;
+  dividerBefore?: boolean; // Menambahkan divider sebelum item ini
 }
 
 interface MenuSection {
@@ -101,24 +111,49 @@ const SidebarContent = () => {
       title: 'INVENTARIS',
       icon: Package,
       items: [
-        ...(showModuleDashboards ? [{ icon: LayoutDashboard, label: 'Dashboard Inventaris', path: '/inventaris' }] : []),
+        { icon: LayoutDashboard, label: 'Dashboard Inventaris', path: '/inventaris' },
         { icon: Package, label: 'Master Data', path: '/inventaris/master' },
         { icon: ShoppingCart, label: 'Penjualan', path: '/inventaris/sales' },
-        { icon: Users, label: 'Distribusi', path: '/inventaris/distribution' },
-        { icon: FileText, label: 'Riwayat', path: '/inventaris/transactions' },
-        { icon: BarChart3, label: 'Koperasi', path: '/koperasi' }
+        { icon: Users, label: 'Distribusi', path: '/inventaris/distribution' }
       ]
     },
     {
       title: 'AKADEMIK',
       icon: GraduationCap,
       items: [
-        ...(showModuleDashboards ? [{ icon: LayoutDashboard, label: 'Dashboard Akademik', path: '/akademik' }] : []),
+        // Dashboard Pengajar (untuk role pengajar)
+        ...(user?.role === 'pengajar' || user?.roles?.includes('pengajar') 
+          ? [
+              { icon: LayoutDashboard, label: 'Dashboard Pengajar', path: '/akademik/pengajar' },
+              { icon: UserIcon, label: 'Profil', path: '/akademik/pengajar/profil' }
+            ]
+          : []
+        ),
+        // Setup & Administrasi (harus dilakukan terlebih dahulu) - hanya untuk admin
+        ...(user?.role === 'admin' || user?.roles?.includes('admin')
+          ? [
+        { icon: CalendarCog, label: 'Tahun & Semester', path: '/akademik/semester' },
         { icon: BookOpen, label: 'Master Kelas', path: '/akademik/master' },
-        { icon: Crown, label: 'Ploating Kelas', path: '/akademik/kelas' },
-        { icon: FileText, label: 'Absensi Madin', path: '/akademik/absensi' },
-        { icon: FileText, label: 'Setoran Harian', path: '/akademik/setoran' },
-        { icon: BarChart3, label: 'Monitoring Akademik', path: '/monitoring' }
+        { icon: UserPlus, label: 'Ploating Kelas', path: '/akademik/kelas' },
+            ]
+          : []
+        ),
+        // Operasional Harian (urutan kerja harian)
+        { icon: BookMarked, label: 'Jurnal Pertemuan', path: '/akademik/jurnal', dividerBefore: user?.role === 'pengajar' || user?.roles?.includes('pengajar') },
+        { icon: Users, label: 'Presensi Kelas', path: '/akademik/presensi' },
+        ...(user?.role === 'admin' || user?.roles?.includes('admin')
+          ? [{ icon: Coins, label: 'Setoran Harian', path: '/akademik/setoran' }]
+          : []
+        ),
+        // Monitoring & Laporan - hanya untuk admin
+        ...(user?.role === 'admin' || user?.roles?.includes('admin')
+          ? [
+        { icon: LayoutDashboard, label: 'Dashboard Akademik', path: '/akademik', dividerBefore: true },
+        { icon: BarChart3, label: 'Monitoring Akademik', path: '/monitoring' },
+        { icon: FileText, label: 'Perizinan Santri', path: '/akademik/perizinan', dividerBefore: true }
+            ]
+          : []
+        )
       ]
     },
     {
@@ -126,8 +161,8 @@ const SidebarContent = () => {
       icon: Settings,
       items: [
         ...(showModuleDashboards ? [{ icon: LayoutDashboard, label: 'Dashboard Admin', path: '/administrasi' }] : []),
+        { icon: Users, label: 'Kelola User', path: '/admin/users' },
         { icon: Settings, label: 'Settings', path: '/settings' },
-        { icon: UserCog, label: 'Kelola Akun Santri', path: '/admin/santri-accounts' },
         { icon: Key, label: 'Ubah Password', path: '/change-password' }
       ]
     }
@@ -142,8 +177,7 @@ const SidebarContent = () => {
       icon: UserIcon,
       items: [
         { icon: UserIcon, label: 'Ringkasan', path: santriProfileBase },
-        { icon: BookOpen, label: 'Akademik', path: `${santriProfileBase}&tab=academic` },
-        { icon: BookOpen, label: 'Program / Kelas', path: `${santriProfileBase}&tab=program` }
+        { icon: BookOpen, label: 'Akademik', path: `${santriProfileBase}&tab=academic` }
       ]
     },
     {
@@ -182,6 +216,14 @@ const SidebarContent = () => {
 
     return sections
       .map((section) => {
+        // ADMINISTRASI hanya untuk admin
+        if (section.title === 'ADMINISTRASI') {
+          const isAdmin = user?.role === 'admin' || user?.roles?.includes('admin');
+          if (!isAdmin) {
+            return null;
+          }
+        }
+
         // Map section title to module name for permission check
         const sectionModuleMap: Record<string, string> = {
           'DASHBOARD': 'dashboard',
@@ -274,26 +316,30 @@ const SidebarContent = () => {
               {/* Section Items */}
               {isExpanded && (
                 <div className="mt-1 space-y-1 pl-2">
-                  {section.items.map((item) => (
-                    <Button
-                      key={item.path}
-                      variant="ghost"
-                      className={cn(
-                        "w-full justify-start gap-3 h-9 text-sm",
-                        isActive(item.path) 
-                          ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-medium" 
-                          : "text-gray-700 hover:bg-gray-100"
+                  {section.items.map((item, index) => (
+                    <React.Fragment key={item.path}>
+                      {item.dividerBefore && index > 0 && (
+                        <div className="my-2 mx-2 border-t border-gray-200" />
                       )}
-                      onClick={() => navigate(item.path)}
-                    >
-                      <item.icon className="w-4 h-4" />
-                      <span className="flex-1 text-left">{item.label}</span>
-                      {item.badge && (
-                        <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                          {item.badge}
-                        </Badge>
-                      )}
-                    </Button>
+                      <Button
+                        variant="ghost"
+                        className={cn(
+                          "w-full justify-start gap-3 h-9 text-sm",
+                          isActive(item.path) 
+                            ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-medium" 
+                            : "text-gray-700 hover:bg-gray-100"
+                        )}
+                        onClick={() => navigate(item.path)}
+                      >
+                        <item.icon className="w-4 h-4" />
+                        <span className="flex-1 text-left">{item.label}</span>
+                        {item.badge && (
+                          <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                            {item.badge}
+                          </Badge>
+                        )}
+                      </Button>
+                    </React.Fragment>
                   ))}
                 </div>
               )}

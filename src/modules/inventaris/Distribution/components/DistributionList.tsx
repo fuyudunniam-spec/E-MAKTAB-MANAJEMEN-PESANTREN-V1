@@ -162,9 +162,9 @@ const DistributionList: React.FC<DistributionListProps> = ({
                         <div className="text-sm text-muted-foreground">
                           {getRecipientType(distribution.penerima, distribution.penerima_santri_id)}
                         </div>
-                        {distribution.penerima_santri_id && (
+                        {distribution.penerima_santri_id_santri && (
                           <div className="text-xs text-blue-600">
-                            ID: {distribution.penerima_santri_id}
+                            ID Santri: {distribution.penerima_santri_id_santri}
                           </div>
                         )}
                       </div>

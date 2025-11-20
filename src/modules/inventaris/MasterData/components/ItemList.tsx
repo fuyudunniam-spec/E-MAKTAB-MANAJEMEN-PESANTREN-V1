@@ -16,25 +16,25 @@ import {
 import { InventoryItem, Pagination, Sort } from '@/types/inventaris.types';
 
 interface ItemListProps {
-  data: InventoryItem[];
-  isLoading: boolean;
-  onEdit: (item: InventoryItem) => void;
+  data?: InventoryItem[];
+  isLoading?: boolean;
+  onEdit?: (item: InventoryItem) => void;
   onDelete?: (item: InventoryItem) => void;
-  pagination: Pagination;
-  onPaginationChange: (pagination: Pagination) => void;
-  sort: Sort;
-  onSortChange: (sort: Sort) => void;
+  pagination?: Pagination;
+  onPaginationChange?: (pagination: Pagination) => void;
+  sort?: Sort;
+  onSortChange?: (sort: Sort) => void;
 }
 
 const ItemList: React.FC<ItemListProps> = ({
-  data,
-  isLoading,
-  onEdit,
+  data = [],
+  isLoading = false,
+  onEdit = () => {},
   onDelete,
-  pagination,
-  onPaginationChange,
-  sort,
-  onSortChange
+  pagination = { page: 1, pageSize: 10 },
+  onPaginationChange = () => {},
+  sort = { column: 'nama_barang', direction: 'asc' },
+  onSortChange = () => {}
 }) => {
   const formatRupiah = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -101,6 +101,26 @@ const ItemList: React.FC<ItemListProps> = ({
     );
   }
 
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Daftar Items (0)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-12">
+            <Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+            <p className="text-gray-500">Belum ada data barang</p>
+            <p className="text-sm text-gray-400 mt-2">Tambahkan barang baru untuk memulai</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -148,9 +168,9 @@ const ItemList: React.FC<ItemListProps> = ({
                   <TableCell className="font-medium">
                     <div>
                       <div className="font-semibold">{item.nama_barang}</div>
-                      {item.supplier && (
+                      {item.sumber && (
                         <div className="text-sm text-muted-foreground">
-                          Supplier: {item.supplier}
+                          Sumber: {item.sumber}
                         </div>
                       )}
                     </div>
@@ -177,11 +197,47 @@ const ItemList: React.FC<ItemListProps> = ({
                   </TableCell>
                   <TableCell>
                     {item.has_expiry && item.tanggal_kedaluwarsa ? (
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        <span className="text-sm">
-                          {new Date(item.tanggal_kedaluwarsa).toLocaleDateString('id-ID')}
-                        </span>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          <span className="text-sm">
+                            {new Date(item.tanggal_kedaluwarsa).toLocaleDateString('id-ID')}
+                          </span>
+                        </div>
+                        {(() => {
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const expiry = new Date(item.tanggal_kedaluwarsa);
+                          expiry.setHours(0, 0, 0, 0);
+                          const diffTime = expiry.getTime() - today.getTime();
+                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                          
+                          if (diffDays < 0) {
+                            return (
+                              <Badge variant="destructive" className="text-xs w-fit">
+                                Kadaluarsa ({Math.abs(diffDays)} hari lalu)
+                              </Badge>
+                            );
+                          } else if (diffDays <= 7) {
+                            return (
+                              <Badge variant="destructive" className="text-xs w-fit">
+                                {diffDays} hari lagi
+                              </Badge>
+                            );
+                          } else if (diffDays <= 30) {
+                            return (
+                              <Badge variant="secondary" className="text-xs w-fit">
+                                {diffDays} hari lagi
+                              </Badge>
+                            );
+                          } else {
+                            return (
+                              <span className="text-xs text-muted-foreground">
+                                {diffDays} hari lagi
+                              </span>
+                            );
+                          }
+                        })()}
                       </div>
                     ) : (
                       '-'

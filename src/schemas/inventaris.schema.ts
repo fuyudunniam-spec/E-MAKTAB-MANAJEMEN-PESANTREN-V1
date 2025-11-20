@@ -32,7 +32,9 @@ export const inventarisSchema = z.object({
   satuan: z.string()
     .min(1, "Satuan wajib diisi (contoh: pcs, kg, liter)"),
   
-  supplier: z.string()
+  sumber: z.enum(["Pembelian", "Donasi"], {
+    errorMap: () => ({ message: "Pilih sumber yang valid" })
+  })
     .optional()
     .nullable(),
   
@@ -74,6 +76,11 @@ const transaksiMasukKeluar = transaksiInventarisSchemaBase.extend({
   jumlah: z.number().int("Jumlah harus berupa bilangan bulat").min(1, "Jumlah minimal 1"),
   harga_satuan: z.number().min(0, "Harga tidak boleh negatif").optional().nullable(),
   penerima: z.string().min(3, "Nama penerima minimal 3 karakter").optional().nullable(),
+  masuk_mode: z.enum(["Donasi", "Pembelian"]).optional().nullable(),
+  keluar_mode: z.enum(["Penjualan", "Distribusi"]).optional().nullable(),
+  harga_dasar: z.number().min(0, "Harga dasar tidak boleh negatif").optional().nullable(),
+  sumbangan: z.number().min(0, "Sumbangan tidak boleh negatif").optional().nullable(),
+  referensi_koperasi_id: z.string().uuid().optional().nullable(),
 });
 
 // Stocktake (plain object for discriminatedUnion)

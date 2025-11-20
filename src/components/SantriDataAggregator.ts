@@ -1,4 +1,3 @@
-// Santri Data Aggregator - Centralized data collection for santri profile
 import { supabase } from "@/integrations/supabase/client";
 import { ProfileHelper } from "@/utils/profile.helper";
 
@@ -54,54 +53,57 @@ export class SantriDataAggregator {
    */
   static async getFinancialSummary(santriId: string): Promise<SantriFinancialSummary> {
     try {
-      // Get beasiswa data from beasiswa_aktif_santri
       const { data: beasiswaData } = await supabase
         .from('beasiswa_aktif_santri')
         .select('nominal_per_bulan, status')
         .eq('santri_id', santriId)
         .eq('status', 'aktif');
 
-      // Get beasiswa pembayaran data (manual payments)
       const { data: beasiswaPembayaranData } = await supabase
         .from('beasiswa_pembayaran')
         .select('nominal, status')
         .eq('santri_id', santriId)
         .eq('status', 'dibayar');
 
-      // Get tagihan data
-      const { data: tagihanData } = await supabase
-        .from('tagihan_santri')
-        .select('total_tagihan, total_bayar, status')
-        .eq('santri_id', santriId);
-
-      // Get pembayaran data
-      const { data: pembayaranData } = await supabase
-        .from('pembayaran_santri')
-        .select('jumlah_bayar')
-        .eq('santri_id', santriId);
-
-      // Get tabungan data
-      const { data: tabunganData } = await supabase
-        .from('santri_tabungan')
-        .select('saldo_sesudah')
-        .eq('santri_id', santriId)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
       const totalBeasiswaAktif = beasiswaData?.reduce((sum, item) => sum + (item.nominal_per_bulan || 0), 0) || 0;
       const totalBeasiswaPembayaran = beasiswaPembayaranData?.reduce((sum, item) => sum + (item.nominal || 0), 0) || 0;
       const totalBeasiswa = totalBeasiswaAktif + totalBeasiswaPembayaran;
-      const totalTagihan = tagihanData?.reduce((sum, item) => sum + (item.total_tagihan || 0), 0) || 0;
-      const totalPembayaran = pembayaranData?.reduce((sum, item) => sum + (item.jumlah_bayar || 0), 0) || 0;
-      const saldoTabungan = tabunganData?.[0]?.saldo_sesudah || 0;
 
-      // Calculate payment status
-      let statusPembayaran: 'lunas' | 'sebagian' | 'belum_bayar' = 'belum_bayar';
-      if (totalPembayaran >= totalTagihan && totalTagihan > 0) {
-        statusPembayaran = 'lunas';
-      } else if (totalPembayaran > 0) {
-        statusPembayaran = 'sebagian';
+      // Legacy tagihan system masih transisi ke modul baru
+      const totalTagihan = 0;
+      const totalPembayaran = 0;
+      let saldoTabungan = 0;
+
+      try {
+        const { data: saldoRpc, error: saldoRpcError } = await supabase.rpc('get_saldo_tabungan_santri', {
+          p_santri_id: santriId
+        });
+
+        if (saldoRpcError) {
+          console.warn('RPC get_saldo_tabungan_santri failed, fallback to latest transaksi:', saldoRpcError.message);
+        } else if (typeof saldoRpc === 'number') {
+          saldoTabungan = saldoRpc;
+        }
+      } catch (rpcError) {
+        console.warn('RPC get_saldo_tabungan_santri threw exception:', rpcError);
       }
+
+      if (saldoTabungan === 0) {
+        const { data: tabunganData, error: tabunganError } = await supabase
+          .from('santri_tabungan')
+          .select('saldo_sesudah')
+          .eq('santri_id', santriId)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (!tabunganError) {
+          saldoTabungan = tabunganData?.[0]?.saldo_sesudah || 0;
+        } else {
+          console.warn('Fallback saldo query gagal:', tabunganError.message);
+        }
+      }
+
+      let statusPembayaran: 'lunas' | 'sebagian' | 'belum_bayar' = 'belum_bayar';
 
       const hutangBulanan = totalTagihan - totalPembayaran;
 
@@ -131,15 +133,23 @@ export class SantriDataAggregator {
    */
   static async getAcademicSummary(santriId: string): Promise<SantriAcademicSummary> {
     try {
-      // Get program data
-      const { data: programData } = await supabase
-        .from('santri_kelas')
+      const { data: kelasAnggotaData } = await supabase
+        .from('kelas_anggota')
         .select(`
-          *
+          id,
+          status,
+          kelas:kelas_id(
+            id,
+            nama_kelas,
+            program,
+            tingkat,
+            tahun_ajaran,
+            semester,
+            status
+          )
         `)
         .eq('santri_id', santriId);
 
-      // Get prestasi data (if available)
       const { data: prestasiData } = await supabase
         .from('pengajuan_beasiswa_santri')
         .select('prestasi_santri, status')
@@ -147,10 +157,9 @@ export class SantriDataAggregator {
         .order('created_at', { ascending: false })
         .limit(5);
 
-      const programAktif = programData?.filter(p => p.aktif === true).length || 0;
-      const totalProgram = programData?.length || 0;
+      const programAktif = kelasAnggotaData?.filter(anggota => anggota.status === 'Aktif').length || 0;
+      const totalProgram = kelasAnggotaData?.length || 0;
 
-      // Determine academic status based on program participation
       let statusAkademik: 'baik' | 'cukup' | 'perlu_perhatian' = 'baik';
       if (programAktif === 0) {
         statusAkademik = 'perlu_perhatian';
@@ -162,7 +171,7 @@ export class SantriDataAggregator {
         program_aktif: programAktif,
         total_program: totalProgram,
         prestasi_terbaru: prestasiData || [],
-        nilai_rata_rata: 0, // TODO: Implement when grade system is available
+        nilai_rata_rata: 0,
         status_akademik: statusAkademik
       };
     } catch (error) {
@@ -191,8 +200,6 @@ export class SantriDataAggregator {
       const totalBeasiswaAktif = beasiswaData?.length || 0;
       const nominalPerBulan = beasiswaData?.reduce((sum, item) => sum + (item.nominal_per_bulan || 0), 0) || 0;
       const jenisBeasiswa = [...new Set(beasiswaData?.map(item => item.jenis_beasiswa) || [])];
-
-      // Get next evaluation date
       const nextEvaluation = beasiswaData?.[0]?.tanggal_evaluasi_berikutnya || null;
 
       let statusBeasiswa: 'aktif' | 'suspend' | 'selesai' = 'aktif';
@@ -226,26 +233,23 @@ export class SantriDataAggregator {
    */
   static async getDocumentSummary(santriId: string, kategoriSantri: string, statusSosial?: string): Promise<SantriDocumentSummary> {
     try {
-      // Get required documents based on category
       const requiredDocs = ProfileHelper.getRequiredDocuments(kategoriSantri, statusSosial);
-      
-      // Get uploaded documents
+
       const { data: uploadedDocs } = await supabase
         .from('dokumen_santri')
         .select('*')
         .eq('santri_id', santriId);
 
       const dokumenWajibTotal = requiredDocs.length;
-      const dokumenWajibLengkap = requiredDocs.filter(reqDoc => 
+      const dokumenWajibLengkap = requiredDocs.filter(reqDoc =>
         uploadedDocs?.some(uploaded => uploaded.jenis_dokumen === reqDoc.jenis_dokumen)
       ).length;
 
-      const dokumenOpsional = uploadedDocs?.filter(doc => 
+      const dokumenOpsional = uploadedDocs?.filter(doc =>
         !requiredDocs.some(reqDoc => reqDoc.jenis_dokumen === doc.jenis_dokumen)
       ).length || 0;
 
-      // Get pending verification documents
-      const dokumenPending = uploadedDocs?.filter(doc => 
+      const dokumenPending = uploadedDocs?.filter(doc =>
         doc.status_verifikasi === 'Belum Diverifikasi'
       ) || [];
 
@@ -297,8 +301,6 @@ export class SantriDataAggregator {
       const waliUtama = waliData?.find(wali => wali.is_utama) || null;
       const totalWali = waliData?.length || 0;
       const kontakUtama = waliUtama?.no_whatsapp || waliData?.[0]?.no_whatsapp || null;
-
-      // Determine contact status (simplified - could be enhanced with actual communication tracking)
       const statusKontak: 'aktif' | 'tidak_aktif' = kontakUtama ? 'aktif' : 'tidak_aktif';
 
       return {
@@ -351,4 +353,5 @@ export class SantriDataAggregator {
 }
 
 export default SantriDataAggregator;
+
 

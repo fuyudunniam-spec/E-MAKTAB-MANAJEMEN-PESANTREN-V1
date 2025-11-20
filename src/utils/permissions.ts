@@ -9,6 +9,7 @@ export type AppRole =
   | 'admin_inventaris' 
   | 'admin_akademik' 
   | 'pengurus' 
+  | 'pengajar'
   | 'santri';
 
 export type ModuleName = 
@@ -35,6 +36,7 @@ const PERMISSION_MATRIX: Record<AppRole, string[] | '*' > = {
   admin_inventaris: ['dashboard', 'inventaris', 'distribusi', 'penjualan', 'settings'],
   admin_akademik: ['dashboard', 'santri', 'monitoring', 'plotting', 'settings'],
   pengurus: ['dashboard', 'santri', 'keuangan', 'donasi', 'inventaris', 'monitoring', 'settings'], // Read-only access
+  pengajar: ['dashboard', 'monitoring', 'settings'], // Access to akademik modules (jurnal, presensi)
   santri: ['dashboard', 'tabungan', 'settings'], // Limited access
 };
 
@@ -58,7 +60,9 @@ const MODULE_PATH_MAP: Record<string, ModuleName> = {
   '/monitoring': 'monitoring',
   '/ploating-kelas': 'plotting',
   '/akademik/master': 'plotting',
-  '/akademik/absensi': 'monitoring',
+  '/akademik/presensi': 'monitoring',
+  '/akademik/jurnal': 'monitoring',
+  '/akademik/pengajar': 'monitoring',
   '/akademik/setoran': 'monitoring',
   '/settings': 'settings',
   '/admin/santri-accounts': 'settings', // Admin only - managed via page-level check

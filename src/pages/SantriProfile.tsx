@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, Award, Boxes, HandCoins, User, Users, GraduationCap, FileText, Calendar, Phone, MapPin, Edit, AlertCircle } from "lucide-react";
 import DokumenSantriTab from "@/components/DokumenSantriTab";
 import BantuanYayasanTab from "@/components/BantuanYayasanTab";
+import SantriProgressTracking from "@/components/SantriProgressTracking";
 import { getSafeAvatarUrl } from '@/utils/url.utils';
 import { calculateAge } from '@/lib/utils';
 import { TabunganSantriCard } from '@/components/TabunganSantri/TabunganSantriCard';
@@ -62,6 +63,10 @@ const SantriProfile = () => {
     santri?.kategori?.includes('Binaan') || santri?.tipe_pembayaran === 'Bantuan Yayasan',
     [santri?.kategori, santri?.tipe_pembayaran]
   );
+
+  const effectiveSantriName = useMemo(() => (
+    santriName || santri?.nama_lengkap || ''
+  ), [santriName, santri?.nama_lengkap]);
   
   // Removed totalBeasiswa calculation - no longer using complex beasiswa workflow
 
@@ -280,8 +285,8 @@ const SantriProfile = () => {
         <TabsList className="mb-4">
           <TabsTrigger value="info">📋 Informasi</TabsTrigger>
           <TabsTrigger value="hak">Hak & Bantuan</TabsTrigger>
+          <TabsTrigger value="akademik">🎓 Akademik</TabsTrigger>
           <TabsTrigger value="tabungan">Tabungan</TabsTrigger>
-          <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
           <TabsTrigger value="dokumen">📄 Dokumen</TabsTrigger>
         </TabsList>
 
@@ -526,54 +531,6 @@ const SantriProfile = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="tagihan">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-border">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  Tagihan Bulanan
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-center py-8">
-                  <div className="text-lg font-semibold text-muted-foreground mb-2">
-                    📋 Sistem Tagihan
-                  </div>
-                  <div className="text-sm text-muted-foreground mb-4">
-                    Informasi tagihan dan pembayaran untuk santri reguler
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Fitur tagihan sedang dalam pengembangan
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5" />
-                  Riwayat Pembayaran
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-center py-8">
-                  <div className="text-lg font-semibold text-muted-foreground mb-2">
-                    💳 Riwayat Pembayaran
-                  </div>
-                  <div className="text-sm text-muted-foreground mb-4">
-                    Catatan pembayaran SPP dan biaya lainnya
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Data riwayat pembayaran akan ditampilkan di sini
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
         <TabsContent value="dokumen">
           {santriId && santri ? (
             <DokumenSantriTab 
@@ -594,11 +551,11 @@ const SantriProfile = () => {
         </TabsContent>
 
         <TabsContent value="tabungan">
-          {santriId && santriName ? (
+          {santriId ? (
             <div className="space-y-6">
               <TabunganSantriCard
                 santriId={santriId}
-                santriName={santriName}
+                santriName={effectiveSantriName || 'Santri'}
                 isAdmin={true}
                 onRefresh={() => {
                   // Refresh data if needed
@@ -615,10 +572,16 @@ const SantriProfile = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="monitoring">
-          <Card>
-            <CardContent className="p-6 text-muted-foreground text-sm">Placeholder Monitoring (belum tersedia)</CardContent>
-          </Card>
+        <TabsContent value="akademik">
+          {santriId ? (
+            <SantriProgressTracking santriId={santriId} />
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-muted-foreground text-sm">
+                Memuat data santri...
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 

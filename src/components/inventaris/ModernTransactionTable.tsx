@@ -120,20 +120,19 @@ const ModernTransactionTable = memo(({
 
   return (
     <div className="border rounded-lg overflow-hidden shadow-sm">
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-gray-50/50">
-              <TableHead className="w-[120px]">Tanggal</TableHead>
-              <TableHead className="min-w-[200px]">Item</TableHead>
-              <TableHead className="w-[100px]">Tipe</TableHead>
-              <TableHead className="w-[100px] text-right">Jumlah</TableHead>
-              <TableHead className="w-[120px] text-right">Harga</TableHead>
-              <TableHead className="w-[120px] text-right">Total</TableHead>
-              <TableHead className="w-[120px]">Penerima</TableHead>
-              <TableHead className="w-[100px] text-right">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-gray-50/50">
+            <TableHead className="w-[120px]">Tanggal</TableHead>
+            <TableHead className="min-w-[200px]">Item</TableHead>
+            <TableHead className="w-[100px]">Tipe</TableHead>
+            <TableHead className="w-[100px] text-right">Jumlah</TableHead>
+            <TableHead className="w-[120px] text-right hidden md:table-cell">Harga</TableHead>
+            <TableHead className="w-[120px] text-right hidden md:table-cell">Total</TableHead>
+            <TableHead className="w-[120px] hidden lg:table-cell">Penerima</TableHead>
+            <TableHead className="w-[100px] text-right">Aksi</TableHead>
+          </TableRow>
+        </TableHeader>
           <TableBody>
             {rows.map((row) => {
               const totalValue = (row.jumlah || 0) * (row.harga_satuan || 0);
@@ -182,17 +181,17 @@ const ModernTransactionTable = memo(({
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="w-[120px] text-right">
+                  <TableCell className="w-[120px] text-right hidden md:table-cell">
                     <div className="text-sm">
                       {row.harga_satuan ? formatRupiah(row.harga_satuan) : "-"}
                     </div>
                   </TableCell>
-                  <TableCell className="w-[120px] text-right">
+                  <TableCell className="w-[120px] text-right hidden md:table-cell">
                     <div className="font-medium text-sm">
                       {totalValue > 0 ? formatRupiah(totalValue) : "-"}
                     </div>
                   </TableCell>
-                  <TableCell className="w-[120px]">
+                  <TableCell className="w-[120px] hidden lg:table-cell">
                     {row.penerima ? (
                       <div className="flex items-center space-x-1">
                         <User className="h-3 w-3 text-gray-400" />
@@ -241,7 +240,6 @@ const ModernTransactionTable = memo(({
             })}
           </TableBody>
         </Table>
-      </div>
     </div>
   );
 });

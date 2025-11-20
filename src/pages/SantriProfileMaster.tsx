@@ -6,6 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { 
@@ -51,7 +53,10 @@ import {
   Unlock,
   ChevronRight,
   Info,
-  ExternalLink
+  ExternalLink,
+  Check,
+  X,
+  Loader2
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDate, formatRupiah } from "@/utils/inventaris.utils";
@@ -64,6 +69,7 @@ import SantriFormWizard from "@/components/SantriFormWizard";
 import SantriSettingsPanel from "@/components/SantriSettingsPanel";
 import SantriDataAggregator from "@/components/SantriDataAggregator";
 import SantriDataValidationPanel from "@/components/SantriDataValidationPanel";
+import SantriProgressTracking from "@/components/SantriProgressTracking";
 import { ProfileHelper } from "@/utils/profile.helper";
 
 interface SantriData {
@@ -122,7 +128,123 @@ interface SantriData {
   };
 }
 
-// Modern Info Card Component
+// Inline Editable Field Component
+const InlineEditableField = ({ 
+  label, 
+  value, 
+  fieldName,
+  santriId,
+  onUpdate,
+  type = 'text',
+  placeholder = 'Klik untuk edit',
+  disabled = false
+}: {
+  label: string;
+  value: string | number | undefined;
+  fieldName: string;
+  santriId: string;
+  onUpdate: (field: string, newValue: any) => Promise<void>;
+  type?: 'text' | 'number' | 'date' | 'textarea';
+  placeholder?: string;
+  disabled?: boolean;
+}) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value || '');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setEditValue(value || '');
+  }, [value]);
+
+  const handleSave = async () => {
+    if (editValue === value || disabled) {
+      setIsEditing(false);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await onUpdate(fieldName, editValue || null);
+      setIsEditing(false);
+      toast.success(`${label} berhasil diperbarui`);
+    } catch (error: any) {
+      toast.error(`Gagal memperbarui ${label}: ${error.message}`);
+      setEditValue(value || '');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditValue(value || '');
+    setIsEditing(false);
+  };
+
+  if (disabled) {
+    return (
+      <div className="flex items-center justify-between py-2 px-3 rounded border border-slate-200 bg-slate-50">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-slate-600 mb-0.5">{label}</p>
+          <p className="font-medium text-slate-900 truncate">
+            {value || <span className="text-slate-400 italic">{placeholder}</span>}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-2 py-2 px-3 rounded border border-blue-300 bg-blue-50">
+        {type === 'textarea' ? (
+          <Textarea
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            className="flex-1 min-h-[60px]"
+            autoFocus
+            disabled={saving}
+          />
+        ) : (
+          <Input
+            type={type}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            className="flex-1"
+            autoFocus
+            disabled={saving}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSave();
+              if (e.key === 'Escape') handleCancel();
+            }}
+          />
+        )}
+        <Button size="sm" onClick={handleSave} disabled={saving}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={handleCancel} disabled={saving}>
+          <X className="w-4 h-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      className="group flex items-center justify-between py-2 px-3 rounded border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition-colors"
+      onClick={() => setIsEditing(true)}
+    >
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-slate-600 mb-0.5">{label}</p>
+        <p className="font-medium text-slate-900 truncate">
+          {value || <span className="text-slate-400 italic">{placeholder}</span>}
+        </p>
+      </div>
+      <Edit className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2" />
+    </div>
+  );
+};
+
+// Modern Info Card Component - Compact Version
 const ModernInfoCard = ({ 
   icon: Icon, 
   iconColor, 
@@ -144,42 +266,38 @@ const ModernInfoCard = ({
   subtitle?: string;
   action?: React.ReactNode;
 }) => (
-  <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-white/50 backdrop-blur-sm">
-    <CardContent className="p-6">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center space-x-4">
-          <div className={`p-3 ${iconBg} rounded-xl group-hover:scale-110 transition-transform duration-300`}>
-            <Icon className={`w-6 h-6 ${iconColor}`} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-slate-600 uppercase tracking-wide">{label}</p>
-            <div className="flex items-center gap-3 mt-1">
-              {typeof value === 'string' ? (
-                <p className="font-bold text-slate-900 text-lg">{value}</p>
-              ) : (
-                <div className="font-bold text-slate-900 text-lg">{value}</div>
-              )}
-              {badge}
-            </div>
-            {subtitle && (
-              <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
-            )}
-            {trend && (
-              <div className={`flex items-center gap-1 mt-2 text-xs ${trend.positive ? 'text-green-600' : 'text-red-600'}`}>
-                <TrendingUp className="w-3 h-3" />
-                <span>{trend.value}</span>
-              </div>
-            )}
-          </div>
+  <div className="group border rounded-lg p-3 bg-white hover:shadow-md transition-all duration-200">
+    <div className="flex items-start gap-3">
+      <div className={`p-2 ${iconBg} rounded-lg flex-shrink-0`}>
+        <Icon className={`w-4 h-4 ${iconColor}`} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-slate-600 mb-1">{label}</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          {typeof value === 'string' ? (
+            <p className="font-semibold text-slate-900 text-sm truncate">{value}</p>
+          ) : (
+            <div className="font-semibold text-slate-900 text-sm">{value}</div>
+          )}
+          {badge}
         </div>
-        {action && (
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            {action}
+        {subtitle && (
+          <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+        )}
+        {trend && (
+          <div className={`flex items-center gap-1 mt-1 text-xs ${trend.positive ? 'text-green-600' : 'text-red-600'}`}>
+            <TrendingUp className="w-3 h-3" />
+            <span>{trend.value}</span>
           </div>
         )}
       </div>
-    </CardContent>
-  </Card>
+      {action && (
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+          {action}
+        </div>
+      )}
+    </div>
+  </div>
 );
 
 // Status Badge Component
@@ -200,8 +318,18 @@ const StatusBadge = ({ status, type }: { status: string; type: 'primary' | 'succ
 };
 
 // Quick Stats Component
-const QuickStats = ({ santri, financialSummary }: { santri: SantriData; financialSummary: any }) => (
-  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+const QuickStats = ({ santri, financialSummary, programData }: { santri: SantriData; financialSummary: any; programData: any[] }) => {
+  const hasActiveClass = programData && programData.length > 0;
+  const activeClassNames = hasActiveClass
+    ? programData
+        .map((program) => program.kelas_program)
+        .filter((name: string | null | undefined) => !!name)
+        .slice(0, 2)
+        .join(', ')
+    : undefined;
+
+  return (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
     <ModernInfoCard
       icon={User}
       iconColor="text-blue-600"
@@ -216,14 +344,9 @@ const QuickStats = ({ santri, financialSummary }: { santri: SantriData; financia
       icon={BookOpen}
       iconColor="text-emerald-600"
       iconBg="bg-emerald-100"
-      label="Program Aktif"
-      value={santri.program_data?.length || 0}
-      subtitle={santri.program_data?.length === 0 ? 'Belum ditempatkan' : 'Sudah ditempatkan'}
-      action={
-        <Button variant="ghost" size="sm">
-          <ChevronRight className="w-4 h-4" />
-        </Button>
-      }
+      label="Status Kelas"
+      value={hasActiveClass ? 'Aktif' : 'Belum ditempatkan'}
+      subtitle={hasActiveClass ? (activeClassNames || 'Terdaftar pada kelas aktif') : 'Butuh penempatan kelas'}
     />
     
     {/* Finance-related fields */}
@@ -249,6 +372,7 @@ const QuickStats = ({ santri, financialSummary }: { santri: SantriData; financia
     />
   </div>
 );
+};
 
 // Profile Header Component
 const ProfileHeader = ({ santri, onEditProfile }: { santri: SantriData; onEditProfile: () => void }) => {
@@ -267,77 +391,69 @@ const ProfileHeader = ({ santri, onEditProfile }: { santri: SantriData; onEditPr
   );
 
   return (
-    <Card className="border-0 shadow-xl bg-gradient-to-br from-slate-50 via-white to-slate-50 overflow-hidden">
-      <CardContent className="p-0">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-emerald-500/5" />
-        
-        <div className="relative p-8">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-8">
-            {/* Avatar Section */}
-            <div className="relative">
-              <Avatar className="w-32 h-32 ring-8 ring-white shadow-2xl">
-                <AvatarImage src={getSafeAvatarUrl(santri.foto_profil)} />
-              <AvatarFallback className="text-2xl font-bold bg-gradient-to-br from-slate-600 to-slate-800 text-white">
-                  {generateInitials(santri.nama_lengkap)}
-                </AvatarFallback>
-              </Avatar>
-              {isBantuanRecipient && (
-                <div className="absolute -top-2 -right-2 w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg">
-                  <GraduationCap className="w-5 h-5 text-white" />
+    <Card className="border shadow-sm bg-white">
+      <CardContent className="p-4 lg:p-6">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 lg:gap-6">
+          {/* Avatar Section */}
+          <div className="relative flex-shrink-0">
+            <Avatar className="w-20 h-20 lg:w-24 lg:h-24 ring-2 ring-slate-200">
+              <AvatarImage src={getSafeAvatarUrl(santri.foto_profil)} />
+              <AvatarFallback className="text-lg font-bold bg-gradient-to-br from-slate-600 to-slate-800 text-white">
+                {generateInitials(santri.nama_lengkap)}
+              </AvatarFallback>
+            </Avatar>
+            {isBantuanRecipient && (
+              <div className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-md">
+                <GraduationCap className="w-3 h-3 text-white" />
+              </div>
+            )}
+          </div>
+          
+          {/* Profile Info */}
+          <div className="flex-1 min-w-0 w-full">
+            <div className="space-y-3">
+              <div>
+                <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 mb-2 truncate">{santri.nama_lengkap}</h1>
+                <div className="flex flex-wrap gap-2">
+                  <StatusBadge status={santri.status_santri || (santri as any).status_baru} type="success" />
+                  <StatusBadge status={santri.kategori} type="primary" />
+                  {isBantuanRecipient && (
+                    <StatusBadge status={santri.tipe_pembayaran} type="info" />
+                  )}
                 </div>
-              )}
-            </div>
-            
-            {/* Profile Info */}
-            <div className="flex-1 space-y-6">
-              <div className="space-y-4">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                  <div>
-                    <h1 className="text-4xl font-bold text-slate-900 mb-2">{santri.nama_lengkap}</h1>
-                    <div className="flex flex-wrap gap-2">
-                      <StatusBadge status={santri.status_santri || (santri as any).status_baru} type="success" />
-                      <StatusBadge status={santri.kategori} type="primary" />
-                      {isBantuanRecipient && (
-                        <StatusBadge status={santri.tipe_pembayaran} type="info" />
-                      )}
-                    </div>
-                  </div>
-                  
-                </div>
+              </div>
 
-                {/* Key Information */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="flex items-center gap-4 p-4 bg-white/70 rounded-xl backdrop-blur-sm">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <User className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600">ID Santri</p>
-                      <p className="font-semibold text-slate-900">{santri.id_santri || 'Belum ada'}</p>
-                    </div>
+              {/* Key Information */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                  <div className="p-1.5 bg-blue-100 rounded-lg">
+                    <User className="w-4 h-4 text-blue-600" />
                   </div>
-                  
-                  <div className="flex items-center gap-4 p-4 bg-white/70 rounded-xl backdrop-blur-sm">
-                    <div className="p-2 bg-emerald-100 rounded-lg">
-                      <Calendar className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600">Umur</p>
-                      <p className="font-semibold text-slate-900">
-                        {santri.tanggal_lahir ? `${calculateAge(santri.tanggal_lahir)} tahun` : '-'}
-                      </p>
-                    </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-slate-600">ID Santri</p>
+                    <p className="font-semibold text-slate-900 text-sm truncate">{santri.id_santri || 'Belum ada'}</p>
                   </div>
-                  
-                  <div className="flex items-center gap-4 p-4 bg-white/70 rounded-xl backdrop-blur-sm">
-                    <div className="p-2 bg-amber-100 rounded-lg">
-                      <Phone className="w-5 h-5 text-amber-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600">WhatsApp</p>
-                      <p className="font-semibold text-slate-900">{santri.no_whatsapp || 'Belum ada'}</p>
-                    </div>
+                </div>
+                
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                  <div className="p-1.5 bg-emerald-100 rounded-lg">
+                    <Calendar className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-600">Umur</p>
+                    <p className="font-semibold text-slate-900 text-sm">
+                      {santri.tanggal_lahir ? `${calculateAge(santri.tanggal_lahir)} tahun` : '-'}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                  <div className="p-1.5 bg-amber-100 rounded-lg">
+                    <Phone className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-slate-600">WhatsApp</p>
+                    <p className="font-semibold text-slate-900 text-sm truncate">{santri.no_whatsapp || 'Belum ada'}</p>
                   </div>
                 </div>
               </div>
@@ -367,6 +483,11 @@ const SantriProfileMaster = () => {
   const [showForm, setShowForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [editTab, setEditTab] = useState<string>('personal');
+  const [absensiSummary, setAbsensiSummary] = useState<{
+    total: number;
+    statuses: Record<string, number>;
+    lastDate?: string;
+  } | null>(null);
 
   // Load comprehensive santri data
   const loadSantriData = async () => {
@@ -385,7 +506,11 @@ const SantriProfileMaster = () => {
       if (santriError) throw santriError;
 
       // Load related data in parallel
-      const [programsResult, waliResult] = await Promise.all([
+      const absensiWindowStart = new Date();
+      absensiWindowStart.setDate(absensiWindowStart.getDate() - 30);
+      const absensiStartIso = absensiWindowStart.toISOString().split('T')[0];
+
+      const [programsResult, waliResult, absensiResult] = await Promise.all([
         // Kelas data (new)
         supabase
           .from('kelas_anggota')
@@ -405,10 +530,18 @@ const SantriProfileMaster = () => {
           .select('*')
           .eq('santri_id', santriId)
           .order('is_utama', { ascending: false })
+        ,
+        supabase
+          .from('absensi_madin')
+          .select('status, tanggal')
+          .eq('santri_id', santriId)
+          .gte('tanggal', absensiStartIso)
+          .order('tanggal', { ascending: false })
       ]);
 
       if (programsResult.error) throw programsResult.error;
       if (waliResult.error) throw waliResult.error;
+      if (absensiResult.error) throw absensiResult.error;
 
       console.log('🔍 Loading santri data:', {
         id: santriData.id,
@@ -434,6 +567,18 @@ const SantriProfileMaster = () => {
       }));
       setProgramData(mapped);
       setWaliData(waliResult.data || []);
+
+      const absensiData = absensiResult.data || [];
+      const statusCounts = absensiData.reduce((acc: Record<string, number>, item: any) => {
+        const key = item.status || 'Tidak diketahui';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+      setAbsensiSummary({
+        total: absensiData.length,
+        statuses: statusCounts,
+        lastDate: absensiData[0]?.tanggal || undefined
+      });
 
       // Load comprehensive summary using aggregator
       try {
@@ -469,16 +614,98 @@ const SantriProfileMaster = () => {
     loadSantriData();
   }, [santriId]);
 
+  // Handle update field function
+  const handleUpdateField = async (fieldName: string, value: any) => {
+    if (!santriId) return;
+    
+    try {
+      const updateData: any = { [fieldName]: value };
+      
+      // Handle date fields
+      if (fieldName === 'tanggal_lahir' && value) {
+        updateData[fieldName] = new Date(value).toISOString();
+      }
+      
+      // Handle number fields
+      if (fieldName === 'anak_ke' || fieldName === 'jumlah_saudara' || fieldName === 'tinggi_badan' || fieldName === 'berat_badan') {
+        updateData[fieldName] = value ? parseInt(value) : null;
+      }
+      
+      const { error } = await supabase
+        .from('santri')
+        .update(updateData)
+        .eq('id', santriId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setSantri((prev: any) => ({
+        ...prev,
+        [fieldName]: value
+      }));
+      
+      // Reload data to ensure consistency
+      await loadSantriData();
+    } catch (error: any) {
+      console.error('Error updating field:', error);
+      throw error;
+    }
+  };
+
   // Memoized calculations
   const isBantuanRecipient = useMemo(() => 
     santri?.tipe_pembayaran === 'Bantuan Yayasan' || santri?.kategori?.includes('Binaan'), 
     [santri?.tipe_pembayaran, santri?.kategori]
   );
 
+  const { user } = useAuth();
+  const isCurrentUserSantri = useMemo(() => {
+    if (!user || !santri) return false;
+    // Check if current user is viewing their own profile
+    return user.id === santri.id;
+  }, [user, santri]);
+
+  const academicSummary = useMemo(() => comprehensiveSummary?.academic, [comprehensiveSummary]);
+
   const availableTabs = useMemo(() => {
     if (!santri) return ['overview', 'academic', 'financial', 'documents'];
     return ProfileHelper.getAvailableTabs(santri.kategori, santri.tipe_pembayaran);
   }, [santri?.kategori, santri?.tipe_pembayaran]);
+
+  const progressProgramOptions = useMemo(() => {
+    if (!programData || programData.length === 0) return undefined;
+
+    const options: { value: 'TPQ' | 'Tahfid' | 'Tahsin'; label: string }[] = [];
+
+    const hasIqra = programData.some((program) => (program.kelas_program || '').toLowerCase().includes("iqra"));
+    const hasHafalan = programData.some((program) => {
+      const name = (program.kelas_program || '').toLowerCase();
+      return name.includes("hafalan") || name.includes("surat pendek");
+    });
+
+    if (hasIqra) {
+      options.push({ value: 'TPQ', label: "Iqra'" });
+    }
+    if (hasHafalan) {
+      options.push({ value: 'Tahfid', label: 'Hafalan Surat Pendek' });
+    }
+
+    return options.length > 0 ? options : undefined;
+  }, [programData]);
+
+  const navigateToTabungan = (view?: 'riwayat' | 'withdraw') => {
+    if (!santriId) return;
+    const params = new URLSearchParams();
+    params.set('tab', 'daftar-santri');
+    params.set('santriId', santriId);
+    if (view) {
+      params.set('view', view);
+    }
+    if (santri?.nama_lengkap) {
+      params.set('santriName', santri.nama_lengkap);
+    }
+    navigate(`/tabungan-santri?${params.toString()}`);
+  };
 
   if (loading) {
     return (
@@ -510,9 +737,9 @@ const SantriProfileMaster = () => {
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-8 animate-fade-in">
+    <div className="p-4 lg:p-6 space-y-4 animate-fade-in max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
           <Button 
             variant="outline" 
@@ -587,54 +814,40 @@ const SantriProfileMaster = () => {
       />
 
       {/* Quick Stats */}
-      <QuickStats santri={santri} financialSummary={financialSummary} />
+      <QuickStats santri={santri} financialSummary={financialSummary} programData={programData} />
 
-      {/* Main Content Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className={`grid w-full ${santri?.kategori?.includes('Binaan') ? 'grid-cols-7' : 'grid-cols-5'} bg-white/50 backdrop-blur-sm border-0 shadow-lg`}>
-          <TabsTrigger value="overview" className="flex items-center gap-2">
+      {/* Main Content Tabs - 5 Tab Utama */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-5 bg-white border shadow-sm rounded-lg p-1 h-auto">
+          <TabsTrigger value="overview" className="flex items-center gap-2 text-xs sm:text-sm py-2.5">
             <BarChart3 className="w-4 h-4" />
-            Ringkasan
+            <span className="hidden sm:inline">Ringkasan</span>
           </TabsTrigger>
-          <TabsTrigger value="academic" className="flex items-center gap-2">
+          <TabsTrigger value="personal" className="flex items-center gap-2 text-xs sm:text-sm py-2.5">
+            <User className="w-4 h-4" />
+            <span className="hidden sm:inline">Informasi Pribadi</span>
+          </TabsTrigger>
+          <TabsTrigger value="academic" className="flex items-center gap-2 text-xs sm:text-sm py-2.5">
             <BookOpen className="w-4 h-4" />
-            Akademik
+            <span className="hidden sm:inline">Akademik</span>
           </TabsTrigger>
-          <TabsTrigger value="financial" className="flex items-center gap-2">
+          <TabsTrigger value="financial" className="flex items-center gap-2 text-xs sm:text-sm py-2.5">
             <DollarSign className="w-4 h-4" />
-            Keuangan
+            <span className="hidden sm:inline">Keuangan</span>
           </TabsTrigger>
-          {/* Bantuan Yayasan Tab - Only for Binaan */}
-          {santri?.kategori?.includes('Binaan') && (
-            <TabsTrigger value="bantuan" className="flex items-center gap-2">
-              <HandCoins className="w-4 h-4" />
-              Bantuan Yayasan
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="documents" className="flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            Dokumen
-          </TabsTrigger>
-          {/* Health Tab - Only for Binaan Mukim */}
-          {santri?.kategori === 'Binaan Mukim' && (
-            <TabsTrigger value="health" className="flex items-center gap-2">
-              <Activity className="w-4 h-4" />
-              Kesehatan
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="validation" className="flex items-center gap-2">
+          <TabsTrigger value="monitoring" className="flex items-center gap-2 text-xs sm:text-sm py-2.5">
             <Shield className="w-4 h-4" />
-            Validasi
+            <span className="hidden sm:inline">Monitoring</span>
           </TabsTrigger>
         </TabsList>
 
         {/* Tab: Overview */}
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-4 mt-4">
           {/* Cross-Module Summary */}
           {comprehensiveSummary && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
-                <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              <Card className="border shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
+                <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-blue-700">Status Akademik</p>
@@ -653,8 +866,8 @@ const SantriProfileMaster = () => {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100">
-                <CardContent className="p-6">
+              <Card className="border shadow-sm bg-gradient-to-br from-green-50 to-green-100">
+                <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-green-700">Status Keuangan</p>
@@ -673,8 +886,8 @@ const SantriProfileMaster = () => {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
-                <CardContent className="p-6">
+              <Card className="border shadow-sm bg-gradient-to-br from-purple-50 to-purple-100">
+                <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-purple-700">Dokumen</p>
@@ -693,8 +906,8 @@ const SantriProfileMaster = () => {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg bg-gradient-to-br from-amber-50 to-amber-100">
-                <CardContent className="p-6">
+              <Card className="border shadow-sm bg-gradient-to-br from-amber-50 to-amber-100">
+                <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-amber-700">Kontak Wali</p>
@@ -714,17 +927,17 @@ const SantriProfileMaster = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Personal Information */}
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
                   <User className="w-5 h-5 text-blue-600" />
                   Informasi Pribadi
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 gap-4">
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 gap-3">
                   {/* ID Santri - Primary Identifier */}
                   <ModernInfoCard
                     icon={User}
@@ -821,15 +1034,15 @@ const SantriProfileMaster = () => {
             </Card>
 
             {/* Status & Category Info */}
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
                   <Shield className="w-5 h-5 text-emerald-600" />
                   Status & Kategori
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 gap-4">
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 gap-3">
                   <ModernInfoCard
                     icon={Activity}
                     iconColor="text-green-600"
@@ -907,24 +1120,181 @@ const SantriProfileMaster = () => {
           </div>
         </TabsContent>
 
-        {/* Tab: Academic */}
-        <TabsContent value="academic" className="space-y-6">
-          {/* Riwayat Pendidikan - Only for Binaan Mukim */}
+        {/* Tab: Informasi Pribadi - Semua Data Registrasi */}
+        <TabsContent value="personal" className="space-y-4 mt-4">
+          {/* Section A: Data Diri - Simplified Layout with Inline Editing */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Data Diri</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">Klik pada field untuk mengedit</p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* ID Santri - Read Only */}
+                <InlineEditableField
+                  label="ID Santri"
+                  value={santri.id_santri || 'Belum ada'}
+                  fieldName="id_santri"
+                  santriId={santriId || ''}
+                  onUpdate={handleUpdateField}
+                  disabled={true}
+                  placeholder="ID Santri (auto-generated)"
+                />
+                
+                {/* Nama Lengkap */}
+                <InlineEditableField
+                  label="Nama Lengkap"
+                  value={santri.nama_lengkap}
+                  fieldName="nama_lengkap"
+                  santriId={santriId || ''}
+                  onUpdate={handleUpdateField}
+                  placeholder="Masukkan nama lengkap"
+                />
+                
+                {/* Tanggal Lahir */}
+                <InlineEditableField
+                  label="Tanggal Lahir"
+                  value={santri.tanggal_lahir ? new Date(santri.tanggal_lahir).toISOString().split('T')[0] : ''}
+                  fieldName="tanggal_lahir"
+                  santriId={santriId || ''}
+                  onUpdate={handleUpdateField}
+                  type="date"
+                  placeholder="Pilih tanggal lahir"
+                />
+                
+                {/* Tempat Lahir */}
+                <InlineEditableField
+                  label="Tempat Lahir"
+                  value={santri.tempat_lahir}
+                  fieldName="tempat_lahir"
+                  santriId={santriId || ''}
+                  onUpdate={handleUpdateField}
+                  placeholder="Masukkan tempat lahir"
+                />
+                
+                {/* Nomor WhatsApp */}
+                <InlineEditableField
+                  label="Nomor WhatsApp"
+                  value={santri.no_whatsapp}
+                  fieldName="no_whatsapp"
+                  santriId={santriId || ''}
+                  onUpdate={handleUpdateField}
+                  type="text"
+                  placeholder="Masukkan nomor WhatsApp"
+                />
+                
+                {/* NIK */}
+                <InlineEditableField
+                  label="NIK"
+                  value={santri.nik}
+                  fieldName="nik"
+                  santriId={santriId || ''}
+                  onUpdate={handleUpdateField}
+                  placeholder="Nomor Induk Kependudukan (Wajib)"
+                />
+                
+                {/* NISN */}
+                <InlineEditableField
+                  label="NISN"
+                  value={santri.nisn}
+                  fieldName="nisn"
+                  santriId={santriId || ''}
+                  onUpdate={handleUpdateField}
+                  placeholder="Nomor Induk Siswa Nasional (Opsional)"
+                />
+                
+                {/* Hobi */}
+                <InlineEditableField
+                  label="Hobi"
+                  value={santri.hobi}
+                  fieldName="hobi"
+                  santriId={santriId || ''}
+                  onUpdate={handleUpdateField}
+                  placeholder="Hobi atau minat khusus"
+                />
+                
+                {/* Cita-cita */}
+                <InlineEditableField
+                  label="Cita-cita"
+                  value={santri.cita_cita}
+                  fieldName="cita_cita"
+                  santriId={santriId || ''}
+                  onUpdate={handleUpdateField}
+                  placeholder="Cita-cita atau tujuan masa depan"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section B: Data Wali */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Users className="w-5 h-5 text-emerald-600" />
+                Data Wali
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {waliData.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-muted-foreground mb-3 text-sm">Belum ada data wali</p>
+                  <Button 
+                    onClick={() => {
+                      setEditTab('wali');
+                      setShowForm(true);
+                      setEditingSantri(santriId);
+                    }}
+                    variant="outline"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Tambah Data Wali
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {waliData.map((wali, idx) => (
+                    <Card key={wali.id || idx} className="border-l-4 border-l-emerald-500">
+                      <CardContent className="p-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-semibold">{wali.nama_lengkap || 'Nama belum diisi'}</h4>
+                              {wali.is_utama && (
+                                <Badge variant="default" className="text-xs">Wali Utama</Badge>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-muted-foreground">
+                              <p><span className="font-medium">Hubungan:</span> {wali.hubungan_keluarga || '-'}</p>
+                              <p><span className="font-medium">WhatsApp:</span> {wali.no_whatsapp || '-'}</p>
+                              <p><span className="font-medium">Pekerjaan:</span> {wali.pekerjaan || '-'}</p>
+                              <p><span className="font-medium">Alamat:</span> {wali.alamat || '-'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Section C: Riwayat Pendidikan - Only for Binaan Mukim */}
           {santri?.kategori === 'Binaan Mukim' && (
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
                   <GraduationCap className="w-5 h-5 text-blue-600" />
                   Riwayat Pendidikan
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <GraduationCap className="w-8 h-8 text-blue-600" />
+              <CardContent className="pt-0">
+                <div className="text-center py-6">
+                  <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <GraduationCap className="w-7 h-7 text-blue-600" />
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">Riwayat Pendidikan</h3>
-                  <p className="text-muted-foreground mb-4">
+                  <h3 className="text-base font-semibold mb-2">Riwayat Pendidikan</h3>
+                  <p className="text-muted-foreground mb-3 text-sm">
                     Data riwayat pendidikan akan ditampilkan di sini
                   </p>
                   <Button 
@@ -943,139 +1313,312 @@ const SantriProfileMaster = () => {
             </Card>
           )}
 
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-emerald-600" />
-                Program & Kelas Santri
+          {/* Section D: Kesehatan - Only for Binaan Mukim */}
+          {santri?.kategori === 'Binaan Mukim' && (
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Kondisi Kesehatan</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">Klik pada field untuk mengedit</p>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <InlineEditableField
+                    label="Golongan Darah"
+                    value={santri.golongan_darah}
+                    fieldName="golongan_darah"
+                    santriId={santriId || ''}
+                    onUpdate={handleUpdateField}
+                    placeholder="Masukkan golongan darah"
+                  />
+                  <InlineEditableField
+                    label="Tinggi Badan (cm)"
+                    value={santri.tinggi_badan}
+                    fieldName="tinggi_badan"
+                    santriId={santriId || ''}
+                    onUpdate={handleUpdateField}
+                    type="number"
+                    placeholder="Masukkan tinggi badan"
+                  />
+                  <InlineEditableField
+                    label="Berat Badan (kg)"
+                    value={santri.berat_badan}
+                    fieldName="berat_badan"
+                    santriId={santriId || ''}
+                    onUpdate={handleUpdateField}
+                    type="number"
+                    placeholder="Masukkan berat badan"
+                  />
+                  <InlineEditableField
+                    label="Riwayat Penyakit"
+                    value={santri.riwayat_penyakit}
+                    fieldName="riwayat_penyakit"
+                    santriId={santriId || ''}
+                    onUpdate={handleUpdateField}
+                    type="textarea"
+                    placeholder="Masukkan riwayat penyakit (jika ada)"
+                  />
+                  <InlineEditableField
+                    label="Alergi"
+                    value={santri.alergi}
+                    fieldName="alergi"
+                    santriId={santriId || ''}
+                    onUpdate={handleUpdateField}
+                    placeholder="Masukkan alergi (jika ada)"
+                  />
+                  <InlineEditableField
+                    label="Kondisi Khusus"
+                    value={santri.kondisi_khusus}
+                    fieldName="kondisi_khusus"
+                    santriId={santriId || ''}
+                    onUpdate={handleUpdateField}
+                    placeholder="Masukkan kondisi khusus (jika ada)"
+                  />
+                  <InlineEditableField
+                    label="Keterangan Rawat Inap"
+                    value={santri.keterangan_rawat_inap}
+                    fieldName="keterangan_rawat_inap"
+                    santriId={santriId || ''}
+                    onUpdate={handleUpdateField}
+                    type="textarea"
+                    placeholder="Masukkan keterangan rawat inap (jika pernah)"
+                  />
+                  <InlineEditableField
+                    label="Disabilitas Khusus"
+                    value={santri.disabilitas_khusus}
+                    fieldName="disabilitas_khusus"
+                    santriId={santriId || ''}
+                    onUpdate={handleUpdateField}
+                    placeholder="Masukkan disabilitas khusus (jika ada)"
+                  />
+                  <InlineEditableField
+                    label="Obat Khusus"
+                    value={santri.obat_khusus}
+                    fieldName="obat_khusus"
+                    santriId={santriId || ''}
+                    onUpdate={handleUpdateField}
+                    placeholder="Masukkan obat khusus (jika ada)"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Section E: Dokumen */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="w-5 h-5 text-purple-600" />
+                Dokumen
               </CardTitle>
             </CardHeader>
+            <CardContent className="pt-0">
+              <DokumenSantriTab 
+                santriId={santriId} 
+                santriData={{
+                  status_sosial: santri?.status_sosial as 'Yatim' | 'Piatu' | 'Yatim Piatu' | 'Dhuafa',
+                  nama_lengkap: santri?.nama_lengkap || '',
+                  kategori: santri?.kategori || 'Reguler'
+                }}
+                isBantuanRecipient={isBantuanRecipient}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab: Academic - fokus pada statistik */}
+        <TabsContent value="academic" className="space-y-4 mt-4">
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <PieChart className="w-5 h-5 text-emerald-600" />
+                Ringkasan Akademik
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Gambaran cepat tentang status kelas, kehadiran, dan prestasi santri.
+              </p>
+            </CardHeader>
             <CardContent>
-              {programData.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <BookOpen className="w-10 h-10 text-muted-foreground" />
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                <Card className="border border-emerald-100 shadow-none">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-emerald-700">
+                        <BookOpen className="w-4 h-4" />
+                        <span className="text-sm font-medium">Status Kelas</span>
+                      </div>
+                      <StatusBadge status={programData.length > 0 ? 'Aktif' : 'Belum'} type={programData.length > 0 ? 'success' : 'warning'} />
+                    </div>
+                    <p className="text-xl font-semibold text-slate-900">
+                      {programData.length > 0 ? (programData[0]?.kelas_program || 'Kelas Aktif') : 'Belum ditempatkan'}
+                    </p>
+                    {programData.length > 1 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        +{programData.length - 1} kelas tambahan.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="border border-blue-100 shadow-none">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-blue-700">
+                        <Calendar className="w-4 h-4" />
+                        <span className="text-sm font-medium">Absensi 30 Hari</span>
+                      </div>
+                    </div>
+                    <p className="text-xl font-semibold text-slate-900">{absensiSummary?.total || 0} pertemuan</p>
+                    <div className="flex flex-wrap gap-2 mt-3 text-xs text-muted-foreground">
+                      {absensiSummary ? (
+                        Object.entries(absensiSummary.statuses).map(([status, count]) => (
+                          <span key={status} className="inline-flex items-center gap-1 px-2 py-1 rounded-full border bg-slate-50 border-slate-200">
+                            <span className="font-medium text-slate-700">{count}</span>
+                            <span>{status}</span>
+                          </span>
+                        ))
+                      ) : (
+                        <span>Belum ada data absensi</span>
+                      )}
+                    </div>
+                    {absensiSummary?.lastDate && (
+                      <p className="text-xs text-muted-foreground mt-3">
+                        Kehadiran terakhir: {formatDate(absensiSummary.lastDate)}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="border border-purple-100 shadow-none">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-purple-700">
+                        <TrendingUp className="w-4 h-4" />
+                        <span className="text-sm font-medium">Program Aktif</span>
+                      </div>
+                    </div>
+                    <p className="text-xl font-semibold text-slate-900">{(academicSummary?.program_aktif ?? programData.length) || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Dari total {(academicSummary?.total_program ?? programData.length) || 0} penugasan.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-3">
+                      Data terbaru {comprehensiveSummary?.last_updated ? formatDate(comprehensiveSummary.last_updated) : 'belum tersedia'}.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border border-amber-100 shadow-none">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-amber-700">
+                        <Award className="w-4 h-4" />
+                        <span className="text-sm font-medium">Prestasi / Pelanggaran</span>
+                      </div>
+                    </div>
+                    {academicSummary?.prestasi_terbaru?.length ? (
+                      <ul className="space-y-2 text-sm">
+                        {academicSummary.prestasi_terbaru.slice(0, 3).map((item: any, idx: number) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <Star className="w-4 h-4 text-amber-500 mt-0.5" />
+                            <span className="text-slate-700">
+                              {item.prestasi_santri || 'Prestasi tanpa keterangan'}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Belum ada catatan prestasi atau pelanggaran.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </CardContent>
+          </Card>
+
+          {santriId && (
+            <SantriProgressTracking santriId={santriId} programOptions={progressProgramOptions} />
+          )}
+
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Activity className="w-5 h-5 text-blue-600" />
+                Rekap Kehadiran & Ketertiban
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Detail kehadiran terbaru beserta catatan kedisiplinan.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {absensiSummary?.total ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-lg border border-blue-100 bg-blue-50">
+                    <h4 className="text-sm font-semibold text-blue-900 mb-2">Ringkasan Kehadiran</h4>
+                    <div className="text-3xl font-bold text-blue-900 mb-2">{absensiSummary.total}</div>
+                    <p className="text-xs text-blue-800">Pertemuan tercatat 30 hari terakhir.</p>
                   </div>
-                  <h3 className="text-xl font-semibold mb-2">Belum ditempatkan ke program</h3>
-                  <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                    Santri belum ditempatkan ke program atau kelas tertentu.
-                  </p>
-                  {!isCurrentUserSantri && (
-                    <Button 
-                      onClick={() => navigate(`/akademik/kelas?santriId=${santriId}`)}
-                      className="flex items-center gap-2"
-                    >
-                      <BookOpen className="w-4 h-4" />
-                      Tempatkan ke Program
-                    </Button>
-                  )}
+                  <div className="p-4 rounded-lg border border-amber-100 bg-amber-50">
+                    <h4 className="text-sm font-semibold text-amber-900 mb-2">Catatan Disiplin</h4>
+                    <p className="text-sm text-amber-800">
+                      Integrasi catatan pelanggaran sedang disiapkan. Masukan dari pengurus dapat ditambahkan melalui modul monitoring.
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {programData.map((program) => (
-                    <Card key={program.id} className="border-l-4 border-l-emerald-500 hover:shadow-md transition-shadow">
-                      <CardContent className="p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div className="space-y-3">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <h4 className="font-semibold text-lg">{program.kelas_program || 'Kelas Belum Ditentukan'}</h4>
-                                <p className="text-sm text-muted-foreground">
-                                  {program.tingkat || 'Tingkat Belum Ditentukan'}
-                                </p>
-                              </div>
-                              <StatusBadge status="Aktif" type="success" />
-                            </div>
-                            
-                            <div className="flex gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {program.kelas_program}
-                              </Badge>
-                              <Badge variant="outline" className="text-xs">
-                                {program.rombel}
-                              </Badge>
-                            </div>
-                          </div>
-
-                          <div className="space-y-3">
-                            <div className="bg-emerald-50 p-4 rounded-lg">
-                              <h5 className="font-medium text-emerald-900 mb-2">Informasi Biaya</h5>
-                              <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                  <span className="text-emerald-700">Rombel:</span>
-                                  <span className="font-medium text-emerald-900">
-                                    {program.rombel || 'Belum Ditentukan'}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-emerald-700">Subsidi:</span>
-                                  <span className="font-medium text-emerald-900">
-                                    {program.subsidi_persen || 0}%
-                                  </span>
-                                </div>
-                                <hr className="border-emerald-200" />
-                                <div className="flex justify-between font-semibold">
-                                  <span className="text-emerald-900">Biaya Final:</span>
-                                  <span className="text-emerald-900">
-                                    {formatRupiah(program.total_biaya_final || 0)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col gap-2 justify-center">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => navigate(`/santri/program-management/${santriId}?programId=${program.id}`)}
-                              className="w-full"
-                            >
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit Program
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => navigate(`/keuangan?tab=tagihan&santriId=${santriId}`)}
-                              className="w-full"
-                            >
-                              <CreditCard className="w-4 h-4 mr-2" />
-                              Lihat Tagihan
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                <div className="text-center py-8 text-muted-foreground">
+                  Belum ada catatan absensi untuk periode ini.
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Tab: Financial */}
-        <TabsContent value="financial" className="space-y-6">
-          
+        {/* Tab: Financial - Gabungkan Bantuan Yayasan di sini */}
+        <TabsContent value="financial" className="space-y-4 mt-4">
+          {/* Bantuan Yayasan - Only for Binaan */}
+          {isBantuanRecipient && (
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <HandCoins className="w-5 h-5 text-green-600" />
+                  Bantuan Yayasan
+                </CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Transparansi bantuan dan distribusi yang diterima santri {santri?.kategori === 'Binaan Mukim' ? 'Mukim' : 'Non-Mukim'}
+                </p>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <BantuanYayasanTab
+                  key={`bantuan-${activeTab}-${Date.now()}`}
+                  santriId={santriId || ''}
+                  santriName={santri?.nama_lengkap}
+                  santriNisn={santri?.nisn}
+                  santriIdSantri={santri?.id_santri}
+                />
+              </CardContent>
+            </Card>
+          )}
+
           {/* Financial summary for Reguler/Mahasantri */}
           {!isBantuanRecipient && (
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
                   <CreditCard className="w-5 h-5 text-blue-600" />
                   Tagihan & Pembayaran
                 </CardTitle>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground mt-1">
                   Ringkasan tagihan dan pembayaran untuk santri mandiri
                 </p>
               </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <CreditCard className="w-8 h-8 text-blue-600" />
+              <CardContent className="pt-0">
+                <div className="text-center py-6">
+                  <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <CreditCard className="w-7 h-7 text-blue-600" />
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">Tagihan & Pembayaran</h3>
-                  <p className="text-muted-foreground mb-4">
+                  <h3 className="text-base font-semibold mb-2">Tagihan & Pembayaran</h3>
+                  <p className="text-muted-foreground mb-3 text-sm">
                     Fitur tagihan otomatis akan segera tersedia
                   </p>
                   <Button variant="outline" disabled>
@@ -1086,158 +1629,50 @@ const SantriProfileMaster = () => {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
 
-        {/* Tab: Bantuan Yayasan - Only for Binaan */}
-        {santri?.kategori?.includes('Binaan') && (
-          <TabsContent value="bantuan" className="space-y-6">
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <HandCoins className="w-5 h-5 text-green-600" />
-                  Bantuan Yayasan
-                </CardTitle>
-                <p className="text-sm text-gray-600">
-                  Transparansi bantuan dan distribusi yang diterima santri {santri?.kategori === 'Binaan Mukim' ? 'Mukim' : 'Non-Mukim'}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <BantuanYayasanTab
-                  key={`bantuan-${activeTab}-${Date.now()}`}
-                  santriId={santriId || ''}
-                  santriName={santri?.nama_lengkap}
-                  santriNisn={santri?.nisn}
-                  santriIdSantri={santri?.id_santri}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-
-        {/* Tab: Documents */}
-        <TabsContent value="documents" className="space-y-6">
-          <DokumenSantriTab 
-            santriId={santriId} 
-            santriData={{
-              status_sosial: santri?.status_sosial as 'Yatim' | 'Piatu' | 'Yatim Piatu' | 'Dhuafa',
-              nama_lengkap: santri?.nama_lengkap || '',
-              kategori: santri?.kategori || 'Reguler'
-            }}
-            isBantuanRecipient={isBantuanRecipient}
-          />
-        </TabsContent>
-
-        {/* Tab: Health - Only for Binaan Mukim */}
-        {santri?.kategori === 'Binaan Mukim' && (
-          <TabsContent value="health" className="space-y-6">
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-blue-600" />
-                  Kondisi Kesehatan
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Basic Health Info */}
-                  <div className="space-y-4">
-                    <ModernInfoCard
-                      icon={Activity}
-                      iconColor="text-red-600"
-                      iconBg="bg-red-100"
-                      label="Golongan Darah"
-                      value={santri.golongan_darah || 'Belum diisi'}
-                    />
-                    
-                    <ModernInfoCard
-                      icon={Activity}
-                      iconColor="text-blue-600"
-                      iconBg="bg-blue-100"
-                      label="Tinggi Badan"
-                      value={santri.tinggi_badan ? `${santri.tinggi_badan} cm` : 'Belum diisi'}
-                    />
-                    
-                    <ModernInfoCard
-                      icon={Activity}
-                      iconColor="text-green-600"
-                      iconBg="bg-green-100"
-                      label="Berat Badan"
-                      value={santri.berat_badan ? `${santri.berat_badan} kg` : 'Belum diisi'}
-                    />
-                  </div>
-
-                  {/* Medical History */}
-                  <div className="space-y-4">
-                    <ModernInfoCard
-                      icon={AlertCircle}
-                      iconColor="text-orange-600"
-                      iconBg="bg-orange-100"
-                      label="Riwayat Penyakit"
-                      value={santri.riwayat_penyakit || 'Tidak ada'}
-                    />
-                    
-                    <ModernInfoCard
-                      icon={AlertTriangle}
-                      iconColor="text-yellow-600"
-                      iconBg="bg-yellow-100"
-                      label="Alergi"
-                      value={santri.alergi || 'Tidak ada'}
-                    />
-                    
-                    <ModernInfoCard
-                      icon={Heart}
-                      iconColor="text-pink-600"
-                      iconBg="bg-pink-100"
-                      label="Kondisi Khusus"
-                      value={santri.kondisi_khusus || 'Tidak ada'}
-                    />
-                  </div>
+          {/* Tabungan */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <DollarSign className="w-5 h-5 text-purple-600" />
+                Tabungan
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Saldo terakhir yang tercatat pada sistem tabungan yayasan.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-center py-6">
+                <div className="w-14 h-14 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <DollarSign className="w-7 h-7 text-purple-600" />
                 </div>
+                <h3 className="text-base font-semibold mb-2">Saldo Tabungan</h3>
+                <p className="text-xl font-bold text-purple-600 mb-3">
+                  {formatRupiah(financialSummary?.saldo_tabungan || 0)}
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                  <Button 
+                    variant="outline"
+                    onClick={() => navigateToTabungan('riwayat')}
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    Lihat Detail & Riwayat
+                  </Button>
+                  <Button 
+                    onClick={() => navigateToTabungan('withdraw')}
+                    disabled={(financialSummary?.saldo_tabungan || 0) <= 0}
+                  >
+                    <HandCoins className="w-4 h-4 mr-2" />
+                    Ajukan Penarikan
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                {/* Additional Health Info */}
-                {(santri.pernah_rawat_inap || santri.disabilitas_khusus || santri.obat_khusus) && (
-                  <div className="pt-4 border-t border-slate-200">
-                    <h4 className="font-semibold text-slate-800 mb-3">Informasi Tambahan</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {santri.pernah_rawat_inap && (
-                        <ModernInfoCard
-                          icon={Activity}
-                          iconColor="text-red-600"
-                          iconBg="bg-red-100"
-                          label="Pernah Rawat Inap"
-                          value={santri.keterangan_rawat_inap || 'Ya'}
-                        />
-                      )}
-                      
-                      {santri.disabilitas_khusus && (
-                        <ModernInfoCard
-                          icon={Heart}
-                          iconColor="text-purple-600"
-                          iconBg="bg-purple-100"
-                          label="Disabilitas Khusus"
-                          value={santri.disabilitas_khusus}
-                        />
-                      )}
-                      
-                      {santri.obat_khusus && (
-                        <ModernInfoCard
-                          icon={Activity}
-                          iconColor="text-blue-600"
-                          iconBg="bg-blue-100"
-                          label="Obat Khusus"
-                          value={santri.obat_khusus}
-                        />
-                      )}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-
-        {/* Tab: Validation */}
-        <TabsContent value="validation" className="space-y-6">
+        {/* Tab: Monitoring */}
+        <TabsContent value="monitoring" className="space-y-4 mt-4">
           <SantriDataValidationPanel 
             santriId={santriId || ''}
             santriName={santri?.nama_lengkap || ''}

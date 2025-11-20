@@ -45,81 +45,80 @@ const TotalBalanceDisplay: React.FC<TotalBalanceDisplayProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Simplified Total Balance Card */}
-      <Card className="rounded-2xl shadow-md border-0 bg-white">
+    <div className="space-y-4">
+      {/* Clean Total Balance Card */}
+      <Card className="border border-gray-200 rounded-xl shadow-sm bg-white">
         <CardContent className="p-6">
           {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Total Balance</h2>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Saldo</h2>
             {selectedAccount && onViewAllAccounts && (
               <Button 
                 variant="ghost" 
                 size="sm" 
                 onClick={onViewAllAccounts}
-                className="text-gray-600 hover:text-gray-900"
+                className="text-xs text-gray-500 hover:text-gray-900 h-7 px-2"
               >
-                Lihat Semua
+                Semua
               </Button>
             )}
           </div>
 
           {/* Balance Display */}
-          <div className="text-center mb-4">
-            <div className="text-4xl font-bold text-gray-900 mb-1">
+          <div className="mb-5">
+            <div className="text-3xl font-semibold text-gray-900 mb-1.5 tracking-tight">
               {formatCurrency(totalBalance)}
             </div>
-            <p className="text-gray-600">
-              {getCapitalDescription()}
+            <p className="text-xs text-gray-500">
+              {selectedAccount 
+                ? `Saldo dari ${selectedAccount.nama}` 
+                : `Dari ${accountCount} akun aktif`}
             </p>
           </div>
 
-          {/* Simple Action Buttons */}
-          <div className="flex space-x-2">
+          {/* Action Buttons */}
+          <div className="flex gap-2">
             <Button 
               variant="outline" 
               size="sm" 
-              className="flex-1"
+              className="flex-1 text-xs border-gray-200 hover:bg-gray-50 text-gray-700"
               onClick={onTransfer}
             >
+              <ArrowUpRight className="h-3.5 w-3.5 mr-1.5" />
               Transfer
             </Button>
-            
             <Button 
               variant="outline" 
               size="sm" 
-              className="flex-1"
+              className="flex-1 text-xs border-gray-200 hover:bg-gray-50 text-gray-700"
               onClick={onRequest}
             >
+              <ArrowDownLeft className="h-3.5 w-3.5 mr-1.5" />
               Request
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Simplified Quick Stats */}
+      {/* Quick Stats */}
       <div className="grid grid-cols-2 gap-3">
-        <Card className="rounded-xl border-0 shadow-sm bg-white">
-          <CardContent className="p-3 text-center">
-            <div className="text-xl font-bold text-gray-900">
-              {accountCount}
-            </div>
-            <div className="text-xs text-gray-600">
-              Akun Aktif
-            </div>
-          </CardContent>
-        </Card>
+        <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+          <div className="text-xl font-semibold text-gray-900 mb-0.5">
+            {accountCount}
+          </div>
+          <div className="text-xs text-gray-500">
+            Akun Aktif
+          </div>
+        </div>
         
-        <Card className="rounded-xl border-0 shadow-sm bg-white">
-          <CardContent className="p-3 text-center">
-            <div className="text-xl font-bold text-blue-600">
-              {selectedAccount ? '1' : accountCount}
-            </div>
-            <div className="text-xs text-gray-600">
-              {selectedAccount ? 'Dipilih' : 'Total'}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+          <div className="text-xl font-semibold text-gray-900 mb-0.5">
+            {selectedAccount ? '1' : accountCount}
+          </div>
+          <div className="text-xs text-gray-500">
+            {selectedAccount ? 'Dipilih' : 'Total'}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -67,6 +67,19 @@ const Dashboard = () => {
     }
   }, [user, navigate]);
 
+  // Redirect pengajar to their dashboard
+  useEffect(() => {
+    if (user && (user.role === 'pengajar' || user.roles?.includes('pengajar'))) {
+      console.log('🔐 [Dashboard] Pengajar detected, redirecting to pengajar dashboard...', {
+        userId: user.id,
+        role: user.role,
+        roles: user.roles
+      });
+      navigate('/akademik/pengajar', { replace: true });
+      return;
+    }
+  }, [user, navigate]);
+
   useEffect(() => {
     fetchDashboardData();
   }, []);

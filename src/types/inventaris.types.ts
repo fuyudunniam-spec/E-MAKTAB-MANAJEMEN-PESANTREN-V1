@@ -9,7 +9,7 @@ export type InventoryItem = {
   jumlah?: number | null;
   satuan?: string | null;
   harga_perolehan?: number | null;
-  supplier?: string | null;
+  sumber?: 'Pembelian' | 'Donasi' | null;
   has_expiry?: boolean | null;
   tanggal_kedaluwarsa?: string | null;
   min_stock?: number | null;

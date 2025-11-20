@@ -31,6 +31,7 @@ import { FormTarikMassal } from '@/components/TabunganSantri/FormTarikMassal';
 import { FormSetor } from '@/components/TabunganSantri/FormSetor';
 import { FormTarik } from '@/components/TabunganSantri/FormTarik';
 import { RiwayatTabungan } from '@/components/TabunganSantri/RiwayatTabungan';
+import ModuleHeader from '@/components/ModuleHeader';
 
 const formatRupiah = (amount: number) => {
   return new Intl.NumberFormat('id-ID', {
@@ -129,11 +130,30 @@ const Tabungan = () => {
     window.location.href = `/santri/profile?santriId=${santriId}&santriName=${encodeURIComponent(santriName)}&tab=tabungan`;
   };
 
+  const tabs = [
+    { label: 'Dashboard', path: '/keuangan-v3' },
+    { label: 'SPP & Tagihan', path: '/keuangan' },
+    { label: 'Tabungan', path: '/tabungan' },
+    { label: 'Donasi', path: '/donasi' }
+  ];
+
   if (loading) {
     return (
-      <div className="p-6 lg:p-8 space-y-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="space-y-6">
+        <ModuleHeader title="Tabungan Santri" tabs={tabs} />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-32 bg-gray-200 rounded animate-pulse mb-2"></div>
+                <div className="h-3 w-20 bg-gray-200 rounded animate-pulse"></div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
     );
@@ -141,14 +161,11 @@ const Tabungan = () => {
 
   return (
     <TooltipProvider>
-      <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Tabungan Santri</h1>
-          <p className="text-muted-foreground">Kelola tabungan santri pesantren</p>
-        </div>
-        <div className="flex gap-2">
+      <div className="space-y-6">
+        <ModuleHeader title="Tabungan Santri" tabs={tabs} />
+        
+        {/* Action Buttons */}
+        <div className="flex flex-wrap gap-2 justify-end">
           <Button
             onClick={() => window.location.href = '/laporan-tabungan'}
             variant="outline"
@@ -173,53 +190,59 @@ const Tabungan = () => {
             Tarik Massal
           </Button>
         </div>
-      </div>
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="border-border bg-gradient-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Tabungan</CardTitle>
-              <Wallet className="w-4 h-4 text-primary" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Tabungan</CardTitle>
+              <Wallet className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">{formatRupiah(stats.total_saldo)}</div>
+              <div className="text-2xl font-bold">{formatRupiah(stats.total_saldo)}</div>
+              <p className="text-xs text-muted-foreground">Semua santri</p>
             </CardContent>
           </Card>
-          <Card className="border-border bg-gradient-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Setoran Bulan Ini</CardTitle>
-              <TrendingUp className="w-4 h-4 text-primary" />
+          
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Setoran Bulan Ini</CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">{formatRupiah(stats.total_setoran_bulan_ini)}</div>
+              <div className="text-2xl font-bold text-green-600">{formatRupiah(stats.total_setoran_bulan_ini)}</div>
+              <p className="text-xs text-muted-foreground">Bulan berjalan</p>
             </CardContent>
           </Card>
-          <Card className="border-border bg-gradient-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Penarikan Bulan Ini</CardTitle>
-              <TrendingDown className="w-4 h-4 text-destructive" />
+          
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Penarikan Bulan Ini</CardTitle>
+              <TrendingDown className="h-4 w-4 text-red-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">{formatRupiah(stats.total_penarikan_bulan_ini)}</div>
+              <div className="text-2xl font-bold text-red-600">{formatRupiah(stats.total_penarikan_bulan_ini)}</div>
+              <p className="text-xs text-muted-foreground">Bulan berjalan</p>
             </CardContent>
           </Card>
-          <Card className="border-border bg-gradient-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Rata-rata Saldo</CardTitle>
-              <Wallet className="w-4 h-4 text-accent" />
+          
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Rata-rata Saldo</CardTitle>
+              <Wallet className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">{formatRupiah(stats.rata_rata_saldo)}</div>
+              <div className="text-2xl font-bold">{formatRupiah(stats.rata_rata_saldo)}</div>
+              <p className="text-xs text-muted-foreground">Per santri</p>
             </CardContent>
           </Card>
         </div>
       )}
 
       {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
+      <Card className="border-0 shadow-soft">
+        <CardContent className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="search">Cari Santri</Label>
@@ -260,13 +283,18 @@ const Tabungan = () => {
       </Card>
 
       {/* Santri List */}
-      <Card className="border-border bg-gradient-card shadow-medium">
+      <Card className="border-0 shadow-soft">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-foreground flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Daftar Santri ({filteredSantri.length} santri)
-            </CardTitle>
+            <div>
+              <CardTitle className="text-foreground flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Daftar Santri
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {filteredSantri.length} santri ditemukan
+              </p>
+            </div>
             <div className="text-sm text-muted-foreground flex items-center gap-4">
               <div className="flex items-center gap-1">
                 <ArrowUpCircle className="h-4 w-4 text-green-600" />
@@ -295,14 +323,14 @@ const Tabungan = () => {
           ) : (
             <div className="space-y-4">
               {filteredSantri.map((santri) => (
-                <div key={santri.santri_id} className="flex items-center justify-between p-4 rounded-lg border border-border bg-background hover:shadow-soft transition-all">
+                <div key={santri.santri_id} className="flex items-center justify-between p-4 rounded-lg border border-gray-200 bg-background hover:shadow-md transition-all">
                   <div className="flex items-start gap-4">
                     <div className="p-3 bg-primary/10 rounded-lg">
                       <Wallet className="w-5 h-5 text-primary" />
                     </div>
                     <div>
                       <h4 className="font-semibold text-foreground">{santri.santri.nama_lengkap}</h4>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap mt-1">
                         {santri.santri.id_santri && (
                           <Badge variant="secondary" className="text-xs font-mono">
                             {santri.santri.id_santri}
@@ -315,8 +343,8 @@ const Tabungan = () => {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <div className="font-bold text-foreground">{formatRupiah(santri.saldo)}</div>
-                      <Badge variant={santri.saldo > 0 ? 'default' : 'secondary'}>
+                      <div className="font-bold text-lg text-foreground">{formatRupiah(santri.saldo)}</div>
+                      <Badge variant={santri.saldo > 0 ? 'default' : 'secondary'} className="mt-1">
                         {santri.saldo > 0 ? 'Aktif' : 'Belum Ada Tabungan'}
                       </Badge>
                     </div>

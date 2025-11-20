@@ -46,6 +46,9 @@ const formatRupiah = (amount: number) => {
 const TabunganSantriAdmin = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'daftar-santri';
+  const santriIdParam = searchParams.get('santriId');
+  const santriNameParam = searchParams.get('santriName');
+  const viewParam = (searchParams.get('view') as 'riwayat' | 'withdraw' | null) || null;
   
   const [santriList, setSantriList] = useState<SaldoTabunganSantri[]>([]);
   const [stats, setStats] = useState<TabunganStats | null>(null);
@@ -59,6 +62,7 @@ const TabunganSantriAdmin = () => {
   const [selectedSantriSetor, setSelectedSantriSetor] = useState<{ id: string; name: string } | null>(null);
   const [selectedSantriTarik, setSelectedSantriTarik] = useState<{ id: string; name: string; saldo: number } | null>(null);
   const [selectedSantriHistory, setSelectedSantriHistory] = useState<{ id: string; name: string } | null>(null);
+  const [preselectHandled, setPreselectHandled] = useState(false);
   
   const { toast } = useToast();
 
@@ -88,6 +92,32 @@ const TabunganSantriAdmin = () => {
       loadData();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!santriIdParam || preselectHandled || loading || santriList.length === 0 || activeTab !== 'daftar-santri') {
+      return;
+    }
+
+    const target = santriList.find(s => s.santri_id === santriIdParam);
+    if (!target) return;
+
+    const displayName = santriNameParam || target.santri.nama_lengkap;
+
+    if (viewParam === 'withdraw') {
+      setSelectedSantriTarik({
+        id: target.santri_id,
+        name: displayName,
+        saldo: target.saldo
+      });
+    } else {
+      setSelectedSantriHistory({
+        id: target.santri_id,
+        name: displayName
+      });
+    }
+
+    setPreselectHandled(true);
+  }, [santriIdParam, santriNameParam, viewParam, preselectHandled, loading, santriList, activeTab]);
 
   const handleTabChange = (value: string) => {
     setSearchParams({ tab: value });

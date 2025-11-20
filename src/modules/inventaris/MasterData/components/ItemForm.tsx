@@ -28,7 +28,7 @@ const ItemForm = ({ onClose, editItem }: ItemFormProps) => {
     jumlah: editItem?.jumlah || '',
     satuan: editItem?.satuan || 'pcs',
     harga_perolehan: editItem?.harga_perolehan || '',
-    supplier: editItem?.supplier || '',
+    sumber: editItem?.sumber || null,
     has_expiry: editItem?.has_expiry || false,
     tanggal_kedaluwarsa: editItem?.tanggal_kedaluwarsa || '',
     min_stock: editItem?.min_stock || ''
@@ -226,13 +226,19 @@ const ItemForm = ({ onClose, editItem }: ItemFormProps) => {
               </div>
 
               <div>
-                <Label htmlFor="supplier">Supplier</Label>
-                <Input
-                  id="supplier"
-                  value={formData.supplier}
-                  onChange={(e) => setFormData({...formData, supplier: e.target.value})}
-                  placeholder="Nama supplier"
-                />
+                <Label htmlFor="sumber">Sumber</Label>
+                <Select
+                  value={formData.sumber || undefined}
+                  onValueChange={(value) => setFormData({...formData, sumber: value as "Pembelian" | "Donasi"})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih sumber (opsional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pembelian">Pembelian</SelectItem>
+                    <SelectItem value="Donasi">Donasi</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>

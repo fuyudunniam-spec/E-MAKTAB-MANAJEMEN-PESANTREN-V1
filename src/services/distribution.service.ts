@@ -62,7 +62,7 @@ export const createDistributionTransaction = async (data: DistributionFormData):
     keluar_mode: 'Distribusi',
     jumlah: data.jumlah,
     harga_satuan: null, // No financial value for distribution
-    total_nilai: null,
+    harga_total: null, // No financial value for distribution
     penerima: data.penerima,
     penerima_santri_id: data.penerima_santri_id,
     tanggal: data.tanggal,
@@ -123,7 +123,8 @@ export const getDistributionTransactions = async (
     .from('transaksi_inventaris')
     .select(`
       *,
-      inventaris!inner(nama_barang, kategori)
+      inventaris!inner(nama_barang, kategori),
+      santri:penerima_santri_id(id, id_santri, nama_lengkap)
     `, { count: 'exact' })
     .eq('tipe', 'Keluar')
     .eq('keluar_mode', 'Distribusi');
@@ -145,7 +146,7 @@ export const getDistributionTransactions = async (
   if (error) throw error;
 
   // Transform data
-  const transformedData = (data || []).map(row => ({
+  const transformedData = (data || []).map((row: any) => ({
     id: row.id,
     item_id: row.item_id,
     nama_barang: row.inventaris.nama_barang,
@@ -153,6 +154,7 @@ export const getDistributionTransactions = async (
     jumlah: row.jumlah,
     penerima: row.penerima,
     penerima_santri_id: row.penerima_santri_id,
+    penerima_santri_id_santri: row.santri?.id_santri || null,
     tanggal: row.tanggal,
     catatan: row.catatan,
     created_at: row.created_at
@@ -197,7 +199,8 @@ export const updateDistributionTransaction = async (id: string, data: Partial<Di
     .eq('id', id)
     .select(`
       *,
-      inventaris!inner(nama_barang, kategori)
+      inventaris!inner(nama_barang, kategori),
+      santri:penerima_santri_id(id, id_santri, nama_lengkap)
     `)
     .single();
 
@@ -212,6 +215,7 @@ export const updateDistributionTransaction = async (id: string, data: Partial<Di
     jumlah: result.jumlah,
     penerima: result.penerima,
     penerima_santri_id: result.penerima_santri_id,
+    penerima_santri_id_santri: (result as any).santri?.id_santri || null,
     tanggal: result.tanggal,
     catatan: result.catatan,
     created_at: result.created_at
@@ -224,6 +228,46 @@ export const updateDistributionTransaction = async (id: string, data: Partial<Di
  * Delete distribution transaction
  */
 export const deleteDistributionTransaction = async (id: string): Promise<void> => {
+  // Ambil transaksi terlebih dahulu untuk mengetahui efek ke stok
+  const { data: trx, error: fetchErr } = await supabase
+    .from('transaksi_inventaris')
+    .select('id, item_id, tipe, jumlah, before_qty, after_qty')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (fetchErr) {
+    console.error('Fetch transaction before delete failed:', fetchErr);
+    throw fetchErr;
+  }
+
+  // Jika transaksi tidak ditemukan, return early
+  if (!trx) {
+    console.warn(`Transaction ${id} not found, may have been already deleted`);
+    return;
+  }
+
+  // Kembalikan stok (karena ini transaksi Keluar/Distribusi, stok harus dikembalikan)
+  try {
+    const { data: item, error: itemErr } = await supabase
+      .from('inventaris')
+      .select('jumlah')
+      .eq('id', trx.item_id)
+      .single();
+
+    if (itemErr) throw itemErr;
+
+    const currentQty = (item?.jumlah ?? 0) as number;
+    const delta = trx.jumlah || 0; // Distribusi adalah Keluar, jadi kembalikan jumlahnya
+
+    await supabase
+      .from('inventaris')
+      .update({ jumlah: currentQty + delta })
+      .eq('id', trx.item_id);
+  } catch (stockErr) {
+    console.warn('Warning updating stock:', stockErr);
+  }
+
+  // Hapus transaksi
   const { error } = await supabase
     .from('transaksi_inventaris')
     .delete()
@@ -240,7 +284,8 @@ export const getDistributionTransaction = async (id: string): Promise<Distributi
     .from('transaksi_inventaris')
     .select(`
       *,
-      inventaris!inner(nama_barang, kategori)
+      inventaris!inner(nama_barang, kategori),
+      santri:penerima_santri_id(id, id_santri, nama_lengkap)
     `)
     .eq('id', id)
     .eq('tipe', 'Keluar')
@@ -257,6 +302,7 @@ export const getDistributionTransaction = async (id: string): Promise<Distributi
     jumlah: data.jumlah,
     penerima: data.penerima,
     penerima_santri_id: data.penerima_santri_id,
+    penerima_santri_id_santri: (data as any).santri?.id_santri || null,
     tanggal: data.tanggal,
     catatan: data.catatan,
     created_at: data.created_at

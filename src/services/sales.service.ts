@@ -63,10 +63,15 @@ export const createSalesTransaction = async (data: SalesFormData): Promise<Sales
     harga_dasar: data.harga_dasar,
     sumbangan: data.sumbangan,
     harga_satuan: hargaSatuan,
-    total_nilai: totalNilai,
+    harga_total: totalNilai, // Menggunakan harga_total bukan total_nilai
     penerima: data.pembeli,
     tanggal: data.tanggal,
-    catatan: data.catatan || `Penjualan - Harga Dasar: Rp ${data.harga_dasar.toLocaleString('id-ID')}/unit, Sumbangan: Rp ${data.sumbangan.toLocaleString('id-ID')}`,
+    catatan: data.catatan || (() => {
+      const sumbanganText = data.sumbangan > 0 
+        ? `, Sumbangan: Rp ${data.sumbangan.toLocaleString('id-ID')}` 
+        : '';
+      return `Penjualan - Harga Dasar: Rp ${data.harga_dasar.toLocaleString('id-ID')}/unit${sumbanganText}`;
+    })(),
     created_by: user?.id
   };
 
@@ -91,7 +96,7 @@ export const createSalesTransaction = async (data: SalesFormData): Promise<Sales
     harga_dasar: result.harga_dasar,
     sumbangan: result.sumbangan,
     harga_satuan: result.harga_satuan,
-    total_nilai: result.total_nilai,
+    total_nilai: result.harga_total || totalNilai, // Menggunakan harga_total dari database
     pembeli: result.penerima,
     tanggal: result.tanggal,
     catatan: result.catatan,
@@ -147,7 +152,7 @@ export const getSalesTransactions = async (
     harga_dasar: row.harga_dasar,
     sumbangan: row.sumbangan,
     harga_satuan: row.harga_satuan,
-    total_nilai: row.total_nilai,
+    total_nilai: row.harga_total || 0, // Menggunakan harga_total dari database
     pembeli: row.penerima,
     tanggal: row.tanggal,
     catatan: row.catatan,
@@ -207,8 +212,13 @@ export const updateSalesTransaction = async (id: string, data: Partial<SalesForm
       harga_dasar: hargaDasar,
       sumbangan: sumbangan,
       harga_satuan: hargaSatuan,
-      total_nilai: totalNilai,
-      catatan: `Penjualan - Harga Dasar: Rp ${hargaDasar.toLocaleString('id-ID')}/unit, Sumbangan: Rp ${sumbangan.toLocaleString('id-ID')}`
+      harga_total: totalNilai, // Menggunakan harga_total bukan total_nilai
+      catatan: (() => {
+        const sumbanganText = sumbangan > 0 
+          ? `, Sumbangan: Rp ${sumbangan.toLocaleString('id-ID')}` 
+          : '';
+        return `Penjualan - Harga Dasar: Rp ${hargaDasar.toLocaleString('id-ID')}/unit${sumbanganText}`;
+      })()
     };
   }
 
@@ -234,7 +244,7 @@ export const updateSalesTransaction = async (id: string, data: Partial<SalesForm
     harga_dasar: result.harga_dasar,
     sumbangan: result.sumbangan,
     harga_satuan: result.harga_satuan,
-    total_nilai: result.total_nilai,
+    total_nilai: result.harga_total || totalNilai, // Menggunakan harga_total dari database
     pembeli: result.penerima,
     tanggal: result.tanggal,
     catatan: result.catatan,
@@ -283,7 +293,7 @@ export const getSalesTransaction = async (id: string): Promise<SalesTransaction>
     harga_dasar: data.harga_dasar,
     sumbangan: data.sumbangan,
     harga_satuan: data.harga_satuan,
-    total_nilai: data.total_nilai,
+    total_nilai: data.harga_total || 0, // Menggunakan harga_total dari database
     pembeli: data.penerima,
     tanggal: data.tanggal,
     catatan: data.catatan,

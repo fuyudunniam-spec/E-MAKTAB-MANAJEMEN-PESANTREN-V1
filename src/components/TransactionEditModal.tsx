@@ -128,8 +128,15 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
     try {
       setLoading(true);
       
-      // Load akun kas options dan sembunyikan akun yang dikelola modul Tabungan
-      const accounts = await AkunKasService.getActive();
+      // Load akun kas options dan rincian items secara paralel untuk performa lebih baik
+      // Only load rincian for Pengeluaran
+      const isPemasukan = transaction.jenis_transaksi === 'Pemasukan';
+      const [accounts, rincianData] = await Promise.all([
+        AkunKasService.getActive(),
+        isPemasukan ? Promise.resolve([]) : getRincianPengeluaran(transaction.id).catch(() => []) // Jika error atau pemasukan, return empty array
+      ]);
+      
+      // Filter akun yang dikelola modul Tabungan
       const filtered = (accounts || []).filter((a: any) => a?.managed_by !== 'tabungan');
       setAkunKasOptions(filtered as any);
 
@@ -145,19 +152,36 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
         jenis_alokasi: transaction.jenis_alokasi || 'none'
       });
 
-      // Set rincian items if any
-      if (transaction.rincian_items && transaction.rincian_items.length > 0) {
-        setRincianItems(transaction.rincian_items);
+      // Set rincian items - only for Pengeluaran
+      if (!isPemasukan) {
+        if (rincianData && rincianData.length > 0) {
+          // Gunakan rincian dari database
+          setRincianItems(rincianData.map((item: any) => ({
+            id: item.id,
+            nama_item: item.nama_item || '',
+            jumlah: item.jumlah || 1,
+            satuan: item.satuan || 'unit',
+            harga_satuan: item.harga_satuan || 0,
+            total: item.total || (item.jumlah || 1) * (item.harga_satuan || 0),
+            keterangan: item.keterangan || ''
+          })));
+        } else if (transaction.rincian_items && transaction.rincian_items.length > 0) {
+          // Fallback ke rincian_items dari props jika ada
+          setRincianItems(transaction.rincian_items);
+        } else {
+          // Create default rincian item - gunakan deskripsi atau kosong, BUKAN kategori
+          setRincianItems([{
+            nama_item: transaction.deskripsi || '', // Gunakan deskripsi, bukan kategori
+            jumlah: 1,
+            satuan: 'unit',
+            harga_satuan: transaction.jumlah || 0,
+            total: transaction.jumlah || 0,
+            keterangan: ''
+          }]);
+        }
       } else {
-        // Create default rincian item
-        setRincianItems([{
-          nama_item: transaction.kategori || '',
-          jumlah: 1,
-          satuan: 'unit',
-          harga_satuan: transaction.jumlah || 0,
-          total: transaction.jumlah || 0,
-          keterangan: transaction.deskripsi || ''
-        }]);
+        // For Pemasukan, no rincian items needed
+        setRincianItems([]);
       }
     } catch (error) {
       console.error('Error loading initial data:', error);
@@ -214,7 +238,8 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
         return;
       }
 
-      if (rincianItems.length === 0) {
+      // Only validate rincian items for Pengeluaran
+      if (!isPemasukan && rincianItems.length === 0) {
         toast.error('Minimal harus ada 1 item rincian');
         return;
       }
@@ -231,16 +256,42 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
         jenis_alokasi: formData.jenis_alokasi === 'none' ? null : formData.jenis_alokasi
       });
 
-      // Update rincian items (if any)
-      if (rincianItems.length > 0) {
-        // Delete existing rincian items
+      // Update rincian items (only for Pengeluaran)
+      if (!isPemasukan && rincianItems.length > 0) {
+        // Get existing rincian items
         const existingRincian = await getRincianPengeluaran(transaction.id);
-        for (const item of existingRincian) {
-          await deleteRincianPengeluaran(item.id);
+        const existingIds = new Set(existingRincian.map((item: any) => item.id));
+        const newItems = rincianItems.filter(item => !item.id || !existingIds.has(item.id));
+        const updatedItems = rincianItems.filter(item => item.id && existingIds.has(item.id));
+        const deletedIds = existingRincian
+          .map((item: any) => item.id)
+          .filter((id: string) => !rincianItems.some(item => item.id === id));
+        
+        // Delete removed items
+        for (const id of deletedIds) {
+          await deleteRincianPengeluaran(id);
         }
         
-        // Create new rincian items
-        for (const item of rincianItems) {
+        // Update existing items
+        for (const item of updatedItems) {
+          if (item.id) {
+            const { error } = await supabase
+              .from('rincian_pengeluaran')
+              .update({
+                nama_item: item.nama_item,
+                jumlah: item.jumlah,
+                satuan: item.satuan,
+                harga_satuan: item.harga_satuan,
+                keterangan: item.keterangan
+              })
+              .eq('id', item.id);
+            
+            if (error) throw error;
+          }
+        }
+        
+        // Create new items
+        for (const item of newItems) {
           await createRincianPengeluaran({
             keuangan_id: transaction.id,
             nama_item: item.nama_item,
@@ -250,6 +301,12 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
             keterangan: item.keterangan
             // total tidak perlu di-insert karena generated column
           });
+        }
+      } else {
+        // Jika tidak ada rincian items, hapus semua yang ada
+        const existingRincian = await getRincianPengeluaran(transaction.id);
+        for (const item of existingRincian) {
+          await deleteRincianPengeluaran(item.id);
         }
       }
 
@@ -274,13 +331,33 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
 
   if (!transaction) return null;
 
+  // Determine transaction type
+  const isPemasukan = transaction.jenis_transaksi === 'Pemasukan';
+  
+  // Kategori options based on transaction type
+  const kategoriPemasukan = [
+    'Bunga Bank',
+    'Hibah/Bantuan',
+    'Lain-lain (Pemasukan)',
+    'Pemasukan Lainnya'
+  ];
+  
+  const kategoriPengeluaran = [
+    'Kebutuhan Santri Bantuan',
+    'Gaji Karyawan',
+    'Utilitas',
+    'Operasional',
+    'Maintenance',
+    'Lainnya'
+  ];
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Save className="h-5 w-5" />
-            Edit Transaksi
+            Edit {isPemasukan ? 'Pemasukan' : 'Pengeluaran'}
           </DialogTitle>
         </DialogHeader>
 
@@ -312,12 +389,24 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                   
                   <div>
                     <Label htmlFor="kategori">Kategori *</Label>
-                    <Input
-                      id="kategori"
-                      value={formData.kategori}
-                      onChange={(e) => handleInputChange('kategori', e.target.value)}
-                      placeholder="Contoh: Operasional"
-                    />
+                    <Select value={formData.kategori} onValueChange={(value) => handleInputChange('kategori', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih kategori" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {isPemasukan ? (
+                          // Kategori untuk Pemasukan
+                          kategoriPemasukan.map(kat => (
+                            <SelectItem key={kat} value={kat}>{kat}</SelectItem>
+                          ))
+                        ) : (
+                          // Kategori untuk Pengeluaran
+                          kategoriPengeluaran.map(kat => (
+                            <SelectItem key={kat} value={kat}>{kat}</SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                   
                   <div>
@@ -346,30 +435,32 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                     </Select>
                   </div>
                   
-                  <div>
-                    <Label htmlFor="jenis_alokasi">Alokasi ke Santri</Label>
-                    <Select value={formData.jenis_alokasi} onValueChange={(value) => handleInputChange('jenis_alokasi', value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih jenis alokasi" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Tidak dialokasikan</SelectItem>
-                        <SelectItem value="overhead">Overhead - Dibagi ke semua santri binaan mukim</SelectItem>
-                        <SelectItem value="langsung">Langsung untuk santri tertentu</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Pilih bagaimana pengeluaran ini dialokasikan ke santri
-                    </p>
-                  </div>
+                  {!isPemasukan && (
+                    <div>
+                      <Label htmlFor="jenis_alokasi">Alokasi ke Santri</Label>
+                      <Select value={formData.jenis_alokasi} onValueChange={(value) => handleInputChange('jenis_alokasi', value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih jenis alokasi" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Tidak dialokasikan</SelectItem>
+                          <SelectItem value="overhead">Overhead - Dibagi ke semua santri binaan mukim</SelectItem>
+                          <SelectItem value="langsung">Langsung untuk santri tertentu</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Pilih bagaimana pengeluaran ini dialokasikan ke santri
+                      </p>
+                    </div>
+                  )}
                   
                   <div>
-                    <Label htmlFor="penerima_pembayar">Penerima/Pembayar</Label>
+                    <Label htmlFor="penerima_pembayar">{isPemasukan ? 'Penerima/Pemberi' : 'Penerima/Pembayar'}</Label>
                     <Input
                       id="penerima_pembayar"
                       value={formData.penerima_pembayar}
                       onChange={(e) => handleInputChange('penerima_pembayar', e.target.value)}
-                      placeholder="Nama penerima atau pembayar"
+                      placeholder={isPemasukan ? "e.g., Bank BCA, Pemerintah Daerah" : "Nama penerima atau pembayar"}
                     />
                   </div>
                   
@@ -401,101 +492,103 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
               </CardContent>
             </Card>
 
-            {/* Rincian Items */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Rincian Item</CardTitle>
-                  <Button onClick={addRincianItem} size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Tambah Item
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {rincianItems.map((item, index) => (
-                    <div key={index} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="font-medium">Item {index + 1}</h4>
-                        {rincianItems.length > 1 && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => removeRincianItem(index)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+            {/* Rincian Items - Only show for Pengeluaran */}
+            {!isPemasukan && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">Rincian Item</CardTitle>
+                    <Button onClick={addRincianItem} size="sm">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Tambah Item
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {rincianItems.map((item, index) => (
+                      <div key={index} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="font-medium">Item {index + 1}</h4>
+                          {rincianItems.length > 1 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removeRincianItem(index)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                          <div>
+                            <Label>Nama Item</Label>
+                            <Input
+                              value={item.nama_item}
+                              onChange={(e) => handleRincianChange(index, 'nama_item', e.target.value)}
+                              placeholder="Nama item"
+                            />
+                          </div>
+                          
+                          <div>
+                            <Label>Jumlah</Label>
+                            <Input
+                              type="number"
+                              value={item.jumlah}
+                              onChange={(e) => handleRincianChange(index, 'jumlah', Number(e.target.value))}
+                              placeholder="0"
+                            />
+                          </div>
+                          
+                          <div>
+                            <Label>Satuan</Label>
+                            <Input
+                              value={item.satuan}
+                              onChange={(e) => handleRincianChange(index, 'satuan', e.target.value)}
+                              placeholder="unit"
+                            />
+                          </div>
+                          
+                          <div>
+                            <Label>Harga Satuan</Label>
+                            <Input
+                              type="number"
+                              value={item.harga_satuan}
+                              onChange={(e) => handleRincianChange(index, 'harga_satuan', Number(e.target.value))}
+                              placeholder="0"
+                            />
+                          </div>
+                          
+                          <div>
+                            <Label>Total</Label>
+                            <Input
+                              type="number"
+                              value={item.total}
+                              readOnly
+                              className="bg-gray-50"
+                            />
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {formatCurrency(item.total)}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-4">
+                          <Label>Keterangan</Label>
+                          <Input
+                            value={item.keterangan || ''}
+                            onChange={(e) => handleRincianChange(index, 'keterangan', e.target.value)}
+                            placeholder="Keterangan item"
+                          />
+                        </div>
                       </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                        <div>
-                          <Label>Nama Item</Label>
-                          <Input
-                            value={item.nama_item}
-                            onChange={(e) => handleRincianChange(index, 'nama_item', e.target.value)}
-                            placeholder="Nama item"
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label>Jumlah</Label>
-                          <Input
-                            type="number"
-                            value={item.jumlah}
-                            onChange={(e) => handleRincianChange(index, 'jumlah', Number(e.target.value))}
-                            placeholder="0"
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label>Satuan</Label>
-                          <Input
-                            value={item.satuan}
-                            onChange={(e) => handleRincianChange(index, 'satuan', e.target.value)}
-                            placeholder="unit"
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label>Harga Satuan</Label>
-                          <Input
-                            type="number"
-                            value={item.harga_satuan}
-                            onChange={(e) => handleRincianChange(index, 'harga_satuan', Number(e.target.value))}
-                            placeholder="0"
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label>Total</Label>
-                          <Input
-                            type="number"
-                            value={item.total}
-                            readOnly
-                            className="bg-gray-50"
-                          />
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {formatCurrency(item.total)}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-4">
-                        <Label>Keterangan</Label>
-                        <Input
-                          value={item.keterangan || ''}
-                          onChange={(e) => handleRincianChange(index, 'keterangan', e.target.value)}
-                          placeholder="Keterangan item"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 

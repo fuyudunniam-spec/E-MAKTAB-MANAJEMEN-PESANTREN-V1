@@ -26,42 +26,27 @@ export class TabunganSantriService {
     return data || 0;
   }
 
-  // Get saldo semua santri dengan info santri
+  // Get saldo semua santri dengan info santri (OPTIMIZED: menggunakan single RPC call)
   static async getAllSaldoTabungan(): Promise<SaldoTabunganSantri[]> {
-    const { data, error } = await supabase
-      .from('santri')
-      .select(`
-        id,
-        id_santri,
-        nama_lengkap,
-        nisn,
-        kelas,
-        kategori
-      `)
-      .eq('status', 'Aktif')
-      .order('nama_lengkap');
+    const { data, error } = await supabase.rpc('get_all_saldo_tabungan');
 
     if (error) {
-      throw new Error(`Error getting santri list: ${error.message}`);
+      throw new Error(`Error getting saldo tabungan: ${error.message}`);
     }
 
-    const saldoPromises = data.map(async (santri) => {
-      const saldo = await this.getSaldoTabungan(santri.id);
-      return {
-        santri_id: santri.id,
-        saldo,
-        santri: {
-          id: santri.id,
-          id_santri: santri.id_santri,
-          nama_lengkap: santri.nama_lengkap,
-          nisn: santri.nisn,
-          kelas: santri.kelas,
-          kategori: santri.kategori
-        }
-      };
-    });
-
-    return Promise.all(saldoPromises);
+    // Transform data ke format yang diharapkan
+    return (data || []).map((item: any) => ({
+      santri_id: item.santri_id,
+      saldo: parseFloat(item.saldo) || 0,
+      santri: {
+        id: item.santri_id,
+        id_santri: item.id_santri,
+        nama_lengkap: item.nama_lengkap,
+        nisn: item.nisn,
+        kelas: item.kelas,
+        kategori: item.kategori
+      }
+    }));
   }
 
   // Setor tabungan santri
@@ -192,70 +177,21 @@ export class TabunganSantriService {
     return data || [];
   }
 
-  // Get stats tabungan - FIXED: menggunakan perhitungan yang akurat
+  // Get stats tabungan - OPTIMIZED: menggunakan single RPC call
   static async getTabunganStats(): Promise<TabunganStats> {
-    try {
-      // Get current month transactions for setoran dan penarikan bulan ini
-      const { data: monthlyData, error: monthlyError } = await supabase
-        .from('santri_tabungan')
-        .select('nominal, jenis, created_at')
-        .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
-        .lte('created_at', new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59).toISOString());
+    const { data, error } = await supabase.rpc('get_tabungan_stats');
 
-      if (monthlyError) {
-        throw new Error(`Error getting monthly data: ${monthlyError.message}`);
-      }
-
-      // Calculate monthly totals
-      let totalSetoranBulanIni = 0;
-      let totalPenarikanBulanIni = 0;
-
-      monthlyData.forEach(transaction => {
-        if (transaction.jenis === 'Setoran' || transaction.jenis.includes('Reward')) {
-          totalSetoranBulanIni += transaction.nominal;
-        } else if (transaction.jenis === 'Penarikan') {
-          totalPenarikanBulanIni += transaction.nominal;
-        }
-      });
-
-      // Get all santri with transactions to calculate total saldo
-      const { data: santriWithTransactions, error: santriError } = await supabase
-        .from('santri_tabungan')
-        .select('santri_id')
-        .not('santri_id', 'is', null);
-
-      if (santriError) {
-        throw new Error(`Error getting santri data: ${santriError.message}`);
-      }
-
-      // Get unique santri IDs
-      const uniqueSantriIds = [...new Set(santriWithTransactions.map(t => t.santri_id))];
-      
-      // Calculate actual saldo for each santri using the proper function
-      let totalSaldo = 0;
-      let jumlahSantriAktif = 0;
-
-      for (const santriId of uniqueSantriIds) {
-        const saldo = await this.getSaldoTabungan(santriId);
-        totalSaldo += saldo;
-        if (saldo > 0) {
-          jumlahSantriAktif++;
-        }
-      }
-
-      const rataRataSaldo = jumlahSantriAktif > 0 ? totalSaldo / jumlahSantriAktif : 0;
-
-      return {
-        total_saldo: totalSaldo,
-        total_setoran_bulan_ini: totalSetoranBulanIni,
-        total_penarikan_bulan_ini: totalPenarikanBulanIni,
-        jumlah_santri_aktif: jumlahSantriAktif,
-        rata_rata_saldo: rataRataSaldo
-      };
-    } catch (error: any) {
-      console.error('Error in getTabunganStats:', error);
-      throw new Error(`Error calculating tabungan stats: ${error.message}`);
+    if (error) {
+      throw new Error(`Error getting tabungan stats: ${error.message}`);
     }
+
+    return {
+      total_saldo: parseFloat(data?.total_saldo || 0),
+      total_setoran_bulan_ini: parseFloat(data?.total_setoran_bulan_ini || 0),
+      total_penarikan_bulan_ini: parseFloat(data?.total_penarikan_bulan_ini || 0),
+      jumlah_santri_aktif: parseInt(data?.jumlah_santri_aktif || 0),
+      rata_rata_saldo: parseFloat(data?.rata_rata_saldo || 0)
+    };
   }
 
   // Get santri dengan saldo tabungan (untuk multi-select)

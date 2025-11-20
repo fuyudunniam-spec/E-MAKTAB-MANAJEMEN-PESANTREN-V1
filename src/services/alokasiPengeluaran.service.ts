@@ -349,9 +349,11 @@ export class AlokasiPengeluaranService {
         nama_lengkap, 
         nisn,
         id_santri,
-        santri_programs_history(
-          nama_program,
-          is_active
+        kelas:santri_kelas(
+          kelas_program,
+          rombel,
+          tingkat,
+          status_kelas
         )
       `)
       .eq('status', 'Aktif')
@@ -359,14 +361,21 @@ export class AlokasiPengeluaranService {
 
     if (error) throw error;
     
-    // Transform data to include program info
-    return (data || []).map(item => ({
-      id: item.id,
-      nama_lengkap: item.nama_lengkap,
-      nisn: item.nisn,
-      id_santri: item.id_santri,
-      program: item.santri_programs_history?.find((p: any) => p.is_active)?.nama_program
-    }));
+    // Transform data to include kelas info
+    return (data || []).map(item => {
+      const aktif = (item.kelas || []).find((k: any) => k.status_kelas === 'Aktif') || item.kelas?.[0];
+      const program = aktif
+        ? [aktif.kelas_program, aktif.rombel].filter(Boolean).join(' - ') || aktif.kelas_program
+        : undefined;
+
+      return {
+        id: item.id,
+        nama_lengkap: item.nama_lengkap,
+        nisn: item.nisn,
+        id_santri: item.id_santri,
+        program,
+      };
+    });
   }
 
   /**
@@ -439,9 +448,11 @@ export class AlokasiPengeluaranService {
         santri!inner(
           id_santri,
           nama_lengkap,
-          santri_programs_history(
-            nama_program,
-            is_active
+          kelas:santri_kelas(
+            kelas_program,
+            rombel,
+            tingkat,
+            status_kelas
           )
         )
       `);
@@ -466,7 +477,10 @@ export class AlokasiPengeluaranService {
 
     (data || []).forEach(allocation => {
       const santri = allocation.santri;
-      const program = santri.santri_programs_history?.find((p: any) => p.is_active)?.nama_program || 'Tidak ada program';
+      const kelasAktif = (santri.kelas || []).find((k: any) => k.status_kelas === 'Aktif') || santri.kelas?.[0];
+      const program = kelasAktif
+        ? [kelasAktif.kelas_program, kelasAktif.rombel].filter(Boolean).join(' - ')
+        : 'Belum diploat';
 
       // Apply program filter if specified
       if (filters?.program && program !== filters.program) {

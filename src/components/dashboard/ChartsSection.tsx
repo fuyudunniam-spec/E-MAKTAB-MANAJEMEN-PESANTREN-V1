@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { FileX, TrendingDown, AlertCircle } from 'lucide-react';
 
 interface ChartsSectionProps {
@@ -145,7 +145,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Income vs Expense Chart */}
       {!hasMonthlyData && selectedAccountId ? (
         <EmptyStateCard 
@@ -155,21 +155,21 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
           selectedAccountName={selectedAccountName}
         />
       ) : (
-        <Card className="rounded-2xl shadow-md border-0 h-fit">
-          <CardHeader className="pb-4">
+        <Card className="rounded-lg border border-gray-200 shadow-sm bg-white">
+          <CardHeader className="pb-4 pt-4 px-4">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg font-semibold">Transaction Overview</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Perbandingan pemasukan dan pengeluaran per bulan
+                <CardTitle className="text-sm font-medium text-gray-900">Ringkasan Transaksi</CardTitle>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Pemasukan vs pengeluaran bulanan
                 </p>
               </div>
               {selectedAccountId && selectedAccountName ? (
-                <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">
-                  Filter: {selectedAccountName}
+                <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-xs px-2 py-0.5">
+                  {selectedAccountName}
                 </Badge>
               ) : (
-                <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
+                <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-xs px-2 py-0.5">
                   Semua Akun
                 </Badge>
               )}
@@ -178,14 +178,66 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis tickFormatter={(value) => `${value / 1000000}jt`} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="pemasukan" fill="#3b82f6" name="Pemasukan" />
-                  <Bar dataKey="pengeluaran" fill="#f59e0b" name="Pengeluaran" />
-                </BarChart>
+                <AreaChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <defs>
+                    {/* Gradient untuk Pemasukan (Blue/Cyan) */}
+                    <linearGradient id="colorPemasukan" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                    </linearGradient>
+                    {/* Gradient untuk Pengeluaran (Orange/Yellow) */}
+                    <linearGradient id="colorPengeluaran" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    dataKey="month" 
+                    stroke="#6b7280"
+                    style={{ fontSize: '12px' }}
+                  />
+                  <YAxis 
+                    tickFormatter={(value) => `${value / 1000000}jt`}
+                    stroke="#6b7280"
+                    style={{ fontSize: '12px' }}
+                  />
+                  <Tooltip 
+                    content={<CustomTooltip />}
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
+                  <Legend 
+                    wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
+                    iconType="circle"
+                  />
+                  {/* Area untuk Pengeluaran (Orange/Yellow) - diletakkan di bawah */}
+                  <Area 
+                    type="monotone" 
+                    dataKey="pengeluaran" 
+                    stroke="#f59e0b" 
+                    strokeWidth={2}
+                    fill="url(#colorPengeluaran)"
+                    name="Pengeluaran"
+                    dot={{ fill: 'white', stroke: '#f59e0b', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                  {/* Area untuk Pemasukan (Blue/Cyan) - diletakkan di atas */}
+                  <Area 
+                    type="monotone" 
+                    dataKey="pemasukan" 
+                    stroke="#3b82f6" 
+                    strokeWidth={2}
+                    fill="url(#colorPemasukan)"
+                    name="Pemasukan"
+                    dot={{ fill: 'white', stroke: '#3b82f6', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6 }}
+                  />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -201,21 +253,21 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
           selectedAccountName={selectedAccountName}
         />
       ) : (
-        <Card className="rounded-2xl shadow-md border-0 h-fit">
-          <CardHeader className="pb-4">
+        <Card className="rounded-lg border border-gray-200 shadow-sm bg-white">
+          <CardHeader className="pb-4 pt-4 px-4">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg font-semibold">Statistics</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Distribusi pengeluaran berdasarkan kategori
+                <CardTitle className="text-sm font-medium text-gray-900">Distribusi Kategori</CardTitle>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Pengeluaran berdasarkan kategori
                 </p>
               </div>
               {selectedAccountId && selectedAccountName ? (
-                <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">
-                  Filter: {selectedAccountName}
+                <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-xs px-2 py-0.5">
+                  {selectedAccountName}
                 </Badge>
               ) : (
-                <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
+                <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-xs px-2 py-0.5">
                   Semua Akun
                 </Badge>
               )}

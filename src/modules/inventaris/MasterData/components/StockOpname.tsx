@@ -11,8 +11,9 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
 interface StockOpnameProps {
-  onClose: () => void;
+  onClose?: () => void;
   onSuccess?: () => void; // Callback ketika stock opname berhasil
+  isModal?: boolean; // Apakah ditampilkan sebagai modal atau inline
 }
 
 interface OpnameItem {
@@ -25,7 +26,7 @@ interface OpnameItem {
   catatan: string;
 }
 
-const StockOpname = ({ onClose, onSuccess }: StockOpnameProps) => {
+const StockOpname = ({ onClose, onSuccess, isModal = false }: StockOpnameProps) => {
   const [opnameItems, setOpnameItems] = useState<OpnameItem[]>([]);
   const [currentItem, setCurrentItem] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -77,7 +78,7 @@ const StockOpname = ({ onClose, onSuccess }: StockOpnameProps) => {
       
       if (itemsWithSelisih.length === 0) {
         toast.info('Tidak ada penyesuaian yang diperlukan. Semua stok sesuai dengan sistem.');
-        onClose();
+        if (onClose) onClose();
         return;
       }
 
@@ -288,7 +289,7 @@ const StockOpname = ({ onClose, onSuccess }: StockOpnameProps) => {
       // Tunggu sedikit sebelum menutup untuk memastikan UI sudah ter-update
       setTimeout(() => {
         console.log('Closing stock opname dialog...');
-        onClose();
+        if (onClose) onClose();
       }, 800);
     } catch (error) {
       console.error('Error processing stock opname:', error);
@@ -311,34 +312,42 @@ const StockOpname = ({ onClose, onSuccess }: StockOpnameProps) => {
   };
 
   if (isLoading) {
-    return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-          <CardHeader>
-            <CardTitle>Stock Opname</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center h-64">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-muted-foreground">Loading inventory data...</p>
-              </div>
+    const loadingContent = (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Stock Opname</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading inventory data...</p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
     );
+
+    if (isModal) {
+      return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          {loadingContent}
+        </div>
+      );
+    }
+    return loadingContent;
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-6xl max-h-[90vh] overflow-y-auto">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Stock Opname - Penghitungan Fisik Barang</CardTitle>
+  const content = (
+    <Card className="w-full">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Stock Opname - Penghitungan Fisik Barang</CardTitle>
+        {onClose && (
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
-        </CardHeader>
+        )}
+      </CardHeader>
         <CardContent>
           {opnameItems.length === 0 ? (
             <div className="text-center py-8">
@@ -446,16 +455,29 @@ const StockOpname = ({ onClose, onSuccess }: StockOpnameProps) => {
                   <Check className="h-4 w-4" />
                   {isProcessing ? 'Memproses...' : 'Selesaikan Stock Opname'}
                 </Button>
-                <Button variant="outline" onClick={onClose}>
-                  Batal
-                </Button>
+                {onClose && (
+                  <Button variant="outline" onClick={onClose}>
+                    Batal
+                  </Button>
+                )}
               </div>
             </div>
           )}
         </CardContent>
       </Card>
-    </div>
   );
+
+  if (isModal) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+          {content}
+        </div>
+      </div>
+    );
+  }
+
+  return content;
 };
 
 export default StockOpname;
