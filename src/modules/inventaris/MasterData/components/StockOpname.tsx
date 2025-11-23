@@ -87,7 +87,15 @@ const StockOpname = ({ onClose, onSuccess, isModal = false }: StockOpnameProps) 
       let successCount = 0;
       let errorCount = 0;
 
-      for (const item of itemsWithSelisih) {
+      // Process items sequentially with delay to avoid rate limiting
+      for (let i = 0; i < itemsWithSelisih.length; i++) {
+        const item = itemsWithSelisih[i];
+        
+        // Add delay between transactions to avoid rate limiting (except for first item)
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 2100)); // Slightly more than debounce time
+        }
+        
         try {
           const transactionPayload = {
             item_id: item.id,
@@ -100,7 +108,7 @@ const StockOpname = ({ onClose, onSuccess, isModal = false }: StockOpnameProps) 
             harga_satuan: null, // Stocktake tidak punya harga
           };
 
-          console.log(`📝 Creating stocktake transaction for item ${item.nama_barang}:`, {
+          console.log(`📝 [${i + 1}/${itemsWithSelisih.length}] Creating stocktake transaction for ${item.nama_barang}:`, {
             item_id: item.id,
             before_qty: transactionPayload.before_qty,
             after_qty: transactionPayload.after_qty,
@@ -118,7 +126,7 @@ const StockOpname = ({ onClose, onSuccess, isModal = false }: StockOpnameProps) 
           });
           
           // Verifikasi bahwa stok sudah ter-update di database
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await new Promise(resolve => setTimeout(resolve, 500));
           
           try {
             const { data: updatedItem, error: verifyError } = await supabase
@@ -145,9 +153,40 @@ const StockOpname = ({ onClose, onSuccess, isModal = false }: StockOpnameProps) 
           }
           
           successCount++;
-        } catch (error) {
+          
+          // Show progress toast
+          toast.info(`Progress: ${successCount}/${itemsWithSelisih.length} item diproses`);
+          
+        } catch (error: any) {
           console.error(`Error creating stocktake transaction for item ${item.id}:`, error);
-          errorCount++;
+          
+          // Retry once if rate limited
+          if (error?.message?.includes('Please wait before submitting again')) {
+            console.log(`⏳ Rate limited, waiting and retrying for ${item.nama_barang}...`);
+            await new Promise(resolve => setTimeout(resolve, 2500));
+            
+            try {
+              const result = await createTransaction({
+                item_id: item.id,
+                tipe: 'Stocktake' as const,
+                jumlah: Math.abs(item.selisih),
+                tanggal: today,
+                catatan: item.catatan || `Stock Opname: ${item.selisih > 0 ? 'Penambahan' : 'Pengurangan'} ${Math.abs(item.selisih)} unit`,
+                before_qty: item.stok_sistem,
+                after_qty: item.stok_fisik,
+                harga_satuan: null,
+              });
+              
+              console.log(`✅ Retry successful for ${item.nama_barang}`);
+              successCount++;
+              toast.info(`Progress: ${successCount}/${itemsWithSelisih.length} item diproses`);
+            } catch (retryError) {
+              console.error(`❌ Retry failed for ${item.nama_barang}:`, retryError);
+              errorCount++;
+            }
+          } else {
+            errorCount++;
+          }
         }
       }
 

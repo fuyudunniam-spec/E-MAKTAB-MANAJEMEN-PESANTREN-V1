@@ -16,8 +16,11 @@ import {
   updateTransaction, 
   deleteTransaction,
   createMultiItemSale,
-  getMultiItemSale
+  getMultiItemSale,
+  deleteMultiItemSale,
+  updateMultiItemSale
 } from '@/services/inventaris.service';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AlertTriangle } from 'lucide-react';
 import SaleDetailModal from './components/SaleDetailModal';
@@ -168,7 +171,7 @@ const PenjualanPage = () => {
     staleTime: 30000
   });
 
-  const { data: salesData, isLoading: salesLoading } = useQuery({
+  const { data: salesData, isLoading: salesLoading, refetch: refetchSales } = useQuery({
     queryKey: ['sales-transactions', searchTerm],
     queryFn: () => getCombinedSalesHistory(
       { page: 1, pageSize: 50 },
@@ -176,7 +179,8 @@ const PenjualanPage = () => {
         search: searchTerm || null
       }
     ),
-    staleTime: 30000
+    staleTime: 5000, // Reduced from 30000 to 5000 for faster updates
+    refetchOnWindowFocus: true // Refetch when window regains focus
   });
 
   const { data: salesStats, isLoading: statsLoading } = useQuery({
@@ -218,7 +222,13 @@ const PenjualanPage = () => {
           errors.push(`Item ${index + 1}: Sumbangan tidak boleh negatif`);
         }
         if (item.jumlah > item.stok_tersedia) {
-          errors.push(`Item ${index + 1} (${item.nama_barang}): Stok tidak mencukupi`);
+          console.log(`[DEBUG] Stock validation failed for item ${index + 1}:`, {
+            nama_barang: item.nama_barang,
+            jumlah: item.jumlah,
+            stok_tersedia: item.stok_tersedia,
+            isEditMode: !!editingSale
+          });
+          errors.push(`Stok tidak mencukupi untuk ${item.nama_barang}. Tersedia: ${item.stok_tersedia}, Diminta: ${item.jumlah}`);
         }
       });
 
@@ -247,12 +257,9 @@ const PenjualanPage = () => {
       try {
         if (editingSale && editingSale.id) {
           // Update existing multi-item transaction
-          // TODO: Implement updateMultiItemSale in service layer (Task 8)
+          await updateMultiItemSale(editingSale.id, payload);
           dismissLoading();
-          toast.error('Fitur edit multi-item belum tersedia', {
-            description: 'Fungsi updateMultiItemSale belum diimplementasikan (Task 8)'
-          });
-          return;
+          showSuccess('Transaksi multi-item berhasil diperbarui!');
         } else {
           // Create new multi-item transaction
           await createMultiItemSale(payload);
@@ -265,12 +272,17 @@ const PenjualanPage = () => {
       }
 
       // Refresh data
+      console.log('🔄 Refreshing data after multi-item save...');
       await queryClient.invalidateQueries({ queryKey: ['sales-transactions'] });
       await queryClient.invalidateQueries({ queryKey: ['sales-stats'] });
       await queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
       await queryClient.invalidateQueries({ queryKey: ['transactions-history'] });
       await queryClient.invalidateQueries({ queryKey: ['keuangan-dashboard'] });
       await queryClient.invalidateQueries({ queryKey: ['keuangan-transactions'] });
+
+      // Force immediate refetch
+      await refetchSales();
+      console.log('✅ Data refreshed successfully');
 
       // Reset form
       resetMultiItemForm();
@@ -319,15 +331,28 @@ const PenjualanPage = () => {
       // Check stock availability and show warning if needed
       const selectedItem = items.find(item => item.id === formData.item);
       if (selectedItem) {
+        // For edit mode, add the quantity being edited back to available stock
+        const currentStock = selectedItem.jumlah || 0;
+        const editingQuantity = editingSale ? (editingSale.jumlah || 0) : 0;
+        const availableStock = currentStock + editingQuantity;
+        
+        console.log('[DEBUG] Stock check:', {
+          currentStock,
+          editingQuantity,
+          availableStock,
+          requestedQuantity: jumlah,
+          isEditMode: !!editingSale
+        });
+        
         const stockWarning = getStockWarning(
           jumlah,
-          selectedItem.jumlah || 0,
+          availableStock,
           selectedItem.nama_barang
         );
         if (stockWarning) {
           showStockWarning(stockWarning);
           // If stock is insufficient, prevent submission
-          if (jumlah > (selectedItem.jumlah || 0)) {
+          if (jumlah > availableStock) {
             return;
           }
         }
@@ -398,7 +423,7 @@ const PenjualanPage = () => {
       }
       
       // Refresh data with debug logging
-      console.log('Invalidating queries...');
+      console.log('🔄 Invalidating queries...');
       await queryClient.invalidateQueries({ queryKey: ['sales-transactions'] }); // This will invalidate all sales-transactions queries
       await queryClient.invalidateQueries({ queryKey: ['sales-stats'] });
       await queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
@@ -408,7 +433,9 @@ const PenjualanPage = () => {
       await queryClient.invalidateQueries({ queryKey: ['keuangan-dashboard'] });
       await queryClient.invalidateQueries({ queryKey: ['keuangan-transactions'] });
       
-      console.log('All queries invalidated - data should refresh now');
+      // Force immediate refetch
+      await refetchSales();
+      console.log('✅ All queries invalidated and refetched - data should refresh now');
       
       // Reset form
       setShowForm(false);
@@ -451,33 +478,281 @@ const PenjualanPage = () => {
 
   // Handler for edit
   const handleEditSale = async (sale: any) => {
-    console.log('handleEditSale called with sale:', sale);
-    console.log('Sale ID type:', typeof sale.id, 'Value:', sale.id);
+    console.log('[DEBUG] handleEditSale called with sale:', sale);
+    console.log('[DEBUG] Sale ID type:', typeof sale.id, 'Value:', sale.id);
     
-    // Check if it's a multi-item sale
-    const isMultiItem = sale.type === 'multi' || sale.penjualan_header_id;
+    // Validate sale object
+    if (!sale || !sale.id) {
+      console.error('[ERROR] Invalid sale object - missing ID');
+      toast.error('Data transaksi tidak valid', {
+        description: 'ID transaksi tidak ditemukan'
+      });
+      return;
+    }
+    
+    // Type detection: Check for type === 'multi' OR penjualan_header_id
+    const isMultiItem = sale.type === 'multi' || !!sale.penjualan_header_id;
+    console.log('[DEBUG] Type detection - isMultiItem:', isMultiItem, 'type:', sale.type, 'penjualan_header_id:', sale.penjualan_header_id);
     
     if (isMultiItem) {
       // Load multi-item sale data
-      // TODO: Edit functionality requires updateMultiItemSale (Task 8)
-      toast.error('Fitur edit multi-item belum tersedia', {
-        description: 'Fungsi updateMultiItemSale belum diimplementasikan (Task 8)'
-      });
-      return;
+      try {
+        console.log('[DEBUG] Loading multi-item sale for edit:', sale.id);
+        
+        // Add try-catch around data loading operation
+        let saleDetail;
+        try {
+          saleDetail = await getMultiItemSale(sale.id);
+        } catch (loadError: any) {
+          console.error('[ERROR] Failed to load multi-item sale:', loadError);
+          
+          // Handle "transaction not found" errors with user-friendly messages
+          if (loadError.message?.includes('not found') || loadError.code === 'PGRST116') {
+            toast.error('Transaksi tidak ditemukan', {
+              description: 'Transaksi yang Anda cari tidak ada atau telah dihapus'
+            });
+          } else {
+            toast.error('Gagal memuat data transaksi', {
+              description: loadError.message || 'Terjadi kesalahan saat mengambil data'
+            });
+          }
+          
+          // Prevent form display when data is invalid or incomplete
+          return;
+        }
+        
+        console.log('[DEBUG] Sale detail loaded:', saleDetail);
+        
+        // Handle "transaction not found" errors with user-friendly messages
+        if (!saleDetail) {
+          console.error('[ERROR] Transaction not found - null response');
+          toast.error('Transaksi tidak ditemukan', {
+            description: 'Transaksi yang Anda cari tidak ada atau telah dihapus'
+          });
+          // Prevent form display when data is invalid or incomplete
+          return;
+        }
+        
+        // Validate that items array exists and has data
+        if (!saleDetail.items || saleDetail.items.length === 0) {
+          console.error('[ERROR] Invalid transaction data - no items found');
+          toast.error('Data transaksi tidak valid', {
+            description: 'Tidak ada item dalam transaksi ini'
+          });
+          // Prevent form display when data is invalid or incomplete
+          return;
+        }
+        
+        // Fetch current stock for each item
+        const itemIds = saleDetail.items.map(item => item.item_id);
+        console.log('[DEBUG] Fetching stock for items:', itemIds);
+        
+        // Handle stock data fetch failures gracefully
+        let inventoryItems = [];
+        try {
+          const { data, error: stockError } = await supabase
+            .from('inventaris')
+            .select('id, jumlah')
+            .in('id', itemIds);
+          
+          if (stockError) {
+            // Handle stock data fetch failures gracefully
+            console.error('[ERROR] Stock fetch error:', stockError);
+            // Add error logging for debugging
+            console.error('[ERROR] Stock fetch details:', {
+              itemIds,
+              error: stockError.message,
+              code: stockError.code
+            });
+            
+            toast.warning('Peringatan: Data stok tidak dapat dimuat', {
+              description: 'Stok akan ditampilkan sebagai 0. Data transaksi tetap dapat diedit.'
+            });
+            // Continue with 0 stock as fallback
+          } else {
+            inventoryItems = data || [];
+          }
+        } catch (stockFetchError: any) {
+          // Handle stock data fetch failures gracefully
+          console.error('[ERROR] Exception during stock fetch:', stockFetchError);
+          // Add error logging for debugging
+          console.error('[ERROR] Stock fetch exception details:', {
+            itemIds,
+            error: stockFetchError.message
+          });
+          
+          toast.warning('Peringatan: Data stok tidak dapat dimuat', {
+            description: 'Stok akan ditampilkan sebagai 0. Data transaksi tetap dapat diedit.'
+          });
+          // Continue with 0 stock as fallback
+        }
+        
+        console.log('[DEBUG] Inventory items:', inventoryItems);
+        
+        const stockMap = new Map(
+          inventoryItems.map(item => [item.id, item.jumlah || 0])
+        );
+        
+        console.log('[DEBUG] Stock map created:', Array.from(stockMap.entries()));
+        
+        // Populate multi-item form with sale data - ensure all items are loaded with correct data structure
+        const formData = {
+          pembeli: saleDetail.pembeli,
+          tanggal: saleDetail.tanggal,
+          catatan: saleDetail.catatan || '',
+          items: saleDetail.items.map((item, index) => {
+            const currentStock = stockMap.get(item.item_id) || 0;
+            const editingQuantity = item.jumlah;
+            const availableStock = currentStock + editingQuantity;
+            
+            console.log(`[DEBUG] Item ${index + 1} (${item.nama_barang}):`, {
+              item_id: item.item_id,
+              currentStock,
+              editingQuantity,
+              availableStock
+            });
+            
+            return {
+              tempId: `edit-${Date.now()}-${index}`, // Use timestamp to ensure unique tempId for React keys
+              item_id: item.item_id,
+              nama_barang: item.nama_barang,
+              jumlah: item.jumlah,
+              harga_dasar: item.harga_dasar,
+              sumbangan: item.sumbangan,
+              stok_tersedia: availableStock // Current stock + quantity being edited
+            };
+          })
+        };
+        
+        console.log('[DEBUG] Setting multi-item form data:', formData);
+        console.log('[DEBUG] Number of items loaded:', formData.items.length);
+        
+        // Update state in correct order - set isMultiItemMode to true for multi-item transactions
+        setMultiItemFormData(formData);
+        setIsMultiItemMode(true);
+        setEditingSale(saleDetail);
+        setShowForm(true);
+        
+        console.log('[DEBUG] Multi-item form state populated and form visibility set to true');
+        console.log('[DEBUG] isMultiItemMode set to:', true);
+      } catch (error: any) {
+        // Add error logging for debugging
+        console.error('[ERROR] Unexpected error loading multi-item sale:', error);
+        console.error('[ERROR] Error details:', {
+          message: error.message,
+          code: error.code,
+          stack: error.stack
+        });
+        
+        toast.error('Gagal memuat data transaksi', {
+          description: error.message || 'Terjadi kesalahan yang tidak diketahui'
+        });
+        
+        // Prevent form display when data is invalid or incomplete
+        return;
+      }
     } else {
       // Populate single-item form with sale data
-      setFormData({
-        item: sale.item_id,
-        jumlah: sale.jumlah.toString(),
-        harga_dasar: sale.harga_dasar?.toString() || '0',
-        sumbangan: sale.sumbangan?.toString() || '0',
-        pembeli: sale.penerima || '',
-        tanggal: sale.tanggal
-      });
+      console.log('[DEBUG] Loading single-item sale for edit');
       
-      setIsMultiItemMode(false);
-      setEditingSale(sale);
-      setShowForm(true);
+      try {
+        // Validate item_id exists
+        const itemId = sale.item_id;
+        if (!itemId) {
+          console.error('[ERROR] Invalid transaction data - missing item_id');
+          toast.error('Data transaksi tidak valid', {
+            description: 'ID item tidak ditemukan dalam transaksi'
+          });
+          // Prevent form display when data is invalid or incomplete
+          return;
+        }
+        
+        console.log('[DEBUG] Fetching stock for single item:', itemId);
+        
+        // Handle stock data fetch failures gracefully
+        let inventoryItem = null;
+        try {
+          const { data, error: stockError } = await supabase
+            .from('inventaris')
+            .select('id, jumlah, nama_barang')
+            .eq('id', itemId)
+            .single();
+          
+          if (stockError) {
+            // Handle stock data fetch failures gracefully
+            console.error('[ERROR] Stock fetch error:', stockError);
+            // Add error logging for debugging
+            console.error('[ERROR] Stock fetch details:', {
+              itemId,
+              error: stockError.message,
+              code: stockError.code
+            });
+            
+            toast.warning('Peringatan: Data stok tidak dapat dimuat', {
+              description: 'Stok akan ditampilkan sebagai 0. Data transaksi tetap dapat diedit.'
+            });
+            // Continue with 0 stock as fallback
+          } else {
+            inventoryItem = data;
+          }
+        } catch (stockFetchError: any) {
+          // Handle stock data fetch failures gracefully
+          console.error('[ERROR] Exception during stock fetch:', stockFetchError);
+          // Add error logging for debugging
+          console.error('[ERROR] Stock fetch exception details:', {
+            itemId,
+            error: stockFetchError.message
+          });
+          
+          toast.warning('Peringatan: Data stok tidak dapat dimuat', {
+            description: 'Stok akan ditampilkan sebagai 0. Data transaksi tetap dapat diedit.'
+          });
+          // Continue with 0 stock as fallback
+        }
+        
+        console.log('[DEBUG] Inventory item:', inventoryItem);
+        
+        const currentStock = inventoryItem?.jumlah || 0;
+        
+        // Populate single-item form fields from transaction data
+        // Convert numeric values to strings for input fields
+        const singleItemFormData = {
+          item: itemId, // Ensure item_id is correctly mapped to 'item' field
+          jumlah: String(sale.jumlah || 0),
+          harga_dasar: String(sale.harga_dasar || 0),
+          sumbangan: String(sale.sumbangan || 0),
+          pembeli: sale.penerima || sale.pembeli || '',
+          tanggal: sale.tanggal || new Date().toISOString().split('T')[0]
+        };
+        
+        console.log('[DEBUG] Setting single-item form data:', singleItemFormData);
+        console.log('[DEBUG] Available stock for editing:', currentStock + (sale.jumlah || 0));
+        
+        // Update state in correct order
+        // Set isMultiItemMode to false for single-item transactions
+        setFormData(singleItemFormData);
+        setIsMultiItemMode(false);
+        setEditingSale(sale);
+        setShowForm(true);
+        
+        console.log('[DEBUG] Single-item form state populated and form visibility set to true');
+        console.log('[DEBUG] isMultiItemMode set to:', false);
+      } catch (error: any) {
+        // Add error logging for debugging
+        console.error('[ERROR] Unexpected error loading single-item sale:', error);
+        console.error('[ERROR] Error details:', {
+          message: error.message,
+          code: error.code,
+          stack: error.stack
+        });
+        
+        toast.error('Gagal memuat data transaksi', {
+          description: error.message || 'Terjadi kesalahan yang tidak diketahui'
+        });
+        
+        // Prevent form display when data is invalid or incomplete
+        return;
+      }
     }
   };
 
@@ -503,26 +778,24 @@ const PenjualanPage = () => {
       
       if (isMultiItem) {
         // Delete multi-item sale
-        // TODO: Implement deleteMultiItemSale in service layer (Task 9)
-        dismissLoading();
-        toast.error('Fitur hapus multi-item belum tersedia', {
-          description: 'Fungsi deleteMultiItemSale belum diimplementasikan (Task 9)'
-        });
-        setShowDeleteConfirm(false);
-        setDeletingSale(null);
-        return;
+        await deleteMultiItemSale(deletingSale.id);
       } else {
         // Delete single-item transaction
         await deleteTransaction(deletingSale.id);
       }
       
-      // Refresh data
+      // Refresh data - invalidate and refetch immediately
+      console.log('🔄 Refreshing data after delete...');
       await queryClient.invalidateQueries({ queryKey: ['sales-transactions'] });
       await queryClient.invalidateQueries({ queryKey: ['sales-stats'] });
       await queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
       await queryClient.invalidateQueries({ queryKey: ['transactions-history'] });
       await queryClient.invalidateQueries({ queryKey: ['keuangan-dashboard'] });
       await queryClient.invalidateQueries({ queryKey: ['keuangan-transactions'] });
+      
+      // Force immediate refetch
+      await refetchSales();
+      console.log('✅ Data refreshed successfully');
       
       dismissLoading();
       showSuccess('Transaksi berhasil dihapus', 'Stok dan keuangan telah disesuaikan');
@@ -668,46 +941,11 @@ const PenjualanPage = () => {
             <Button 
               className="flex items-center gap-2"
               onClick={() => {
-                if (showForm && !isMultiItemMode) {
-                  // Jika form single-item sedang terbuka, tutup dan reset
-                  setShowForm(false);
-                  setEditingSale(null);
-                  setFormData({
-                    item: '',
-                    jumlah: '',
-                    harga_dasar: '',
-                    sumbangan: '',
-                    pembeli: '',
-                    tanggal: new Date().toISOString().split('T')[0]
-                  });
-                } else {
-                  // Jika form tertutup, buka untuk create baru single-item
-                  setShowForm(true);
-                  setIsMultiItemMode(false);
-                  setEditingSale(null);
-                  setFormData({
-                    item: '',
-                    jumlah: '',
-                    harga_dasar: '',
-                    sumbangan: '',
-                    pembeli: '',
-                    tanggal: new Date().toISOString().split('T')[0]
-                  });
-                }
-              }}
-            >
-              <Plus className="h-4 w-4" />
-              {showForm && !isMultiItemMode ? 'Batal' : 'Transaksi Single Item'}
-            </Button>
-            <Button 
-              className="flex items-center gap-2"
-              variant="outline"
-              onClick={() => {
-                if (showForm && isMultiItemMode) {
-                  // Jika form multi-item sedang terbuka, tutup dan reset
+                if (showForm) {
+                  // Tutup form dan reset
                   resetMultiItemForm();
                 } else {
-                  // Jika form tertutup, buka untuk create baru multi-item
+                  // Buka form unified (default: multi-item mode)
                   setShowForm(true);
                   setIsMultiItemMode(true);
                   setEditingSale(null);
@@ -720,8 +958,8 @@ const PenjualanPage = () => {
                 }
               }}
             >
-              <Package className="h-4 w-4" />
-              {showForm && isMultiItemMode ? 'Batal' : 'Transaksi Multi-Item'}
+              <Plus className="h-4 w-4" />
+              {showForm ? 'Batal' : 'Transaksi Penjualan'}
             </Button>
             <Button variant="outline">
               Lihat Riwayat
@@ -733,17 +971,24 @@ const PenjualanPage = () => {
         </CardContent>
       </Card>
 
-      {/* Multi-Item Sales Form */}
-      {showForm && isMultiItemMode && (
+      {/* Unified Sales Form */}
+      {showForm && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              {editingSale ? 'Edit Penjualan Multi-Item' : 'Form Penjualan Multi-Item'}
+              <ShoppingCart className="h-5 w-5" />
+              {editingSale ? 'Edit Penjualan' : 'Form Penjualan'}
             </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              {isMultiItemMode 
+                ? 'Tambahkan satu atau lebih item untuk transaksi penjualan'
+                : 'Isi form untuk transaksi penjualan single-item'
+              }
+            </p>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleMultiItemSubmit} className="space-y-6">
+            {isMultiItemMode ? (
+              <form onSubmit={handleMultiItemSubmit} className="space-y-6">
               {/* Header Information */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -957,214 +1202,158 @@ const PenjualanPage = () => {
                 </Button>
               </div>
             </form>
-          </CardContent>
-        </Card>
-      )}
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Single-Item Form */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="item">Item *</Label>
+                    <Select 
+                      value={formData.item} 
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, item: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih item" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {items.map(item => {
+                          const stockLevel = item.jumlah || 0;
+                          const isOutOfStock = stockLevel === 0;
+                          
+                          return (
+                            <SelectItem 
+                              key={item.id} 
+                              value={item.id}
+                              disabled={isOutOfStock}
+                            >
+                              <div className="flex items-center justify-between w-full">
+                                <span>{item.nama_barang}</span>
+                                <span className={`ml-2 text-sm ${
+                                  isOutOfStock ? 'text-red-600 font-medium' : 'text-muted-foreground'
+                                }`}>
+                                  Stok: {stockLevel}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-      {/* Single-Item Sales Form */}
-      {showForm && !isMultiItemMode && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{editingSale ? 'Edit Penjualan' : 'Form Penjualan'}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="item">Pilih Item</Label>
-                  <Select value={formData.item} onValueChange={(value) => setFormData({...formData, item: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih item" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {items.map(item => {
-                        const stockLevel = item.jumlah || 0;
-                        const isLowStock = stockLevel <= (item.min_stock || 10);
-                        const isOutOfStock = stockLevel === 0;
-                        
-                        return (
-                          <SelectItem 
-                            key={item.id} 
-                            value={item.id}
-                            disabled={isOutOfStock}
-                          >
-                            <div className="flex items-center justify-between w-full">
-                              <span>{item.nama_barang}</span>
-                              <span className={`ml-2 text-sm ${
-                                isOutOfStock ? 'text-red-600 font-medium' :
-                                isLowStock ? 'text-orange-600' :
-                                'text-muted-foreground'
-                              }`}>
-                                Stok: {stockLevel}
-                                {isOutOfStock && ' (Habis)'}
-                                {isLowStock && !isOutOfStock && ' (Rendah)'}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                  {formData.item && (() => {
-                    const selectedItem = items.find(i => i.id === formData.item);
-                    if (selectedItem && formData.jumlah) {
-                      const requested = parseInt(formData.jumlah);
-                      const available = selectedItem.jumlah || 0;
-                      const warning = getStockWarning(requested, available, selectedItem.nama_barang);
-                      if (warning) {
-                        return (
-                          <p className="text-sm text-orange-600 mt-1 flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3" />
-                            {warning}
-                          </p>
-                        );
-                      }
-                    }
-                    return null;
-                  })()}
+                  <div>
+                    <Label htmlFor="jumlah">Jumlah *</Label>
+                    <Input
+                      id="jumlah"
+                      type="number"
+                      min="1"
+                      value={formData.jumlah}
+                      onChange={(e) => setFormData(prev => ({ ...prev, jumlah: e.target.value }))}
+                      placeholder="Jumlah"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="harga_dasar">Harga Dasar per Unit *</Label>
+                    <Input
+                      id="harga_dasar"
+                      type="number"
+                      min="0"
+                      value={formData.harga_dasar}
+                      onChange={(e) => setFormData(prev => ({ ...prev, harga_dasar: e.target.value }))}
+                      placeholder="Harga dasar"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="sumbangan">Sumbangan (Opsional)</Label>
+                    <Input
+                      id="sumbangan"
+                      type="number"
+                      min="0"
+                      value={formData.sumbangan}
+                      onChange={(e) => setFormData(prev => ({ ...prev, sumbangan: e.target.value }))}
+                      placeholder="Sumbangan"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="pembeli">Pembeli *</Label>
+                    <Input
+                      id="pembeli"
+                      value={formData.pembeli}
+                      onChange={(e) => setFormData(prev => ({ ...prev, pembeli: e.target.value }))}
+                      placeholder="Nama pembeli"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="tanggal">Tanggal Penjualan *</Label>
+                    <Input
+                      id="tanggal"
+                      type="date"
+                      value={formData.tanggal}
+                      onChange={(e) => setFormData(prev => ({ ...prev, tanggal: e.target.value }))}
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <Label htmlFor="jumlah">Jumlah</Label>
-                  <Input
-                    id="jumlah"
-                    type="number"
-                    min="1"
-                    value={formData.jumlah}
-                    onChange={(e) => setFormData({...formData, jumlah: e.target.value})}
-                    placeholder="Masukkan jumlah"
-                    className={
-                      formData.item && formData.jumlah && 
-                      parseInt(formData.jumlah) > (items.find(i => i.id === formData.item)?.jumlah || 0)
-                        ? 'border-red-500 focus:border-red-500'
-                        : ''
-                    }
-                  />
-                  {formData.item && formData.jumlah && 
-                   parseInt(formData.jumlah) > (items.find(i => i.id === formData.item)?.jumlah || 0) && (
-                    <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
-                      <AlertTriangle className="h-3 w-3" />
-                      Jumlah melebihi stok tersedia
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="harga_dasar">Harga Dasar per Unit</Label>
-                  <Input
-                    id="harga_dasar"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={formData.harga_dasar}
-                    onChange={(e) => setFormData({...formData, harga_dasar: e.target.value})}
-                    placeholder="Harga dasar"
-                    className={
-                      formData.harga_dasar && parseFloat(formData.harga_dasar) < 0
-                        ? 'border-red-500 focus:border-red-500'
-                        : ''
-                    }
-                  />
-                  {formData.harga_dasar && parseFloat(formData.harga_dasar) < 0 && (
-                    <p className="text-sm text-red-600 mt-1">Harga tidak boleh negatif</p>
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="sumbangan">Sumbangan/Infaq</Label>
-                  <Input
-                    id="sumbangan"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={formData.sumbangan}
-                    onChange={(e) => setFormData({...formData, sumbangan: e.target.value})}
-                    placeholder="Sumbangan (opsional)"
-                    className={
-                      formData.sumbangan && parseFloat(formData.sumbangan) < 0
-                        ? 'border-red-500 focus:border-red-500'
-                        : ''
-                    }
-                  />
-                  {formData.sumbangan && parseFloat(formData.sumbangan) < 0 && (
-                    <p className="text-sm text-red-600 mt-1">Sumbangan tidak boleh negatif</p>
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="pembeli">Pembeli</Label>
-                  <Input
-                    id="pembeli"
-                    value={formData.pembeli}
-                    onChange={(e) => setFormData({...formData, pembeli: e.target.value})}
-                    placeholder="Nama pembeli"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="tanggal">Tanggal Penjualan</Label>
-                  <Input
-                    id="tanggal"
-                    type="date"
-                    value={formData.tanggal}
-                    onChange={(e) => setFormData({...formData, tanggal: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              {/* Price Breakdown */}
-              {formData.jumlah && formData.harga_dasar && (
-                <Card className="bg-muted/50">
-                  <CardHeader>
-                    <CardTitle className="text-sm">Breakdown Harga</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                         <span>Harga Dasar ({formData.jumlah} × Rp {parseInt(formData.harga_dasar || '0').toLocaleString('id-ID')}):</span>
-                         <span>Rp {(parseInt(formData.jumlah || '0') * parseInt(formData.harga_dasar || '0')).toLocaleString('id-ID')}</span>
+                {/* Total Preview for Single-Item */}
+                {formData.item && formData.jumlah && formData.harga_dasar && (
+                  <Card className="bg-muted/50">
+                    <CardHeader>
+                      <CardTitle className="text-sm">Ringkasan Total</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Total Harga Dasar:</span>
+                          <span>Rp {Math.round(parseInt(formData.harga_dasar || '0') * parseInt(formData.jumlah || '0')).toLocaleString('id-ID')}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Sumbangan:</span>
-                          <span>Rp {parseInt(formData.sumbangan || '0').toLocaleString('id-ID')}</span>
+                          <span>Rp {Math.round(parseInt(formData.sumbangan || '0')).toLocaleString('id-ID')}</span>
                         </div>
-                        <div className="flex justify-between font-medium border-t pt-2">
-                          <span>Total:</span>
-                          <span>Rp {((parseInt(formData.jumlah || '0') * parseInt(formData.harga_dasar || '0')) + parseInt(formData.sumbangan || '0')).toLocaleString('id-ID')}</span>
+                        <div className="flex justify-between font-medium border-t pt-2 text-lg">
+                          <span>Grand Total:</span>
+                          <span className="text-green-600">
+                            Rp {Math.round((parseInt(formData.harga_dasar || '0') * parseInt(formData.jumlah || '0')) + parseInt(formData.sumbangan || '0')).toLocaleString('id-ID')}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+                    </CardContent>
+                  </Card>
+                )}
 
-              <div className="flex gap-2">
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting && (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  )}
-                  {isSubmitting ? 'Menyimpan...' : (editingSale ? 'Update Transaksi' : 'Simpan Transaksi')}
-                </Button>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingSale(null); // Reset editingSale saat batal
-                    setFormData({
-                      item: '',
-                      jumlah: '',
-                      harga_dasar: '',
-                      sumbangan: '',
-                      pembeli: '',
-                      tanggal: new Date().toISOString().split('T')[0]
-                    });
-                  }} 
-                  disabled={isSubmitting}
-                >
-                  Batal
-                </Button>
-              </div>
-            </form>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting && (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    )}
+                    {isSubmitting ? 'Menyimpan...' : (editingSale ? 'Update Transaksi' : 'Simpan Transaksi')}
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowForm(false);
+                      setEditingSale(null);
+                      setFormData({
+                        item: '',
+                        jumlah: '',
+                        harga_dasar: '',
+                        sumbangan: '',
+                        pembeli: '',
+                        tanggal: new Date().toISOString().split('T')[0]
+                      });
+                    }}
+                    disabled={isSubmitting}
+                  >
+                    Batal
+                  </Button>
+                </div>
+              </form>
+            )}
           </CardContent>
         </Card>
       )}
@@ -1246,16 +1435,15 @@ const PenjualanPage = () => {
                         <td className="p-4">
                           <div className="flex items-center gap-2">
                             {isMultiItem ? (
-                              <>
+                              <div className="flex items-center gap-2">
                                 <Badge variant="secondary" className="flex items-center gap-1">
                                   <Package className="h-3 w-3" />
                                   {sale.itemCount} items
                                 </Badge>
                                 <span className="text-sm text-muted-foreground">
-                                  {sale.items?.slice(0, 2).map(i => i.nama_barang).join(', ')}
-                                  {sale.itemCount > 2 && ` +${sale.itemCount - 2} lainnya`}
+                                  Multi-item sale
                                 </span>
-                              </>
+                              </div>
                             ) : (
                               <span className="font-medium">{sale.itemName}</span>
                             )}
@@ -1282,7 +1470,7 @@ const PenjualanPage = () => {
                             `Rp ${Math.round((singleItemData as any)?.sumbangan || 0).toLocaleString('id-ID')}`
                           )}
                         </td>
-                        <td className="p-4 font-medium">
+                        <td className="p-4 font-medium text-green-600">
                           Rp {Math.round(sale.total).toLocaleString('id-ID')}
                         </td>
                         <td className="p-4">{sale.pembeli}</td>

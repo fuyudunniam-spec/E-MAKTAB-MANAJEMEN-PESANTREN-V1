@@ -335,50 +335,11 @@ export async function createTransaction(payload: Partial<InventoryTransaction>) 
     });
   }
   
-  // Defensive fallback: buat transaksi keuangan jika belum terhubung
-  let keuanganPosted = false;
-  let fallbackUsed = false;
-  try {
-    const needsKeuangan = isPenjualan && (data?.harga_total || 0) > 0 && !data?.keuangan_id;
-    if (needsKeuangan) {
-      // Gunakan akun_kas_id dari input user bila tersedia; baru fallback ke default
-      let targetAkunKasId: string | undefined = (data as any)?.akun_kas_id;
-      if (!targetAkunKasId) {
-        try {
-          const defaultAkun = await AkunKasService.getDefault();
-          targetAkunKasId = defaultAkun?.id;
-        } catch (e) {
-          console.warn('Gagal mengambil akun kas default, lanjut tanpa akun_kas_id');
-        }
-      }
-
-      const result = await addKeuanganTransaction({
-        jenis_transaksi: 'Pemasukan',
-        kategori: 'Penjualan Inventaris',
-        jumlah: data.harga_total,
-        tanggal: data.tanggal,
-        deskripsi: data.catatan || `Penjualan inventaris`,
-        referensi: `inventaris:${data.id}`,
-        akun_kas_id: targetAkunKasId,
-        status: 'posted'
-      });
-      const created = Array.isArray(result) ? result[0] : (result?.[0] || result);
-      if (created?.id) {
-        await supabase
-          .from('transaksi_inventaris')
-          .update({ keuangan_id: created.id })
-          .eq('id', data.id);
-        keuanganPosted = true;
-        fallbackUsed = true;
-        // reflect keuangan_id on returned object
-        (data as any).keuangan_id = created.id;
-      }
-    }
-  } catch (e) {
-    console.warn('Fallback keuangan creation failed:', e);
-  }
-
-  return { ...data, _keuanganPosted: keuanganPosted, _fallbackUsed: fallbackUsed } as any;
+  // REMOVED: Fallback mechanism yang menyebabkan double posting
+  // Database trigger 'trg_auto_post_inventory_sale_to_keuangan' sudah menangani auto-posting ke keuangan
+  // Tidak perlu fallback manual di service layer untuk menghindari duplikasi
+  
+  return data as any;
 }
 
 export async function updateTransaction(id: string, payload: Partial<InventoryTransaction>) {
@@ -1552,25 +1513,36 @@ export async function createMultiItemSale(
       
       try {
         // Create inventory transaction for this item
+        const transaksiPayload = {
+          item_id: item.item_id,
+          tipe: 'Keluar' as const,
+          keluar_mode: 'Penjualan',
+          jumlah: item.jumlah,
+          harga_satuan: item.harga_dasar + (item.sumbangan / item.jumlah),
+          harga_total: calculateSubtotal(item.jumlah, item.harga_dasar, item.sumbangan),
+          harga_dasar: item.harga_dasar,
+          sumbangan: item.sumbangan,
+          tanggal: payload.tanggal,
+          catatan: `Multi-item sale: ${payload.pembeli}${payload.catatan ? ' - ' + payload.catatan : ''}`,
+          penerima: payload.pembeli
+        };
+        
+        console.log('Creating transaksi_inventaris with payload:', transaksiPayload);
+        
         const { data: transaksiData, error: transaksiError } = await supabase
           .from('transaksi_inventaris')
-          .insert({
-            item_id: item.item_id,
-            tipe: 'Keluar',
-            keluar_mode: 'Penjualan',
-            jumlah: item.jumlah,
-            harga_satuan: item.harga_dasar + (item.sumbangan / item.jumlah),
-            harga_total: calculateSubtotal(item.jumlah, item.harga_dasar, item.sumbangan),
-            harga_dasar: item.harga_dasar,
-            sumbangan: item.sumbangan,
-            tanggal: payload.tanggal,
-            catatan: `Multi-item sale: ${payload.pembeli}${payload.catatan ? ' - ' + payload.catatan : ''}`,
-            penerima: payload.pembeli
-          })
+          .insert(transaksiPayload)
           .select()
           .single();
         
         if (transaksiError) {
+          console.error('Transaksi error details:', {
+            error: transaksiError,
+            message: transaksiError.message,
+            code: transaksiError.code,
+            details: transaksiError.details,
+            hint: transaksiError.hint
+          });
           throw transaksiError;
         }
         
@@ -1621,9 +1593,23 @@ export async function createMultiItemSale(
           console.warn('Gagal mengambil akun kas default, lanjut tanpa akun_kas_id');
         }
         
-        // Build description with all item names
-        const itemNames = insertedItems.map(item => item.nama_barang).join(', ');
-        const description = `Penjualan multi-item kepada ${payload.pembeli}: ${itemNames}${payload.catatan ? ' - ' + payload.catatan : ''}`;
+        // Build concise description with item names and quantities
+        const itemCount = insertedItems.length;
+        let description: string;
+        
+        if (itemCount === 1) {
+          // Single item: "Nama Item (X unit) / Pembeli"
+          const item = insertedItems[0];
+          const itemQty = payload.items[0].jumlah;
+          description = `${item.nama_barang} (${itemQty} unit) / ${payload.pembeli}`;
+        } else {
+          // Multiple items: "Item1 (X unit), Item2 (Y unit) / Pembeli"
+          const itemDescriptions = insertedItems.map((item, index) => {
+            const itemQty = payload.items[index].jumlah;
+            return `${item.nama_barang} (${itemQty} unit)`;
+          }).join(', ');
+          description = `${itemDescriptions} / ${payload.pembeli}`;
+        }
         
         const keuanganResult = await addKeuanganTransaction({
           jenis_transaksi: 'Pemasukan',
@@ -1674,6 +1660,7 @@ export async function createMultiItemSale(
     }
     
     // Fetch complete transaction detail
+    console.log('Fetching complete transaction for header ID:', header.id);
     const { data: completeHeader, error: fetchError } = await supabase
       .from('penjualan_header')
       .select(`
@@ -1686,12 +1673,25 @@ export async function createMultiItemSale(
     if (fetchError || !completeHeader) {
       console.error('Error fetching complete transaction:', fetchError);
       // Transaction is created, just return what we have
+      console.log('Returning partial data:', {
+        header_id: header.id,
+        keuangan_id: keuanganId,
+        items_count: insertedItems.length
+      });
       return {
         ...header,
         keuangan_id: keuanganId,
         items: insertedItems as PenjualanItem[]
       };
     }
+    
+    console.log('✅ Multi-item sale created successfully:', {
+      header_id: completeHeader.id,
+      pembeli: completeHeader.pembeli,
+      grand_total: completeHeader.grand_total,
+      items_count: completeHeader.items.length,
+      keuangan_id: completeHeader.keuangan_id
+    });
     
     return completeHeader as MultiItemSaleDetail;
     
@@ -1854,28 +1854,56 @@ export async function getCombinedSalesHistory(
   total: number;
 }> {
   try {
-    // Fetch single-item transactions
-    const singleItemsPromise = listTransactions(
-      pagination,
-      {
-        tipe: 'Keluar',
-        keluar_mode: 'Penjualan',
-        search: filters.search,
-        startDate: filters.startDate,
-        endDate: filters.endDate
-      }
-    );
+    // Fetch single-item transactions (exclude items that are part of multi-item sales)
+    // First, get all transaksi_inventaris IDs that are linked to penjualan_items
+    const { data: linkedTransaksiIds } = await supabase
+      .from('penjualan_items')
+      .select('transaksi_inventaris_id')
+      .not('transaksi_inventaris_id', 'is', null);
+    
+    const excludeIds = (linkedTransaksiIds || [])
+      .map(item => item.transaksi_inventaris_id)
+      .filter(id => id !== null);
+    
+    // Now fetch single-item transactions, excluding those IDs
+    let query = supabase
+      .from('transaksi_inventaris')
+      .select(`
+        *,
+        inventaris!inner(nama_barang, kategori, satuan)
+      `)
+      .eq('tipe', 'Keluar')
+      .eq('keluar_mode', 'Penjualan')
+      .order('tanggal', { ascending: false })
+      .range(0, pagination.pageSize - 1);
+    
+    // Exclude IDs that are part of multi-item sales
+    if (excludeIds.length > 0) {
+      query = query.not('id', 'in', `(${excludeIds.join(',')})`);
+    }
+    
+    const { data: singleTransactions, error: singleError } = await query;
+    
+    if (singleError) {
+      console.error('Error fetching single transactions:', singleError);
+      throw new DatabaseError('Gagal mengambil transaksi single-item', { originalError: singleError });
+    }
+    
+    const singleResult = {
+      data: (singleTransactions || []).map(trx => ({
+        ...trx,
+        nama_barang: trx.inventaris?.nama_barang || 'Item tidak ditemukan',
+        kategori: trx.inventaris?.kategori || '',
+        satuan: trx.inventaris?.satuan || ''
+      })) as InventoryTransaction[],
+      total: singleTransactions?.length || 0
+    };
     
     // Fetch multi-item transactions
-    const multiItemsPromise = listMultiItemSales(
+    const multiResult = await listMultiItemSales(
       pagination,
       filters
     );
-    
-    const [singleResult, multiResult] = await Promise.all([
-      singleItemsPromise,
-      multiItemsPromise
-    ]);
     
     // Transform single-item transactions
     const singleItems = singleResult.data.map(trx => ({
@@ -1912,6 +1940,135 @@ export async function getCombinedSalesHistory(
     };
   } catch (error: any) {
     console.error('Error in getCombinedSalesHistory:', error);
+    throw error;
+  }
+}
+
+/**
+ * Delete a multi-item sale transaction
+ * This will cascade delete all related records:
+ * - penjualan_items (via FK cascade)
+ * - transaksi_inventaris (via FK cascade)
+ * - keuangan entry (via FK cascade)
+ * Stock will be automatically restored via database triggers
+ * 
+ * @param headerId - The ID of the penjualan_header to delete
+ * @throws DatabaseError if deletion fails
+ */
+export async function deleteMultiItemSale(headerId: string): Promise<void> {
+  try {
+    console.log('Deleting multi-item sale with header ID:', headerId);
+    
+    // Verify the sale exists first
+    const { data: existingSale, error: fetchError } = await supabase
+      .from('penjualan_header')
+      .select('id, pembeli, grand_total')
+      .eq('id', headerId)
+      .single();
+    
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') {
+        throw new DatabaseError(
+          `Transaction ${headerId} not found, may have been already deleted`
+        );
+      }
+      throw new DatabaseError(
+        'Gagal memverifikasi transaksi',
+        { originalError: fetchError }
+      );
+    }
+    
+    if (!existingSale) {
+      throw new DatabaseError(
+        `Transaction ${headerId} not found, may have been already deleted`
+      );
+    }
+    
+    console.log('Found sale to delete:', existingSale);
+    
+    // Delete the header - this will cascade to:
+    // - penjualan_items (ON DELETE CASCADE)
+    // - transaksi_inventaris will be deleted via penjualan_items FK
+    // - keuangan will be deleted via trigger
+    // - Stock will be restored via transaksi_inventaris delete trigger
+    const { error: deleteError } = await supabase
+      .from('penjualan_header')
+      .delete()
+      .eq('id', headerId);
+    
+    if (deleteError) {
+      console.error('Error deleting penjualan_header:', deleteError);
+      throw new DatabaseError(
+        'Gagal menghapus transaksi multi-item',
+        { originalError: deleteError }
+      );
+    }
+    
+    console.log('✅ Multi-item sale deleted successfully:', headerId);
+  } catch (error: any) {
+    console.error('Error in deleteMultiItemSale:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update a multi-item sale transaction
+ * Note: This is a complex operation that requires:
+ * 1. Restoring stock for old items
+ * 2. Deducting stock for new items
+ * 3. Updating financial entries
+ * 
+ * @param headerId - The ID of the penjualan_header to update
+ * @param payload - Updated sale data
+ * @returns Updated multi-item sale detail
+ * @throws ValidationError, StockError, DatabaseError, or FinancialError
+ */
+export async function updateMultiItemSale(
+  headerId: string,
+  payload: MultiItemSalePayload
+): Promise<MultiItemSaleDetail> {
+  // Validate input
+  if (!payload.items || payload.items.length === 0) {
+    throw new ValidationError('Transaksi harus memiliki minimal satu item');
+  }
+  
+  if (!payload.pembeli || payload.pembeli.trim() === '') {
+    throw new ValidationError('Nama pembeli harus diisi');
+  }
+  
+  if (!payload.tanggal || payload.tanggal.trim() === '') {
+    throw new ValidationError('Tanggal transaksi harus diisi');
+  }
+  
+  try {
+    console.log('Updating multi-item sale:', headerId);
+    
+    // Verify the sale exists
+    const existingSale = await getMultiItemSale(headerId);
+    if (!existingSale) {
+      throw new DatabaseError(
+        `Transaction ${headerId} not found, may have been already deleted`
+      );
+    }
+    
+    console.log('Found existing sale:', existingSale);
+    
+    // Strategy: Delete old transaction and create new one
+    // This is simpler and safer than trying to update in place
+    // The delete will restore stock, and create will deduct new stock
+    
+    // Step 1: Delete old transaction (this restores stock)
+    await deleteMultiItemSale(headerId);
+    
+    // Step 2: Create new transaction with updated data
+    const newSale = await createMultiItemSale(payload);
+    
+    console.log('✅ Multi-item sale updated successfully:', newSale.id);
+    
+    return newSale;
+    
+  } catch (error: any) {
+    console.error('Error in updateMultiItemSale:', error);
     throw error;
   }
 }

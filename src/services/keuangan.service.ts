@@ -96,12 +96,8 @@ export const addKeuanganTransaction = async (data: KeuanganData): Promise<any> =
     // Set auto_posted = TRUE jika ini adalah fallback sistem, FALSE jika manual user
     auto_posted: isSystemFallback ? true : (data.auto_posted ?? false),
     source_module: data.referensi?.split(':')[0] || null,
-    source_id: data.referensi?.split(':')[1] || null,
-    audit_trail: {
-      created_by: isSystemFallback ? 'system_fallback' : 'manual',
-      created_at: new Date().toISOString(),
-      method: isSystemFallback ? 'system_fallback' : 'manual_entry'
-    }
+    source_id: data.referensi?.split(':')[1] || null
+    // Note: audit_trail field removed - column doesn't exist in keuangan table
   };
   
   const { data: result, error } = await supabase

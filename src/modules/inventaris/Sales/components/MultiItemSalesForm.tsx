@@ -187,7 +187,13 @@ const MultiItemSalesForm: React.FC<MultiItemSalesFormProps> = ({
         errors.push(`Item ${index + 1}: Sumbangan tidak boleh negatif`);
       }
       if (item.jumlah > item.stok_tersedia) {
-        errors.push(`Item ${index + 1} (${item.nama_barang}): Stok tidak mencukupi`);
+        console.log(`[DEBUG] Stock validation failed for item ${index + 1}:`, {
+          nama_barang: item.nama_barang,
+          jumlah: item.jumlah,
+          stok_tersedia: item.stok_tersedia,
+          isEditMode: isEditing
+        });
+        errors.push(`Stok tidak mencukupi untuk ${item.nama_barang}. Tersedia: ${item.stok_tersedia}, Diminta: ${item.jumlah}`);
       }
     });
 

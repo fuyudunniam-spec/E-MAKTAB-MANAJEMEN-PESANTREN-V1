@@ -647,9 +647,11 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                             <div className="flex items-center justify-end space-x-1">
                               {transaction.auto_posted || 
                                transaction.referensi?.startsWith('inventory_sale:') ||
+                               transaction.referensi?.startsWith('inventaris:') ||
                                transaction.referensi?.startsWith('donation:') ||
                                transaction.referensi?.startsWith('donasi:') ||
-                               transaction.referensi?.startsWith('pembayaran_santri:') ? (
+                               transaction.referensi?.startsWith('pembayaran_santri:') ||
+                               transaction.kategori === 'Penjualan Inventaris' ? (
                                 <span className="text-xs text-muted-foreground">-</span>
                               ) : (
                                 <>
@@ -759,9 +761,11 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                       {/* Actions */}
                       {!(transaction.auto_posted || 
                          transaction.referensi?.startsWith('inventory_sale:') ||
+                         transaction.referensi?.startsWith('inventaris:') ||
                          transaction.referensi?.startsWith('donation:') ||
                          transaction.referensi?.startsWith('donasi:') ||
-                         transaction.referensi?.startsWith('pembayaran_santri:')) && (
+                         transaction.referensi?.startsWith('pembayaran_santri:') ||
+                         transaction.kategori === 'Penjualan Inventaris') && (
                         <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
                           <Button
                             variant="outline"
