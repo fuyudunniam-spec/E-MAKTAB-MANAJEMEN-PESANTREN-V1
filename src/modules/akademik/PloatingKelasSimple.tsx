@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AkademikPloatingService, KelasOption, SantriLite } from '@/services/akademikPloating.service';
+import { AkademikKelasService, KelasMaster } from '@/services/akademikKelas.service';
+import { AkademikSemesterService, Semester } from '@/services/akademikSemester.service';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -11,7 +13,7 @@ import { toast } from 'sonner';
 import { Plus, Trash2, Users } from 'lucide-react';
 
 const PloatingKelasSimple: React.FC = () => {
-  const [kelasOptions, setKelasOptions] = useState<KelasOption[]>([]);
+  const [kelasOptions, setKelasOptions] = useState<KelasMaster[]>([]);
   const [kelasId, setKelasId] = useState<string>('');
   const [anggota, setAnggota] = useState<SantriLite[]>([]);
   const [query, setQuery] = useState('');
@@ -20,18 +22,57 @@ const PloatingKelasSimple: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [kategoriFilter, setKategoriFilter] = useState<string>('all');
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<string | null>(null);
+  const [loadingSemesters, setLoadingSemesters] = useState(false);
 
   const selectedKelas = useMemo(() => kelasOptions.find(k => k.id === kelasId), [kelasOptions, kelasId]);
 
-  const loadKelas = async () => {
+  const loadSemesters = useCallback(async () => {
     try {
-      const list = await AkademikPloatingService.getKelasOptions();
-      setKelasOptions(list);
-      if (!kelasId && list.length > 0) setKelasId(list[0].id);
+      setLoadingSemesters(true);
+      const list = await AkademikSemesterService.listSemester();
+      // Sort by tanggal_mulai descending (terbaru di atas)
+      list.sort((a, b) => 
+        new Date(b.tanggal_mulai).getTime() - new Date(a.tanggal_mulai).getTime()
+      );
+      setSemesters(list);
+      // Set semester aktif sebagai default
+      const aktif = list.find(s => s.is_aktif);
+      if (aktif) {
+        setSelectedSemesterId(aktif.id);
+      } else if (list.length > 0) {
+        setSelectedSemesterId(list[0].id);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal memuat semester');
+    } finally {
+      setLoadingSemesters(false);
+    }
+  }, []);
+
+  const loadKelas = useCallback(async () => {
+    try {
+      const list = await AkademikKelasService.listKelas();
+      
+      // Filter berdasarkan semester jika dipilih
+      let filtered = list;
+      if (selectedSemesterId) {
+        filtered = list.filter(k => k.semester_id === selectedSemesterId);
+      }
+      
+      setKelasOptions(filtered);
+      
+      // Reset kelasId jika kelas yang dipilih tidak ada lagi setelah filter
+      if (kelasId && !filtered.some(k => k.id === kelasId)) {
+        setKelasId(filtered.length > 0 ? filtered[0].id : '');
+      } else if (!kelasId && filtered.length > 0) {
+        setKelasId(filtered[0].id);
+      }
     } catch (e: any) {
       toast.error(e.message || 'Gagal memuat kelas');
     }
-  };
+  }, [selectedSemesterId, kelasId]);
 
   const loadAnggota = async (id: string) => {
     if (!id) return;
@@ -46,8 +87,17 @@ const PloatingKelasSimple: React.FC = () => {
     }
   };
 
-  useEffect(() => { loadKelas(); }, []);
-  useEffect(() => { if (kelasId) loadAnggota(kelasId); }, [kelasId]);
+  useEffect(() => {
+    loadSemesters();
+  }, [loadSemesters]);
+
+  useEffect(() => {
+    loadKelas();
+  }, [loadKelas]);
+
+  useEffect(() => { 
+    if (kelasId) loadAnggota(kelasId); 
+  }, [kelasId]);
 
   const handleSearch = useCallback(async () => {
     try {
@@ -126,17 +176,49 @@ const PloatingKelasSimple: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>Pilih Kelas</CardTitle>
-          <CardDescription>Pilih kelas tujuan sebelum menambahkan santri.</CardDescription>
+          <CardDescription>Pilih semester dan kelas tujuan sebelum menambahkan santri.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3">
           <div>
-            <Label>Kelas</Label>
-            <Select value={kelasId || undefined} onValueChange={(v: any) => setKelasId(v)}>
-              <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+            <Label>Semester</Label>
+            <Select 
+              value={selectedSemesterId || 'all'} 
+              onValueChange={(value) => setSelectedSemesterId(value === 'all' ? null : value)}
+              disabled={loadingSemesters}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={loadingSemesters ? "Memuat..." : "Pilih semester"} />
+              </SelectTrigger>
               <SelectContent>
-                {kelasOptions.map(k => (
-                  <SelectItem key={k.id} value={k.id}>{k.nama_kelas} {k.rombel ? `- ${k.rombel}` : ''} ({k.program})</SelectItem>
+                <SelectItem value="all">Semua Semester</SelectItem>
+                {semesters.map(sem => (
+                  <SelectItem key={sem.id} value={sem.id}>
+                    {sem.nama} • {sem.tahun_ajaran?.nama || '-'}
+                    {sem.is_aktif && ' (Aktif)'}
+                  </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Kelas</Label>
+            <Select value={kelasId || undefined} onValueChange={(v: any) => setKelasId(v)} disabled={loadingSemesters || kelasOptions.length === 0}>
+              <SelectTrigger>
+                <SelectValue placeholder={loadingSemesters ? "Memuat..." : kelasOptions.length === 0 ? "Tidak ada kelas" : "Pilih kelas"} />
+              </SelectTrigger>
+              <SelectContent>
+                {kelasOptions.length === 0 ? (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                    {selectedSemesterId ? "Tidak ada kelas untuk semester ini" : "Pilih semester untuk memfilter kelas"}
+                  </div>
+                ) : (
+                  kelasOptions.map(k => (
+                    <SelectItem key={k.id} value={k.id}>
+                      {k.nama_kelas} {k.rombel ? `- ${k.rombel}` : ''} ({k.program})
+                      {k.semester && <span className="text-xs text-muted-foreground ml-2">• {k.semester}</span>}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -227,7 +309,20 @@ const PloatingKelasSimple: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle>Anggota Kelas</CardTitle>
-            <CardDescription>{selectedKelas ? `${selectedKelas.nama_kelas}${selectedKelas.rombel ? ' - '+selectedKelas.rombel : ''}` : 'Pilih kelas'}</CardDescription>
+            <CardDescription>
+              {selectedKelas ? (
+                <>
+                  {selectedKelas.nama_kelas}{selectedKelas.rombel ? ` - ${selectedKelas.rombel}` : ''}
+                  {selectedKelas.semester && (
+                    <span className="text-xs text-muted-foreground ml-2">
+                      • {selectedKelas.semester} {selectedKelas.tahun_ajaran ? `(${selectedKelas.tahun_ajaran})` : ''}
+                    </span>
+                  )}
+                </>
+              ) : (
+                'Pilih kelas'
+              )}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">

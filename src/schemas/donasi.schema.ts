@@ -15,6 +15,14 @@ export const mappingStatusEnum = z.enum(["unmapped", "suggested", "mapped", "new
   errorMap: () => ({ message: "Status pemetaan tidak valid" })
 });
 
+export const kategoriDonasiEnum = z.enum(["Orang Tua Asuh Pendidikan", "Pembangunan", "Donasi Umum"], {
+  errorMap: () => ({ message: "Kategori donasi tidak valid" })
+});
+
+export const statusSetoranEnum = z.enum(["Belum disetor", "Sudah disetor"], {
+  errorMap: () => ({ message: "Status setoran tidak valid" })
+});
+
 // ================================================
 // DONATION HEADER SCHEMA
 // ================================================
@@ -91,7 +99,43 @@ export const donationHeaderSchema = z.object({
   
   // Status
   status: donationStatusEnum.default("pending"),
+  
+  // Kategori donasi baru
+  kategori_donasi: kategoriDonasiEnum
+    .optional()
+    .nullable(),
+  
+  // Penerima awal / Petugas penerima
+  penerima_awal_id: z.string()
+    .uuid("ID penerima tidak valid")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  
+  // Status setoran ke bendahara
+  status_setoran: statusSetoranEnum
+    .optional()
+    .nullable()
+    .default("Belum disetor"),
+  
+  // Tanggal setoran (wajib jika status_setoran = Sudah disetor)
+  tanggal_setoran: z.string()
+    .optional()
+    .nullable()
+    .refine((date) => {
+      if (!date) return true;
+      const d = new Date(date);
+      return !isNaN(d.getTime());
+    }, "Format tanggal tidak valid"),
 }).superRefine((data, ctx) => {
+  // Validate tanggal_setoran required if status_setoran = Sudah disetor
+  if (data.status_setoran === "Sudah disetor" && !data.tanggal_setoran) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Tanggal setoran wajib diisi jika status setoran = Sudah disetor",
+      path: ["tanggal_setoran"]
+    });
+  }
   // Validate cash donations must have amount
   if (data.donation_type === "cash") {
     if (!data.cash_amount || data.cash_amount <= 0) {
@@ -235,6 +279,17 @@ export const fullDonationSchema = z.object({
   header: donationHeaderSchema,
   items: z.array(donationItemSchema).min(0, "Minimal 0 item untuk donasi tunai/janji"),
 }).superRefine((data, ctx) => {
+  // Barang hanya bisa jika kategori = "Donasi Umum"
+  if ((data.header.donation_type === "in_kind" || data.header.donation_type === "mixed") && 
+      data.header.kategori_donasi && 
+      data.header.kategori_donasi !== "Donasi Umum") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Donasi barang hanya bisa untuk kategori 'Donasi Umum'",
+      path: ["header", "kategori_donasi"]
+    });
+  }
+
   // In-kind donations must have at least 1 item
   if (data.header.donation_type === "in_kind") {
     if (!data.items || data.items.length === 0) {

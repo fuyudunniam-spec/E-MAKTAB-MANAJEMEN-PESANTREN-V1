@@ -30,6 +30,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
 import SantriProfile from "./pages/SantriProfile";
+import SantriProfileRedesigned from "./pages/SantriProfileRedesigned";
 import SantriAccountManagement from "./pages/SantriAccountManagement";
 import ChangePassword from "./pages/ChangePassword";
 // Removed: ProgramSantri, ApprovalSantri (no longer used)
@@ -52,6 +53,8 @@ const JurnalPertemuanPage = lazy(() => import('./modules/akademik/JurnalPertemua
 const PertemuanPage = lazy(() => import('./modules/akademik/PertemuanPage'));
 const DashboardPengajar = lazy(() => import('./modules/akademik/DashboardPengajar'));
 const ProfilPengajarPage = lazy(() => import('./modules/akademik/ProfilPengajarPage'));
+const InputNilaiPage = lazy(() => import('./modules/akademik/InputNilaiPage'));
+const RapotPage = lazy(() => import('./modules/akademik/RapotPage'));
 const DashboardAdmin = lazy(() => import('./modules/admin/DashboardAdmin'));
 // Temporarily use direct import instead of lazy loading to fix Vite bundling issue
 import UserManagementPage from './modules/admin/UserManagementPage';
@@ -358,6 +361,20 @@ const App = () => (
                 </Suspense>
               </Layout>
             } />
+            <Route path="/akademik/nilai" element={
+              <Layout>
+                <Suspense fallback={<div>Loading...</div>}>
+                  <InputNilaiPage />
+                </Suspense>
+              </Layout>
+            } />
+            <Route path="/akademik/rapot" element={
+              <Layout>
+                <Suspense fallback={<div>Loading...</div>}>
+                  <RapotPage />
+                </Suspense>
+              </Layout>
+            } />
             <Route path="/administrasi" element={
               <Layout>
                 <Suspense fallback={<div>Loading...</div>}>
@@ -373,12 +390,17 @@ const App = () => (
             <Route path="/santri/add" element={<SantriProfileFull mode="add" />} />
             <Route path="/santri/profile" element={
               <Layout>
-                <SantriProfileMaster />
+                <SantriProfileRedesigned />
               </Layout>
             } />
             <Route path="/santri/profile-enhanced" element={
               <Layout>
                 <SantriProfileEnhanced />
+              </Layout>
+            } />
+            <Route path="/santri/profile-redesigned" element={
+              <Layout>
+                <SantriProfileRedesigned />
               </Layout>
             } />
             <Route path="/santri/program-management/:santriId" element={

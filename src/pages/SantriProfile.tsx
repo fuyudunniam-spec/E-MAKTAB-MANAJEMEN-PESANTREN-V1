@@ -12,6 +12,7 @@ import { ArrowLeft, Award, Boxes, HandCoins, User, Users, GraduationCap, FileTex
 import DokumenSantriTab from "@/components/DokumenSantriTab";
 import BantuanYayasanTab from "@/components/BantuanYayasanTab";
 import SantriProgressTracking from "@/components/SantriProgressTracking";
+import TagihanBantuanPendidikanTab from "@/components/TagihanBantuanPendidikanTab";
 import { getSafeAvatarUrl } from '@/utils/url.utils';
 import { calculateAge } from '@/lib/utils';
 import { TabunganSantriCard } from '@/components/TabunganSantri/TabunganSantriCard';
@@ -286,6 +287,7 @@ const SantriProfile = () => {
           <TabsTrigger value="info">📋 Informasi</TabsTrigger>
           <TabsTrigger value="hak">Hak & Bantuan</TabsTrigger>
           <TabsTrigger value="akademik">🎓 Akademik</TabsTrigger>
+          <TabsTrigger value="tagihan">💰 Tagihan & Bantuan Pendidikan</TabsTrigger>
           <TabsTrigger value="tabungan">Tabungan</TabsTrigger>
           <TabsTrigger value="dokumen">📄 Dokumen</TabsTrigger>
         </TabsList>
@@ -575,6 +577,21 @@ const SantriProfile = () => {
         <TabsContent value="akademik">
           {santriId ? (
             <SantriProgressTracking santriId={santriId} />
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-muted-foreground text-sm">
+                Memuat data santri...
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="tagihan">
+          {santriId ? (
+            <TagihanBantuanPendidikanTab 
+              santriId={santriId} 
+              santriName={santri?.nama_lengkap || santriName} 
+            />
           ) : (
             <Card>
               <CardContent className="p-6 text-muted-foreground text-sm">

@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Edit, Settings } from 'lucide-react';
 import {
   AGENDA_FREKUENSI_OPTIONS,
   AGENDA_JENIS_OPTIONS,
@@ -339,6 +339,8 @@ const MasterKelasPage: React.FC = () => {
   const [manageOriginalIds, setManageOriginalIds] = useState<string[]>([]);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [detailKelas, setDetailKelas] = useState<any | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingKelas, setEditingKelas] = useState<any | null>(null);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [templateTarget, setTemplateTarget] = useState<'create' | 'manage'>('create');
   const [templateForm, setTemplateForm] = useState<{
@@ -379,6 +381,24 @@ const MasterKelasPage: React.FC = () => {
   const [semesterLoading, setSemesterLoading] = useState(false);
   const [allSemesters, setAllSemesters] = useState<Semester[]>([]);
   const [selectedSemesterId, setSelectedSemesterId] = useState<string | null>(null);
+  const [semesterDialogOpen, setSemesterDialogOpen] = useState(false);
+  const [settingSemesterActive, setSettingSemesterActive] = useState(false);
+  const [createSemesterDialogOpen, setCreateSemesterDialogOpen] = useState(false);
+  const [creatingSemester, setCreatingSemester] = useState(false);
+  const [tahunAjaranList, setTahunAjaranList] = useState<Array<{ id: string; nama: string }>>([]);
+  const [semesterForm, setSemesterForm] = useState<{
+    tahun_ajaran_id: string;
+    nama: 'Ganjil' | 'Genap' | 'Pendek' | 'Khusus';
+    tanggal_mulai: string;
+    tanggal_selesai: string;
+    is_aktif: boolean;
+  }>({
+    tahun_ajaran_id: '',
+    nama: 'Ganjil',
+    tanggal_mulai: '',
+    tanggal_selesai: '',
+    is_aktif: false,
+  });
 
   const buildAutoName = (p: string, tingkat: string, rombel?: string) => {
     if (!p || !tingkat) return '';
@@ -430,23 +450,29 @@ const MasterKelasPage: React.FC = () => {
     try {
       setLoading(true);
       const rows = await AkademikKelasService.listKelas();
-      setKelas(rows);
+      
+      // Filter kelas berdasarkan semester aktif
+      // Hanya tampilkan kelas dari semester aktif
+      const filteredRows = activeSemester 
+        ? rows.filter(k => k.semester_id === activeSemester.id)
+        : rows;
+      
+      setKelas(filteredRows);
       await loadAgendaSummaries();
     } catch (e: any) {
       toast.error(e.message || 'Gagal memuat data kelas');
     } finally {
       setLoading(false);
     }
-  }, [loadAgendaSummaries]);
+  }, [loadAgendaSummaries, activeSemester]);
 
   const loadActiveSemester = useCallback(async () => {
     try {
       setSemesterLoading(true);
       const semester = await AkademikSemesterService.getSemesterAktif();
       setActiveSemester(semester);
-      if (semester) {
-        setSelectedSemesterId(semester.id);
-      }
+      // Jangan set selectedSemesterId default, biarkan null (semua semester)
+      // User bisa pilih filter sendiri
     } catch (error: any) {
       toast.error(error.message || 'Gagal memuat semester aktif');
     } finally {
@@ -460,8 +486,12 @@ const MasterKelasPage: React.FC = () => {
       const tahunList = await AkademikSemesterService.listTahunAjaran();
       if (tahunList.length === 0) {
         setAllSemesters([]);
+        setTahunAjaranList([]);
         return;
       }
+      
+      // Set tahun ajaran list untuk dropdown
+      setTahunAjaranList(tahunList.map(ta => ({ id: ta.id, nama: ta.nama })));
       
       // Load semua semester tanpa filter tahun_ajaran_id untuk menghindari multiple POST requests
       const allSemestersList = await AkademikSemesterService.listSemester();
@@ -476,14 +506,22 @@ const MasterKelasPage: React.FC = () => {
       // Jangan tampilkan toast error karena ini opsional untuk filter
       // Hanya set empty array jika error
       setAllSemesters([]);
+      setTahunAjaranList([]);
     }
   }, []);
 
   useEffect(() => { 
-    loadKelas(); 
     loadActiveSemester(); 
     loadAllSemesters(); 
-  }, [loadKelas, loadActiveSemester, loadAllSemesters]);
+  }, [loadActiveSemester, loadAllSemesters]);
+
+  // Load kelas setelah activeSemester sudah di-load
+  useEffect(() => {
+    // Tunggu sampai semesterLoading selesai untuk memastikan activeSemester sudah di-load
+    if (!semesterLoading) {
+      loadKelas();
+    }
+  }, [loadKelas, semesterLoading, activeSemester?.id]);
 
   useEffect(() => {
     if (activeSemester) {
@@ -496,6 +534,73 @@ const MasterKelasPage: React.FC = () => {
       }));
     }
   }, [activeSemester]);
+
+  const handleSetSemesterAktif = async (semesterId: string) => {
+    try {
+      setSettingSemesterActive(true);
+      await AkademikSemesterService.setSemesterAktif(semesterId);
+      toast.success('Semester aktif berhasil diubah');
+      setSemesterDialogOpen(false);
+      // Reload semester aktif dan kelas
+      await loadActiveSemester();
+      await loadKelas();
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal mengatur semester aktif');
+    } finally {
+      setSettingSemesterActive(false);
+    }
+  };
+
+  const handleCreateSemester = async () => {
+    if (!semesterForm.tahun_ajaran_id) {
+      toast.error('Tahun ajaran wajib dipilih');
+      return;
+    }
+    if (!semesterForm.tanggal_mulai || !semesterForm.tanggal_selesai) {
+      toast.error('Tanggal mulai dan selesai wajib diisi');
+      return;
+    }
+    if (semesterForm.tanggal_mulai > semesterForm.tanggal_selesai) {
+      toast.error('Tanggal selesai harus setelah tanggal mulai');
+      return;
+    }
+
+    try {
+      setCreatingSemester(true);
+      const newSemester = await AkademikSemesterService.createSemester({
+        tahun_ajaran_id: semesterForm.tahun_ajaran_id,
+        nama: semesterForm.nama,
+        tanggal_mulai: semesterForm.tanggal_mulai,
+        tanggal_selesai: semesterForm.tanggal_selesai,
+        is_aktif: semesterForm.is_aktif,
+        status: 'Aktif',
+      });
+
+      // Jika is_aktif true, set sebagai semester aktif
+      if (semesterForm.is_aktif) {
+        await AkademikSemesterService.setSemesterAktif(newSemester.id);
+      }
+
+      toast.success('Semester berhasil dibuat');
+      setCreateSemesterDialogOpen(false);
+      setSemesterForm({
+        tahun_ajaran_id: '',
+        nama: 'Ganjil',
+        tanggal_mulai: '',
+        tanggal_selesai: '',
+        is_aktif: false,
+      });
+
+      // Reload data
+      await loadAllSemesters();
+      await loadActiveSemester();
+      await loadKelas();
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal membuat semester');
+    } finally {
+      setCreatingSemester(false);
+    }
+  };
 
   const handleAddAgenda = () => {
     setAgendaItems(prev => [...prev, createEmptyAgendaItem()]);
@@ -784,6 +889,66 @@ const MasterKelasPage: React.FC = () => {
     }
   };
 
+  const handleEdit = (kelas: any) => {
+    setEditingKelas(kelas);
+    const selectedSem = allSemesters.find(s => s.id === kelas.semester_id);
+    setForm({
+      nama_kelas: kelas.nama_kelas || '',
+      program: kelas.program || '',
+      rombel: kelas.rombel || '',
+      tingkat: kelas.tingkat || '',
+      tahun_ajaran: kelas.tahun_ajaran || '',
+      semester: kelas.semester || '',
+      tahun_ajaran_id: kelas.tahun_ajaran_id,
+      semester_id: kelas.semester_id,
+      status: kelas.status || 'Aktif',
+      tanggal_mulai: kelas.tanggal_mulai || selectedSem?.tanggal_mulai || '',
+      tanggal_selesai: kelas.tanggal_selesai || selectedSem?.tanggal_selesai || '',
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdate = async () => {
+    if (!editingKelas) return;
+    
+    try {
+      if (!form.nama_kelas?.trim()) {
+        toast.error('Nama kelas wajib diisi');
+        return;
+      }
+      if (!form.program?.trim()) {
+        toast.error('Program wajib diisi');
+        return;
+      }
+      if (!form.semester_id) {
+        toast.error('Semester wajib dipilih');
+        return;
+      }
+
+      const selectedSem = allSemesters.find(s => s.id === form.semester_id);
+      if (!selectedSem) {
+        toast.error('Semester tidak valid');
+        return;
+      }
+
+      const payload: KelasMasterInput = {
+        ...form,
+        tahun_ajaran: selectedSem.tahun_ajaran?.nama || '',
+        semester: selectedSem.nama,
+        tahun_ajaran_id: selectedSem.tahun_ajaran_id,
+        semester_id: selectedSem.id,
+      };
+      
+      await AkademikKelasService.updateKelas(editingKelas.id, payload);
+      toast.success('Kelas berhasil diperbarui');
+      setEditDialogOpen(false);
+      setEditingKelas(null);
+      loadKelas();
+    } catch (e: any) {
+      toast.error(e.message || 'Gagal memperbarui kelas');
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm('Hapus kelas ini? Kelas dan keanggotaan akan ikut terhapus.')) return;
     try {
@@ -813,7 +978,7 @@ const MasterKelasPage: React.FC = () => {
       ) : activeSemester ? (
         <Card className="border-green-200 bg-green-50">
           <CardContent className="py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div>
+            <div className="flex-1">
               <p className="text-sm text-muted-foreground">Semester Aktif</p>
               <h3 className="text-lg font-semibold text-green-800">
                 {activeSemester.nama} • {activeSemester.tahun_ajaran?.nama || 'Tahun Ajaran'}
@@ -822,15 +987,55 @@ const MasterKelasPage: React.FC = () => {
                 {formatDate(activeSemester.tanggal_mulai)} — {formatDate(activeSemester.tanggal_selesai)}
               </p>
             </div>
-            <div className="text-sm text-muted-foreground">
-              Kelas baru akan otomatis menggunakan semester ini.
+            <div className="flex items-center gap-3">
+              <div className="text-sm text-muted-foreground hidden md:block">
+                Kelas baru akan otomatis menggunakan semester ini.
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCreateSemesterDialogOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Buat Semester
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSemesterDialogOpen(true)}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Ubah Semester Aktif
+              </Button>
             </div>
           </CardContent>
         </Card>
       ) : (
         <Card className="border-yellow-300 bg-yellow-50">
-          <CardContent className="py-4 text-sm text-yellow-800">
-            Belum ada semester aktif. Silakan atur melalui menu Tahun & Semester sebelum membuat kelas baru.
+          <CardContent className="py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="text-sm text-yellow-800">
+              Belum ada semester aktif. Silakan buat atau atur semester aktif sebelum membuat kelas baru.
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCreateSemesterDialogOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Buat Semester
+              </Button>
+              {allSemesters.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSemesterDialogOpen(true)}
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Atur Semester Aktif
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -1037,7 +1242,20 @@ const MasterKelasPage: React.FC = () => {
                         >
                           Kelola Agenda
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(row.id)}>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleEdit(row)}
+                          title="Edit kelas"
+                        >
+                          <Edit className="w-4 h-4 text-blue-600" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleDelete(row.id)}
+                          title="Hapus kelas"
+                        >
                           <Trash2 className="w-4 h-4 text-red-600" />
                         </Button>
                       </div>
@@ -1126,6 +1344,156 @@ const MasterKelasPage: React.FC = () => {
               disabled={savingManageAgenda || manageAgendaLoading}
             >
               {savingManageAgenda ? 'Menyimpan...' : 'Simpan Perubahan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Edit Kelas */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => {
+        setEditDialogOpen(open);
+        if (!open) {
+          setEditingKelas(null);
+          // Reset form ke default
+          const resetForm: KelasMasterInput = {
+            nama_kelas: '',
+            program: '',
+            rombel: '',
+            tingkat: '',
+            tahun_ajaran: '',
+            semester: '',
+            tahun_ajaran_id: undefined,
+            semester_id: activeSemester?.id,
+            status: 'Aktif'
+          };
+          setForm(resetForm);
+        }
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Kelas</DialogTitle>
+            <DialogDescription>
+              Perbarui informasi kelas. Agenda tidak akan terpengaruh.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label>Semester *</Label>
+                <Select
+                  value={form.semester_id || undefined}
+                  onValueChange={(value) => {
+                    const selectedSem = allSemesters.find(s => s.id === value);
+                    if (selectedSem) {
+                      setForm({
+                        ...form,
+                        semester_id: selectedSem.id,
+                        semester: selectedSem.nama,
+                        tahun_ajaran_id: selectedSem.tahun_ajaran_id,
+                        tahun_ajaran: selectedSem.tahun_ajaran?.nama || '',
+                      });
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih semester" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allSemesters.map(sem => (
+                      <SelectItem key={sem.id} value={sem.id}>
+                        {sem.nama} • {sem.tahun_ajaran?.nama || '-'}
+                        {sem.is_aktif && ' (Aktif)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Program *</Label>
+                <Input
+                  value={form.program}
+                  onChange={(e) => handleFormChange('program', e.target.value)}
+                  placeholder="Contoh: Madin, TPQ, Tahfid"
+                />
+              </div>
+              <div>
+                <Label>Tingkat</Label>
+                <Input
+                  value={form.tingkat}
+                  onChange={(e) => handleFormChange('tingkat', e.target.value)}
+                  placeholder="Contoh: I'dad, Wustho, Iqra 1"
+                />
+              </div>
+              <div>
+                <Label>Rombel</Label>
+                <Input
+                  value={form.rombel}
+                  onChange={(e) => handleFormChange('rombel', e.target.value)}
+                  placeholder="Contoh: A, B, C"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <Checkbox
+                    id="edit-auto-generate"
+                    checked={autoGenerateName}
+                    onCheckedChange={(checked) => {
+                      const isChecked = Boolean(checked);
+                      setAutoGenerateName(isChecked);
+                      if (isChecked) {
+                        const autoName = buildAutoName(
+                          form.program || '',
+                          form.tingkat || '',
+                          form.rombel || undefined,
+                        );
+                        if (autoName) {
+                          setForm({ ...form, nama_kelas: autoName });
+                        }
+                      }
+                    }}
+                  />
+                  <Label htmlFor="edit-auto-generate" className="cursor-pointer text-sm">
+                    Auto-generate nama dari Program + Tingkat + Rombel
+                  </Label>
+                </div>
+                <Label>Nama Kelas *</Label>
+                <Input
+                  value={form.nama_kelas}
+                  onChange={(e) => setForm({ ...form, nama_kelas: e.target.value })}
+                  placeholder="Contoh: Madin I'dad A"
+                />
+              </div>
+              <div>
+                <Label>Tanggal Mulai Periode</Label>
+                <Input
+                  type="date"
+                  value={form.tanggal_mulai || ''}
+                  onChange={(e) => setForm({ ...form, tanggal_mulai: e.target.value || undefined })}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Periode aktif kelas (opsional, default mengikuti semester)
+                </p>
+              </div>
+              <div>
+                <Label>Tanggal Selesai Periode</Label>
+                <Input
+                  type="date"
+                  value={form.tanggal_selesai || ''}
+                  onChange={(e) => setForm({ ...form, tanggal_selesai: e.target.value || undefined })}
+                  min={form.tanggal_mulai || undefined}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Periode aktif kelas (opsional, default mengikuti semester)
+                </p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Batal
+            </Button>
+            <Button onClick={handleUpdate} disabled={!form.semester_id || !form.program || !form.nama_kelas}>
+              Simpan Perubahan
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1344,6 +1712,170 @@ const MasterKelasPage: React.FC = () => {
             <Button onClick={handleTemplateSubmit}>
               Tambahkan {templateForm.days.length ? `(${templateForm.days.length})` : ''}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Buat Semester Baru */}
+      <Dialog 
+        open={createSemesterDialogOpen} 
+        onOpenChange={(open) => {
+          setCreateSemesterDialogOpen(open);
+          if (!open) {
+            // Reset form saat dialog ditutup
+            setSemesterForm({
+              tahun_ajaran_id: '',
+              nama: 'Ganjil',
+              tanggal_mulai: '',
+              tanggal_selesai: '',
+              is_aktif: false,
+            });
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Buat Semester Baru</DialogTitle>
+            <DialogDescription>
+              Buat semester baru untuk tahun ajaran tertentu. Anda bisa langsung mengatur sebagai semester aktif.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Tahun Ajaran *</Label>
+              <Select
+                value={semesterForm.tahun_ajaran_id}
+                onValueChange={(value) => setSemesterForm(prev => ({ ...prev, tahun_ajaran_id: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih tahun ajaran" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tahunAjaranList.map(ta => (
+                    <SelectItem key={ta.id} value={ta.id}>
+                      {ta.nama}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {tahunAjaranList.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Belum ada tahun ajaran. Silakan buat tahun ajaran terlebih dahulu melalui menu Tahun & Semester.
+                </p>
+              )}
+            </div>
+            <div>
+              <Label>Nama Semester *</Label>
+              <Select
+                value={semesterForm.nama}
+                onValueChange={(value) => setSemesterForm(prev => ({ ...prev, nama: value as typeof semesterForm.nama }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Ganjil">Ganjil</SelectItem>
+                  <SelectItem value="Genap">Genap</SelectItem>
+                  <SelectItem value="Pendek">Pendek</SelectItem>
+                  <SelectItem value="Khusus">Khusus</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Tanggal Mulai *</Label>
+                <Input
+                  type="date"
+                  value={semesterForm.tanggal_mulai}
+                  onChange={(e) => setSemesterForm(prev => ({ ...prev, tanggal_mulai: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Tanggal Selesai *</Label>
+                <Input
+                  type="date"
+                  value={semesterForm.tanggal_selesai}
+                  min={semesterForm.tanggal_mulai}
+                  onChange={(e) => setSemesterForm(prev => ({ ...prev, tanggal_selesai: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="semester-is-aktif"
+                checked={semesterForm.is_aktif}
+                onCheckedChange={(checked) => setSemesterForm(prev => ({ ...prev, is_aktif: Boolean(checked) }))}
+              />
+              <Label htmlFor="semester-is-aktif" className="text-sm cursor-pointer">
+                Set sebagai semester aktif
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateSemesterDialogOpen(false)} disabled={creatingSemester}>
+              Batal
+            </Button>
+            <Button onClick={handleCreateSemester} disabled={creatingSemester || !semesterForm.tahun_ajaran_id || !semesterForm.tanggal_mulai || !semesterForm.tanggal_selesai}>
+              {creatingSemester ? 'Membuat...' : 'Buat Semester'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Atur Semester Aktif */}
+      <Dialog open={semesterDialogOpen} onOpenChange={setSemesterDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Atur Semester Aktif</DialogTitle>
+            <DialogDescription>
+              Pilih semester yang akan digunakan sebagai semester aktif. Hanya kelas dari semester aktif yang akan ditampilkan di daftar kelas.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {allSemesters.length === 0 ? (
+              <div className="text-center py-4 text-sm text-muted-foreground">
+                Belum ada semester. Klik tombol "Buat Semester" untuk membuat semester baru.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {allSemesters.map(semester => (
+                  <div
+                    key={semester.id}
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                      activeSemester?.id === semester.id
+                        ? 'border-green-500 bg-green-50'
+                        : 'border-border hover:bg-accent'
+                    }`}
+                    onClick={() => handleSetSemesterAktif(semester.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="font-semibold">
+                          {semester.nama} • {semester.tahun_ajaran?.nama || 'Tahun Ajaran'}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {formatDate(semester.tanggal_mulai)} — {formatDate(semester.tanggal_selesai)}
+                        </div>
+                      </div>
+                      {activeSemester?.id === semester.id && (
+                        <Badge className="bg-green-600">Aktif</Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSemesterDialogOpen(false)} disabled={settingSemesterActive}>
+              Batal
+            </Button>
+            {allSemesters.length === 0 && (
+              <Button onClick={() => { setSemesterDialogOpen(false); setCreateSemesterDialogOpen(true); }}>
+                <Plus className="w-4 h-4 mr-2" />
+                Buat Semester
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

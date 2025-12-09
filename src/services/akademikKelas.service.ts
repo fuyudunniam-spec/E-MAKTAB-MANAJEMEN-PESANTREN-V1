@@ -10,6 +10,8 @@ export interface KelasMasterInput {
   status?: 'Aktif' | 'Non-Aktif';
   tahun_ajaran_id?: string | null;
   semester_id?: string | null;
+  tanggal_mulai?: string | null; // Tanggal mulai periode aktif kelas
+  tanggal_selesai?: string | null; // Tanggal selesai periode aktif kelas
 }
 
 export interface KelasMaster extends KelasMasterInput {
@@ -20,16 +22,23 @@ export interface KelasMaster extends KelasMasterInput {
 export class AkademikKelasService {
   /**
    * Get kelas yang di-assign ke pengajar tertentu (melalui agenda)
+   * @param pengajarId ID pengajar
+   * @param options Opsi filter tambahan
    */
-  static async listKelasByPengajar(pengajarId: string): Promise<KelasMaster[]> {
+  static async listKelasByPengajar(
+    pengajarId: string,
+    options?: { semesterId?: string }
+  ): Promise<KelasMaster[]> {
     if (!pengajarId) return [];
 
     // Ambil kelas dari agenda yang di-assign ke pengajar ini
-    const { data: agendas, error: agendaError } = await supabase
+    let agendaQuery = supabase
       .from('kelas_agenda')
       .select('kelas_id, kelas:kelas_id(*)')
       .eq('pengajar_id', pengajarId)
       .eq('aktif', true);
+
+    const { data: agendas, error: agendaError } = await agendaQuery;
 
     if (agendaError) throw agendaError;
 
@@ -37,7 +46,10 @@ export class AkademikKelasService {
     const kelasMap = new Map<string, KelasMaster>();
     (agendas || []).forEach((agenda: any) => {
       if (agenda.kelas && !kelasMap.has(agenda.kelas.id)) {
-        kelasMap.set(agenda.kelas.id, agenda.kelas as KelasMaster);
+        // Filter berdasarkan semester jika disediakan
+        if (!options?.semesterId || agenda.kelas.semester_id === options.semesterId) {
+          kelasMap.set(agenda.kelas.id, agenda.kelas as KelasMaster);
+        }
       }
     });
 
@@ -59,6 +71,8 @@ export class AkademikKelasService {
         status, 
         tahun_ajaran_id, 
         semester_id, 
+        tanggal_mulai,
+        tanggal_selesai,
         created_at,
         semester:semester_id(id, nama, tahun_ajaran:tahun_ajaran_id(nama))
       `);
@@ -120,6 +134,8 @@ export class AkademikKelasService {
       status: input.status || 'Aktif',
       tahun_ajaran_id: input.tahun_ajaran_id || null,
       semester_id: input.semester_id || null,
+      tanggal_mulai: input.tanggal_mulai || null,
+      tanggal_selesai: input.tanggal_selesai || null,
     };
     const { data, error } = await supabase.from('kelas_master').insert(payload).select().single();
     if (error) throw error;
@@ -138,6 +154,8 @@ export class AkademikKelasService {
       status: i.status || 'Aktif',
       tahun_ajaran_id: i.tahun_ajaran_id || null,
       semester_id: i.semester_id || null,
+      tanggal_mulai: i.tanggal_mulai || null,
+      tanggal_selesai: i.tanggal_selesai || null,
     }));
     const { data, error } = await supabase.from('kelas_master').insert(rows).select();
     if (error) throw error;
@@ -200,6 +218,8 @@ export class AkademikKelasService {
         status, 
         tahun_ajaran_id, 
         semester_id, 
+        tanggal_mulai,
+        tanggal_selesai,
         created_at,
         semester:semester_id(id, nama, tahun_ajaran:tahun_ajaran_id(nama))
       `)

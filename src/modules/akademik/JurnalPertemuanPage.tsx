@@ -16,7 +16,8 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Calendar, Plus, Edit, Trash2, BookOpen, CheckCircle2, AlertCircle, Clock, Users, CalendarDays } from 'lucide-react';
+import { Calendar, Plus, Edit, Trash2, BookOpen, CheckCircle2, AlertCircle, Clock, Users, CalendarDays, Sparkles, CheckSquare, Square } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 type ProgramValue = 'Madin' | 'TPQ' | 'Tahfid' | 'Tahsin' | 'Semua';
 
@@ -66,7 +67,7 @@ const JurnalPertemuanPage: React.FC = () => {
   const [pertemuanList, setPertemuanList] = useState<KelasPertemuan[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedSemesterId, setSelectedSemesterId] = useState<string>('');
+  const [selectedSemesterId, setSelectedSemesterId] = useState<string | undefined>(undefined);
   const [kelasId, setKelasId] = useState<string>('all');
   const [agendaId, setAgendaId] = useState<string>('all');
 
@@ -85,6 +86,11 @@ const JurnalPertemuanPage: React.FC = () => {
     pertemuan: null,
   });
   const [quickEditTanggal, setQuickEditTanggal] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+  const [selectedPertemuanIds, setSelectedPertemuanIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<string>('all'); // Format: 'YYYY-MM' atau 'all'
 
   const loadSemesters = useCallback(async () => {
     try {
@@ -120,30 +126,42 @@ const JurnalPertemuanPage: React.FC = () => {
 
   const loadClasses = useCallback(async (semesterId?: string) => {
     try {
+      // Pastikan semesterId ada dan valid
+      if (!semesterId) {
+        setClasses([]);
+        return;
+      }
+
+      // Verifikasi semester aktif
+      const semester = semesters.find(s => s.id === semesterId);
+      if (!semester) {
+        setClasses([]);
+        return;
+      }
+
       let list: KelasMaster[];
       
       // Jika pengajar, hanya ambil kelas yang di-assign ke mereka
       if (isPengajar && pengajarId) {
-        list = await AkademikKelasService.listKelasByPengajar(pengajarId);
+        list = await AkademikKelasService.listKelasByPengajar(pengajarId, { semesterId });
       } else {
         list = await AkademikKelasService.listKelas();
       }
       
-      // Filter kelas berdasarkan semester jika dipilih
-      let filtered = list;
-      if (semesterId) {
-        filtered = list.filter(k => k.semester_id === semesterId);
-      }
+      // Filter kelas berdasarkan semester yang dipilih (hanya kelas dari semester tersebut)
+      const filtered = list.filter(k => k.semester_id === semesterId);
+      
       setClasses(filtered);
-      if (kelasId === 'all' && filtered.length > 0) {
-        // Biarkan "all" jika ada kelas, atau set ke kelas pertama jika sebelumnya kosong
-      } else if (kelasId !== 'all' && !filtered.some(k => k.id === kelasId)) {
+      
+      // Reset kelasId jika kelas yang dipilih tidak ada lagi di filtered list
+      if (kelasId !== 'all' && !filtered.some(k => k.id === kelasId)) {
         setKelasId('all');
       }
     } catch (error: any) {
       toast.error(error.message || 'Gagal memuat kelas');
+      setClasses([]);
     }
-  }, [kelasId, isPengajar, pengajarId]);
+  }, [kelasId, isPengajar, pengajarId, semesters]);
 
   const loadAgendas = useCallback(async (targetKelasId: string) => {
     try {
@@ -205,19 +223,108 @@ const JurnalPertemuanPage: React.FC = () => {
         endDate: semester.tanggal_selesai,
       });
       
+      // Filter pertemuan berdasarkan semester_id kelas
+      // Hanya tampilkan pertemuan dari kelas yang memiliki semester_id sesuai dengan selectedSemesterId
+      data = data.filter(p => {
+        // Prioritas 1: Gunakan semester_id langsung dari kelas jika ada
+        if (p.kelas?.semester_id) {
+          return p.kelas.semester_id === selectedSemesterId;
+        }
+        
+        // Prioritas 2: Jika kelasId sudah dipilih (bukan 'all'), pastikan kelas tersebut ada di filtered classes
+        if (kelasId && kelasId !== 'all') {
+          const kelas = classes.find(k => k.id === kelasId);
+          if (!kelas || kelas.semester_id !== selectedSemesterId) {
+            return false;
+          }
+          // Jika pertemuan memiliki kelas_id, pastikan sesuai dengan kelasId yang dipilih
+          if (p.kelas_id && p.kelas_id !== kelasId) {
+            return false;
+          }
+          return true;
+        }
+        
+        // Prioritas 3: Jika kelasId adalah 'all', filter berdasarkan semester_id dari kelas di classes list
+        if (p.kelas?.id) {
+          const kelas = classes.find(k => k.id === p.kelas?.id);
+          return kelas && kelas.semester_id === selectedSemesterId;
+        }
+        
+        // Prioritas 4: Jika pertemuan memiliki kelas_id tapi tidak ada info kelas di response
+        if (p.kelas_id) {
+          const kelas = classes.find(k => k.id === p.kelas_id);
+          return kelas && kelas.semester_id === selectedSemesterId;
+        }
+        
+        // Jika tidak ada info kelas sama sekali, skip (kemungkinan data tidak lengkap)
+        return false;
+      });
+      
       // Jika pengajar, filter hanya pertemuan yang terkait dengan agenda mereka
-      if (isPengajar && pengajarId && agendas.length > 0) {
-        const agendaIds = agendas.map(a => a.id);
-        data = data.filter(p => p.agenda_id && agendaIds.includes(p.agenda_id));
+      if (isPengajar && pengajarId) {
+        // Jika ada agenda yang sudah di-load, filter berdasarkan itu
+        if (agendas.length > 0) {
+          const agendaIds = agendas.map(a => a.id);
+          data = data.filter(p => p.agenda_id && agendaIds.includes(p.agenda_id));
+        } else {
+          // Jika belum ada agenda, set empty untuk sementara
+          // Agenda akan di-load kemudian dan pertemuan akan di-reload
+          data = [];
+        }
       }
       
+      // Sort by tanggal ascending (pertemuan 1 hingga akhir)
+      data.sort((a, b) => {
+        const dateA = new Date(a.tanggal).getTime();
+        const dateB = new Date(b.tanggal).getTime();
+        return dateA - dateB;
+      });
+      
       setPertemuanList(data);
+      // Reset selected items ketika data berubah
+      setSelectedPertemuanIds(new Set());
     } catch (error: any) {
       toast.error(error.message || 'Gagal memuat daftar pertemuan');
+      setPertemuanList([]);
     } finally {
       setLoading(false);
     }
-  }, [selectedSemesterId, semesters, kelasId, agendaId, isPengajar, pengajarId, agendas]);
+  }, [selectedSemesterId, semesters, kelasId, agendaId, isPengajar, pengajarId, agendas, classes]);
+
+  // Filter pertemuan berdasarkan bulan yang dipilih
+  const filteredPertemuanList = useMemo(() => {
+    if (selectedMonth === 'all') {
+      return pertemuanList;
+    }
+    return pertemuanList.filter(p => {
+      const pertemuanDate = new Date(p.tanggal);
+      const pertemuanMonth = `${pertemuanDate.getFullYear()}-${String(pertemuanDate.getMonth() + 1).padStart(2, '0')}`;
+      return pertemuanMonth === selectedMonth;
+    });
+  }, [pertemuanList, selectedMonth]);
+
+  // Generate list bulan dari semester yang dipilih
+  const availableMonths = useMemo(() => {
+    if (!selectedSemesterId) return [];
+    const semester = semesters.find(s => s.id === selectedSemesterId);
+    if (!semester) return [];
+    
+    const months: Array<{ value: string; label: string }> = [];
+    const startDate = new Date(semester.tanggal_mulai);
+    const endDate = new Date(semester.tanggal_selesai);
+    
+    const current = new Date(startDate);
+    current.setDate(1); // Set ke tanggal 1
+    
+    while (current <= endDate) {
+      const monthValue = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = current.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      months.push({ value: monthValue, label: monthLabel });
+      current.setMonth(current.getMonth() + 1);
+    }
+    
+    return months;
+  }, [selectedSemesterId, semesters]);
 
   useEffect(() => {
     loadSemesters();
@@ -226,6 +333,8 @@ const JurnalPertemuanPage: React.FC = () => {
   useEffect(() => {
     if (selectedSemesterId && (!isPengajar || pengajarId)) {
       loadClasses(selectedSemesterId);
+    } else {
+      setClasses([]);
     }
   }, [selectedSemesterId, loadClasses, isPengajar, pengajarId]);
 
@@ -245,8 +354,23 @@ const JurnalPertemuanPage: React.FC = () => {
   }, [kelasId, loadAgendas, isPengajar, pengajarId]);
 
   useEffect(() => {
-    if (selectedSemesterId) loadPertemuan();
-  }, [loadPertemuan, selectedSemesterId]);
+    if (selectedSemesterId && classes.length >= 0) {
+      // Tunggu sebentar untuk memastikan classes dan agendas sudah di-load
+      const timer = setTimeout(() => {
+        loadPertemuan();
+      }, 200);
+      return () => clearTimeout(timer);
+    } else if (!selectedSemesterId) {
+      setPertemuanList([]);
+    }
+  }, [loadPertemuan, selectedSemesterId, classes.length]);
+
+  // Reload pertemuan setelah agendas berubah (untuk pengajar)
+  useEffect(() => {
+    if (selectedSemesterId && isPengajar && pengajarId && agendas.length > 0) {
+      loadPertemuan();
+    }
+  }, [agendas.length, selectedSemesterId, isPengajar, pengajarId, loadPertemuan]);
 
   const agendaLabel = (agenda: AkademikAgenda) => {
     // Prioritas: mapel > nama_agenda
@@ -274,28 +398,17 @@ const JurnalPertemuanPage: React.FC = () => {
     return meta.length ? `${displayName} — ${meta.join(' • ')}` : displayName;
   };
 
-  const handleOpenDialog = (pertemuan?: KelasPertemuan) => {
-    if (pertemuan) {
-      setEditingPertemuan(pertemuan);
-      setFormData({
-        agenda_id: pertemuan.agenda_id,
-        tanggal: pertemuan.tanggal,
-        status: pertemuan.status,
-        pengajar_nama: pertemuan.pengajar_nama || '',
-        materi: pertemuan.materi || '',
-        catatan: pertemuan.catatan || '',
-      });
-    } else {
-      setEditingPertemuan(null);
-      setFormData({
-        agenda_id: agendaId && agendaId !== 'all' ? agendaId : agendas[0]?.id || '',
-        tanggal: new Date().toISOString().split('T')[0],
-        status: 'Terjadwal',
-        pengajar_nama: '',
-        materi: '',
-        catatan: '',
-      });
-    }
+  const handleOpenDialog = () => {
+    // Hanya untuk tambah pertemuan baru, tidak untuk edit
+    setEditingPertemuan(null);
+    setFormData({
+      agenda_id: agendaId && agendaId !== 'all' ? agendaId : agendas[0]?.id || '',
+      tanggal: new Date().toISOString().split('T')[0],
+      status: 'Terjadwal',
+      pengajar_nama: '',
+      materi: '',
+      catatan: '',
+    });
     setDialogOpen(true);
   };
 
@@ -305,17 +418,15 @@ const JurnalPertemuanPage: React.FC = () => {
       return;
     }
     try {
-      if (editingPertemuan) {
-        await AkademikPertemuanService.updatePertemuan(editingPertemuan.id, formData);
-        toast.success('Pertemuan diperbarui');
-      } else {
-        const agenda = agendas.find(a => a.id === formData.agenda_id);
-        await AkademikPertemuanService.createPertemuan({
-          ...formData,
-          kelas_id: agenda?.kelas?.id || kelasId,
-        });
-        toast.success('Pertemuan ditambahkan');
-      }
+      // Hanya untuk tambah pertemuan baru
+      const agenda = agendas.find(a => a.id === formData.agenda_id);
+      await AkademikPertemuanService.createPertemuan({
+        agenda_id: formData.agenda_id,
+        tanggal: formData.tanggal,
+        status: 'Terjadwal',
+        kelas_id: agenda?.kelas?.id || kelasId,
+      });
+      toast.success('Pertemuan ditambahkan');
       setDialogOpen(false);
       loadPertemuan();
     } catch (error: any) {
@@ -331,6 +442,70 @@ const JurnalPertemuanPage: React.FC = () => {
       loadPertemuan();
     } catch (error: any) {
       toast.error(error.message || 'Gagal menghapus pertemuan');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedPertemuanIds.size === 0) {
+      toast.error('Pilih pertemuan yang akan dihapus');
+      return;
+    }
+
+    if (!confirm(`Hapus ${selectedPertemuanIds.size} pertemuan yang dipilih?`)) return;
+
+    try {
+      setBulkDeleting(true);
+      const ids = Array.from(selectedPertemuanIds);
+      let successCount = 0;
+      let errorCount = 0;
+
+      // Delete secara paralel dengan batasan
+      const deletePromises = ids.map(async (id) => {
+        try {
+          await AkademikPertemuanService.deletePertemuan(id);
+          successCount++;
+        } catch (error: any) {
+          console.error(`Error deleting pertemuan ${id}:`, error);
+          errorCount++;
+        }
+      });
+
+      await Promise.all(deletePromises);
+
+      if (errorCount > 0) {
+        toast.warning(`${successCount} pertemuan dihapus, ${errorCount} gagal`);
+      } else {
+        toast.success(`${successCount} pertemuan berhasil dihapus`);
+      }
+
+      setSelectedPertemuanIds(new Set());
+      loadPertemuan();
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal menghapus pertemuan');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedPertemuanIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedPertemuanIds.size === filteredPertemuanList.length) {
+      // Deselect all
+      setSelectedPertemuanIds(new Set());
+    } else {
+      // Select all
+      setSelectedPertemuanIds(new Set(filteredPertemuanList.map(p => p.id)));
     }
   };
 
@@ -392,6 +567,43 @@ const JurnalPertemuanPage: React.FC = () => {
     setQuickEditDialog({ open: false, pertemuan: null });
   };
 
+  const handleGeneratePertemuanOtomatis = async () => {
+    if (!selectedSemesterId) {
+      toast.error('Pilih semester terlebih dahulu');
+      return;
+    }
+
+    try {
+      setGenerating(true);
+      const result = await AkademikPertemuanService.generatePertemuanOtomatis(
+        selectedSemesterId,
+        {
+          kelasId: kelasId && kelasId !== 'all' ? kelasId : undefined,
+          agendaId: agendaId === 'all' ? undefined : agendaId,
+          overwrite: false, // Jangan overwrite yang sudah ada
+        }
+      );
+
+      if (result.errors > 0) {
+        toast.warning(
+          `Generate selesai: ${result.created} dibuat, ${result.skipped} dilewati, ${result.errors} error`
+        );
+      } else {
+        toast.success(
+          `Generate selesai: ${result.created} pertemuan dibuat, ${result.skipped} sudah ada sebelumnya`
+        );
+      }
+
+      setGenerateDialogOpen(false);
+      // Reload daftar pertemuan
+      await loadPertemuan();
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal generate pertemuan otomatis');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -399,21 +611,47 @@ const JurnalPertemuanPage: React.FC = () => {
           <h2 className="text-xl font-semibold">Jurnal Pertemuan</h2>
           <p className="text-sm text-muted-foreground">Kelola dan catat pertemuan per agenda secara terpusat.</p>
         </div>
-        <Button onClick={() => handleOpenDialog()}>
-          <Plus className="w-4 h-4 mr-2" />
-          Tambah Pertemuan
-        </Button>
+        <div className="flex gap-2">
+          {selectedPertemuanIds.size > 0 && (
+            <Button 
+              variant="destructive" 
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Hapus {selectedPertemuanIds.size} Terpilih
+            </Button>
+          )}
+          <Button 
+            variant="outline" 
+            onClick={() => setGenerateDialogOpen(true)}
+            disabled={!selectedSemesterId || generating}
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            Generate Otomatis
+          </Button>
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="w-4 h-4 mr-2" />
+            Tambah Pertemuan
+          </Button>
+        </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Filter</CardTitle>
-          <CardDescription>Pilih semester untuk melihat jurnal pertemuan. Kelas dan agenda bersifat opsional.</CardDescription>
+          <CardTitle>Filter & Generate</CardTitle>
+          <CardDescription>
+            Jurnal pertemuan di-generate otomatis berdasarkan jadwal agenda kelas. 
+            Pilih semester untuk melihat atau generate jurnal pertemuan.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
+        <CardContent className="grid gap-4 md:grid-cols-4">
           <div>
             <Label>Semester *</Label>
-            <Select value={selectedSemesterId} onValueChange={setSelectedSemesterId}>
+            <Select value={selectedSemesterId || ''} onValueChange={(value) => {
+              setSelectedSemesterId(value);
+              setSelectedMonth('all'); // Reset bulan saat semester berubah
+            }}>
               <SelectTrigger>
                 <SelectValue placeholder="Pilih semester" />
               </SelectTrigger>
@@ -437,7 +675,7 @@ const JurnalPertemuanPage: React.FC = () => {
           </div>
           <div>
             <Label>Kelas (Opsional)</Label>
-            <Select value={kelasId} onValueChange={setKelasId}>
+            <Select value={kelasId || 'all'} onValueChange={(value) => setKelasId(value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Semua kelas" />
               </SelectTrigger>
@@ -453,7 +691,7 @@ const JurnalPertemuanPage: React.FC = () => {
           </div>
           <div>
             <Label>Agenda (Opsional)</Label>
-            <Select value={agendaId} onValueChange={setAgendaId}>
+            <Select value={agendaId || 'all'} onValueChange={(value) => setAgendaId(value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Semua agenda" />
               </SelectTrigger>
@@ -472,6 +710,22 @@ const JurnalPertemuanPage: React.FC = () => {
               </p>
             )}
           </div>
+          <div>
+            <Label>Bulan (Opsional)</Label>
+            <Select value={selectedMonth || 'all'} onValueChange={(value) => setSelectedMonth(value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Semua bulan" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Bulan</SelectItem>
+                {availableMonths.map(month => (
+                  <SelectItem key={month.value} value={month.value}>
+                    {month.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
@@ -483,15 +737,31 @@ const JurnalPertemuanPage: React.FC = () => {
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">Memuat pertemuan...</div>
-          ) : pertemuanList.length === 0 ? (
+          ) : filteredPertemuanList.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              Tidak ada pertemuan untuk filter ini. Klik “Tambah Pertemuan” untuk menjadwalkan.
+              {selectedMonth !== 'all' 
+                ? 'Tidak ada pertemuan untuk bulan yang dipilih. Coba pilih bulan lain atau "Semua Bulan".'
+                : 'Tidak ada pertemuan untuk filter ini. Klik "Tambah Pertemuan" untuk menjadwalkan.'}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">
+                      <button
+                        onClick={handleSelectAll}
+                        className="flex items-center justify-center"
+                        title={selectedPertemuanIds.size === filteredPertemuanList.length ? 'Deselect all' : 'Select all'}
+                      >
+                        {selectedPertemuanIds.size === filteredPertemuanList.length && filteredPertemuanList.length > 0 ? (
+                          <CheckSquare className="w-4 h-4" />
+                        ) : (
+                          <Square className="w-4 h-4" />
+                        )}
+                      </button>
+                    </TableHead>
+                    <TableHead>No</TableHead>
                     <TableHead>Tanggal</TableHead>
                     <TableHead>Agenda</TableHead>
                     <TableHead>Pengajar</TableHead>
@@ -502,8 +772,15 @@ const JurnalPertemuanPage: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pertemuanList.map(pertemuan => (
+                  {filteredPertemuanList.map((pertemuan, index) => (
                     <TableRow key={pertemuan.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedPertemuanIds.has(pertemuan.id)}
+                          onCheckedChange={() => handleToggleSelect(pertemuan.id)}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell>
                         <div className="font-medium">
                           {new Date(pertemuan.tanggal).toLocaleDateString('id-ID', {
@@ -589,11 +866,10 @@ const JurnalPertemuanPage: React.FC = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {pertemuan.pengajar_nama ? (
-                          pertemuan.pengajar_nama
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
+                        {pertemuan.pengajar_nama || 
+                         pertemuan.agenda?.pengajar_nama || 
+                         pertemuan.agenda?.pengajar?.nama_lengkap || 
+                         <span className="text-muted-foreground">-</span>}
                       </TableCell>
                       <TableCell>{formatStatusBadge(pertemuan.status)}</TableCell>
                       <TableCell className="max-w-xs whitespace-pre-wrap text-sm">
@@ -614,16 +890,8 @@ const JurnalPertemuanPage: React.FC = () => {
                           <Button 
                             size="icon" 
                             variant="ghost" 
-                            onClick={() => handleOpenDialog(pertemuan)}
-                            title="Edit lengkap"
-                          >
-                            <Edit className="w-4 h-4 text-blue-600" />
-                          </Button>
-                          <Button 
-                            size="icon" 
-                            variant="ghost" 
                             onClick={() => handleDeletePertemuan(pertemuan.id)}
-                            title="Hapus"
+                            title="Hapus pertemuan"
                           >
                             <Trash2 className="w-4 h-4 text-red-600" />
                           </Button>
@@ -638,19 +906,20 @@ const JurnalPertemuanPage: React.FC = () => {
         </CardContent>
       </Card>
 
+      {/* Dialog Tambah Pertemuan Baru - Sederhana */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editingPertemuan ? 'Edit Pertemuan' : 'Tambah Pertemuan'}</DialogTitle>
+            <DialogTitle>Tambah Pertemuan</DialogTitle>
             <DialogDescription>
-              Atur jadwal pertemuan untuk agenda kelas ini. Data ini akan membantu rekap dan pengajar.
+              Tambahkan pertemuan baru untuk agenda kelas. Edit pertemuan menggunakan quick actions di tabel.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <Label>Agenda *</Label>
               <Select
-                value={formData.agenda_id}
+                value={formData.agenda_id || undefined}
                 onValueChange={(value) => setFormData({ ...formData, agenda_id: value })}
               >
                 <SelectTrigger>
@@ -673,55 +942,13 @@ const JurnalPertemuanPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })}
               />
             </div>
-            <div>
-              <Label>Status *</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value: PertemuanStatus) => setFormData({ ...formData, status: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Terjadwal">Terjadwal</SelectItem>
-                  <SelectItem value="Berjalan">Berjalan</SelectItem>
-                  <SelectItem value="Selesai">Selesai</SelectItem>
-                  <SelectItem value="Batal">Batal</SelectItem>
-                  <SelectItem value="Tunda">Tunda</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Pengajar</Label>
-              <Input
-                value={formData.pengajar_nama || ''}
-                onChange={(e) => setFormData({ ...formData, pengajar_nama: e.target.value })}
-                placeholder="Contoh: Ust. Ahmad"
-              />
-            </div>
-            <div>
-              <Label>Materi</Label>
-              <Textarea
-                rows={3}
-                value={formData.materi || ''}
-                onChange={(e) => setFormData({ ...formData, materi: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Catatan</Label>
-              <Textarea
-                rows={3}
-                value={formData.catatan || ''}
-                onChange={(e) => setFormData({ ...formData, catatan: e.target.value })}
-              />
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Batal
             </Button>
-            <Button onClick={handleSavePertemuan}>
-              Simpan Pertemuan
+            <Button onClick={handleSavePertemuan} disabled={!formData.agenda_id || !formData.tanggal}>
+              Tambah Pertemuan
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -758,6 +985,56 @@ const JurnalPertemuanPage: React.FC = () => {
             </Button>
             <Button onClick={handleSaveQuickEditJadwal} disabled={!quickEditTanggal}>
               Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Generate Otomatis */}
+      <Dialog open={generateDialogOpen} onOpenChange={setGenerateDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Generate Pertemuan Otomatis</DialogTitle>
+            <DialogDescription>
+              <div className="space-y-2">
+                <p>
+                  Generate jurnal pertemuan secara otomatis berdasarkan <strong>jadwal agenda kelas</strong> yang sudah diatur di modul Master Kelas.
+                </p>
+                <p className="text-xs">
+                  Sistem akan membaca agenda aktif dengan jadwal hari (Senin, Selasa, dll) dan membuat pertemuan untuk setiap hari yang sesuai dalam rentang tanggal agenda (dibatasi oleh semester).
+                </p>
+                <p className="text-xs text-amber-600">
+                  ⚠️ Pastikan agenda kelas sudah diatur dengan benar: hari, tanggal mulai, dan tanggal selesai.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedSemesterId && (
+              <div className="text-sm space-y-2">
+                <p className="font-medium">Parameter Generate:</p>
+                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                  <li>Semester: {semesters.find(s => s.id === selectedSemesterId)?.nama || '-'}</li>
+                  <li>Kelas: {kelasId === 'all' ? 'Semua Kelas' : classes.find(k => k.id === kelasId)?.nama_kelas || '-'}</li>
+                  <li>Agenda: {agendaId === 'all' ? 'Semua Agenda' : agendas.find(a => a.id === agendaId)?.nama_agenda || '-'}</li>
+                </ul>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Pertemuan yang sudah ada akan dilewati. Hanya agenda aktif dengan jadwal hari yang akan di-generate.
+                </p>
+                {kelasId === 'all' && classes.length > 0 && (
+                  <p className="text-xs text-amber-600 mt-2 font-medium">
+                    ⚠️ Akan generate untuk {classes.length} kelas. Proses ini mungkin memakan waktu.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGenerateDialogOpen(false)} disabled={generating}>
+              Batal
+            </Button>
+            <Button onClick={handleGeneratePertemuanOtomatis} disabled={!selectedSemesterId || generating}>
+              {generating ? 'Generating...' : 'Generate'}
             </Button>
           </DialogFooter>
         </DialogContent>

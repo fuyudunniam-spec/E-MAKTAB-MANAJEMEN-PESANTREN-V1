@@ -40,10 +40,20 @@ interface CollectivePaymentData {
   metode: string;
   catatan: string;
   selectedSantri: string[];
+  sumber_pembayaran: 'orang_tua' | 'donatur' | 'yayasan' | '';
+  donatur_id: string;
+}
+
+interface DonaturOption {
+  id: string;
+  donor_name: string;
+  kategori_donasi?: string;
+  status_setoran?: string;
 }
 
 const CollectivePaymentTool: React.FC = () => {
   const [santriOptions, setSantriOptions] = useState<SantriOption[]>([]);
+  const [donaturOptions, setDonaturOptions] = useState<DonaturOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [paymentData, setPaymentData] = useState<CollectivePaymentData>({
@@ -52,12 +62,22 @@ const CollectivePaymentTool: React.FC = () => {
     nominal_per_santri: 0,
     metode: 'Tunai',
     catatan: '',
-    selectedSantri: []
+    selectedSantri: [],
+    sumber_pembayaran: '',
+    donatur_id: ''
   });
 
   useEffect(() => {
     loadSantriOptions();
+    loadDonaturOptions();
   }, []);
+
+  useEffect(() => {
+    // Reset donatur_id when sumber_pembayaran changes
+    if (paymentData.sumber_pembayaran !== 'donatur') {
+      setPaymentData(prev => ({ ...prev, donatur_id: '' }));
+    }
+  }, [paymentData.sumber_pembayaran]);
 
   const loadSantriOptions = async () => {
     try {
@@ -75,6 +95,24 @@ const CollectivePaymentTool: React.FC = () => {
       toast.error('Gagal memuat data santri');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadDonaturOptions = async () => {
+    try {
+      // Load donatur dengan kategori "Orang Tua Asuh Pendidikan" yang sudah disetor
+      const { data, error } = await supabase
+        .from('donations')
+        .select('id, donor_name, kategori_donasi, status_setoran')
+        .eq('kategori_donasi', 'Orang Tua Asuh Pendidikan')
+        .eq('status_setoran', 'Sudah disetor')
+        .order('donor_name');
+
+      if (error) throw error;
+      setDonaturOptions(data || []);
+    } catch (error) {
+      console.error('Error loading donatur options:', error);
+      // Don't show error toast, just log it
     }
   };
 
@@ -118,8 +156,18 @@ const CollectivePaymentTool: React.FC = () => {
         return;
       }
 
+      if (!paymentData.sumber_pembayaran) {
+        toast.error('Sumber pembayaran wajib dipilih.');
+        return;
+      }
+
       if (paymentData.selectedSantri.length === 0) {
         toast.error('Pilih minimal satu santri.');
+        return;
+      }
+
+      if (paymentData.sumber_pembayaran === 'donatur' && !paymentData.donatur_id) {
+        toast.error('Pilih donatur/kampanye jika sumber pembayaran adalah donatur.');
         return;
       }
 
@@ -131,7 +179,9 @@ const CollectivePaymentTool: React.FC = () => {
         nominal: paymentData.nominal_per_santri,
         metode: paymentData.metode,
         catatan: paymentData.catatan,
-        status: 'dibayar'
+        status: 'dibayar',
+        sumber_pembayaran: paymentData.sumber_pembayaran,
+        donatur_id: paymentData.sumber_pembayaran === 'donatur' ? paymentData.donatur_id : null
       }));
 
       // Insert all payments
@@ -150,7 +200,9 @@ const CollectivePaymentTool: React.FC = () => {
         nominal_per_santri: 0,
         metode: 'Tunai',
         catatan: '',
-        selectedSantri: []
+        selectedSantri: [],
+        sumber_pembayaran: '',
+        donatur_id: ''
       });
     } catch (error) {
       console.error('Error saving collective payments:', error);
@@ -245,6 +297,46 @@ const CollectivePaymentTool: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="sumber_pembayaran">Sumber Pembayaran *</Label>
+              <Select 
+                value={paymentData.sumber_pembayaran} 
+                onValueChange={(value) => setPaymentData(prev => ({ ...prev, sumber_pembayaran: value as 'orang_tua' | 'donatur' | 'yayasan' | '' }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih sumber pembayaran" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="orang_tua">Orang Tua / Wali</SelectItem>
+                  <SelectItem value="donatur">Donatur (Orang Tua Asuh Pendidikan)</SelectItem>
+                  <SelectItem value="yayasan">Yayasan / Subsidi Internal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {paymentData.sumber_pembayaran === 'donatur' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="donatur_id">Pilih Donatur / Kampanye *</Label>
+                <Select 
+                  value={paymentData.donatur_id} 
+                  onValueChange={(value) => setPaymentData(prev => ({ ...prev, donatur_id: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih donatur/kampanye" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {donaturOptions.length === 0 ? (
+                      <SelectItem value="" disabled>Tidak ada donatur tersedia</SelectItem>
+                    ) : (
+                      donaturOptions.map(donatur => (
+                        <SelectItem key={donatur.id} value={donatur.id}>
+                          {donatur.donor_name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           
           <div className="space-y-1.5">

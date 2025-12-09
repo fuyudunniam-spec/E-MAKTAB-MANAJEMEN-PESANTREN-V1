@@ -56,7 +56,8 @@ const DonationFormDialog: React.FC<DonationFormDialogProps> = ({
     restricted_tag: null,
     notes: null,
     hajat_doa: null,
-    status: "received"
+      status: "received",
+      kategori_donasi: null
   });
 
   const [itemsForm, setItemsForm] = useState<DonationItem[]>([]);
@@ -87,7 +88,8 @@ const DonationFormDialog: React.FC<DonationFormDialogProps> = ({
           notes: editingDonation.notes,
           hajat_doa: editingDonation.hajat_doa,
           status: editingDonation.status,
-          akun_kas_id: editingDonation.akun_kas_id || null
+          akun_kas_id: editingDonation.akun_kas_id || null,
+          kategori_donasi: (editingDonation as any).kategori_donasi || null
         });
         
         // Load existing donation items
@@ -179,6 +181,44 @@ const DonationFormDialog: React.FC<DonationFormDialogProps> = ({
     }
   };
 
+  // Helper function untuk auto-route akun_kas_id berdasarkan kategori donasi
+  const getAkunKasIdByKategori = async (kategori: string | null | undefined): Promise<string | null> => {
+    if (!kategori) return null;
+    
+    try {
+      let accountNamePattern = '';
+      
+      if (kategori === 'Orang Tua Asuh Pendidikan') {
+        accountNamePattern = '%Pendidikan%Santri%';
+      } else if (kategori === 'Pembangunan') {
+        accountNamePattern = '%Pembangunan%';
+      } else if (kategori === 'Donasi Umum') {
+        accountNamePattern = '%Operasional%';
+      } else {
+        return null;
+      }
+      
+      const { data, error } = await supabase
+        .from('akun_kas')
+        .select('id, nama')
+        .eq('status', 'aktif')
+        .ilike('nama', accountNamePattern)
+        .limit(1)
+        .maybeSingle();
+      
+      if (error || !data) {
+        console.warn(`Akun kas dengan pola "${accountNamePattern}" tidak ditemukan untuk kategori "${kategori}"`);
+        return null;
+      }
+      
+      return data.id;
+    } catch (error) {
+      console.error('Error getting akun kas by kategori:', error);
+      return null;
+    }
+  };
+
+
   const resetForm = () => {
     setDonationForm({
       donation_type: "cash",
@@ -195,7 +235,8 @@ const DonationFormDialog: React.FC<DonationFormDialogProps> = ({
       notes: null,
       hajat_doa: null,
       status: "received",
-      akun_kas_id: null
+      akun_kas_id: null,
+      kategori_donasi: null
     });
     setItemsForm([]);
     setSuggestions({});
@@ -337,9 +378,21 @@ const DonationFormDialog: React.FC<DonationFormDialogProps> = ({
     setValidationErrors({});
 
     try {
+      // Auto-set akun_kas_id berdasarkan kategori_donasi jika belum di-set
+      let finalDonationForm = { ...donationForm };
+      
+      if ((finalDonationForm.donation_type === 'cash' || finalDonationForm.donation_type === 'mixed') &&
+          !finalDonationForm.akun_kas_id && 
+          finalDonationForm.kategori_donasi) {
+        const autoAkunKasId = await getAkunKasIdByKategori(finalDonationForm.kategori_donasi);
+        if (autoAkunKasId) {
+          finalDonationForm.akun_kas_id = autoAkunKasId;
+        }
+      }
+
       const fullDonation: FullDonation = {
-        header: donationForm,
-        items: (donationForm.donation_type === 'in_kind' || donationForm.donation_type === 'mixed') ? itemsForm : []
+        header: finalDonationForm,
+        items: (finalDonationForm.donation_type === 'in_kind' || finalDonationForm.donation_type === 'mixed') ? itemsForm : []
       };
 
       const validated = fullDonationSchema.parse(fullDonation);
@@ -370,6 +423,7 @@ const DonationFormDialog: React.FC<DonationFormDialogProps> = ({
           notes: validated.header.notes,
           hajat_doa: validated.header.hajat_doa,
           status: validated.header.status,
+          kategori_donasi: validated.header.kategori_donasi,
           updated_at: new Date().toISOString()
         };
 
@@ -447,7 +501,10 @@ const DonationFormDialog: React.FC<DonationFormDialogProps> = ({
           restricted_tag: validated.header.restricted_tag,
           notes: validated.header.notes,
           hajat_doa: validated.header.hajat_doa,
-          status: validated.header.status
+          status: validated.header.status,
+          kategori_donasi: validated.header.kategori_donasi,
+          status_setoran: "Belum disetor",
+          tanggal_setoran: null
         };
 
         // Only include akun_kas_id for cash/mixed donations
@@ -518,34 +575,80 @@ const DonationFormDialog: React.FC<DonationFormDialogProps> = ({
           <DialogTitle>{editingDonation ? 'Edit Donasi' : 'Catat Donasi'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Donation Type */}
+          {/* Kategori Donasi */}
           <div className="space-y-2">
-            <Label>Tipe Donasi *</Label>
+            <Label>Kategori Donasi *</Label>
             <Select 
-              value={donationForm.donation_type} 
+              value={donationForm.kategori_donasi || ""} 
               onValueChange={(value: any) => {
-                setDonationForm({ ...donationForm, donation_type: value });
-                // Clear akun_kas_id validation error when changing donation type
-                if (validationErrors.akun_kas_id) {
-                  setValidationErrors({ ...validationErrors, akun_kas_id: '' });
-                }
+                const newKategori = value || null;
+                setDonationForm({ 
+                  ...donationForm, 
+                  kategori_donasi: newKategori,
+                  // Reset donation_type jika kategori bukan "Donasi Umum" dan saat ini adalah in_kind
+                  donation_type: (newKategori !== "Donasi Umum" && donationForm.donation_type === "in_kind") 
+                    ? "cash" 
+                    : donationForm.donation_type,
+                  // Auto-route akun_kas_id berdasarkan kategori (akan di-set saat submit)
+                  akun_kas_id: null
+                });
               }}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Pilih kategori donasi" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="cash">Tunai</SelectItem>
-                <SelectItem value="in_kind">Barang</SelectItem>
-                <SelectItem value="mixed">
-                  <div className="flex flex-col">
-                    <span className="font-medium">Campuran (Tunai + Barang)</span>
-                    <span className="text-xs text-muted-foreground">Tunai dan barang sekaligus</span>
-                  </div>
-                </SelectItem>
+                <SelectItem value="Orang Tua Asuh Pendidikan">Orang Tua Asuh Pendidikan</SelectItem>
+                <SelectItem value="Pembangunan">Pembangunan</SelectItem>
+                <SelectItem value="Donasi Umum">Donasi Umum</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Pilih kategori donasi untuk menentukan akun kas tujuan secara otomatis
+            </p>
           </div>
+
+          {/* Donation Type - hanya tunai jika bukan Donasi Umum */}
+          {donationForm.kategori_donasi && (
+            <div className="space-y-2">
+              <Label>Tipe Donasi *</Label>
+              <Select 
+                value={donationForm.donation_type} 
+                onValueChange={(value: any) => {
+                  setDonationForm({ ...donationForm, donation_type: value });
+                  // Clear akun_kas_id validation error when changing donation type
+                  if (validationErrors.akun_kas_id) {
+                    setValidationErrors({ ...validationErrors, akun_kas_id: '' });
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {donationForm.kategori_donasi === "Donasi Umum" ? (
+                    <>
+                      <SelectItem value="cash">Tunai</SelectItem>
+                      <SelectItem value="in_kind">Barang</SelectItem>
+                      <SelectItem value="mixed">
+                        <div className="flex flex-col">
+                          <span className="font-medium">Campuran (Tunai + Barang)</span>
+                          <span className="text-xs text-muted-foreground">Tunai dan barang sekaligus</span>
+                        </div>
+                      </SelectItem>
+                    </>
+                  ) : (
+                    <SelectItem value="cash">Tunai</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              {donationForm.kategori_donasi !== "Donasi Umum" && (
+                <p className="text-xs text-muted-foreground">
+                  Kategori ini hanya mendukung donasi tunai
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Donor Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -632,36 +735,72 @@ const DonationFormDialog: React.FC<DonationFormDialogProps> = ({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="akun_kas_id">Akun Kas *</Label>
-                <Select 
-                  value={donationForm.akun_kas_id || ""} 
-                  onValueChange={(value) => {
-                    setDonationForm({ ...donationForm, akun_kas_id: value || null });
-                    // Clear validation error when user selects a value
-                    if (validationErrors.akun_kas_id) {
-                      setValidationErrors({ ...validationErrors, akun_kas_id: '' });
-                    }
-                  }}
-                >
-                  <SelectTrigger className={validationErrors.akun_kas_id ? "border-red-500" : ""}>
-                    <SelectValue placeholder="Pilih akun kas tujuan" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {akunKasList.map((akun) => (
-                      <SelectItem key={akun.id} value={akun.id}>
-                        {akun.nama} {akun.is_default && '(Default)'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {validationErrors.akun_kas_id ? (
-                  <p className="text-xs text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {validationErrors.akun_kas_id}
-                  </p>
+                {donationForm.kategori_donasi ? (
+                  <div className="space-y-2">
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <span>
+                          Akun kas akan otomatis di-set berdasarkan kategori donasi:
+                          <br />
+                          {donationForm.kategori_donasi === 'Orang Tua Asuh Pendidikan' && '→ Kas Pendidikan Santri'}
+                          {donationForm.kategori_donasi === 'Pembangunan' && '→ Bank Pembangunan'}
+                          {donationForm.kategori_donasi === 'Donasi Umum' && '→ Bank Operasional Umum'}
+                        </span>
+                      </p>
+                    </div>
+                    {donationForm.akun_kas_id && (
+                      <Select 
+                        value={donationForm.akun_kas_id || ""} 
+                        disabled
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {akunKasList.map((akun) => (
+                            <SelectItem key={akun.id} value={akun.id}>
+                              {akun.nama} {akun.is_default && '(Default)'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Pilih akun kas atau bank tempat donasi akan dicatat
-                  </p>
+                  <>
+                    <Select 
+                      value={donationForm.akun_kas_id || ""} 
+                      onValueChange={(value) => {
+                        setDonationForm({ ...donationForm, akun_kas_id: value || null });
+                        // Clear validation error when user selects a value
+                        if (validationErrors.akun_kas_id) {
+                          setValidationErrors({ ...validationErrors, akun_kas_id: '' });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className={validationErrors.akun_kas_id ? "border-red-500" : ""}>
+                        <SelectValue placeholder="Pilih akun kas tujuan" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {akunKasList.map((akun) => (
+                          <SelectItem key={akun.id} value={akun.id}>
+                            {akun.nama} {akun.is_default && '(Default)'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {validationErrors.akun_kas_id ? (
+                      <p className="text-xs text-red-600 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {validationErrors.akun_kas_id}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Pilih akun kas atau bank tempat donasi akan dicatat
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
               {donationForm.status === 'received' && (

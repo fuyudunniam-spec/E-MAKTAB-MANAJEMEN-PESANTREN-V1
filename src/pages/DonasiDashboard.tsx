@@ -46,6 +46,14 @@ interface Donation {
     quantity: number;
     uom: string;
   }>;
+  // New fields
+  kategori_donasi?: string | null;
+  penerima_awal_id?: string | null;
+  penerima_awal?: { id: string; full_name: string } | null;
+  status_setoran?: string | null;
+  tanggal_setoran?: string | null;
+  akun_kas_id?: string | null;
+  has_keuangan_transaction?: boolean; // Flag untuk menandakan apakah sudah ada transaksi keuangan
 }
 
 const DonasiDashboard: React.FC = () => {
@@ -102,7 +110,10 @@ const DonasiDashboard: React.FC = () => {
     // Limit to last 200 donations untuk optimasi loading
     const { data: donationsData, error: donationsError } = await supabase
       .from('donations')
-      .select('*')
+      .select(`
+        *,
+        penerima_awal:profiles!donations_penerima_awal_id_fkey(id, full_name)
+      `)
       .order('donation_date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(200);
@@ -137,9 +148,27 @@ const DonasiDashboard: React.FC = () => {
       itemsMap.get(item.donation_id)!.push(item);
     });
 
+    // Check which donations have keuangan transactions
+    const { data: keuanganData, error: keuanganError } = await supabase
+      .from('keuangan')
+      .select('source_id')
+      .eq('source_module', 'donasi')
+      .in('source_id', donationIds)
+      .eq('auto_posted', true);
+
+    if (keuanganError) {
+      console.error('Error checking keuangan transactions:', keuanganError);
+    }
+
+    // Create a set of donation IDs that have keuangan transactions
+    const hasKeuanganSet = new Set(
+      (keuanganData || []).map(k => k.source_id).filter(Boolean)
+    );
+
     const donations = donationsData.map(donation => ({
       ...donation,
-      items: itemsMap.get(donation.id) || []
+      items: itemsMap.get(donation.id) || [],
+      has_keuangan_transaction: hasKeuanganSet.has(donation.id)
     }));
 
     return donations;

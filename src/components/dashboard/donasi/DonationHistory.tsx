@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Filter, MoreHorizontal, Eye, Edit, Trash2, X, Calendar, FileText, Heart, DollarSign, Package, Clock, Utensils, Box, Printer } from 'lucide-react';
+import { Search, Filter, MoreHorizontal, Eye, Edit, Trash2, X, Calendar, FileText, Heart, DollarSign, Package, Clock, Utensils, Box, Printer, User, CheckCircle, GraduationCap, Building2, HeartHandshake } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -14,6 +14,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface DonationItem {
   donation_id: string;
@@ -44,6 +46,14 @@ export interface Donation {
   posted_to_finance_at?: string;
   created_at: string;
   items?: DonationItem[];
+  // New fields
+  kategori_donasi?: string | null;
+  penerima_awal_id?: string | null;
+  penerima_awal?: { id: string; full_name: string } | null;
+  status_setoran?: string | null;
+  tanggal_setoran?: string | null;
+  akun_kas_id?: string | null;
+  has_keuangan_transaction?: boolean; // Flag untuk menandakan apakah sudah ada transaksi keuangan
 }
 
 interface DonationHistoryProps {
@@ -82,6 +92,11 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
   
   // Item type tab filter
   const [itemTypeTab, setItemTypeTab] = useState<'all' | 'inventory' | 'direct_consumption'>('all');
+  
+  // Pengurus list for dropdown
+  const [pengurusList, setPengurusList] = useState<Array<{ id: string; full_name: string }>>([]);
+  const [editingPenerimaAwal, setEditingPenerimaAwal] = useState<string | null>(null);
+  const [editingStatusSetoran, setEditingStatusSetoran] = useState<string | null>(null);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -102,6 +117,330 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
     });
   };
 
+  // Load pengurus list
+  useEffect(() => {
+    const loadPengurusList = async () => {
+      try {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .order('full_name', { ascending: true });
+        
+        if (profilesError) throw profilesError;
+        
+        const userIds = (profiles || []).map(p => p.id);
+        
+        const { data: roles, error: rolesError } = await supabase
+          .from('user_roles')
+          .select('user_id, role')
+          .in('user_id', userIds);
+        
+        if (rolesError) throw rolesError;
+        
+        const rolesMap: Record<string, string[]> = {};
+        (roles || []).forEach(r => {
+          if (!rolesMap[r.user_id]) rolesMap[r.user_id] = [];
+          rolesMap[r.user_id].push(r.role);
+        });
+        
+        const pengurusProfiles = (profiles || []).filter(p => {
+          const userRoles = rolesMap[p.id] || [];
+          return userRoles.some(role => 
+            ['admin', 'pengurus', 'admin_keuangan', 'admin_inventaris', 'admin_akademik'].includes(role)
+          ) && !userRoles.includes('santri');
+        });
+        
+        setPengurusList(pengurusProfiles);
+      } catch (error) {
+        console.error('Error loading pengurus list:', error);
+      }
+    };
+    
+    loadPengurusList();
+  }, []);
+
+  // Update penerima awal
+  const handleUpdatePenerimaAwal = async (donationId: string, penerimaAwalId: string | null) => {
+    try {
+      const { error } = await supabase
+        .from('donations')
+        .update({ penerima_awal_id: penerimaAwalId })
+        .eq('id', donationId);
+      
+      if (error) throw error;
+      
+      toast.success('Penerima awal berhasil diupdate');
+      setEditingPenerimaAwal(null);
+      
+      // Trigger window reload to refresh data
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch (error: any) {
+      console.error('Error updating penerima awal:', error);
+      toast.error('Gagal mengupdate penerima awal: ' + error.message);
+    }
+  };
+
+  // Helper function untuk mapping kategori_donasi ke kategori keuangan
+  const getKategoriKeuangan = (kategoriDonasi: string | null | undefined): string => {
+    switch (kategoriDonasi) {
+      case 'Orang Tua Asuh Pendidikan':
+        return 'Donasi Pendidikan';
+      case 'Pembangunan':
+        return 'Donasi Pembangunan';
+      case 'Donasi Umum':
+        return 'Donasi Umum';
+      default:
+        return 'Donasi';
+    }
+  };
+
+  // Helper function untuk auto-route akun_kas_id berdasarkan kategori donasi
+  const getAkunKasIdByKategori = async (kategori: string | null | undefined): Promise<string | null> => {
+    if (!kategori) return null;
+    
+    try {
+      let accountNamePattern = '';
+      
+      if (kategori === 'Orang Tua Asuh Pendidikan') {
+        accountNamePattern = '%Pendidikan%Santri%';
+      } else if (kategori === 'Pembangunan') {
+        accountNamePattern = '%Pembangunan%';
+      } else if (kategori === 'Donasi Umum') {
+        accountNamePattern = '%Operasional%';
+      } else {
+        return null;
+      }
+      
+      const { data, error } = await supabase
+        .from('akun_kas')
+        .select('id, nama')
+        .eq('status', 'aktif')
+        .ilike('nama', accountNamePattern)
+        .limit(1)
+        .maybeSingle();
+      
+      if (error || !data) {
+        console.warn(`Akun kas dengan pola "${accountNamePattern}" tidak ditemukan untuk kategori "${kategori}"`);
+        return null;
+      }
+      
+      return data.id;
+    } catch (error) {
+      console.error('Error getting akun kas by kategori:', error);
+      return null;
+    }
+  };
+
+  // Helper function untuk cek apakah sudah ada transaksi keuangan untuk donasi ini
+  const checkExistingKeuanganTransaction = async (donationId: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('keuangan')
+        .select('id')
+        .eq('source_module', 'donasi')
+        .eq('source_id', donationId)
+        .eq('auto_posted', true)
+        .limit(1)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error checking existing keuangan transaction:', error);
+        return false;
+      }
+      
+      return !!data;
+    } catch (error) {
+      console.error('Error checking existing keuangan transaction:', error);
+      return false;
+    }
+  };
+
+  // Helper function untuk membuat transaksi keuangan dari donasi
+  const createKeuanganTransactionFromDonation = async (donation: Donation): Promise<void> => {
+    // Validasi: Donasi barang tidak boleh membuat transaksi kas
+    if (donation.donation_type === 'in_kind') {
+      return; // Skip untuk donasi barang
+    }
+
+    // Validasi: Harus ada cash_amount
+    if (!donation.cash_amount || donation.cash_amount <= 0) {
+      throw new Error('Donasi tunai harus memiliki jumlah uang yang valid');
+    }
+
+    // Validasi: Harus ada tanggal_setoran
+    if (!donation.tanggal_setoran) {
+      throw new Error('Tanggal setoran harus diisi untuk membuat transaksi keuangan');
+    }
+
+    // Cek apakah sudah ada transaksi keuangan untuk donasi ini
+    const existingTransaction = await checkExistingKeuanganTransaction(donation.id);
+    if (existingTransaction) {
+      console.log(`Transaksi keuangan untuk donasi ${donation.id} sudah ada, skip pembuatan`);
+      return; // Sudah ada, tidak perlu membuat lagi
+    }
+
+    // Tentukan akun_kas_id
+    let akunKasId = donation.akun_kas_id || null;
+    
+    // Jika akun_kas_id belum ada, coba auto-route berdasarkan kategori_donasi
+    if (!akunKasId && donation.kategori_donasi) {
+      akunKasId = await getAkunKasIdByKategori(donation.kategori_donasi);
+    }
+
+    // Jika masih belum ada, ambil default account
+    if (!akunKasId) {
+      const { data: defaultAccount, error: defaultError } = await supabase
+        .from('akun_kas')
+        .select('id')
+        .eq('is_default', true)
+        .eq('status', 'aktif')
+        .limit(1)
+        .maybeSingle();
+      
+      if (defaultError || !defaultAccount) {
+        throw new Error('Tidak dapat menentukan akun kas untuk transaksi ini');
+      }
+      
+      akunKasId = defaultAccount.id;
+    }
+
+    // Mapping kategori donasi ke kategori keuangan
+    const kategoriKeuangan = getKategoriKeuangan(donation.kategori_donasi);
+
+    // Build deskripsi
+    let deskripsi = `Donasi dari ${donation.donor_name}`;
+    if (donation.kategori_donasi) {
+      deskripsi += ` (${donation.kategori_donasi})`;
+    }
+
+    // Buat transaksi keuangan
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+
+    const keuanganData = {
+      tanggal: donation.tanggal_setoran,
+      jenis_transaksi: 'Pemasukan',
+      kategori: kategoriKeuangan,
+      jumlah: donation.cash_amount,
+      deskripsi: deskripsi,
+      referensi: `donasi:${donation.id}`,
+      akun_kas_id: akunKasId,
+      status: 'posted',
+      auto_posted: true,
+      source_module: 'donasi',
+      source_id: donation.id,
+      created_by: userId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { error: keuanganError } = await supabase
+      .from('keuangan')
+      .insert([keuanganData]);
+
+    if (keuanganError) {
+      throw new Error(`Gagal membuat transaksi keuangan: ${keuanganError.message}`);
+    }
+  };
+
+  // Update status setoran
+  const handleUpdateStatusSetoran = async (
+    donationId: string, 
+    statusSetoran: string,
+    tanggalSetoran?: string | null,
+    oldStatusSetoran?: string | null
+  ) => {
+    try {
+      // Blokir perubahan dari 'Sudah disetor' → 'Belum disetor'
+      if (oldStatusSetoran === 'Sudah disetor' && statusSetoran === 'Belum disetor') {
+        toast.error('Status setoran yang sudah "Sudah disetor" tidak bisa dikembalikan menjadi "Belum disetor"');
+        setEditingStatusSetoran(null);
+        return;
+      }
+
+      // Ambil data donasi lengkap untuk validasi dan membuat transaksi
+      const { data: donationData, error: donationError } = await supabase
+        .from('donations')
+        .select('*')
+        .eq('id', donationId)
+        .single();
+
+      if (donationError) throw donationError;
+      if (!donationData) throw new Error('Donasi tidak ditemukan');
+
+      // Jika perubahan dari 'Belum disetor' → 'Sudah disetor'
+      if ((oldStatusSetoran === 'Belum disetor' || !oldStatusSetoran) && statusSetoran === 'Sudah disetor') {
+        // Set tanggal_setoran jika belum ada
+        if (!tanggalSetoran) {
+          tanggalSetoran = new Date().toISOString().split('T')[0];
+        }
+
+        // Pastikan akun_kas_id sudah terisi
+        let finalAkunKasId = donationData.akun_kas_id;
+        
+        // Jika belum ada, coba auto-route berdasarkan kategori_donasi
+        if (!finalAkunKasId && donationData.kategori_donasi) {
+          finalAkunKasId = await getAkunKasIdByKategori(donationData.kategori_donasi);
+          
+          // Update akun_kas_id di donations jika ditemukan
+          if (finalAkunKasId) {
+            const { error: updateAkunError } = await supabase
+              .from('donations')
+              .update({ akun_kas_id: finalAkunKasId })
+              .eq('id', donationId);
+            
+            if (updateAkunError) {
+              console.warn('Warning: Gagal update akun_kas_id:', updateAkunError);
+            }
+          }
+        }
+
+        // Cek apakah sudah ada transaksi keuangan untuk donasi ini
+        const existingTransaction = await checkExistingKeuanganTransaction(donationId);
+        
+        // Buat transaksi keuangan jika belum ada (hanya untuk donasi tunai/campuran, bukan barang)
+        if (!existingTransaction && donationData.donation_type !== 'in_kind') {
+          // Siapkan data donasi untuk membuat transaksi
+          const donationForTransaction: Donation = {
+            ...donationData,
+            akun_kas_id: finalAkunKasId || donationData.akun_kas_id,
+            tanggal_setoran: tanggalSetoran || donationData.tanggal_setoran
+          } as Donation;
+
+          await createKeuanganTransactionFromDonation(donationForTransaction);
+        }
+      }
+
+      // Update status setoran dan tanggal setoran
+      const updateData: any = { status_setoran: statusSetoran };
+      if (statusSetoran === 'Sudah disetor' && tanggalSetoran) {
+        updateData.tanggal_setoran = tanggalSetoran;
+      } else if (statusSetoran === 'Belum disetor') {
+        updateData.tanggal_setoran = null;
+      }
+      
+      const { error } = await supabase
+        .from('donations')
+        .update(updateData)
+        .eq('id', donationId);
+      
+      if (error) throw error;
+      
+      toast.success('Status setoran berhasil diupdate');
+      setEditingStatusSetoran(null);
+      
+      // Trigger window reload to refresh data
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch (error: any) {
+      console.error('Error updating status setoran:', error);
+      toast.error('Gagal mengupdate status setoran: ' + error.message);
+    }
+  };
+
   const getDonationTypeIcon = (type: string) => {
     switch (type) {
       case 'cash':
@@ -114,6 +453,22 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
         return <Heart className="h-4 w-4 text-rose-600" />;
     }
   };
+
+  const getKategoriDonasiIcon = (kategori: string | null | undefined) => {
+    if (!kategori) return null;
+    
+    switch (kategori) {
+      case 'Orang Tua Asuh Pendidikan':
+        return <GraduationCap className="h-3.5 w-3.5 text-blue-600" />;
+      case 'Pembangunan':
+        return <Building2 className="h-3.5 w-3.5 text-orange-600" />;
+      case 'Donasi Umum':
+        return <HeartHandshake className="h-3.5 w-3.5 text-green-600" />;
+      default:
+        return <Heart className="h-3.5 w-3.5 text-gray-600" />;
+    }
+  };
+
 
   const getDonationTypeLabel = (type: string) => {
     switch (type) {
@@ -501,7 +856,7 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
                         </button>
                       </th>
                       <th className="text-left py-2 px-3 text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        Tipe
+                        Tipe / Kategori
                       </th>
                       <th className="text-left py-2 px-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Rincian Item
@@ -518,7 +873,7 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
                         </button>
                       </th>
                       <th className="text-left py-2 px-3 text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        Status
+                        Status / Setoran
                       </th>
                       <th className="text-right py-2 px-3 text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
                         Aksi
@@ -545,9 +900,19 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
                             )}
                           </td>
                           <td className="py-2 px-3 whitespace-nowrap">
-                            <div className="flex items-center gap-1.5">
-                              {getDonationTypeIcon(donation.donation_type)}
-                              <span className="text-xs text-gray-700">{getDonationTypeLabel(donation.donation_type)}</span>
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5">
+                                {getDonationTypeIcon(donation.donation_type)}
+                                <span className="text-xs text-gray-700">{getDonationTypeLabel(donation.donation_type)}</span>
+                              </div>
+                              {donation.kategori_donasi && (
+                                <div className="flex items-center gap-1.5">
+                                  {getKategoriDonasiIcon(donation.kategori_donasi)}
+                                  <span className="text-[10px] text-gray-500 truncate max-w-[120px]" title={donation.kategori_donasi || ''}>
+                                    {donation.kategori_donasi}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </td>
                           <td className="py-2 px-3">
@@ -625,7 +990,82 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
                             })()}
                           </td>
                           <td className="py-2 px-3 whitespace-nowrap">
-                            {getStatusBadge(donation.status)}
+                            <div className="flex flex-col gap-1.5">
+                              {getStatusBadge(donation.status)}
+                              {/* Status Setoran */}
+                              {editingStatusSetoran === donation.id ? (
+                                <div className="space-y-1">
+                                  <Select
+                                    value={donation.status_setoran || "Belum disetor"}
+                                    onValueChange={(value) => {
+                                      const oldStatus = donation.status_setoran || "Belum disetor";
+                                      if (value === "Sudah disetor") {
+                                        const today = new Date().toISOString().split('T')[0];
+                                        handleUpdateStatusSetoran(donation.id, value, donation.tanggal_setoran || today, oldStatus);
+                                      } else {
+                                        handleUpdateStatusSetoran(donation.id, value, null, oldStatus);
+                                      }
+                                    }}
+                                    onOpenChange={(open) => {
+                                      if (!open) setEditingStatusSetoran(null);
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs w-[140px]">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="Belum disetor">Belum disetor</SelectItem>
+                                      <SelectItem value="Sudah disetor">Sudah disetor</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  {donation.status_setoran === "Sudah disetor" && donation.tanggal_setoran && (
+                                    <div className="text-[10px] text-gray-500">
+                                      {formatDate(donation.tanggal_setoran)}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div
+                                  className="text-xs cursor-pointer hover:text-blue-600 hover:underline"
+                                  onClick={() => setEditingStatusSetoran(donation.id)}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    {donation.status_setoran === "Sudah disetor" ? (
+                                      <>
+                                        <CheckCircle className="h-3 w-3 text-green-600" />
+                                        <span className="text-green-700 font-medium">Sudah disetor</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Clock className="h-3 w-3 text-gray-400" />
+                                        <span className="text-gray-600">Belum disetor</span>
+                                      </>
+                                    )}
+                                  </div>
+                                  {donation.status_setoran === "Sudah disetor" && donation.tanggal_setoran && (
+                                    <div className="text-[10px] text-gray-500 mt-0.5">
+                                      {formatDate(donation.tanggal_setoran)}
+                                    </div>
+                                  )}
+                                  {/* Badge "Masuk kas" jika sudah ada transaksi keuangan */}
+                                  {donation.status_setoran === "Sudah disetor" && donation.has_keuangan_transaction && (
+                                    <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0 h-4 flex items-center gap-1 mt-1">
+                                      <DollarSign className="h-2.5 w-2.5" />
+                                      Masuk kas
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
+                              {/* Penerima Awal - Compact */}
+                              {donation.penerima_awal?.full_name && (
+                                <div className="text-[10px] text-gray-500 flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  <span className="truncate max-w-[120px]" title={donation.penerima_awal.full_name}>
+                                    {donation.penerima_awal.full_name}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className="py-2 px-3">
                             <div className="flex items-center justify-end gap-0.5">
@@ -701,6 +1141,12 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
                           {getDonationTypeIcon(donation.donation_type)}
                           <span className="text-sm font-semibold text-gray-900 truncate">{donation.donor_name}</span>
                         </div>
+                        {donation.kategori_donasi && (
+                          <div className="flex items-center gap-1.5 mb-1">
+                            {getKategoriDonasiIcon(donation.kategori_donasi)}
+                            <span className="text-[10px] text-gray-500">{donation.kategori_donasi}</span>
+                          </div>
+                        )}
                         <div className="text-xs text-gray-500 mb-2">{formatDate(donation.donation_date)}</div>
                         {donation.donor_email && (
                           <div className="text-xs text-gray-500 truncate">{donation.donor_email}</div>
@@ -792,7 +1238,131 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
                           return null;
                         })()}
                       </div>
-                      {getStatusBadge(donation.status)}
+                      <div className="flex flex-col items-end gap-1">
+                        {getStatusBadge(donation.status)}
+                        {/* Status Setoran - Compact */}
+                        {donation.status_setoran === "Sudah disetor" ? (
+                          <div className="flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3 text-green-600" />
+                            <span className="text-[10px] text-green-700">Sudah disetor</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-gray-400" />
+                            <span className="text-[10px] text-gray-500">Belum disetor</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Penerima Awal & Status Setoran - Mobile View (untuk edit) */}
+                    <div className="pt-2 border-t border-gray-100 space-y-2">
+                      <div>
+                        <div className="text-[10px] text-gray-500 mb-1">Penerima Awal</div>
+                        {editingPenerimaAwal === donation.id ? (
+                          <Select
+                            value={donation.penerima_awal_id || undefined}
+                            onValueChange={(value) => {
+                              if (value === "__none__") {
+                                handleUpdatePenerimaAwal(donation.id, null);
+                              } else {
+                                handleUpdatePenerimaAwal(donation.id, value);
+                              }
+                            }}
+                            onOpenChange={(open) => {
+                              if (!open) setEditingPenerimaAwal(null);
+                            }}
+                          >
+                            <SelectTrigger className="h-7 text-xs">
+                              <SelectValue placeholder="Pilih penerima" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">Tidak dipilih</SelectItem>
+                              {pengurusList.map((pengurus) => (
+                                <SelectItem key={pengurus.id} value={pengurus.id}>
+                                  {pengurus.full_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div
+                            className="text-xs text-gray-700 cursor-pointer hover:text-blue-600 hover:underline"
+                            onClick={() => setEditingPenerimaAwal(donation.id)}
+                          >
+                            {donation.penerima_awal?.full_name || (
+                              <span className="text-gray-400 italic">Klik untuk set</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <div className="text-[10px] text-gray-500 mb-1">Status Setoran</div>
+                        {editingStatusSetoran === donation.id ? (
+                          <div className="space-y-1">
+                            <Select
+                              value={donation.status_setoran || "Belum disetor"}
+                              onValueChange={(value) => {
+                                const oldStatus = donation.status_setoran || "Belum disetor";
+                                if (value === "Sudah disetor") {
+                                  const today = new Date().toISOString().split('T')[0];
+                                  handleUpdateStatusSetoran(donation.id, value, donation.tanggal_setoran || today, oldStatus);
+                                } else {
+                                  handleUpdateStatusSetoran(donation.id, value, null, oldStatus);
+                                }
+                              }}
+                              onOpenChange={(open) => {
+                                if (!open) setEditingStatusSetoran(null);
+                              }}
+                            >
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Belum disetor">Belum disetor</SelectItem>
+                                <SelectItem value="Sudah disetor">Sudah disetor</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {donation.status_setoran === "Sudah disetor" && donation.tanggal_setoran && (
+                              <div className="text-[10px] text-gray-500">
+                                {formatDate(donation.tanggal_setoran)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div
+                            className="text-xs cursor-pointer hover:text-blue-600 hover:underline"
+                            onClick={() => setEditingStatusSetoran(donation.id)}
+                          >
+                            <div className="flex items-center gap-1">
+                              {donation.status_setoran === "Sudah disetor" ? (
+                                <>
+                                  <CheckCircle className="h-3 w-3 text-green-600" />
+                                  <span className="text-green-700 font-medium">Sudah disetor</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="h-3 w-3 text-gray-400" />
+                                  <span className="text-gray-600">Belum disetor</span>
+                                </>
+                              )}
+                            </div>
+                            {donation.status_setoran === "Sudah disetor" && donation.tanggal_setoran && (
+                              <div className="text-[10px] text-gray-500 mt-0.5">
+                                {formatDate(donation.tanggal_setoran)}
+                              </div>
+                            )}
+                            {/* Badge "Masuk kas" jika sudah ada transaksi keuangan */}
+                            {donation.status_setoran === "Sudah disetor" && donation.has_keuangan_transaction && (
+                              <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0 h-4 flex items-center gap-1 mt-1">
+                                <DollarSign className="h-2.5 w-2.5" />
+                                Masuk kas
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

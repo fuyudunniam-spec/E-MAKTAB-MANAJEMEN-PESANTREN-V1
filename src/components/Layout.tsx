@@ -153,6 +153,13 @@ const SidebarContent = () => {
         ),
         // Operasional Harian
         { icon: BookMarked, label: 'Jadwal & Presensi', path: '/akademik/pertemuan', dividerBefore: user?.role === 'pengajar' || user?.roles?.includes('pengajar') },
+        ...(user?.role === 'admin' || user?.roles?.includes('admin') || user?.role === 'pengajar' || user?.roles?.includes('pengajar')
+          ? [
+              { icon: GraduationCap, label: 'Input Nilai', path: '/akademik/nilai' },
+              { icon: FileText, label: 'Rapot', path: '/akademik/rapot' }
+            ]
+          : []
+        ),
         ...(user?.role === 'admin' || user?.roles?.includes('admin')
           ? [{ icon: Coins, label: 'Setoran', path: '/akademik/setoran' }]
           : []

@@ -263,3 +263,4 @@ const SetorCashDialog: React.FC<SetorCashDialogProps> = ({
 export default SetorCashDialog;
 
 
+

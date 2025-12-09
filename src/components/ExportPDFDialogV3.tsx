@@ -500,8 +500,22 @@ class LocalPDFExporter {
     this.doc.setFontSize(10);
     this.doc.text(`Periode: ${periodText}`, 14, 26);
     
+    // Tampilkan jenis laporan
+    if (data.isCumulative) {
+      this.doc.setFontSize(8);
+      this.doc.setTextColor(100, 100, 100);
+      this.doc.text('Laporan Akumulatif (Saldo Awal = Saldo Akhir Periode Sebelumnya)', 14, 32);
+      this.doc.setTextColor(0, 0, 0);
+    } else {
+      this.doc.setFontSize(8);
+      this.doc.setTextColor(100, 100, 100);
+      this.doc.text('Laporan Bulanan (Saldo Awal = 0)', 14, 32);
+      this.doc.setTextColor(0, 0, 0);
+    }
+    
     // Summary Cards - Create card-style boxes in a single row
-    const y0 = 34;
+    // Adjust y0 based on whether we show report type info
+    const y0 = data.isCumulative ? 40 : 40;
     
     // Calculate card dimensions for single row layout
     const pageWidth = this.doc.internal.pageSize.getWidth();
@@ -644,7 +658,8 @@ const fetchCashflowPerAccount = async (
   period: PeriodFilter,
   accountId: string,
   accountName: string,
-  includeDraft: boolean = false
+  includeDraft: boolean = false,
+  useCumulativeBalance: boolean = false
 ) => {
   // Ambil saldo awal akun
   const { data: akun } = await supabase
@@ -653,7 +668,6 @@ const fetchCashflowPerAccount = async (
     .eq('id', accountId)
     .single();
 
-  // Ambil transaksi posted pada periode untuk akun (dengan rincian_pengeluaran)
   // Ensure dates are set to start/end of day to include all transactions
   const startDate = new Date(period.start);
   startDate.setHours(0, 0, 0, 0);
@@ -731,16 +745,42 @@ const fetchCashflowPerAccount = async (
   const all = txs || [];
   const totalPemasukan = all.filter(t => t.jenis_transaksi === 'Pemasukan').reduce((s, t) => s + (t.jumlah || 0), 0);
   const totalPengeluaran = all.filter(t => t.jenis_transaksi === 'Pengeluaran').reduce((s, t) => s + (t.jumlah || 0), 0);
-  const saldoAwal = akun?.saldo_awal || 0;
+  
+  // Hitung saldo awal berdasarkan opsi yang dipilih
+  let saldoAwal = 0;
+  if (useCumulativeBalance) {
+    // Laporan Akumulatif: Hitung saldo akhir periode sebelumnya
+    const { data: prevTransactions } = await supabase
+      .from('keuangan')
+      .select('jenis_transaksi, jumlah, status')
+      .eq('akun_kas_id', accountId)
+      .lt('tanggal', startDate.toISOString().split('T')[0])
+      .eq('status', 'posted');
+    
+    saldoAwal = (akun?.saldo_awal || 0) + 
+      (prevTransactions || []).reduce((sum, t) => {
+        if (t.jenis_transaksi === 'Pemasukan') return sum + (t.jumlah || 0);
+        if (t.jenis_transaksi === 'Pengeluaran') return sum - (t.jumlah || 0);
+        return sum;
+      }, 0);
+  } else {
+    // Laporan Bulanan (default): Saldo awal = 0 (setiap bulan dimulai dari nol)
+    saldoAwal = 0;
+  }
+  
   const selisih = totalPemasukan - totalPengeluaran;
   const saldoAkhir = saldoAwal + selisih;
   
   console.log('[EXPORT PDF] Transaction summary:', {
+    useCumulativeBalance,
+    saldoAwalAkun: akun?.saldo_awal || 0,
+    saldoAwal,
     total: all.length,
     pemasukan: all.filter(t => t.jenis_transaksi === 'Pemasukan').length,
     pengeluaran: all.filter(t => t.jenis_transaksi === 'Pengeluaran').length,
     totalPemasukan,
-    totalPengeluaran
+    totalPengeluaran,
+    saldoAkhir
   });
 
   const incomeRows = all
@@ -902,6 +942,7 @@ const fetchCashflowPerAccount = async (
     incomeRows,
     expenseRows,
     combinedRows,
+    isCumulative: useCumulativeBalance,
   };
 };
 const getComprehensiveReportData = async (period: PeriodFilter, accountId?: string) => {
@@ -1289,6 +1330,7 @@ const ExportPDFDialogV3: React.FC<ExportPDFDialogV3Props> = ({
   const [customStartDate, setCustomStartDate] = useState<Date>();
   const [customEndDate, setCustomEndDate] = useState<Date>();
   const [includeDraft, setIncludeDraft] = useState(false);
+  const [useCumulativeBalance, setUseCumulativeBalance] = useState(false);
 
   // Generate month options for the last 12 months
   const monthOptions = React.useMemo(() => {
@@ -1347,7 +1389,7 @@ const ExportPDFDialogV3: React.FC<ExportPDFDialogV3Props> = ({
       const exporterMain = new LocalPDFExporter('landscape');
       
       setExportProgress('Membuat Laporan Keuangan...');
-      const dataCash = await fetchCashflowPerAccount(period, selectedAccountId, selectedAccountName, includeDraft);
+      const dataCash = await fetchCashflowPerAccount(period, selectedAccountId, selectedAccountName, includeDraft, useCumulativeBalance);
       await exporterMain.exportCashFlowPerAccount(dataCash, period);
       
       // Add watermark to all pages (SKIP TEMPORARY - watermark causes issues)
@@ -1481,20 +1523,49 @@ const ExportPDFDialogV3: React.FC<ExportPDFDialogV3Props> = ({
 
           {/* Opsi tambahan dihilangkan untuk kesederhanaan */}
           
-          {/* Opsi Include Draft */}
-          <div className="flex items-center space-x-2 pt-2 border-t">
-            <Checkbox 
-              id="includeDraft" 
-              checked={includeDraft}
-              onCheckedChange={(checked) => setIncludeDraft(checked === true)}
-              disabled={loading}
-            />
-            <Label 
-              htmlFor="includeDraft" 
-              className="text-sm font-normal cursor-pointer"
-            >
-              Sertakan SEMUA transaksi (Draft, Cancelled, Selesai, Posted)
-            </Label>
+          {/* Opsi Laporan */}
+          <div className="space-y-3 pt-2 border-t">
+            <Label className="text-base font-semibold">Opsi Laporan</Label>
+            
+            {/* Opsi Tipe Saldo Awal */}
+            <div className="flex items-start space-x-2 p-3 bg-gray-50 rounded-lg">
+              <Checkbox 
+                id="useCumulativeBalance" 
+                checked={useCumulativeBalance}
+                onCheckedChange={(checked) => setUseCumulativeBalance(checked === true)}
+                disabled={loading}
+              />
+              <div className="flex-1">
+                <Label 
+                  htmlFor="useCumulativeBalance" 
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  Gunakan Saldo Akumulatif
+                </Label>
+                <p className="text-xs text-gray-500 mt-1">
+                  {useCumulativeBalance 
+                    ? "Saldo awal = saldo akhir periode sebelumnya (laporan akumulatif)"
+                    : "Saldo awal = 0 (laporan bulanan, default)"
+                  }
+                </p>
+              </div>
+            </div>
+            
+            {/* Opsi Include Draft */}
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="includeDraft" 
+                checked={includeDraft}
+                onCheckedChange={(checked) => setIncludeDraft(checked === true)}
+                disabled={loading}
+              />
+              <Label 
+                htmlFor="includeDraft" 
+                className="text-sm font-normal cursor-pointer"
+              >
+                Sertakan SEMUA transaksi (Draft, Cancelled, Selesai, Posted)
+              </Label>
+            </div>
           </div>
         </div>
 

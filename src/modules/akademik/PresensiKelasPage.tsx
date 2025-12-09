@@ -60,7 +60,7 @@ const PresensiKelasPage: React.FC = () => {
   const urlTanggal = searchParams.get('tanggal') || '';
 
   const [semesters, setSemesters] = useState<Semester[]>([]);
-  const [selectedSemesterId, setSelectedSemesterId] = useState<string>('');
+  const [selectedSemesterId, setSelectedSemesterId] = useState<string | undefined>(undefined);
   const [classes, setClasses] = useState<KelasMaster[]>([]);
   const [kelasId, setKelasId] = useState<string>(urlKelasId || '');
   const [pertemuanList, setPertemuanList] = useState<KelasPertemuan[]>([]);
@@ -76,6 +76,7 @@ const PresensiKelasPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [loadingAnggota, setLoadingAnggota] = useState(false);
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<string>('all'); // Format: 'YYYY-MM' atau 'all'
 
   const selectedKelas = classes.find(k => k.id === kelasId);
 
@@ -112,19 +113,31 @@ const PresensiKelasPage: React.FC = () => {
 
   const loadClasses = useCallback(async (semesterId?: string) => {
     try {
+      // Pastikan semesterId ada dan valid
+      if (!semesterId) {
+        setClasses([]);
+        return;
+      }
+
+      // Verifikasi semester ada di daftar
+      const semester = semesters.find(s => s.id === semesterId);
+      if (!semester) {
+        setClasses([]);
+        return;
+      }
+
       let list: KelasMaster[];
       
       // Jika pengajar, hanya ambil kelas yang di-assign ke mereka
       if (isPengajar && pengajarId) {
-        list = await AkademikKelasService.listKelasByPengajar(pengajarId);
+        list = await AkademikKelasService.listKelasByPengajar(pengajarId, { semesterId });
       } else {
         list = await AkademikKelasService.listKelas();
       }
       
-      let filtered = list;
-      if (semesterId) {
-        filtered = list.filter(k => k.semester_id === semesterId);
-      }
+      // Filter kelas berdasarkan semester yang dipilih (hanya kelas dari semester tersebut)
+      const filtered = list.filter(k => k.semester_id === semesterId);
+      
       setClasses(filtered);
       
       // Set kelasId jika belum ada atau kelas yang dipilih tidak ada lagi
@@ -139,7 +152,7 @@ const PresensiKelasPage: React.FC = () => {
       toast.error(error.message || 'Gagal memuat kelas');
       setClasses([]);
     }
-  }, [isPengajar, pengajarId]);
+  }, [isPengajar, pengajarId, semesters]);
 
   const loadPertemuan = useCallback(async () => {
     if (!kelasId || !selectedSemesterId) {
@@ -168,6 +181,13 @@ const PresensiKelasPage: React.FC = () => {
         data = data.filter(p => p.agenda_id && agendaIds.includes(p.agenda_id));
       }
       
+      // Sort by tanggal ascending (pertemuan 1 hingga akhir)
+      data.sort((a, b) => {
+        const dateA = new Date(a.tanggal).getTime();
+        const dateB = new Date(b.tanggal).getTime();
+        return dateA - dateB;
+      });
+      
       setPertemuanList(data);
     } catch (error: any) {
       toast.error(error.message || 'Gagal memuat daftar pertemuan');
@@ -190,35 +210,72 @@ const PresensiKelasPage: React.FC = () => {
 
     try {
       // Load anggota kelas
-      const anggotaList = await AbsensiMadinService.getAnggotaKelas(pertemuan.kelas?.id || kelasId);
-      setAnggota(anggotaList);
+      const kelasIdToUse = pertemuan.kelas?.id || kelasId;
+      if (!kelasIdToUse) {
+        toast.error('ID kelas tidak valid');
+        setLoadingAnggota(false);
+        return;
+      }
+      
+      const anggotaList = await AbsensiMadinService.getAnggotaKelas(kelasIdToUse);
+      
+      // Filter anggota yang valid (memiliki id dan nama_lengkap)
+      const validAnggota = anggotaList.filter(a => a && a.id && a.nama_lengkap);
+      
+      if (validAnggota.length === 0) {
+        toast.warning('Tidak ada anggota aktif di kelas ini');
+      }
+      
+      setAnggota(validAnggota);
 
       // Load absensi yang sudah ada
       const tanggal = normalizeTanggal(pertemuan.tanggal);
-      const existingAbsensi = await AbsensiMadinService.listAbsensi(
-        pertemuan.kelas?.id || kelasId,
-        tanggal,
-        pertemuan.agenda_id || undefined
-      );
+      let existingAbsensi: any[] = [];
+      try {
+        existingAbsensi = await AbsensiMadinService.listAbsensi(
+          pertemuan.kelas?.id || kelasId,
+          tanggal,
+          pertemuan.agenda_id || undefined
+        );
+      } catch (error: any) {
+        console.error('[PresensiKelasPage] Error loading existing absensi:', error);
+        // Continue dengan empty array jika error (mungkin belum ada absensi atau masalah query)
+        if (error.message?.includes('CORS') || error.message?.includes('502')) {
+          toast.warning('Masalah koneksi ke server. Silakan coba lagi.');
+        }
+      }
 
       const absensiMap: Record<string, AbsensiData> = {};
       existingAbsensi.forEach(ab => {
-        absensiMap[ab.santri_id] = {
-          santri_id: ab.santri_id,
-          status: ab.status,
-        };
-      });
-
-      // Set default status Hadir untuk santri yang belum memiliki data absensi
-      anggotaList.forEach(santri => {
-        if (!absensiMap[santri.id]) {
-          absensiMap[santri.id] = {
-            santri_id: santri.id,
-            status: 'Hadir',
+        if (ab && ab.santri_id && ab.status) {
+          absensiMap[ab.santri_id] = {
+            santri_id: ab.santri_id,
+            status: ab.status,
           };
         }
       });
 
+      // Set default status Hadir untuk santri yang belum memiliki data absensi
+      // Pastikan semua santri memiliki entry di absensiMap dengan status yang terdefinisi
+      validAnggota.forEach(santri => {
+        if (!absensiMap[santri.id]) {
+          absensiMap[santri.id] = {
+            santri_id: santri.id,
+            status: 'Hadir' as const,
+          };
+        } else {
+          // Pastikan status selalu terdefinisi dan valid
+          if (!absensiMap[santri.id].status || !['Hadir', 'Izin', 'Sakit', 'Alfa'].includes(absensiMap[santri.id].status)) {
+            absensiMap[santri.id].status = 'Hadir' as const;
+          }
+          // Pastikan santri_id selalu ada
+          if (!absensiMap[santri.id].santri_id) {
+            absensiMap[santri.id].santri_id = santri.id;
+          }
+        }
+      });
+
+      // Set absensiData dengan semua santri yang sudah terinisialisasi
       setAbsensiData(absensiMap);
     } catch (error: any) {
       toast.error(error.message || 'Gagal memuat data peserta kelas');
@@ -241,10 +298,12 @@ const PresensiKelasPage: React.FC = () => {
   }, [selectedSemesterId, loadClasses]);
 
   useEffect(() => {
-    if (kelasId && selectedSemesterId) {
+    if (kelasId && selectedSemesterId && semesters.length > 0) {
       loadPertemuan();
+    } else {
+      setPertemuanList([]);
     }
-  }, [kelasId, selectedSemesterId, loadPertemuan]);
+  }, [kelasId, selectedSemesterId, loadPertemuan, semesters.length]);
 
   // Auto-open absensi dialog jika ada parameter pertemuanId dari URL
   useEffect(() => {
@@ -286,65 +345,145 @@ const PresensiKelasPage: React.FC = () => {
     }));
   };
 
+  // Helper function to close dialog and reset state
+  const handleCloseDialog = useCallback(() => {
+    // Jangan tutup jika sedang saving
+    if (saving) {
+      return;
+    }
+    // Reset semua state
+    setAbsensiDialogOpen(false);
+    setHasAutoOpened(false);
+    setSelectedPertemuan(null);
+    setAnggota([]);
+    setAbsensiData({});
+    setMateri('');
+    setLoadingAnggota(false);
+    setSaving(false);
+  }, [saving]);
+
   const handleSaveAbsensi = async () => {
     if (!selectedPertemuan || !kelasId) {
       toast.error('Data pertemuan tidak valid');
       return;
     }
 
+    if (saving) {
+      // Prevent double submission
+      return;
+    }
+
+    setSaving(true);
+    
     try {
-      setSaving(true);
       const tanggal = normalizeTanggal(selectedPertemuan.tanggal);
       const agendaId = selectedPertemuan.agenda_id || null;
       const pengajarId = selectedPertemuan.pengajar_id || undefined;
 
+      // Validasi data sebelum menyimpan
+      if (!anggota || anggota.length === 0) {
+        toast.error('Tidak ada anggota kelas untuk disimpan');
+        setSaving(false);
+        return;
+      }
+
       // Simpan absensi untuk setiap santri
+      let successCount = 0;
+      let errorCount = 0;
+      
       for (const santri of anggota) {
         const data = absensiData[santri.id];
-        if (!data || !data.status) {
+        
+        // Pastikan data dan status valid
+        if (!data || !data.status || !['Hadir', 'Izin', 'Sakit', 'Alfa'].includes(data.status)) {
+          console.warn(`[PresensiKelasPage] Skipping santri ${santri.id}: data tidak valid`, data);
           continue;
         }
 
-        const input: AbsensiMadinInput = {
-          santri_id: santri.id,
-          kelas_id: selectedPertemuan.kelas?.id || kelasId,
-          tanggal: tanggal,
-          status: data.status,
-          materi: materi.trim() || undefined,
-          agenda_id: agendaId,
-          pengajar_id: pengajarId,
-        };
+        try {
+          const input: AbsensiMadinInput = {
+            santri_id: santri.id,
+            kelas_id: selectedPertemuan.kelas?.id || kelasId,
+            tanggal: tanggal,
+            status: data.status,
+            materi: materi.trim() || undefined,
+            agenda_id: agendaId || undefined,
+            pengajar_id: pengajarId || undefined,
+            pertemuan_id: selectedPertemuan.id || undefined, // Link ke jurnal pertemuan
+          };
 
-        const existing = await AbsensiMadinService.getAbsensiBySantri(
-          santri.id,
-          tanggal,
-          selectedPertemuan.kelas?.id || kelasId,
-          agendaId
-        );
+          // Validasi input
+          if (!input.santri_id || !input.kelas_id || !input.tanggal || !input.status) {
+            console.error(`[PresensiKelasPage] Invalid input for santri ${santri.id}:`, input);
+            errorCount++;
+            continue;
+          }
 
-        if (existing) {
-          await AbsensiMadinService.updateAbsensi(existing.id, input);
-        } else {
-          await AbsensiMadinService.createAbsensi(input);
+          const existing = await AbsensiMadinService.getAbsensiBySantri(
+            santri.id,
+            tanggal,
+            selectedPertemuan.kelas?.id || kelasId,
+            agendaId || undefined
+          );
+
+          if (existing) {
+            await AbsensiMadinService.updateAbsensi(existing.id, input);
+          } else {
+            await AbsensiMadinService.createAbsensi(input);
+          }
+          
+          successCount++;
+        } catch (error: any) {
+          console.error(`[PresensiKelasPage] Error saving absensi for santri ${santri.id}:`, error);
+          errorCount++;
         }
       }
 
-      // Update status pertemuan menjadi Selesai
-      if (selectedPertemuan.status !== 'Selesai') {
-        await AkademikPertemuanService.updatePertemuan(selectedPertemuan.id, {
-          status: 'Selesai',
-          materi: materi.trim() || null,
-        });
+      // Update status pertemuan menjadi Selesai jika ada yang berhasil disimpan
+      if (successCount > 0 && selectedPertemuan.status !== 'Selesai') {
+        try {
+          await AkademikPertemuanService.updatePertemuan(selectedPertemuan.id, {
+            status: 'Selesai',
+            materi: materi.trim() || null,
+          });
+        } catch (error: any) {
+          console.error('[PresensiKelasPage] Error updating pertemuan status:', error);
+          // Continue meski error update status
+        }
       }
 
-      toast.success('Absensi berhasil disimpan');
-      setAbsensiDialogOpen(false);
-      setHasAutoOpened(false);
-      loadPertemuan();
+      // Tampilkan pesan hasil
+      if (errorCount > 0) {
+        toast.warning(`Absensi disimpan: ${successCount} berhasil, ${errorCount} error`);
+      } else if (successCount > 0) {
+        toast.success(`Absensi berhasil disimpan untuk ${successCount} peserta`);
+      } else {
+        toast.error('Tidak ada absensi yang berhasil disimpan');
+      }
+
+      // Reload pertemuan untuk update status
+      if (successCount > 0) {
+        try {
+          await loadPertemuan();
+        } catch (error) {
+          console.error('[PresensiKelasPage] Error reloading pertemuan:', error);
+        }
+      }
     } catch (error: any) {
+      console.error('[PresensiKelasPage] Error in handleSaveAbsensi:', error);
       toast.error(error.message || 'Gagal menyimpan absensi');
     } finally {
+      // SELALU tutup dialog dan reset state di finally block
+      // Ini memastikan dialog ditutup bahkan jika ada error
       setSaving(false);
+      // Reset state secara langsung (tidak melalui handleCloseDialog karena saving masih true)
+      setAbsensiDialogOpen(false);
+      setHasAutoOpened(false);
+      setSelectedPertemuan(null);
+      setAnggota([]);
+      setAbsensiData({});
+      setMateri('');
+      setLoadingAnggota(false);
     }
   };
 
@@ -395,23 +534,61 @@ const PresensiKelasPage: React.FC = () => {
     }
   }, [kelasId]);
 
-  // Filter pertemuan berdasarkan search term
+  // Generate list bulan dari semester yang dipilih
+  const availableMonths = useMemo(() => {
+    if (!selectedSemesterId) return [];
+    const semester = semesters.find(s => s.id === selectedSemesterId);
+    if (!semester) return [];
+    
+    const months: Array<{ value: string; label: string }> = [];
+    const startDate = new Date(semester.tanggal_mulai);
+    const endDate = new Date(semester.tanggal_selesai);
+    
+    const current = new Date(startDate);
+    current.setDate(1); // Set ke tanggal 1
+    
+    while (current <= endDate) {
+      const monthValue = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = current.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      months.push({ value: monthValue, label: monthLabel });
+      current.setMonth(current.getMonth() + 1);
+    }
+    
+    return months;
+  }, [selectedSemesterId, semesters]);
+
+  // Filter pertemuan berdasarkan search term dan bulan
   const filteredPertemuan = useMemo(() => {
-    if (!searchTerm) return pertemuanList;
-    const term = searchTerm.toLowerCase();
-    return pertemuanList.filter(p => {
-      const tanggalStr = formatDate(p.tanggal).toLowerCase();
-      const agendaStr = p.agenda?.nama_agenda?.toLowerCase() || '';
-      const materiStr = p.materi?.toLowerCase() || '';
-      const pengajarStr = p.pengajar_nama?.toLowerCase() || '';
-      return (
-        tanggalStr.includes(term) ||
-        agendaStr.includes(term) ||
-        materiStr.includes(term) ||
-        pengajarStr.includes(term)
-      );
-    });
-  }, [pertemuanList, searchTerm]);
+    let filtered = pertemuanList;
+    
+    // Filter berdasarkan bulan
+    if (selectedMonth !== 'all') {
+      filtered = filtered.filter(p => {
+        const pertemuanDate = new Date(p.tanggal);
+        const pertemuanMonth = `${pertemuanDate.getFullYear()}-${String(pertemuanDate.getMonth() + 1).padStart(2, '0')}`;
+        return pertemuanMonth === selectedMonth;
+      });
+    }
+    
+    // Filter berdasarkan search term
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(p => {
+        const tanggalStr = formatDate(p.tanggal).toLowerCase();
+        const agendaStr = p.agenda?.nama_agenda?.toLowerCase() || '';
+        const materiStr = p.materi?.toLowerCase() || '';
+        const pengajarStr = p.pengajar_nama?.toLowerCase() || '';
+        return (
+          tanggalStr.includes(term) ||
+          agendaStr.includes(term) ||
+          materiStr.includes(term) ||
+          pengajarStr.includes(term)
+        );
+      });
+    }
+    
+    return filtered;
+  }, [pertemuanList, searchTerm, selectedMonth]);
 
   return (
     <div className="space-y-6">
@@ -427,10 +604,13 @@ const PresensiKelasPage: React.FC = () => {
           <CardTitle>Filter</CardTitle>
           <CardDescription>Pilih semester dan kelas untuk melihat daftar pertemuan</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
+        <CardContent className="grid gap-4 md:grid-cols-4">
           <div>
             <Label>Semester *</Label>
-            <Select value={selectedSemesterId} onValueChange={setSelectedSemesterId}>
+            <Select value={selectedSemesterId || ''} onValueChange={(value) => {
+              setSelectedSemesterId(value);
+              setSelectedMonth('all'); // Reset bulan saat semester berubah
+            }}>
               <SelectTrigger><SelectValue placeholder="Pilih semester" /></SelectTrigger>
               <SelectContent>
                 {semesters.map(semester => (
@@ -444,7 +624,7 @@ const PresensiKelasPage: React.FC = () => {
           </div>
           <div>
             <Label>Kelas *</Label>
-            <Select value={kelasId || undefined} onValueChange={(value) => setKelasId(value)} disabled={!selectedSemesterId || classes.length === 0}>
+            <Select value={kelasId || ''} onValueChange={(value) => setKelasId(value)} disabled={!selectedSemesterId || classes.length === 0}>
               <SelectTrigger><SelectValue placeholder={!selectedSemesterId ? "Pilih semester dulu" : classes.length === 0 ? "Tidak ada kelas" : "Pilih kelas"} /></SelectTrigger>
               <SelectContent>
                 {classes.length === 0 ? (
@@ -461,6 +641,20 @@ const PresensiKelasPage: React.FC = () => {
             {!selectedSemesterId && (
               <p className="text-xs text-muted-foreground mt-1">Pilih semester terlebih dahulu</p>
             )}
+          </div>
+          <div>
+            <Label>Bulan (Opsional)</Label>
+            <Select value={selectedMonth || 'all'} onValueChange={(value) => setSelectedMonth(value)} disabled={!selectedSemesterId}>
+              <SelectTrigger><SelectValue placeholder="Semua bulan" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Bulan</SelectItem>
+                {availableMonths.map(month => (
+                  <SelectItem key={month.value} value={month.value}>
+                    {month.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label>Cari</Label>
@@ -504,8 +698,8 @@ const PresensiKelasPage: React.FC = () => {
                   <TableRow>
                     <TableHead className="w-12">No</TableHead>
                     <TableHead>Hari / Tanggal</TableHead>
-                    <TableHead>Mulai</TableHead>
-                    <TableHead>Selesai</TableHead>
+                    <TableHead>Jam</TableHead>
+                    <TableHead>Mapel</TableHead>
                     <TableHead>Rencana & Realisasi Materi</TableHead>
                     <TableHead>Pengajar</TableHead>
                     <TableHead>Ruang</TableHead>
@@ -525,14 +719,16 @@ const PresensiKelasPage: React.FC = () => {
                           {getPertemuanStatusBadge(pertemuan.status)}
                         </TableCell>
                         <TableCell>
-                          {pertemuan.agenda?.jam_mulai
+                          {pertemuan.agenda?.jam_mulai && pertemuan.agenda?.jam_selesai
+                            ? `${pertemuan.agenda.jam_mulai.slice(0, 5)} - ${pertemuan.agenda.jam_selesai.slice(0, 5)}`
+                            : pertemuan.agenda?.jam_mulai
                             ? pertemuan.agenda.jam_mulai.slice(0, 5)
                             : '-'}
                         </TableCell>
                         <TableCell>
-                          {pertemuan.agenda?.jam_selesai
-                            ? pertemuan.agenda.jam_selesai.slice(0, 5)
-                            : '-'}
+                          {pertemuan.agenda?.mapel_nama || 
+                           pertemuan.agenda?.mapel?.nama_mapel || 
+                           <span className="text-muted-foreground">-</span>}
                         </TableCell>
                         <TableCell className="max-w-xs">
                           <div className="text-sm whitespace-pre-wrap">
@@ -540,7 +736,10 @@ const PresensiKelasPage: React.FC = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {pertemuan.pengajar_nama || <span className="text-muted-foreground">-</span>}
+                          {pertemuan.pengajar_nama || 
+                           pertemuan.agenda?.pengajar_nama || 
+                           pertemuan.agenda?.pengajar?.nama_lengkap || 
+                           <span className="text-muted-foreground">-</span>}
                         </TableCell>
                         <TableCell>
                           {pertemuan.agenda?.lokasi || <span className="text-muted-foreground">-</span>}
@@ -573,13 +772,37 @@ const PresensiKelasPage: React.FC = () => {
       </Card>
 
       {/* Dialog Absensi */}
-      <Dialog open={absensiDialogOpen} onOpenChange={(open) => {
-        setAbsensiDialogOpen(open);
-        if (!open) {
-          setHasAutoOpened(false);
-        }
-      }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <Dialog 
+        open={absensiDialogOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            // Jika dialog ditutup (open = false)
+            if (!saving) {
+              // Hanya tutup jika tidak sedang saving
+              handleCloseDialog();
+            }
+            // Jika sedang saving, jangan tutup (biarkan open tetap true)
+          } else {
+            // Jika dialog dibuka (open = true)
+            setAbsensiDialogOpen(true);
+          }
+        }}
+      >
+        <DialogContent 
+          className="max-w-4xl max-h-[90vh] flex flex-col"
+          onInteractOutside={(e) => {
+            // Prevent closing while saving
+            if (saving) {
+              e.preventDefault();
+            }
+          }}
+          onEscapeKeyDown={(e) => {
+            // Prevent closing with ESC while saving
+            if (saving) {
+              e.preventDefault();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Absensi Peserta Kelas</DialogTitle>
             <DialogDescription>
@@ -621,29 +844,40 @@ const PresensiKelasPage: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {anggota.map((santri, index) => (
-                      <TableRow key={santri.id}>
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell className="font-medium">{santri.nama_lengkap}</TableCell>
-                        <TableCell>{santri.id_santri || '-'}</TableCell>
-                        <TableCell>
-                          <Select
-                            value={absensiData[santri.id]?.status || 'Hadir'}
-                            onValueChange={(v: any) => handleStatusChange(santri.id, v)}
-                          >
-                            <SelectTrigger className="w-32">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Hadir">Hadir</SelectItem>
-                              <SelectItem value="Izin">Izin</SelectItem>
-                              <SelectItem value="Sakit">Sakit</SelectItem>
-                              <SelectItem value="Alfa">Alfa</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {anggota.map((santri, index) => {
+                      // Pastikan selalu ada data untuk santri ini dengan nilai default yang jelas
+                      // Gunakan absensiData yang sudah terinisialisasi atau default 'Hadir'
+                      const absensiEntry = absensiData[santri.id];
+                      const currentStatus = (absensiEntry?.status && ['Hadir', 'Izin', 'Sakit', 'Alfa'].includes(absensiEntry.status))
+                        ? absensiEntry.status
+                        : 'Hadir';
+                      
+                      return (
+                        <TableRow key={santri.id}>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell className="font-medium">{santri.nama_lengkap}</TableCell>
+                          <TableCell>{santri.id_santri || '-'}</TableCell>
+                          <TableCell>
+                            <Select
+                              value={currentStatus}
+                              onValueChange={(v: 'Hadir' | 'Izin' | 'Sakit' | 'Alfa') => {
+                                handleStatusChange(santri.id, v);
+                              }}
+                            >
+                              <SelectTrigger className="w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Hadir">Hadir</SelectItem>
+                                <SelectItem value="Izin">Izin</SelectItem>
+                                <SelectItem value="Sakit">Sakit</SelectItem>
+                                <SelectItem value="Alfa">Alfa</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -651,10 +885,15 @@ const PresensiKelasPage: React.FC = () => {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setAbsensiDialogOpen(false);
-              setHasAutoOpened(false);
-            }}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                if (!saving) {
+                  handleCloseDialog();
+                }
+              }}
+              disabled={saving}
+            >
               Batal
             </Button>
             <Button onClick={handleSaveAbsensi} disabled={saving || anggota.length === 0}>
