@@ -37,6 +37,11 @@ export default function ProductSelector({ produkList, onSelectProduk }: ProductS
     let filtered = produkList
       // Hanya tampilkan produk yang punya minimal satu harga jual terisi
       .filter((p) => (p.harga_jual_ecer || 0) > 0 || (p.harga_jual_grosir || 0) > 0)
+      // Hanya tampilkan produk yang memiliki stok > 0
+      .filter((p) => {
+        const stok = p.stok ?? p.stock ?? 0;
+        return stok > 0;
+      })
       .filter((p) => {
         const matchesSearch =
           p.nama_produk.toLowerCase().includes(search.toLowerCase()) ||
@@ -210,6 +215,10 @@ export default function ProductSelector({ produkList, onSelectProduk }: ProductS
                         <span className="font-mono text-xs bg-muted/50 px-2 py-0.5 rounded">
                           {produk.kode_produk}
                         </span>
+                        <span className="text-muted-foreground">•</span>
+                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">
+                          Stok: {(produk.stok ?? produk.stock ?? 0).toLocaleString("id-ID")} {produk.satuan}
+                        </Badge>
                         <span className="text-muted-foreground">•</span>
                         <div className="flex items-center gap-2">
                           <span className="text-xs">

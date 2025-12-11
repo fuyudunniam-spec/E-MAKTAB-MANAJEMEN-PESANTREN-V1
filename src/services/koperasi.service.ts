@@ -1,29 +1,10 @@
 import { supabase } from '@/integrations/supabase/client';
 import { addKeuanganTransaction } from '@/services/keuangan.service';
-import type { KoperasiPenjualanInsert } from '@/types/koperasi.types';
+import type { KoperasiPenjualanInsert, KoperasiProduk } from '@/types/koperasi.types';
 
 // =====================================================
 // TYPES
 // =====================================================
-
-export interface KoperasiProduk {
-  id: string;
-  nama_produk: string;
-  kategori: string;
-  harga_beli: number;
-  harga_jual: number;
-  margin: number;
-  stok: number;
-  stok_minimum: number;
-  satuan?: string | null;
-  sumber: 'Inventaris' | 'Vendor';
-  referensi_inventaris_id?: string | null;
-  supplier?: string | null;
-  status: 'Aktif' | 'Non-Aktif';
-  deskripsi?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-}
 
 export interface KoperasiTransaksi {
   id: string;
@@ -109,6 +90,7 @@ export const listKoperasiProduk = async (filters?: {
   status?: 'Aktif' | 'Non-Aktif';
   sumber?: 'Inventaris' | 'Vendor';
   is_active?: boolean;
+  min_stock?: number; // Filter products with stock >= min_stock
 }): Promise<KoperasiProduk[]> => {
   let query = supabase
     .from('kop_barang')
@@ -146,27 +128,42 @@ export const listKoperasiProduk = async (filters?: {
     query = query.eq('kategori_id', filters.kategori);
   }
 
+  // Filter by minimum stock (for kasir: only show products with stock > 0)
+  if (filters?.min_stock !== undefined) {
+    query = query.gte('stok', filters.min_stock);
+  }
+
   const { data, error } = await query;
   if (error) throw error;
   
   // Map kop_barang structure to KoperasiProduk structure
   return (data || []).map((item: any) => ({
     id: item.id,
-    nama_produk: item.nama_barang,
+    kode_produk: item.kode_barang || '',
+    nama_produk: item.nama_barang || '',
     kategori: null, // Need to join to get kategori name
-    harga_beli: parseFloat(item.harga_beli || 0),
-    harga_jual: parseFloat(item.harga_jual_ecer || 0), // Backward compatibility
-    margin: parseFloat(item.harga_jual_ecer || 0) - parseFloat(item.harga_beli || 0),
-    stok: parseFloat(item.stok || 0),
-    stok_minimum: parseFloat(item.stok_minimum || 0),
     satuan: item.satuan_dasar || 'pcs',
-    sumber: item.inventaris_id ? 'Inventaris' : 'Vendor',
-    referensi_inventaris_id: item.inventaris_id || null,
-    supplier: null,
-    status: item.is_active !== false ? 'Aktif' : 'Non-Aktif',
+    harga_beli: parseFloat(item.harga_beli || 0),
+    harga_jual_ecer: parseFloat(item.harga_jual_ecer || 0),
+    harga_jual_grosir: parseFloat(item.harga_jual_grosir || 0),
+    harga_jual: parseFloat(item.harga_jual_ecer || 0), // Backward compatibility
+    owner_type: (item.owner_type || 'koperasi') as 'koperasi' | 'yayasan',
+    bagi_hasil_yayasan: parseFloat(item.bagi_hasil_yayasan || 0),
+    margin_persen: item.harga_beli > 0 
+      ? ((parseFloat(item.harga_jual_ecer || 0) - parseFloat(item.harga_beli || 0)) / parseFloat(item.harga_beli || 0)) * 100 
+      : 0,
+    barcode: null,
     deskripsi: null,
-    created_at: item.created_at,
-    updated_at: item.updated_at,
+    foto_url: null,
+    is_active: item.is_active !== false,
+    inventaris_id: item.inventaris_id || null,
+    sumber_modal_id: item.sumber_modal_id || '',
+    created_at: item.created_at || new Date().toISOString(),
+    updated_at: item.updated_at || new Date().toISOString(),
+    created_by: null,
+    updated_by: null,
+    stok: parseFloat(item.stok || 0),
+    stock: parseFloat(item.stok || 0), // Alternative field name
   })) as KoperasiProduk[];
 };
 
@@ -206,21 +203,31 @@ export const getKoperasiProduk = async (id: string): Promise<KoperasiProduk | nu
   // Map kop_barang structure to KoperasiProduk structure
   return {
     id: data.id,
-    nama_produk: data.nama_barang,
+    kode_produk: data.kode_barang || '',
+    nama_produk: data.nama_barang || '',
     kategori: null, // Need to join to get kategori name
-    harga_beli: parseFloat(data.harga_beli || 0),
-    harga_jual: parseFloat(data.harga_jual_ecer || 0), // Backward compatibility
-    margin: parseFloat(data.harga_jual_ecer || 0) - parseFloat(data.harga_beli || 0),
-    stok: parseFloat(data.stok || 0),
-    stok_minimum: parseFloat(data.stok_minimum || 0),
     satuan: data.satuan_dasar || 'pcs',
-    sumber: data.inventaris_id ? 'Inventaris' : 'Vendor',
-    referensi_inventaris_id: data.inventaris_id || null,
-    supplier: null,
-    status: data.is_active !== false ? 'Aktif' : 'Non-Aktif',
+    harga_beli: parseFloat(data.harga_beli || 0),
+    harga_jual_ecer: parseFloat(data.harga_jual_ecer || 0),
+    harga_jual_grosir: parseFloat(data.harga_jual_grosir || 0),
+    harga_jual: parseFloat(data.harga_jual_ecer || 0), // Backward compatibility
+    owner_type: (data.owner_type || 'koperasi') as 'koperasi' | 'yayasan',
+    bagi_hasil_yayasan: parseFloat(data.bagi_hasil_yayasan || 0),
+    margin_persen: data.harga_beli > 0 
+      ? ((parseFloat(data.harga_jual_ecer || 0) - parseFloat(data.harga_beli || 0)) / parseFloat(data.harga_beli || 0)) * 100 
+      : 0,
+    barcode: null,
     deskripsi: null,
-    created_at: data.created_at,
-    updated_at: data.updated_at,
+    foto_url: null,
+    is_active: data.is_active !== false,
+    inventaris_id: data.inventaris_id || null,
+    sumber_modal_id: data.sumber_modal_id || '',
+    created_at: data.created_at || new Date().toISOString(),
+    updated_at: data.updated_at || new Date().toISOString(),
+    created_by: null,
+    updated_by: null,
+    stok: parseFloat(data.stok || 0),
+    stock: parseFloat(data.stok || 0), // Alternative field name
   } as KoperasiProduk;
 };
 
@@ -274,21 +281,31 @@ export const createKoperasiProduk = async (data: KoperasiFormData): Promise<Kope
   // Map to KoperasiProduk format
   return {
     id: produk.id,
-    nama_produk: produk.nama_barang,
+    kode_produk: produk.kode_barang || '',
+    nama_produk: produk.nama_barang || '',
     kategori: null,
-    harga_beli: parseFloat(produk.harga_beli || 0),
-    harga_jual: parseFloat(produk.harga_jual_ecer || 0),
-    margin: parseFloat(produk.harga_jual_ecer || 0) - parseFloat(produk.harga_beli || 0),
-    stok: parseFloat(produk.stok || 0),
-    stok_minimum: parseFloat(produk.stok_minimum || 0),
     satuan: produk.satuan_dasar || 'pcs',
-    sumber: produk.inventaris_id ? 'Inventaris' : 'Vendor',
-    referensi_inventaris_id: produk.inventaris_id || null,
-    supplier: null,
-    status: produk.is_active !== false ? 'Aktif' : 'Non-Aktif',
+    harga_beli: parseFloat(produk.harga_beli || 0),
+    harga_jual_ecer: parseFloat(produk.harga_jual_ecer || 0),
+    harga_jual_grosir: parseFloat(produk.harga_jual_grosir || 0),
+    harga_jual: parseFloat(produk.harga_jual_ecer || 0), // Backward compatibility
+    owner_type: (produk.owner_type || 'koperasi') as 'koperasi' | 'yayasan',
+    bagi_hasil_yayasan: parseFloat(produk.bagi_hasil_yayasan || 0),
+    margin_persen: produk.harga_beli > 0 
+      ? ((parseFloat(produk.harga_jual_ecer || 0) - parseFloat(produk.harga_beli || 0)) / parseFloat(produk.harga_beli || 0)) * 100 
+      : 0,
+    barcode: null,
     deskripsi: null,
-    created_at: produk.created_at,
-    updated_at: produk.updated_at,
+    foto_url: null,
+    is_active: produk.is_active !== false,
+    inventaris_id: produk.inventaris_id || null,
+    sumber_modal_id: produk.sumber_modal_id || '',
+    created_at: produk.created_at || new Date().toISOString(),
+    updated_at: produk.updated_at || new Date().toISOString(),
+    created_by: null,
+    updated_by: null,
+    stok: parseFloat(produk.stok || 0),
+    stock: parseFloat(produk.stok || 0), // Alternative field name
   } as KoperasiProduk;
 };
 
@@ -347,21 +364,31 @@ export const updateKoperasiProduk = async (
   // Map to KoperasiProduk format
   return {
     id: produk.id,
-    nama_produk: produk.nama_barang,
+    kode_produk: produk.kode_barang || '',
+    nama_produk: produk.nama_barang || '',
     kategori: null,
-    harga_beli: parseFloat(produk.harga_beli || 0),
-    harga_jual: parseFloat(produk.harga_jual_ecer || 0),
-    margin: parseFloat(produk.harga_jual_ecer || 0) - parseFloat(produk.harga_beli || 0),
-    stok: parseFloat(produk.stok || 0),
-    stok_minimum: parseFloat(produk.stok_minimum || 0),
     satuan: produk.satuan_dasar || 'pcs',
-    sumber: produk.inventaris_id ? 'Inventaris' : 'Vendor',
-    referensi_inventaris_id: produk.inventaris_id || null,
-    supplier: null,
-    status: produk.is_active !== false ? 'Aktif' : 'Non-Aktif',
+    harga_beli: parseFloat(produk.harga_beli || 0),
+    harga_jual_ecer: parseFloat(produk.harga_jual_ecer || 0),
+    harga_jual_grosir: parseFloat(produk.harga_jual_grosir || 0),
+    harga_jual: parseFloat(produk.harga_jual_ecer || 0), // Backward compatibility
+    owner_type: (produk.owner_type || 'koperasi') as 'koperasi' | 'yayasan',
+    bagi_hasil_yayasan: parseFloat(produk.bagi_hasil_yayasan || 0),
+    margin_persen: produk.harga_beli > 0 
+      ? ((parseFloat(produk.harga_jual_ecer || 0) - parseFloat(produk.harga_beli || 0)) / parseFloat(produk.harga_beli || 0)) * 100 
+      : 0,
+    barcode: null,
     deskripsi: null,
-    created_at: produk.created_at,
-    updated_at: produk.updated_at,
+    foto_url: null,
+    is_active: produk.is_active !== false,
+    inventaris_id: produk.inventaris_id || null,
+    sumber_modal_id: produk.sumber_modal_id || '',
+    created_at: produk.created_at || new Date().toISOString(),
+    updated_at: produk.updated_at || new Date().toISOString(),
+    created_by: null,
+    updated_by: null,
+    stok: parseFloat(produk.stok || 0),
+    stock: parseFloat(produk.stok || 0), // Alternative field name
   } as KoperasiProduk;
 };
 
@@ -460,6 +487,8 @@ export const createPenjualanKoperasi = async (
   const totalJual = data.harga_jual * data.jumlah;
   const totalBeli = produk.harga_beli * data.jumlah;
 
+  const sumber = produk.inventaris_id ? 'Inventaris' : 'Vendor';
+
   const { data: transaksi, error } = await supabase
     .from('transaksi_koperasi')
     .insert([{
@@ -470,8 +499,8 @@ export const createPenjualanKoperasi = async (
       harga_jual: data.harga_jual,
       total_beli: totalBeli,
       total_jual: totalJual,
-      sumber: produk.sumber,
-      referensi_inventaris_id: produk.referensi_inventaris_id,
+      sumber: sumber,
+      referensi_inventaris_id: produk.inventaris_id,
       pembeli: data.pembeli,
       tanggal: data.tanggal,
       catatan: data.catatan || null,

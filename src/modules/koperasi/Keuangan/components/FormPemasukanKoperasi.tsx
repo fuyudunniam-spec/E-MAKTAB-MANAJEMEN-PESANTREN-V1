@@ -18,12 +18,9 @@ interface FormPemasukanKoperasiProps {
 }
 
 const KATEGORI_PEMASUKAN = [
-  'Penjualan Koperasi',
-  'Penjualan Inventaris',
-  'Bagi Hasil',
-  'Bunga Bank',
-  'Hibah/Bantuan',
-  'Pemasukan Lainnya'
+  'Penjualan',
+  'Setoran Anggota',
+  'Lain-lain'
 ];
 
 const FormPemasukanKoperasi: React.FC<FormPemasukanKoperasiProps> = ({ isOpen, onClose, onSuccess }) => {
@@ -46,15 +43,19 @@ const FormPemasukanKoperasi: React.FC<FormPemasukanKoperasiProps> = ({ isOpen, o
   const loadAkunKas = async () => {
     try {
       const accounts = await AkunKasService.getAll();
-      const activeAccounts = accounts.filter(acc => acc.status === 'aktif');
-      setAkunKasOptions(activeAccounts);
+      // Filter hanya akun kas koperasi: managed_by = 'koperasi' atau nama mengandung 'koperasi'
+      const koperasiAccounts = accounts.filter(acc => 
+        acc.status === 'aktif' && 
+        (acc.managed_by === 'koperasi' || acc.nama?.toLowerCase().includes('koperasi'))
+      );
+      setAkunKasOptions(koperasiAccounts);
       
       // Set default Kas Koperasi
-      const kasKoperasi = activeAccounts.find(acc => acc.nama === 'Kas Koperasi');
+      const kasKoperasi = koperasiAccounts.find(acc => acc.nama === 'Kas Koperasi');
       if (kasKoperasi) {
         setAkunKasId(kasKoperasi.id);
-      } else if (activeAccounts.length > 0) {
-        setAkunKasId(activeAccounts[0].id);
+      } else if (koperasiAccounts.length > 0) {
+        setAkunKasId(koperasiAccounts[0].id);
       }
     } catch (error) {
       console.error('Error loading akun kas:', error);
@@ -204,7 +205,7 @@ const FormPemasukanKoperasi: React.FC<FormPemasukanKoperasiProps> = ({ isOpen, o
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="penerima_pembayar">Penerima</Label>
+              <Label htmlFor="penerima_pembayar">Sumber</Label>
               <Input
                 id="penerima_pembayar"
                 value={penerimaPembayar}

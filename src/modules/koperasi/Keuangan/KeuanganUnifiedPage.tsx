@@ -9,13 +9,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { AkunKasService } from '@/services/akunKas.service';
 import { loadChartData as loadChartDataService } from '@/services/keuanganChart.service';
 
-// Import existing components for modal
-import FormPengeluaranRinci from '@/components/FormPengeluaranRinci';
-import FormPemasukanManual from '@/components/FormPemasukanManual';
+// Import koperasi-specific forms
+import FormPengeluaranKoperasi from './components/FormPengeluaranKoperasi';
+import FormPemasukanKoperasi from './components/FormPemasukanKoperasi';
 import FormPenyesuaianSaldo from '@/components/FormPenyesuaianSaldo';
 import StackedAccountCards from '@/components/dashboard/StackedAccountCards';
 import TotalBalanceDisplay from '@/components/dashboard/TotalBalanceDisplay';
 import SummaryCards from '@/components/dashboard/SummaryCards';
+import KoperasiSummaryCards from './components/KoperasiSummaryCards';
 import ChartsSection from '@/components/dashboard/ChartsSection';
 import RiwayatTransaksi from '@/components/dashboard/RiwayatTransaksi';
 import TransactionDetailModal from '@/components/TransactionDetailModal';
@@ -45,6 +46,11 @@ const KeuanganUnifiedPage: React.FC = () => {
     total: number;
     count: number;
   }>({ total: 0, count: 0 });
+  
+  // Koperasi summary states
+  const [saldoKasKoperasi, setSaldoKasKoperasi] = useState<number>(0);
+  const [hakYayasanDiKas, setHakYayasanDiKas] = useState<number>(0);
+  const [labaPeriode, setLabaPeriode] = useState<number>(0);
   
   // UI states
   const [showForm, setShowForm] = useState(false);
@@ -159,9 +165,15 @@ const KeuanganUnifiedPage: React.FC = () => {
   useEffect(() => {
     if (recentTransactions.length > 0 && akunKas.length > 0) {
       recalculateStatistics();
+      calculateKoperasiSummary();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFilter, customStartDate, customEndDate, recentTransactions.length, akunKas.length]);
+  
+  // Load hak yayasan when component mounts or data changes
+  useEffect(() => {
+    loadHakYayasanDiKas();
+  }, []);
 
   // Chart data loading - respects date filter
   const loadChartData = async (accountId?: string) => {
@@ -423,6 +435,121 @@ const KeuanganUnifiedPage: React.FC = () => {
     }
   };
 
+  // Calculate Koperasi Summary: Saldo Kas, Hak Yayasan, Laba Periode
+  const calculateKoperasiSummary = async () => {
+    try {
+      // 1. Saldo Kas Koperasi = total saldo dari semua akun kas koperasi aktif
+      const koperasiAccountIds = akunKas
+        .filter(akun => akun.managed_by === 'koperasi' || akun.nama?.toLowerCase().includes('koperasi'))
+        .map(akun => akun.id);
+
+      if (koperasiAccountIds.length === 0) {
+        setSaldoKasKoperasi(0);
+        setLabaPeriode(0);
+        return;
+      }
+
+      const totalSaldo = akunKas
+        .filter(akun => akun.status === 'aktif')
+        .reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
+      setSaldoKasKoperasi(totalSaldo);
+
+      // 2. Laba Periode = Penjualan - HPP - Beban Operasional
+      const { startDate, endDate } = getDateRange();
+      
+      let labaQuery = supabase
+        .from('keuangan_koperasi')
+        .select('jenis_transaksi, jumlah, kategori, hpp')
+        .in('akun_kas_id', koperasiAccountIds)
+        .eq('status', 'posted');
+      
+      if (dateFilter !== 'all') {
+        labaQuery = labaQuery
+          .gte('tanggal', startDate.toISOString().split('T')[0])
+          .lte('tanggal', endDate.toISOString().split('T')[0]);
+      }
+      
+      const { data: labaTransactions } = await labaQuery;
+      
+      // Penjualan (semua pemasukan dengan kategori yang terkait penjualan)
+      const penjualan = (labaTransactions || [])
+        .filter(tx => 
+          tx.jenis_transaksi === 'Pemasukan' && 
+          (tx.kategori === 'Penjualan' || 
+           tx.kategori === 'Penjualan Koperasi' || 
+           tx.kategori === 'Penjualan Inventaris' ||
+           tx.kategori?.toLowerCase().includes('penjualan'))
+        )
+        .reduce((sum, tx) => sum + parseFloat(tx.jumlah || 0), 0);
+      
+      // HPP: dari field hpp pada transaksi pemasukan (jika ada) atau dari pengeluaran kategori Pembelian
+      const hppFromField = (labaTransactions || [])
+        .filter(tx => tx.jenis_transaksi === 'Pemasukan' && tx.hpp)
+        .reduce((sum, tx) => sum + parseFloat(tx.hpp || 0), 0);
+      
+      const hppFromPembelian = (labaTransactions || [])
+        .filter(tx => 
+          tx.jenis_transaksi === 'Pengeluaran' && 
+          (tx.kategori === 'Pembelian Barang' || tx.kategori?.toLowerCase().includes('pembelian'))
+        )
+        .reduce((sum, tx) => sum + parseFloat(tx.jumlah || 0), 0);
+      
+      const totalHPP = hppFromField + hppFromPembelian;
+      
+      // Beban Operasional (pengeluaran operasional, bukan bagi hasil atau pembelian)
+      const bebanOperasional = (labaTransactions || [])
+        .filter(tx => 
+          tx.jenis_transaksi === 'Pengeluaran' &&
+          tx.kategori === 'Biaya Operasional' &&
+          tx.kategori !== 'Bagi Hasil Yayasan'
+        )
+        .reduce((sum, tx) => sum + parseFloat(tx.jumlah || 0), 0);
+      
+      const laba = penjualan - totalHPP - bebanOperasional;
+      setLabaPeriode(laba);
+    } catch (error) {
+      console.error('Error calculating koperasi summary:', error);
+    }
+  };
+
+  // Load Hak Yayasan di Kas (dari koperasi_bagi_hasil_log)
+  const loadHakYayasanDiKas = async () => {
+    try {
+      // Get all data first (same approach as KeuanganDashboard and KelolaHPPDanBagiHasilPage)
+      const { data, error } = await supabase
+        .from('koperasi_bagi_hasil_log')
+        .select('*');
+
+      if (error) {
+        console.error('Error fetching hak yayasan:', error);
+        setHakYayasanDiKas(0);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        setHakYayasanDiKas(0);
+        return;
+      }
+
+      // Transform and sum (same logic as KelolaHPPDanBagiHasilPage line 848 and KeuanganDashboard line 165)
+      const total = (data || []).reduce((sum, item: any) => {
+        // Use the same field name as in KelolaHPPDanBagiHasilPage
+        const bagianYayasan = Number(item.bagi_hasil_yayasan || 0);
+        // Belum disetor jika: status bukan 'paid' DAN tanggal_bayar null
+        const isBelumDisetor = item.status !== 'paid' && !item.tanggal_bayar;
+        if (isBelumDisetor && bagianYayasan > 0) {
+          return sum + bagianYayasan;
+        }
+        return sum;
+      }, 0);
+
+      setHakYayasanDiKas(total);
+    } catch (error: any) {
+      console.error('Error loading hak yayasan:', error);
+      setHakYayasanDiKas(0);
+    }
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -441,6 +568,9 @@ const KeuanganUnifiedPage: React.FC = () => {
       const totalSaldoAllAccounts = koperasiAccounts
         .filter(akun => akun.status === 'aktif')
         .reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
+      
+      // Update saldo kas koperasi
+      setSaldoKasKoperasi(totalSaldoAllAccounts);
       
       // Get transactions from keuangan_koperasi table (NOT keuangan)
       // Filter untuk akun kas koperasi saja
@@ -549,6 +679,9 @@ const KeuanganUnifiedPage: React.FC = () => {
       
       // Load unprocessed sales (penjualan item yayasan yang belum diproses)
       await loadUnprocessedSales();
+      
+      // Load hak yayasan di kas
+      await loadHakYayasanDiKas();
       
       // Calculate statistics will be done in recalculateStatistics function
       // We need to wait for state to update, so we'll call it in a separate effect
@@ -926,22 +1059,13 @@ const KeuanganUnifiedPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Section 2: Summary Cards */}
-      {statistics && (
-        <SummaryCards 
-          stats={{
-            totalSaldo: totals.totalBalance,
-            pemasukanBulanIni: statistics.pemasukan_bulan_ini,
-            pengeluaranBulanIni: statistics.pengeluaran_bulan_ini,
-            totalTransaksi: statistics.transaksi_bulan_ini,
-            pemasukanTrend: statistics.pemasukan_trend || 0,
-            pengeluaranTrend: statistics.pengeluaran_trend || 0,
-          }}
-          selectedAccountName={selectedAccountName}
-          periodLabel={getPeriodLabel()}
-          previousPeriodLabel={getPreviousPeriodLabel()}
-        />
-      )}
+      {/* Section 2: Koperasi Summary Cards */}
+      <KoperasiSummaryCards
+        saldoKas={saldoKasKoperasi}
+        hakYayasan={hakYayasanDiKas}
+        labaPeriode={labaPeriode}
+        periodLabel={getPeriodLabel()}
+      />
 
       {/* Section 3: Charts Section */}
       <ChartsSection 
@@ -1036,25 +1160,19 @@ const KeuanganUnifiedPage: React.FC = () => {
         }}
       />
 
-      {/* Modal for Input Pengeluaran */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Input Pengeluaran</DialogTitle>
-          </DialogHeader>
-          <FormPengeluaranRinci onSuccess={handleFormSuccess} />
-        </DialogContent>
-      </Dialog>
+      {/* Modal for Input Pengeluaran Koperasi */}
+      <FormPengeluaranKoperasi 
+        isOpen={showForm} 
+        onClose={() => setShowForm(false)} 
+        onSuccess={handleFormSuccess} 
+      />
 
-      {/* Modal for Input Pemasukan Manual */}
-      <Dialog open={showFormPemasukan} onOpenChange={setShowFormPemasukan}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Input Pemasukan Manual</DialogTitle>
-          </DialogHeader>
-          <FormPemasukanManual onSuccess={handleFormSuccess} />
-        </DialogContent>
-      </Dialog>
+      {/* Modal for Input Pemasukan Koperasi */}
+      <FormPemasukanKoperasi 
+        isOpen={showFormPemasukan} 
+        onClose={() => setShowFormPemasukan(false)} 
+        onSuccess={handleFormSuccess} 
+      />
 
       {/* Modal for Penyesuaian Saldo */}
       <Dialog open={showFormPenyesuaianSaldo} onOpenChange={setShowFormPenyesuaianSaldo}>

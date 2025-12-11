@@ -38,41 +38,25 @@ export default function KasirPage() {
   };
 
   const { data: produkList = [] } = useQuery({
-    queryKey: ['koperasi-produk-active'],
-    queryFn: () => koperasiService.getProduk({ is_active: true }),
-  });
-
-  const { data: stockList = [] } = useQuery({
-    queryKey: ['koperasi-stock'],
-    queryFn: koperasiService.getStock,
+    queryKey: ['koperasi-produk-active-with-stock'],
+    queryFn: () => koperasiService.getProduk({ is_active: true, min_stock: 1 }),
   });
 
   const addToCart = (produkId: string, priceType: 'ecer' | 'grosir' = 'ecer') => {
-    console.log('addToCart called:', { produkId, priceType, produkListLength: produkList.length, stockListLength: stockList.length });
-    
     const produk = produkList.find(p => p.id === produkId);
     if (!produk) {
-      console.error('Produk tidak ditemukan:', produkId, 'Available IDs:', produkList.map(p => p.id));
       toast.error('Produk tidak ditemukan');
       return;
     }
 
-    // Stock data comes from kop_barang which has 'id' field, not 'produk_id'
-    const stock = stockList.find((s: any) => {
-      const match = s.id === produkId || s.produk_id === produkId;
-      if (match) {
-        console.log('Stock found:', { id: s.id, produk_id: s.produk_id, stok: s.stok, stock: s.stock });
-      }
-      return match;
-    });
-
-    // If stock not found or stok is null, allow adding to cart but warn user
-    const stokTersedia = stock?.stok ?? stock?.stock ?? 0;
-    if (!stock) {
-      console.warn('Stock data not found for product:', produkId, 'Available stock IDs:', stockList.map((s: any) => s.id || s.produk_id));
-    }
+    // Get stock from produk object directly (already filtered to have stock > 0)
+    const stokTersedia = produk.stok ?? produk.stock ?? 0;
     
-    console.log('Adding to cart:', { produkId, nama: produk.nama_produk, stokTersedia });
+    // Double-check: if stock is 0 or less, don't allow adding to cart
+    if (stokTersedia <= 0) {
+      toast.error('Stock habis');
+      return;
+    }
 
     // Tentukan harga berdasarkan priceType
     const hargaJual = priceType === 'grosir' 
@@ -220,7 +204,7 @@ export default function KasirPage() {
 
   const handlePaymentSuccess = () => {
     clearCart();
-    queryClient.invalidateQueries({ queryKey: ['koperasi-stock'] });
+    queryClient.invalidateQueries({ queryKey: ['koperasi-produk-active-with-stock'] });
     queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan'] });
   };
 
