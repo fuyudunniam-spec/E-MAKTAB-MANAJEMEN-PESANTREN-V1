@@ -6,7 +6,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { createTransaction } from '@/services/inventaris.service';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { InventoryItem } from '@/types/inventaris.types';
 import { Calendar } from 'lucide-react';
@@ -55,16 +54,8 @@ export default function KeluarItemDialog({ open, onClose, item, onSuccess }: Kel
 
       // Untuk tujuan (Dapur, Distribusi): Langsung kurangi stok dan catat transaksi
       // Note: Transfer ke Koperasi hanya bisa dilakukan dari modul Koperasi (tab "Item Yayasan")
-      let keluarMode: string;
-      let penerima: string;
-
-      if (tujuan === 'Dapur') {
-        keluarMode = 'Distribusi';
-        penerima = 'Dapur';
-      } else {
-        keluarMode = 'Distribusi';
-        penerima = 'Distribusi Bantuan';
-      }
+      const keluarMode: "Distribusi" = 'Distribusi';
+      const penerima = tujuan === 'Dapur' ? 'Dapur' : 'Distribusi Bantuan';
 
       await createTransaction({
         item_id: item.id,
@@ -75,9 +66,6 @@ export default function KeluarItemDialog({ open, onClose, item, onSuccess }: Kel
         penerima: penerima,
         catatan: catatan || `Pengeluaran ke ${penerima}`,
         harga_satuan: null,
-        harga_total: null,
-        harga_dasar: null,
-        sumbangan: null,
       });
 
       toast.success(`Item berhasil dikeluarkan ke ${penerima}`);

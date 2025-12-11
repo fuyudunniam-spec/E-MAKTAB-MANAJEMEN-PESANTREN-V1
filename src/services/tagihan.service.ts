@@ -63,6 +63,20 @@ export interface PembayaranSantri {
     donor_name: string;
     kategori_donasi?: string;
   };
+  santri?: {
+    id?: string;
+    id_santri?: string;
+    nama_lengkap?: string;
+    nisn?: string;
+    kategori?: string;
+  };
+  tagihan?: {
+    id?: string;
+    periode?: string;
+    bulan?: string;
+    tahun_ajaran?: string;
+    total_tagihan?: number;
+  };
 }
 
 export interface GenerateTagihanData {

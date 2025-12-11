@@ -48,14 +48,23 @@ export interface KoperasiTransaksi {
 
 export interface KoperasiFormData {
   nama_produk: string;
-  kategori: string;
+  kategori?: string; // Optional, use kategori_id instead
   harga_beli: number;
-  harga_jual: number;
+  harga_jual?: number; // Optional, use harga_jual_ecer instead
   stok_minimum?: number;
   satuan?: string;
   sumber: 'Inventaris' | 'Vendor';
   supplier?: string;
   deskripsi?: string;
+  // Additional fields for kop_barang table
+  kode_produk?: string;
+  kategori_id?: string;
+  sumber_modal_id?: string;
+  harga_jual_ecer?: number;
+  harga_jual_grosir?: number;
+  owner_type?: 'koperasi' | 'yayasan';
+  bagi_hasil_yayasan?: number;
+  inventaris_id?: string | null;
 }
 
 export interface PembelianFormData {
@@ -143,26 +152,21 @@ export const listKoperasiProduk = async (filters?: {
   // Map kop_barang structure to KoperasiProduk structure
   return (data || []).map((item: any) => ({
     id: item.id,
-    kode_produk: item.kode_barang,
     nama_produk: item.nama_barang,
     kategori: null, // Need to join to get kategori name
-    satuan: item.satuan_dasar || 'pcs',
     harga_beli: parseFloat(item.harga_beli || 0),
-    harga_jual_ecer: parseFloat(item.harga_jual_ecer || 0),
-    harga_jual_grosir: parseFloat(item.harga_jual_grosir || 0),
     harga_jual: parseFloat(item.harga_jual_ecer || 0), // Backward compatibility
-    owner_type: item.owner_type || 'koperasi',
-    bagi_hasil_yayasan: item.bagi_hasil_yayasan || 0,
-    barcode: null,
+    margin: parseFloat(item.harga_jual_ecer || 0) - parseFloat(item.harga_beli || 0),
+    stok: parseFloat(item.stok || 0),
+    stok_minimum: parseFloat(item.stok_minimum || 0),
+    satuan: item.satuan_dasar || 'pcs',
+    sumber: item.inventaris_id ? 'Inventaris' : 'Vendor',
+    referensi_inventaris_id: item.inventaris_id || null,
+    supplier: null,
+    status: item.is_active !== false ? 'Aktif' : 'Non-Aktif',
     deskripsi: null,
-    foto_url: null,
-    is_active: item.is_active !== false,
-    inventaris_id: item.inventaris_id,
-    sumber_modal_id: item.sumber_modal_id,
     created_at: item.created_at,
     updated_at: item.updated_at,
-    created_by: null,
-    updated_by: null,
   })) as KoperasiProduk[];
 };
 
@@ -202,26 +206,21 @@ export const getKoperasiProduk = async (id: string): Promise<KoperasiProduk | nu
   // Map kop_barang structure to KoperasiProduk structure
   return {
     id: data.id,
-    kode_produk: data.kode_barang,
     nama_produk: data.nama_barang,
     kategori: null, // Need to join to get kategori name
-    satuan: data.satuan_dasar || 'pcs',
     harga_beli: parseFloat(data.harga_beli || 0),
-    harga_jual_ecer: parseFloat(data.harga_jual_ecer || 0),
-    harga_jual_grosir: parseFloat(data.harga_jual_grosir || 0),
     harga_jual: parseFloat(data.harga_jual_ecer || 0), // Backward compatibility
-    owner_type: data.owner_type || 'koperasi',
-    bagi_hasil_yayasan: data.bagi_hasil_yayasan || 0,
-    barcode: null,
+    margin: parseFloat(data.harga_jual_ecer || 0) - parseFloat(data.harga_beli || 0),
+    stok: parseFloat(data.stok || 0),
+    stok_minimum: parseFloat(data.stok_minimum || 0),
+    satuan: data.satuan_dasar || 'pcs',
+    sumber: data.inventaris_id ? 'Inventaris' : 'Vendor',
+    referensi_inventaris_id: data.inventaris_id || null,
+    supplier: null,
+    status: data.is_active !== false ? 'Aktif' : 'Non-Aktif',
     deskripsi: null,
-    foto_url: null,
-    is_active: data.is_active !== false,
-    inventaris_id: data.inventaris_id,
-    sumber_modal_id: data.sumber_modal_id,
     created_at: data.created_at,
     updated_at: data.updated_at,
-    created_by: null,
-    updated_by: null,
   } as KoperasiProduk;
 };
 
@@ -275,26 +274,21 @@ export const createKoperasiProduk = async (data: KoperasiFormData): Promise<Kope
   // Map to KoperasiProduk format
   return {
     id: produk.id,
-    kode_produk: produk.kode_barang,
     nama_produk: produk.nama_barang,
     kategori: null,
-    satuan: produk.satuan_dasar || 'pcs',
     harga_beli: parseFloat(produk.harga_beli || 0),
-    harga_jual_ecer: parseFloat(produk.harga_jual_ecer || 0),
-    harga_jual_grosir: parseFloat(produk.harga_jual_grosir || 0),
     harga_jual: parseFloat(produk.harga_jual_ecer || 0),
-    owner_type: produk.owner_type || 'koperasi',
-    bagi_hasil_yayasan: produk.bagi_hasil_yayasan || 0,
-    barcode: null,
+    margin: parseFloat(produk.harga_jual_ecer || 0) - parseFloat(produk.harga_beli || 0),
+    stok: parseFloat(produk.stok || 0),
+    stok_minimum: parseFloat(produk.stok_minimum || 0),
+    satuan: produk.satuan_dasar || 'pcs',
+    sumber: produk.inventaris_id ? 'Inventaris' : 'Vendor',
+    referensi_inventaris_id: produk.inventaris_id || null,
+    supplier: null,
+    status: produk.is_active !== false ? 'Aktif' : 'Non-Aktif',
     deskripsi: null,
-    foto_url: null,
-    is_active: produk.is_active !== false,
-    inventaris_id: produk.inventaris_id,
-    sumber_modal_id: produk.sumber_modal_id,
     created_at: produk.created_at,
     updated_at: produk.updated_at,
-    created_by: null,
-    updated_by: null,
   } as KoperasiProduk;
 };
 
@@ -353,26 +347,21 @@ export const updateKoperasiProduk = async (
   // Map to KoperasiProduk format
   return {
     id: produk.id,
-    kode_produk: produk.kode_barang,
     nama_produk: produk.nama_barang,
     kategori: null,
-    satuan: produk.satuan_dasar || 'pcs',
     harga_beli: parseFloat(produk.harga_beli || 0),
-    harga_jual_ecer: parseFloat(produk.harga_jual_ecer || 0),
-    harga_jual_grosir: parseFloat(produk.harga_jual_grosir || 0),
     harga_jual: parseFloat(produk.harga_jual_ecer || 0),
-    owner_type: produk.owner_type || 'koperasi',
-    bagi_hasil_yayasan: produk.bagi_hasil_yayasan || 0,
-    barcode: null,
+    margin: parseFloat(produk.harga_jual_ecer || 0) - parseFloat(produk.harga_beli || 0),
+    stok: parseFloat(produk.stok || 0),
+    stok_minimum: parseFloat(produk.stok_minimum || 0),
+    satuan: produk.satuan_dasar || 'pcs',
+    sumber: produk.inventaris_id ? 'Inventaris' : 'Vendor',
+    referensi_inventaris_id: produk.inventaris_id || null,
+    supplier: null,
+    status: produk.is_active !== false ? 'Aktif' : 'Non-Aktif',
     deskripsi: null,
-    foto_url: null,
-    is_active: produk.is_active !== false,
-    inventaris_id: produk.inventaris_id,
-    sumber_modal_id: produk.sumber_modal_id,
     created_at: produk.created_at,
     updated_at: produk.updated_at,
-    created_by: null,
-    updated_by: null,
   } as KoperasiProduk;
 };
 
@@ -663,7 +652,9 @@ export const koperasiService = {
   createProduk: createKoperasiProduk,
   updateProduk: updateKoperasiProduk,
   deleteProduk: deleteKoperasiProduk,
-  createPenjualan: createPenjualanKoperasi,
+  // Note: createPenjualan is defined as async method below (line 1110)
+  // Using createPenjualanKoperasi for legacy compatibility
+  createPenjualanLegacy: createPenjualanKoperasi,
   getTransaksi: listKoperasiTransaksi,
   getSHUData,
   getStats: getKoperasiStats,
