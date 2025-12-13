@@ -1,8 +1,17 @@
 import React, { useState } from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Search, Eye, Calendar, DollarSign, TrendingUp, Edit, Trash2, Printer, Building2, Store, RefreshCw, Wallet } from 'lucide-react';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { koperasiService } from '@/services/koperasi.service';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { format, startOfYear, endOfYear, startOfMonth, endOfMonth, startOfDay, endOfDay, subDays } from 'date-fns';
+import { id } from 'date-fns/locale';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   Table,
   TableBody,
@@ -12,11 +21,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,775 +37,1377 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ShoppingCart, Eye, Plus, Edit, Trash2, TrendingUp, TrendingDown, Building2, Store, Wallet, BarChart3, Printer } from 'lucide-react';
-import { Root as VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { koperasiService, setoranCashKasirService } from '@/services/koperasi.service';
-import { format, startOfMonth, endOfMonth, startOfDay, endOfDay, subMonths, startOfYear, endOfYear } from 'date-fns';
-import { id } from 'date-fns/locale';
-import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import SalesAnalytics from './components/SalesAnalytics';
+import { formatCurrency } from '@/utils/formatCurrency';
+import ReceiptNota from '@/modules/koperasi/Kasir/components/ReceiptNota';
 import SetorCashDialog from './components/SetorCashDialog';
-import ReceiptNota from '../Kasir/components/ReceiptNota';
-import { supabase } from '@/integrations/supabase/client';
-import { formatRupiah } from '@/utils/formatCurrency';
-import { QUERY_STALE_TIME, TOAST_DURATION } from '../constants';
+import { useAuth } from '@/hooks/useAuth';
 
-interface UnifiedSale {
-  sale_id: string;
+// =====================================================
+// CONSTANTS
+// =====================================================
+const PAGE_SIZE = 20;
+const MAX_PAGINATION_BUTTONS = 5;
+
+type DateFilterType = 'all' | 'today' | 'week' | 'month' | 'year';
+type PaymentMethod = 'cash' | 'transfer';
+type OwnerType = 'yayasan' | 'koperasi';
+
+// =====================================================
+// TYPE DEFINITIONS
+// =====================================================
+interface KopBarang {
+  id: string;
+  nama_barang: string;
+  kode_barang: string;
+  satuan_dasar: string;
+  owner_type?: OwnerType;
+}
+
+interface KopPenjualanDetail {
+  id: string;
+  jumlah: number;
+  harga_satuan_jual: number;
+  subtotal: number;
+  margin?: number;
+  bagian_yayasan?: number;
+  bagian_koperasi?: number;
+  hpp_snapshot?: number;
+  kop_barang?: KopBarang | null;
+}
+
+interface KopShiftKasir {
+  id: string;
+  no_shift: string;
+}
+
+interface PenjualanListItem {
+  id: string;
+  nomor_struk: string;
   tanggal: string;
-  customer_name: string;
-  total_amount: number;
-  source_type: 'penjualan_header' | 'transaksi_inventaris' | 'kop_penjualan';
+  total_transaksi: number;
+  diskon_global?: number;
+  total_bayar: number;
+  metode_pembayaran: PaymentMethod;
+  status_pembayaran: string;
+  items_summary?: string;
+  kasir_id: string;
+  shift_id?: string;
   created_at: string;
-  created_by?: string;
-  items_summary?: string | null; // NEW: Daftar item terjual
-  nomor_struk?: string | null; // NEW: Nomor struk untuk kop_penjualan
+  updated_at: string;
+  kop_penjualan_detail?: KopPenjualanDetail[];
 }
 
-interface SaleDetail {
-  sale_id: string;
-  source_type: string;
-  items: Array<{
-    id: string;
-    item_id: string;
-    nama_barang: string;
-    jumlah: number;
-    satuan: string;
-    harga_dasar?: number;
-    harga_satuan?: number;
-    harga_satuan_jual?: number;
-    harga_total?: number;
-    subtotal?: number;
-    hpp: number;
-    profit: number;
-    bagian_yayasan?: number;
-    bagian_koperasi?: number;
-  }>;
-  summary: {
-    total_revenue: number;
-    total_hpp: number;
-    total_profit: number;
-    bagian_yayasan: number;
-    bagian_koperasi: number;
-    profit_sharing_ratio: string;
-  };
+interface PenjualanDetail extends PenjualanListItem {
+  kop_shift_kasir?: KopShiftKasir | null;
 }
 
-interface SalesSummary {
-  total_revenue: number;
-  total_hpp: number;
-  total_profit: number;
-  kewajiban_yayasan: number;
-  margin_koperasi: number;
+interface StatsData {
+  totalTransaksi: number;
+  totalOmset: number;
+  totalOmsetYayasan: number;
+  totalOmsetKoperasi: number;
+  totalHPP: number;
+  labaKotor: number;
+  rataRataTransaksi: number;
 }
 
-const RiwayatPenjualanPage = () => {
+interface ChartDataPoint {
+  month: string;
+  monthYear: string;
+  monthKey: string;
+  total: number;
+  yayasan: number;
+  koperasi: number;
+  cash: number;
+  transfer: number;
+}
+
+interface CashBelumDisetor {
+  totalPenjualanCash: number;
+  totalSetoranCash: number;
+  sisaBelumDisetor: number;
+}
+
+interface ReceiptItem {
+  id: string;
+  nama_barang: string;
+  jumlah: number;
+  satuan: string;
+  harga_satuan_jual: number;
+  subtotal: number;
+}
+
+interface ReceiptData {
+  id: string;
+  nomor_struk: string;
+  tanggal: string;
+  kasir_name: string;
+  metode_pembayaran: PaymentMethod;
+  total_transaksi: number;
+  jumlah_bayar: number;
+  kembalian: number;
+}
+
+interface DateRange {
+  startDate: string;
+  endDate: string;
+  start: Date;
+  end: Date;
+}
+
+// =====================================================
+// COMPONENT
+// =====================================================
+function RiwayatPenjualanPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [selectedSale, setSelectedSale] = useState<UnifiedSale | null>(null);
-  const [saleDetail, setSaleDetail] = useState<SaleDetail | null>(null);
-  const [showDetail, setShowDetail] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [saleToDelete, setSaleToDelete] = useState<UnifiedSale | null>(null);
-  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'lastMonth'>('month');
-  const [ownerTypeFilter, setOwnerTypeFilter] = useState<'all' | 'koperasi' | 'yayasan'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilterType>('year');
+  const [page, setPage] = useState(1);
+  const [viewingPenjualan, setViewingPenjualan] = useState<PenjualanListItem | null>(null);
+  const [printingPenjualan, setPrintingPenjualan] = useState<PenjualanListItem | null>(null);
+  const [deletingPenjualan, setDeletingPenjualan] = useState<PenjualanListItem | null>(null);
+  const [receiptItems, setReceiptItems] = useState<ReceiptItem[]>([]);
   const [showSetorCashDialog, setShowSetorCashDialog] = useState(false);
-  const [kasirId, setKasirId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'analytics' | 'history'>('analytics');
-  const [showReceipt, setShowReceipt] = useState(false);
-  const [receiptData, setReceiptData] = useState<{
-    penjualan: {
-      id: string;
-      nomor_struk?: string;
-      tanggal: string;
-      kasir_name: string;
-      metode_pembayaran?: string;
-      total_transaksi: number;
-      jumlah_bayar?: number;
-      kembalian?: number;
-    };
-    items: Array<{
-      id: string;
-      nama_barang: string;
-      jumlah: number;
-      satuan: string;
-      harga_satuan_jual: number;
-      subtotal: number;
-    }>;
-  } | null>(null);
+  const { user } = useAuth();
 
-  const getDateRange = () => {
+  const getDateRange = (): DateRange => {
     const now = new Date();
-    let startDate: string | undefined;
-    let endDate: string | undefined;
-
     switch (dateFilter) {
       case 'today':
-        startDate = format(now, 'yyyy-MM-dd');
-        endDate = format(now, 'yyyy-MM-dd');
-        break;
-      case 'week':
-        const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - now.getDay());
-        startDate = format(weekStart, 'yyyy-MM-dd');
-        endDate = format(now, 'yyyy-MM-dd');
-        break;
+        return {
+          startDate: format(startOfDay(now), 'yyyy-MM-dd'),
+          endDate: format(endOfDay(now), 'yyyy-MM-dd'),
+          start: startOfDay(now),
+          end: endOfDay(now),
+        };
+      case 'week': {
+        const weekAgo = subDays(now, 7);
+        return {
+          startDate: format(startOfDay(weekAgo), 'yyyy-MM-dd'),
+          endDate: format(endOfDay(now), 'yyyy-MM-dd'),
+          start: startOfDay(weekAgo),
+          end: endOfDay(now),
+        };
+      }
       case 'month':
-        startDate = format(new Date(now.getFullYear(), now.getMonth(), 1), 'yyyy-MM-dd');
-        endDate = format(now, 'yyyy-MM-dd');
-        break;
-      case 'lastMonth':
-        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-        startDate = format(lastMonthStart, 'yyyy-MM-dd');
-        endDate = format(lastMonthEnd, 'yyyy-MM-dd');
-        break;
+        return {
+          startDate: format(startOfMonth(now), 'yyyy-MM-dd'),
+          endDate: format(endOfMonth(now), 'yyyy-MM-dd'),
+          start: startOfMonth(now),
+          end: endOfMonth(now),
+        };
+      case 'year':
+        return {
+          startDate: format(startOfYear(now), 'yyyy-MM-dd'),
+          endDate: format(endOfYear(now), 'yyyy-MM-dd'),
+          start: startOfYear(now),
+          end: endOfYear(now),
+        };
       default:
-        startDate = undefined;
-        endDate = undefined;
-    }
-
-    return { startDate, endDate };
-  };
-
-  const { startDate, endDate } = getDateRange();
-
-
-  const { data: salesHistory, isLoading } = useQuery({
-    queryKey: ['unified-sales-history', dateFilter, startDate, endDate, ownerTypeFilter],
-    queryFn: () => koperasiService.getUnifiedSalesHistory({ 
-      startDate, 
-      endDate,
-      filterOwnerType: ownerTypeFilter 
-    }),
-    staleTime: QUERY_STALE_TIME.SHORT,
-  });
-
-  // Get current user for setor cash
-  React.useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        setKasirId(data.user.id);
-      }
-    });
-  }, []);
-
-  const { data: salesSummary, isLoading: summaryLoading } = useQuery({
-    queryKey: ['sales-summary-liabilities', dateFilter, startDate, endDate],
-    queryFn: () => koperasiService.getSalesSummaryWithLiabilities({ startDate, endDate }),
-    staleTime: QUERY_STALE_TIME.SHORT,
-  });
-
-  // Get sales analytics - hourly data uses filter, but monthly trend always shows all data
-  const { data: salesAnalytics, isLoading: analyticsLoading } = useQuery({
-    queryKey: ['sales-analytics', dateFilter, startDate, endDate],
-    queryFn: () => koperasiService.getSalesAnalytics({ 
-      startDate, 
-      endDate,
-      // Monthly trend always uses all data (no filter)
-      monthlyTrendAllTime: true 
-    }),
-    staleTime: QUERY_STALE_TIME.SHORT,
-  });
-
-  const handleViewDetail = async (sale: UnifiedSale) => {
-    setSelectedSale(sale);
-    setShowDetail(true);
-    
-    try {
-      const detail = await koperasiService.getSalesDetailWithProfitSharing(
-        sale.sale_id,
-        sale.source_type
-      );
-      setSaleDetail(detail as SaleDetail);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Gagal memuat detail penjualan';
-      toast.error(errorMessage);
+        return {
+          startDate: format(startOfYear(now), 'yyyy-MM-dd'),
+          endDate: format(endOfYear(now), 'yyyy-MM-dd'),
+          start: startOfYear(now),
+          end: endOfYear(now),
+        };
     }
   };
 
-  const handlePrintNota = async (sale: UnifiedSale) => {
-    try {
-      if (sale.source_type !== 'kop_penjualan') {
-        toast.error('Cetak nota hanya tersedia untuk penjualan koperasi');
-        return;
+  const dateRange = getDateRange();
+
+  // Fetch penjualan data dengan pagination
+  const { data: penjualanResponse, isLoading } = useQuery({
+    queryKey: ['koperasi-penjualan-list', dateRange, page, searchTerm],
+    queryFn: async () => {
+      // Build base query without nested relations first
+      let baseQuery = supabase
+        .from('kop_penjualan')
+        .select(`
+          id,
+          nomor_struk,
+          tanggal,
+          total_transaksi,
+          diskon_global,
+          total_bayar,
+          metode_pembayaran,
+          status_pembayaran,
+          items_summary,
+          kasir_id,
+          shift_id,
+          created_at,
+          updated_at
+        `, { count: 'exact' })
+        .eq('status_pembayaran', 'lunas')
+        .order('tanggal', { ascending: false });
+
+      // Apply date filter
+      baseQuery = baseQuery.gte('tanggal', dateRange.startDate + 'T00:00:00');
+      baseQuery = baseQuery.lte('tanggal', dateRange.endDate + 'T23:59:59');
+
+      // Apply search filter
+      if (searchTerm) {
+        baseQuery = baseQuery.or(`nomor_struk.ilike.%${searchTerm}%,items_summary.ilike.%${searchTerm}%`);
       }
 
-      const detail = await koperasiService.getSalesDetailWithProfitSharing(
-        sale.sale_id,
-        'kop_penjualan'
+      // Apply pagination
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      baseQuery = baseQuery.range(from, to);
+
+      const { data: penjualanList, error, count } = await baseQuery;
+
+      if (error) throw error;
+
+      // Fetch details for each penjualan separately to avoid nested relation issues
+      const penjualanWithDetails = await Promise.all(
+        (penjualanList || []).map(async (penjualan: PenjualanListItem) => {
+          const { data: details } = await supabase
+            .from('kop_penjualan_detail')
+            .select(`
+              id,
+              jumlah,
+              harga_satuan_jual,
+              subtotal,
+              kop_barang(
+                id,
+                nama_barang,
+                kode_barang,
+                satuan_dasar
+              )
+            `)
+            .eq('penjualan_id', penjualan.id);
+
+          return {
+            ...penjualan,
+            kop_penjualan_detail: (details || []).map(d => ({
+              ...d,
+              kop_barang: Array.isArray(d.kop_barang) ? d.kop_barang[0] : d.kop_barang
+            })) as KopPenjualanDetail[]
+          };
+        })
       );
-      
-      const penjualanHeader = await koperasiService.getPenjualanById(sale.sale_id);
-      
-      if (detail && penjualanHeader) {
-        setReceiptData({
-          penjualan: {
-            id: sale.sale_id,
-            nomor_struk: penjualanHeader.nomor_struk || penjualanHeader.no_penjualan,
-            tanggal: penjualanHeader.tanggal,
-            kasir_name: penjualanHeader.nama_kasir || 'Admin',
-            metode_pembayaran: penjualanHeader.metode_pembayaran,
-            total_transaksi: penjualanHeader.total_transaksi || penjualanHeader.total,
-            jumlah_bayar: penjualanHeader.jumlah_bayar,
-            kembalian: penjualanHeader.kembalian,
-          },
-          items: detail.items.map(item => ({
-            id: item.id,
-            nama_barang: item.nama_barang,
-            jumlah: item.jumlah,
-            satuan: item.satuan,
-            harga_satuan_jual: item.harga_satuan_jual || item.harga_satuan || 0,
-            subtotal: item.subtotal || item.harga_total || 0,
-          })),
+
+      return {
+        data: penjualanWithDetails || [],
+        total: count || 0,
+      };
+    },
+  });
+
+  // Fetch statistics from all filtered data (without pagination) - WITH OWNER TYPE SEPARATION
+  const { data: statsData, isLoading: isLoadingStats } = useQuery({
+    queryKey: ['koperasi-penjualan-stats', dateRange, searchTerm],
+    queryFn: async () => {
+      let statsQuery = supabase
+        .from('kop_penjualan')
+        .select(`
+          id,
+          nomor_struk,
+          items_summary,
+          total_transaksi,
+          tanggal,
+          kop_penjualan_detail(
+            id,
+            subtotal,
+            hpp_snapshot,
+            jumlah,
+            kop_barang(
+              owner_type
+            )
+          )
+        `, { count: 'exact' })
+        .eq('status_pembayaran', 'lunas');
+
+      // Apply date filter
+      statsQuery = statsQuery.gte('tanggal', dateRange.startDate + 'T00:00:00');
+      statsQuery = statsQuery.lte('tanggal', dateRange.endDate + 'T23:59:59');
+
+      // Apply search filter
+      if (searchTerm) {
+        statsQuery = statsQuery.or(`nomor_struk.ilike.%${searchTerm}%,items_summary.ilike.%${searchTerm}%`);
+      }
+
+      const { data, error, count } = await statsQuery;
+
+      if (error) throw error;
+
+      // Calculate totals separated by owner_type + HPP calculation
+      let totalOmset = 0;
+      let totalOmsetYayasan = 0;
+      let totalOmsetKoperasi = 0;
+      let totalHPP = 0;
+
+      (data || []).forEach((penjualan: {
+        total_transaksi: unknown;
+        kop_penjualan_detail?: Array<{
+          subtotal: unknown;
+          hpp_snapshot?: unknown;
+          jumlah: unknown;
+          kop_barang?: { owner_type?: OwnerType } | Array<{ owner_type?: OwnerType }> | null;
+        }>;
+      }) => {
+        const penjualanTotal = parseFloat(String(penjualan.total_transaksi || 0));
+        totalOmset += penjualanTotal;
+
+        // Calculate by owner_type from details and HPP
+        const details = penjualan.kop_penjualan_detail || [];
+        let omsetYayasan = 0;
+        let omsetKoperasi = 0;
+
+        details.forEach((detail) => {
+          const kopBarang = Array.isArray(detail.kop_barang) ? detail.kop_barang[0] : detail.kop_barang;
+          const ownerType = kopBarang?.owner_type;
+          const subtotal = parseFloat(String(detail.subtotal || 0));
+          
+          // Calculate HPP: hpp_snapshot * jumlah
+          const hppSnapshot = parseFloat(String(detail.hpp_snapshot || 0));
+          const jumlah = parseFloat(String(detail.jumlah || 0));
+          const hppTotal = hppSnapshot * jumlah;
+          totalHPP += hppTotal;
+          
+          if (ownerType === 'yayasan') {
+            omsetYayasan += subtotal;
+          } else {
+            omsetKoperasi += subtotal;
+          }
         });
-        setShowReceipt(true);
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Gagal memuat data nota';
-      toast.error(errorMessage);
-    }
-  };
 
-  const handleEdit = (sale: UnifiedSale) => {
-    // Redirect to appropriate edit page based on source type
-    if (sale.source_type === 'kop_penjualan') {
-      // Edit koperasi penjualan - redirect to kasir with edit parameter
-      navigate(`/koperasi/kasir?edit=${sale.sale_id}`);
-    } else if (sale.source_type === 'penjualan_header') {
-      // Edit multi-item sale
-      navigate(`/inventaris/sales?edit=${sale.sale_id}`);
-    } else {
-      // Edit single-item sale
-      navigate(`/inventaris/sales?edit=${sale.sale_id}`);
-    }
-  };
-
-  const handleDelete = (sale: UnifiedSale) => {
-    setSaleToDelete(sale);
-    setShowDeleteConfirm(true);
-  };
-
-  const deleteMutation = useMutation({
-    mutationFn: async (sale: UnifiedSale) => {
-      // Delete based on source type
-      const { supabase } = await import('@/integrations/supabase/client');
-      
-      try {
-        if (sale.source_type === 'kop_penjualan') {
-          // Use service function for proper deletion with stock restoration
-          // sale_id is already UUID from kop_penjualan.id
-          await koperasiService.deletePenjualan(sale.sale_id);
-        } else if (sale.source_type === 'penjualan_header') {
-          // Delete penjualan_header (cascade will delete items and transaksi_inventaris)
-          const { error } = await supabase
-            .from('penjualan_header')
-            .delete()
-            .eq('id', sale.sale_id);
-          if (error) {
-            throw new Error(`Gagal menghapus penjualan: ${error.message}`);
-          }
-        } else if (sale.source_type === 'transaksi_inventaris') {
-          // Delete transaksi_inventaris (trigger will restore stock)
-          const { error } = await supabase
-            .from('transaksi_inventaris')
-            .delete()
-            .eq('id', sale.sale_id);
-          if (error) {
-            throw new Error(`Gagal menghapus transaksi: ${error.message}`);
-          }
+        // If no details, try to estimate from total (fallback)
+        if (details.length === 0) {
+          // If we can't determine, we'll skip this transaction from breakdown
+          // But still count it in total
         } else {
-          throw new Error(`Tipe sumber tidak dikenal: ${sale.source_type}`);
+          totalOmsetYayasan += omsetYayasan;
+          totalOmsetKoperasi += omsetKoperasi;
         }
+      });
+
+      const totalTransaksi = count || 0;
+      const rataRataTransaksi = totalTransaksi > 0 ? totalOmset / totalTransaksi : 0;
+      
+      // Calculate Laba Kotor
+      const labaKotor = totalOmset - totalHPP;
+
+      return {
+        totalTransaksi,
+        totalOmset,
+        totalOmsetYayasan,
+        totalOmsetKoperasi,
+        totalHPP,
+        labaKotor,
+        rataRataTransaksi,
+      } as StatsData;
+    },
+  });
+
+  // Fetch chart data with owner_type separation
+  const { data: chartData, isLoading: isLoadingChart } = useQuery({
+    queryKey: ['koperasi-penjualan-chart', dateRange],
+    queryFn: async () => {
+
+      const { data, error } = await supabase
+        .from('kop_penjualan')
+        .select(`
+          tanggal,
+          total_transaksi,
+          metode_pembayaran,
+          kop_penjualan_detail(
+            id,
+            subtotal,
+            kop_barang(
+              owner_type
+            )
+          )
+        `)
+        .eq('status_pembayaran', 'lunas')
+        .gte('tanggal', dateRange.startDate + 'T00:00:00')
+        .lte('tanggal', dateRange.endDate + 'T23:59:59')
+        .order('tanggal', { ascending: true });
+
+      if (error) throw error;
+
+      // Group by month with owner_type separation
+      const monthlyMap = new Map<string, { 
+        total: number; 
+        yayasan: number; 
+        koperasi: number;
+        cash: number;
+        transfer: number;
+      }>();
+      
+      (data || []).forEach((penjualan: {
+        tanggal: string;
+        total_transaksi: unknown;
+        metode_pembayaran: PaymentMethod;
+        kop_penjualan_detail?: Array<{
+          subtotal: unknown;
+          kop_barang?: { owner_type?: OwnerType } | Array<{ owner_type?: OwnerType }> | null;
+        }>;
+      }) => {
+        const date = new Date(penjualan.tanggal);
+        // Use YYYY-MM format for proper sorting
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+        
+        if (!monthlyMap.has(monthKey)) {
+          monthlyMap.set(monthKey, { total: 0, yayasan: 0, koperasi: 0, cash: 0, transfer: 0 });
+        }
+        
+        const monthData = monthlyMap.get(monthKey)!;
+        const penjualanTotal = parseFloat(String(penjualan.total_transaksi || 0));
+        monthData.total += penjualanTotal;
+
+        // Calculate by owner_type from details
+        const details = penjualan.kop_penjualan_detail || [];
+        let yayasanTotal = 0;
+        let koperasiTotal = 0;
+
+        details.forEach((detail) => {
+          const kopBarang = Array.isArray(detail.kop_barang) ? detail.kop_barang[0] : detail.kop_barang;
+          const ownerType = kopBarang?.owner_type;
+          const subtotal = parseFloat(String(detail.subtotal || 0));
+          
+          if (ownerType === 'yayasan') {
+            yayasanTotal += subtotal;
+          } else {
+            koperasiTotal += subtotal;
+          }
+        });
+
+        monthData.yayasan += yayasanTotal;
+        monthData.koperasi += koperasiTotal;
+
+        // Track payment method
+        if (penjualan.metode_pembayaran === 'cash') {
+          monthData.cash += penjualanTotal;
+        } else {
+          monthData.transfer += penjualanTotal;
+        }
+      });
+
+      // Convert to array and sort properly by year-month
+      const monthlyArray: ChartDataPoint[] = Array.from(monthlyMap.entries())
+        .map(([monthKey, data]) => {
+          // Parse YYYY-MM format
+          const [year, month] = monthKey.split('-').map(Number);
+          const date = new Date(year, month - 1, 1);
+          return {
+            month: format(date, 'MMM', { locale: id }),
+            monthYear: format(date, 'MMM yyyy', { locale: id }),
+            monthKey, // Keep for sorting
+            total: data.total,
+            yayasan: data.yayasan,
+            koperasi: data.koperasi,
+            cash: data.cash,
+            transfer: data.transfer,
+          };
+        })
+        .sort((a, b) => {
+          // Sort by monthKey (YYYY-MM) which is naturally sortable
+          return a.monthKey.localeCompare(b.monthKey);
+        });
+
+      return monthlyArray;
+    },
+  });
+
+  const penjualanData: PenjualanListItem[] = penjualanResponse?.data || [];
+  const totalRecords = penjualanResponse?.total || 0;
+  const totalPages = Math.ceil(totalRecords / PAGE_SIZE);
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (penjualanId: string) => {
+      try {
+        await koperasiService.deletePenjualan(penjualanId);
       } catch (error) {
-        // Provide more detailed error message
-        if (error instanceof Error) {
-          throw error;
+        console.error('Error in deleteMutation:', error);
+        // Handle network errors
+        const errorObj = error as Error;
+        if (errorObj.message?.includes('Failed to fetch') || errorObj.message?.includes('ERR_ADDRESS_UNREACHABLE')) {
+          throw new Error('Tidak dapat terhubung ke server. Silakan coba lagi atau periksa koneksi internet Anda.');
         }
-        throw new Error('Gagal menghapus penjualan. Silakan coba lagi.');
+        throw error;
       }
     },
     onSuccess: () => {
-      toast.success('Penjualan berhasil dihapus');
-      // Invalidate sales queries
-      queryClient.invalidateQueries({ queryKey: ['unified-sales-history'] });
-      queryClient.invalidateQueries({ queryKey: ['sales-summary-liabilities'] });
-      queryClient.invalidateQueries({ queryKey: ['sales-analytics'] });
-      // Invalidate keuangan koperasi queries (karena cascade delete sudah menghapus entri keuangan)
-      // Invalidate semua query yang mungkin terkait dengan keuangan koperasi
-      queryClient.invalidateQueries({ queryKey: ['keuangan-koperasi'] });
-      queryClient.invalidateQueries({ queryKey: ['keuangan-koperasi-transactions'] });
-      queryClient.invalidateQueries({ predicate: (query) => 
-        query.queryKey.some((key) => 
-          typeof key === 'string' && 
-          (key.includes('keuangan') || key.includes('koperasi'))
-        )
-      });
-      setShowDeleteConfirm(false);
-      setSaleToDelete(null);
+      toast.success('Penjualan berhasil dihapus dan stok dikembalikan.');
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-list'] });
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-chart'] });
+      queryClient.invalidateQueries({ queryKey: ['koperasi-dashboard-stats'] });
+      setDeletingPenjualan(null);
     },
     onError: (error: Error) => {
-      const errorMessage = error?.message || 'Gagal menghapus penjualan';
-      toast.error(errorMessage, {
-        duration: TOAST_DURATION.MEDIUM,
-      });
+      console.error('Delete error:', error);
+      const errorMessage = error.message || 'Gagal menghapus penjualan. Silakan coba lagi.';
+      toast.error(errorMessage);
     },
   });
 
+  // Fetch detail untuk view
+  const { data: penjualanDetail } = useQuery({
+    queryKey: ['koperasi-penjualan-detail', viewingPenjualan?.id],
+    queryFn: async () => {
+      if (!viewingPenjualan?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('kop_penjualan')
+        .select(`
+          id,
+          nomor_struk,
+          tanggal,
+          total_transaksi,
+          diskon_global,
+          total_bayar,
+          metode_pembayaran,
+          status_pembayaran,
+          items_summary,
+          kasir_id,
+          shift_id,
+          created_at,
+          updated_at,
+          kop_penjualan_detail(
+            id,
+            jumlah,
+            harga_satuan_jual,
+            subtotal,
+            margin,
+            bagian_yayasan,
+            bagian_koperasi,
+            kop_barang(
+              id,
+              kode_barang,
+              nama_barang,
+              satuan_dasar,
+              owner_type
+            )
+          ),
+          kop_shift_kasir(
+            id,
+            no_shift
+          )
+        `)
+        .eq('id', viewingPenjualan.id)
+        .single();
+
+      if (error) throw error;
+      if (!data) return null;
+      
+      // Handle array response from Supabase relation
+      const detail = {
+        ...data,
+        kop_shift_kasir: Array.isArray(data.kop_shift_kasir) 
+          ? (data.kop_shift_kasir[0] as KopShiftKasir | undefined) || null
+          : data.kop_shift_kasir,
+        kop_penjualan_detail: (data.kop_penjualan_detail || []).map((d: {
+          kop_barang?: KopBarang | KopBarang[];
+        }) => ({
+          ...d,
+          kop_barang: Array.isArray(d.kop_barang) ? d.kop_barang[0] : d.kop_barang
+        })) as KopPenjualanDetail[]
+      } as unknown as PenjualanDetail;
+      
+      return detail;
+    },
+    enabled: !!viewingPenjualan?.id,
+  });
+
+  // Fetch receipt data untuk print
+  const { data: receiptData } = useQuery({
+    queryKey: ['koperasi-penjualan-receipt', printingPenjualan?.id],
+    queryFn: async () => {
+      if (!printingPenjualan?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('kop_penjualan')
+        .select(`
+          *,
+          kop_penjualan_detail(
+            id,
+            jumlah,
+            harga_satuan_jual,
+            subtotal,
+            kop_barang(
+              nama_barang,
+              satuan_dasar
+            )
+          )
+        `)
+        .eq('id', printingPenjualan.id)
+        .single();
+
+      if (error) throw error;
+
+      // Get kasir name
+      let kasirName = 'Admin';
+      if (data.kasir_id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', data.kasir_id)
+          .single();
+        kasirName = profile?.full_name || 'Admin';
+      }
+
+      // Transform items untuk receipt
+      const items: ReceiptItem[] = (data.kop_penjualan_detail || []).map((detail: KopPenjualanDetail) => ({
+        id: detail.id,
+        nama_barang: detail.kop_barang?.nama_barang || 'Item',
+        jumlah: detail.jumlah,
+        satuan: detail.kop_barang?.satuan_dasar || 'pcs',
+        harga_satuan_jual: detail.harga_satuan_jual,
+        subtotal: detail.subtotal,
+      }));
+
+      setReceiptItems(items);
+
+      return {
+        id: data.id,
+        nomor_struk: data.nomor_struk,
+        tanggal: data.tanggal,
+        kasir_name: kasirName,
+        metode_pembayaran: data.metode_pembayaran,
+        total_transaksi: data.total_transaksi,
+        jumlah_bayar: data.total_bayar || data.total_transaksi,
+        kembalian: (data as { kembalian?: number }).kembalian || 0,
+      } as ReceiptData;
+    },
+    enabled: !!printingPenjualan?.id,
+  });
+
+  // Use statistics from query
+  const stats: StatsData = statsData || {
+    totalTransaksi: 0,
+    totalOmset: 0,
+    totalOmsetYayasan: 0,
+    totalOmsetKoperasi: 0,
+    totalHPP: 0,
+    labaKotor: 0,
+    rataRataTransaksi: 0,
+  };
+
+  const handleEdit = (penjualan: PenjualanListItem) => {
+    navigate(`/koperasi/kasir?edit=${penjualan.id}`);
+  };
+
+  const handlePrint = (penjualan: PenjualanListItem) => {
+    setPrintingPenjualan(penjualan);
+  };
+
+  const handleDelete = (penjualan: PenjualanListItem) => {
+    setDeletingPenjualan(penjualan);
+  };
+
   const confirmDelete = () => {
-    if (saleToDelete) {
-      deleteMutation.mutate(saleToDelete);
+    if (deletingPenjualan) {
+      deleteMutation.mutate(deletingPenjualan.id);
     }
   };
 
+  // Get total cash belum disetor untuk periode yang dipilih
+  const { data: cashBelumDisetor } = useQuery({
+    queryKey: ['cash-belum-disetor', dateRange],
+    queryFn: async () => {
+      // Get total penjualan cash
+      const { data: penjualanCash } = await supabase
+        .from('kop_penjualan')
+        .select('total_transaksi')
+        .eq('metode_pembayaran', 'cash')
+        .eq('status_pembayaran', 'lunas')
+        .gte('tanggal', dateRange.startDate + 'T00:00:00')
+        .lte('tanggal', dateRange.endDate + 'T23:59:59');
 
-  const getSourceTypeLabel = (type: string) => {
-    switch (type) {
-      case 'penjualan_header':
-        return 'Multi-Item';
-      case 'transaksi_inventaris':
-        return 'Single-Item';
-      case 'kop_penjualan':
-        return 'Koperasi';
-      default:
-        return type;
-    }
-  };
+      const totalPenjualanCash = (penjualanCash || []).reduce(
+        (sum, p) => sum + parseFloat(p.total_transaksi || 0),
+        0
+      );
 
-  const getSourceTypeColor = (type: string) => {
-    switch (type) {
-      case 'penjualan_header':
-        return 'bg-blue-100 text-blue-800';
-      case 'transaksi_inventaris':
-        return 'bg-green-100 text-green-800';
-      case 'kop_penjualan':
-        return 'bg-purple-100 text-purple-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+      // Get total setoran cash untuk periode yang sama
+      const { data: setoranCash } = await supabase
+        .from('kop_setoran_cash_kasir')
+        .select('jumlah_setor')
+        .eq('status', 'posted')
+        .gte('tanggal_setor', dateRange.startDate + 'T00:00:00')
+        .lte('tanggal_setor', dateRange.endDate + 'T23:59:59');
 
-  const summary = salesSummary as SalesSummary | null;
-  // Calculate total revenue from salesHistory for consistency
-  const totalRevenue = salesHistory?.reduce((sum, sale) => sum + Number(sale.total_amount || 0), 0) || 0;
-  const totalSales = salesHistory?.length || 0;
+      const totalSetoranCash = (setoranCash || []).reduce(
+        (sum, s) => sum + parseFloat(s.jumlah_setor || 0),
+        0
+      );
+
+      return {
+        totalPenjualanCash,
+        totalSetoranCash,
+        sisaBelumDisetor: totalPenjualanCash - totalSetoranCash,
+      } as CashBelumDisetor;
+    },
+  });
 
   return (
-    <div className="space-y-6 bg-white min-h-screen p-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Header dengan Filter */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Dashboard Penjualan
-          </h1>
-          <p className="text-gray-500 mt-1">Analitik dan riwayat transaksi penjualan</p>
+          <h1 className="text-3xl font-bold text-gray-900">Riwayat Penjualan Koperasi</h1>
+          <p className="text-sm text-muted-foreground mt-1">Kelola dan pantau semua transaksi penjualan</p>
         </div>
-        <div className="flex items-center gap-3">
-          {kasirId && (
-            <Button
-              onClick={() => setShowSetorCashDialog(true)}
-              variant="outline"
-              className="gap-2 border-gray-300 text-gray-700 hover:bg-gray-50"
-              size="sm"
-            >
-              <Wallet className="w-4 h-4" />
-              Setor Cash
-            </Button>
-          )}
-          <Button
-            onClick={() => navigate('/koperasi/kasir')}
-            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-            size="sm"
+        <div className="flex items-center gap-2">
+          <Select 
+            value={dateFilter} 
+            onValueChange={(value: DateFilterType) => {
+              setDateFilter(value);
+              setPage(1);
+            }}
           >
-            <Plus className="w-4 h-4" />
-            Penjualan Baru
+            <SelectTrigger className="w-[160px] h-10">
+              <Calendar className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Periode" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Hari Ini</SelectItem>
+              <SelectItem value="week">7 Hari Terakhir</SelectItem>
+              <SelectItem value="month">Bulan Ini</SelectItem>
+              <SelectItem value="year">Tahun Ini</SelectItem>
+              <SelectItem value="all">Semua Waktu</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-10"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-list'] });
+              queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-stats'] });
+              queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-chart'] });
+              queryClient.invalidateQueries({ queryKey: ['cash-belum-disetor'] });
+              toast.success('Data diperbarui');
+            }}
+          >
+            <RefreshCw className="h-4 w-4" />
           </Button>
-          
-          {/* Compact Filter Dropdowns */}
-          <div className="flex items-center gap-2">
-            <Select value={dateFilter} onValueChange={(value: 'all' | 'today' | 'week' | 'month' | 'lastMonth') => setDateFilter(value)}>
-              <SelectTrigger className="w-[140px] h-9 text-sm border-gray-300">
-                <SelectValue placeholder="Periode" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="today">Hari Ini</SelectItem>
-                <SelectItem value="week">Minggu Ini</SelectItem>
-                <SelectItem value="month">Bulan Ini</SelectItem>
-                <SelectItem value="lastMonth">Bulan Lalu</SelectItem>
-                <SelectItem value="all">Semua</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            <Select value={ownerTypeFilter} onValueChange={(value: 'all' | 'koperasi' | 'yayasan') => setOwnerTypeFilter(value)}>
-              <SelectTrigger className="w-[140px] h-9 text-sm border-gray-300">
-                <SelectValue placeholder="Tipe Item" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua</SelectItem>
-                <SelectItem value="koperasi">Koperasi</SelectItem>
-                <SelectItem value="yayasan">Inventaris</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
       </div>
 
-      {/* Main Content with Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'analytics' | 'history')} className="space-y-4">
-        <TabsList className="bg-white border border-gray-200">
-          <TabsTrigger value="analytics" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-            <BarChart3 className="w-4 h-4 mr-2" />
-            Analitik
-          </TabsTrigger>
-          <TabsTrigger value="history" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-            <ShoppingCart className="w-4 h-4 mr-2" />
-            Riwayat
-          </TabsTrigger>
-        </TabsList>
+      {/* Summary Cards - Minimalis & Simetris */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Total Penjualan */}
+        <Card className="border border-gray-200 bg-white shadow-sm hover:shadow transition-all overflow-hidden h-full">
+          <CardContent className="p-4 flex flex-col h-full">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                Total Penjualan
+              </p>
+              <TrendingUp className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            </div>
+            {isLoadingStats ? (
+              <div className="h-8 w-full animate-pulse bg-gray-100 rounded mb-2"></div>
+            ) : (
+              <p className="text-xl font-bold text-gray-900 mb-2 truncate">
+                {formatCurrency(stats.totalOmset)}
+              </p>
+            )}
+            {!isLoadingStats && (
+              <p className="text-xs text-gray-500 mt-auto truncate">
+                {stats.totalTransaksi} transaksi • Avg: {formatCurrency(stats.rataRataTransaksi)}
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
-        <TabsContent value="analytics" className="space-y-4">
-          {analyticsLoading || isLoading ? (
-            <Card className="bg-white/60 backdrop-blur-sm border-2 border-green-200/50">
-              <CardContent className="py-12 text-center text-gray-500">
-                Memuat data analitik...
-              </CardContent>
-            </Card>
-          ) : salesAnalytics && salesHistory !== undefined ? (
-            <SalesAnalytics
-              hourlyData={salesAnalytics.hourlyData}
-              dailyData={salesAnalytics.dailyData}
-              popularItems={salesAnalytics.popularItems}
-              totalSales={totalSales}
-              totalRevenue={totalRevenue}
-            />
-          ) : (
-            <Card className="bg-white/60 backdrop-blur-sm border-2 border-green-200/50">
-              <CardContent className="py-12 text-center text-gray-500">
-                Tidak ada data untuk ditampilkan
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
+        {/* Laba Kotor */}
+        <Card className="border border-gray-200 bg-white shadow-sm hover:shadow transition-all overflow-hidden h-full">
+          <CardContent className="p-4 flex flex-col h-full">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                Laba Kotor
+              </p>
+              <DollarSign className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            </div>
+            {isLoadingStats ? (
+              <div className="h-8 w-full animate-pulse bg-gray-100 rounded mb-2"></div>
+            ) : (
+              <p className={`text-xl font-bold mb-2 truncate ${stats.labaKotor >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                {formatCurrency(stats.labaKotor)}
+              </p>
+            )}
+            {!isLoadingStats && (
+              <p className="text-xs text-gray-500 mt-auto truncate">
+                Penjualan - HPP
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
-        <TabsContent value="history" className="space-y-4">
-          {/* Summary Card - Only Total Revenue for Kasir */}
-          <Card className="bg-white border border-gray-200 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-semibold text-gray-700">Total Penjualan</CardTitle>
-              <TrendingUp className="h-4 w-4 text-emerald-600" />
+        {/* Penjualan Yayasan */}
+        <Card className="border border-blue-200 bg-gradient-to-br from-blue-50/50 to-white shadow-sm hover:shadow transition-all overflow-hidden h-full">
+          <CardContent className="p-4 flex flex-col h-full">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">
+                Penjualan Yayasan
+              </p>
+              <Building2 className="h-4 w-4 text-blue-500 flex-shrink-0" />
+            </div>
+            {isLoadingStats ? (
+              <div className="h-8 w-full animate-pulse bg-gray-100 rounded mb-2"></div>
+            ) : (
+              <p className="text-xl font-bold text-blue-700 mb-2 truncate">
+                {formatCurrency(stats.totalOmsetYayasan)}
+              </p>
+            )}
+            {!isLoadingStats && (
+              <p className="text-xs text-gray-500 mt-auto truncate">
+                {stats.totalOmset > 0 
+                  ? `${Math.round((stats.totalOmsetYayasan / stats.totalOmset) * 100)}% dari total`
+                  : '0% dari total'}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Penjualan Koperasi */}
+        <Card className="border border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-white shadow-sm hover:shadow transition-all overflow-hidden h-full">
+          <CardContent className="p-4 flex flex-col h-full">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-emerald-600 uppercase tracking-wide">
+                Penjualan Koperasi
+              </p>
+              <Store className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+            </div>
+            {isLoadingStats ? (
+              <div className="h-8 w-full animate-pulse bg-gray-100 rounded mb-2"></div>
+            ) : (
+              <p className="text-xl font-bold text-emerald-700 mb-2 truncate">
+                {formatCurrency(stats.totalOmsetKoperasi)}
+              </p>
+            )}
+            {!isLoadingStats && (
+              <p className="text-xs text-gray-500 mt-auto truncate">
+                {stats.totalOmset > 0 
+                  ? `${Math.round((stats.totalOmsetKoperasi / stats.totalOmset) * 100)}% dari total`
+                  : '0% dari total'}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Cash Belum Disetor Card */}
+      {cashBelumDisetor && cashBelumDisetor.sisaBelumDisetor > 0 && (
+        <Card className="border border-amber-200 bg-gradient-to-r from-amber-50/50 to-orange-50/50 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-amber-500 flex items-center justify-center">
+                  <Wallet className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-amber-900">Cash Belum Disetor</p>
+                  <p className="text-lg font-bold text-amber-700">
+                    {formatCurrency(cashBelumDisetor.sisaBelumDisetor)}
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => {
+                  if (user?.id) {
+                    setShowSetorCashDialog(true);
+                  } else {
+                    toast.error('Silakan login terlebih dahulu');
+                  }
+                }}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                <Wallet className="h-4 w-4 mr-2" />
+                Setor Cash
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Cari nomor struk atau keterangan..."
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setPage(1);
+          }}
+          className="pl-10 h-11"
+        />
+      </div>
+
+      {/* Charts Section - dengan Pemisahan Yayasan vs Koperasi */}
+      {chartData && chartData.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Line Chart - Tren Penjualan Yayasan vs Koperasi */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-semibold">Tren Penjualan per Owner</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">Perkembangan penjualan Yayasan vs Koperasi per bulan</p>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">
-                {summaryLoading ? '...' : formatRupiah(summary?.total_revenue || 0)}
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                    <XAxis 
+                      dataKey="month" 
+                      tick={{ fontSize: 11, fill: '#9ca3af' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 11, fill: '#9ca3af' }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
+                    />
+                    <Tooltip 
+                      formatter={(value: number) => formatCurrency(value)}
+                      contentStyle={{ 
+                        backgroundColor: '#fff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Legend 
+                      wrapperStyle={{ fontSize: '11px', paddingTop: '16px' }}
+                      iconType="line"
+                    />
+                    <Line 
+                      type="monotone"
+                      dataKey="yayasan"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      dot={{ fill: '#3b82f6', r: 4 }}
+                      name="Yayasan"
+                    />
+                    <Line 
+                      type="monotone"
+                      dataKey="koperasi"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={{ fill: '#10b981', r: 4 }}
+                      name="Koperasi"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {totalSales} transaksi
-              </p>
             </CardContent>
           </Card>
 
-          {/* Sales Table */}
-          <Card className="bg-white border border-gray-200 shadow-sm">
+          {/* Bar Chart - Perbandingan Yayasan vs Koperasi per Bulan */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-semibold">Pembagian Penjualan per Bulan</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">Yayasan vs Koperasi</p>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                    <XAxis 
+                      dataKey="month" 
+                      tick={{ fontSize: 11, fill: '#9ca3af' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 11, fill: '#9ca3af' }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
+                    />
+                    <Tooltip 
+                      formatter={(value: number) => formatCurrency(value)}
+                      contentStyle={{ 
+                        backgroundColor: '#fff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Legend 
+                      wrapperStyle={{ fontSize: '11px', paddingTop: '16px' }}
+                    />
+                    <Bar dataKey="yayasan" fill="#3b82f6" name="Yayasan" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="koperasi" fill="#10b981" name="Koperasi" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Penjualan Table */}
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5" />
-            Daftar Transaksi
-          </CardTitle>
+          <CardTitle>Daftar Penjualan</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-12 text-gray-500">Memuat data...</div>
-          ) : !salesHistory || salesHistory.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <ShoppingCart className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <p>Belum ada transaksi penjualan</p>
-              <Button
-                className="mt-4"
-                onClick={() => navigate('/koperasi/kasir')}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Buat Penjualan Baru
-              </Button>
+            <div className="text-center py-8">Memuat data...</div>
+          ) : penjualanData.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Tidak ada data penjualan
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Item Terjual</TableHead>
-                  <TableHead>Tipe</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {salesHistory.map((sale, index) => (
-                  <TableRow key={`${sale.source_type}-${sale.sale_id}-${index}`}>
-                    <TableCell>
-                      {format(new Date(sale.tanggal), 'dd MMM yyyy', { locale: id })}
-                    </TableCell>
-                    <TableCell>{sale.customer_name || '-'}</TableCell>
-                    <TableCell className="max-w-xs">
-                      <div className="text-sm text-gray-700 truncate" title={sale.items_summary || '-'}>
-                        {sale.items_summary || '-'}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getSourceTypeColor(sale.source_type)}>
-                        {getSourceTypeLabel(sale.source_type)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatRupiah(Number(sale.total_amount || 0))}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        {sale.source_type === 'kop_penjualan' && (
+            <>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tanggal</TableHead>
+                      <TableHead>Nomor Struk</TableHead>
+                      <TableHead>Items</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead>Metode Bayar</TableHead>
+                      <TableHead className="text-right">Aksi</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {penjualanData.map((penjualan) => {
+                      const itemCount = penjualan.kop_penjualan_detail?.length || 0;
+                      const itemsSummary = penjualan.items_summary || 
+                        (itemCount > 0 
+                          ? `${itemCount} item${itemCount > 1 ? 's' : ''}`
+                          : 'Tidak ada item');
+
+                      return (
+                        <TableRow key={penjualan.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              {format(new Date(penjualan.tanggal), 'dd MMM yyyy HH:mm', { locale: id })}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono font-semibold">
+                            {penjualan.nomor_struk || penjualan.id.slice(0, 8)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="max-w-[300px]">
+                              <div className="truncate">{itemsSummary}</div>
+                              {penjualan.kop_penjualan_detail && penjualan.kop_penjualan_detail.length > 0 && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {penjualan.kop_penjualan_detail.slice(0, 2).map((detail, idx) => (
+                                    <span key={detail.id}>
+                                      {detail.kop_barang?.nama_barang}
+                                      {idx < Math.min(penjualan.kop_penjualan_detail!.length - 1, 1) && ', '}
+                                    </span>
+                                  ))}
+                                  {penjualan.kop_penjualan_detail.length > 2 && ` +${penjualan.kop_penjualan_detail.length - 2} lainnya`}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-green-600">
+                            {formatCurrency(penjualan.total_transaksi || 0)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={penjualan.metode_pembayaran === 'transfer' ? 'default' : 'secondary'}>
+                              {penjualan.metode_pembayaran === 'transfer' ? 'Transfer' : 'Cash'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setViewingPenjualan(penjualan)}
+                                title="Lihat Detail"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handlePrint(penjualan)}
+                                title="Cetak Nota"
+                              >
+                                <Printer className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEdit(penjualan)}
+                                title="Edit Penjualan"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(penjualan)}
+                                title="Hapus Penjualan"
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Menampilkan {(page - 1) * PAGE_SIZE + 1} - {Math.min(page * PAGE_SIZE, totalRecords)} dari {totalRecords} transaksi
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                    >
+                      Sebelumnya
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(MAX_PAGINATION_BUTTONS, totalPages) }, (_, i) => {
+                        let pageNum: number;
+                        if (totalPages <= MAX_PAGINATION_BUTTONS) {
+                          pageNum = i + 1;
+                        } else if (page <= 3) {
+                          pageNum = i + 1;
+                        } else if (page >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = page - 2 + i;
+                        }
+                        return (
                           <Button
-                            variant="ghost"
+                            key={pageNum}
+                            variant={page === pageNum ? 'default' : 'outline'}
                             size="sm"
-                            onClick={() => handlePrintNota(sale)}
-                            title="Cetak Nota"
-                            className="text-blue-600 hover:text-blue-700"
+                            onClick={() => setPage(pageNum)}
                           >
-                            <Printer className="w-4 h-4" />
+                            {pageNum}
                           </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewDetail(sale)}
-                          title="Lihat Detail"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEdit(sale)}
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(sale)}
-                          disabled={deleteMutation.isPending}
-                          className="text-red-600 hover:text-red-700 disabled:opacity-50"
-                          title="Hapus penjualan"
-                        >
-                          {deleteMutation.isPending && saleToDelete?.sale_id === sale.sale_id ? (
-                            <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                    >
+                      Selanjutnya
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      </Card>
 
-      {/* Detail Dialog - Tampilan Struk/Kwitansi */}
-      <Dialog open={showDetail} onOpenChange={setShowDetail}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <VisuallyHidden asChild>
-            <DialogTitle>Detail Penjualan - Struk</DialogTitle>
-          </VisuallyHidden>
-          {selectedSale && saleDetail && (
-            <div className="bg-white">
-              {/* Header Struk */}
-              <div className="text-center border-b-2 border-dashed border-gray-300 pb-4 mb-4">
-                <h2 className="text-2xl font-bold text-gray-900 mb-1">SANTRA MART</h2>
-                <p className="text-sm text-gray-600">Koperasi Pesantren Anak Yatim Al-Bisri</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {selectedSale.source_type === 'kop_penjualan' 
-                    ? (selectedSale.nomor_struk ? `No. ${selectedSale.nomor_struk}` : `No. ${selectedSale.sale_id.slice(0, 8).toUpperCase()}`)
-                    : (selectedSale.customer_name?.includes('PJ-') 
-                      ? selectedSale.customer_name 
-                      : `No. ${selectedSale.sale_id.slice(0, 8).toUpperCase()}`)}
-                </p>
-              </div>
-
-              {/* Info Transaksi */}
-              <div className="space-y-2 mb-4 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Tanggal:</span>
-                  <span className="font-medium">
-                    {format(new Date(selectedSale.tanggal), 'dd MMMM yyyy, HH:mm', { locale: id })}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Metode Pembayaran:</span>
-                  <span className="font-medium capitalize">{selectedSale.customer_name || 'Cash'}</span>
+      {/* Detail Modal */}
+      {viewingPenjualan && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Detail Penjualan</CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePrint(viewingPenjualan)}
+                  >
+                    <Printer className="h-4 w-4 mr-2" />
+                    Cetak
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEdit(viewingPenjualan)}
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setViewingPenjualan(null)}
+                  >
+                    ✕
+                  </Button>
                 </div>
               </div>
-
-              {/* Daftar Item */}
-              <div className="border-t border-b border-gray-200 py-3 mb-4">
-                <div className="space-y-2">
-                  {saleDetail.items.map((item, index) => (
-                    <div key={item.id || index} className="flex justify-between items-start text-sm">
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">{item.nama_barang}</p>
-                        <p className="text-xs text-gray-500">
-                          {item.jumlah} {item.satuan || 'pcs'} × {formatRupiah(Number(item.harga_satuan_jual || item.harga_satuan || 0))}
-                        </p>
-                      </div>
-                      <div className="text-right ml-4">
-                        <p className="font-medium text-gray-900">
-                          {formatRupiah(Number(item.subtotal || item.harga_total || 0))}
-                        </p>
-                      </div>
+            </CardHeader>
+            <CardContent>
+              {penjualanDetail ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Nomor Struk</p>
+                      <p className="font-mono font-semibold">
+                        {penjualanDetail.nomor_struk || penjualanDetail.id.slice(0, 8)}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Rincian Total */}
-              <div className="space-y-2 mb-4 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Subtotal:</span>
-                  <span className="font-medium">
-                    {formatRupiah(saleDetail.summary.total_revenue)}
-                  </span>
-                </div>
-                {saleDetail.summary.total_hpp > 0 && (
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>HPP:</span>
-                    <span>{formatRupiah(saleDetail.summary.total_hpp)}</span>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Tanggal</p>
+                      <p className="font-semibold">
+                        {format(new Date(penjualanDetail.tanggal), 'dd MMM yyyy HH:mm', { locale: id })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Transaksi</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {formatCurrency(penjualanDetail.total_transaksi || 0)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Metode Pembayaran</p>
+                      <Badge>
+                        {penjualanDetail.metode_pembayaran === 'transfer' ? 'Transfer' : 'Cash'}
+                      </Badge>
+                    </div>
                   </div>
-                )}
-                {saleDetail.summary.total_profit > 0 && (
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>Profit:</span>
-                    <span>{formatRupiah(saleDetail.summary.total_profit)}</span>
-                  </div>
-                )}
-                <div className="border-t border-gray-200 pt-2 mt-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-bold text-gray-900">TOTAL:</span>
-                    <span className="text-lg font-bold text-emerald-600">
-                      {formatRupiah(Number(selectedSale.total_amount || saleDetail.summary.total_revenue))}
-                    </span>
-                  </div>
+
+                  {/* Items List */}
+                  {penjualanDetail.kop_penjualan_detail && penjualanDetail.kop_penjualan_detail.length > 0 && (
+                    <div className="mt-6">
+                      <h3 className="text-lg font-semibold mb-4">Detail Items</h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Kode</TableHead>
+                            <TableHead>Nama Barang</TableHead>
+                            <TableHead className="text-right">Jumlah</TableHead>
+                            <TableHead className="text-right">Harga Satuan</TableHead>
+                            <TableHead className="text-right">Subtotal</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {penjualanDetail.kop_penjualan_detail.map((detail) => (
+                            <TableRow key={detail.id}>
+                              <TableCell className="font-mono">
+                                {detail.kop_barang?.kode_barang || '-'}
+                              </TableCell>
+                              <TableCell>{detail.kop_barang?.nama_barang || '-'}</TableCell>
+                              <TableCell className="text-right">{detail.jumlah}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(detail.harga_satuan_jual)}</TableCell>
+                              <TableCell className="text-right font-semibold">
+                                {formatCurrency(detail.subtotal)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                        <tfoot>
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-right font-semibold">
+                              Total
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-lg text-green-600">
+                              {formatCurrency(penjualanDetail.total_transaksi || 0)}
+                            </TableCell>
+                          </TableRow>
+                        </tfoot>
+                      </Table>
+                    </div>
+                  )}
                 </div>
-              </div>
+              ) : (
+                <div className="text-center py-8">Memuat detail...</div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-              {/* Footer Struk */}
-              <div className="border-t-2 border-dashed border-gray-300 pt-4 mt-4 text-center">
-                <p className="text-xs text-gray-500">Terima kasih atas kunjungan Anda</p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-2 mt-4 pt-4 border-t">
+      {/* Print Receipt Modal */}
+      {printingPenjualan && receiptData && receiptItems.length > 0 && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="max-w-md w-full">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Cetak Nota</CardTitle>
                 <Button
-                  variant="default"
-                  onClick={() => setShowDetail(false)}
-                  className="flex-1"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setPrintingPenjualan(null);
+                    setReceiptItems([]);
+                  }}
                 >
-                  Tutup
+                  ✕
                 </Button>
               </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Setor Cash Dialog */}
-      {kasirId && (
-        <SetorCashDialog
-          open={showSetorCashDialog}
-          onOpenChange={setShowSetorCashDialog}
-          kasirId={kasirId}
-        />
+            </CardHeader>
+            <CardContent>
+              <ReceiptNota
+                penjualan={receiptData}
+                items={receiptItems}
+                autoPrint={true}
+                showActions={true}
+                onClose={() => {
+                  setPrintingPenjualan(null);
+                  setReceiptItems([]);
+                }}
+              />
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <AlertDialog open={!!deletingPenjualan} onOpenChange={(open) => !open && setDeletingPenjualan(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Penjualan?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div>
-                <p>Apakah Anda yakin ingin menghapus penjualan ini? Tindakan ini tidak dapat dibatalkan.</p>
-                {saleToDelete && (
-                  <div className="mt-2 p-2 bg-gray-50 rounded">
-                    <p className="text-sm font-medium">{saleToDelete.customer_name}</p>
-                    <p className="text-xs text-gray-600">
-                      {format(new Date(saleToDelete.tanggal), 'dd MMMM yyyy', { locale: id })} - {formatRupiah(Number(saleToDelete.total_amount || 0))}
-                    </p>
-                  </div>
-                )}
-              </div>
+            <AlertDialogDescription>
+              Apakah Anda yakin ingin menghapus penjualan{' '}
+              <strong>{deletingPenjualan?.nomor_struk || deletingPenjualan?.id.slice(0, 8) || 'N/A'}</strong>?
+              <br />
+              <br />
+              Tindakan ini akan:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Mengembalikan stok barang ke inventory</li>
+                <li>Menghapus semua detail penjualan</li>
+                <li>Menghapus transaksi keuangan terkait</li>
+              </ul>
+              <br />
+              <strong className="text-red-600">Tindakan ini tidak dapat dibatalkan!</strong>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>
-              Batal
-            </AlertDialogCancel>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700"
               disabled={deleteMutation.isPending}
-              className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
             >
-              {deleteMutation.isPending ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  Menghapus...
-                </>
-              ) : (
-                'Hapus'
-              )}
+              {deleteMutation.isPending ? 'Menghapus...' : 'Ya, Hapus'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Receipt Print Dialog */}
-      {showReceipt && receiptData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-4 border-b flex justify-between items-center">
-              <h3 className="font-semibold">Nota Penjualan</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowReceipt(false);
-                  setReceiptData(null);
-                }}
-              >
-                Tutup
-              </Button>
-            </div>
-            <div className="p-4">
-              <ReceiptNota
-                penjualan={receiptData.penjualan}
-                items={receiptData.items}
-                autoPrint={false}
-                showActions={true}
-                onClose={() => {
-                  setShowReceipt(false);
-                  setReceiptData(null);
-                }}
-              />
-            </div>
-          </div>
-        </div>
+      {/* Setor Cash Dialog */}
+      {user?.id && (
+        <SetorCashDialog
+          open={showSetorCashDialog}
+          onOpenChange={setShowSetorCashDialog}
+          kasirId={user.id}
+          shiftId={undefined}
+        />
       )}
     </div>
   );
-};
+}
 
 export default RiwayatPenjualanPage;

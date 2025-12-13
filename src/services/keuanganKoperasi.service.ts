@@ -118,17 +118,42 @@ export const normalizeKeuanganKoperasiData = (
 };
 
 /**
- * Add transaction to keuangan_koperasi
+ * Add transaction to keuangan (with koperasi module reference)
+ * This function now uses the main keuangan table instead of keuangan_koperasi
+ * All koperasi transactions are identified by source_module = 'koperasi'
  */
 export const addKeuanganKoperasiTransaction = async (data: KeuanganKoperasiData): Promise<any> => {
   const payload = normalizeKeuanganKoperasiData(data);
 
+  // Map keuangan_koperasi fields to keuangan table
+  // The keuangan table doesn't have hpp, laba_kotor, tipe_akun, etc.
+  // These fields are stored in keuangan_koperasi for reference if needed
+  // But the main transaction goes to keuangan table
+  const keuanganPayload: any = {
+    tanggal: payload.tanggal,
+    jenis_transaksi: payload.jenis_transaksi,
+    kategori: payload.kategori,
+    sub_kategori: payload.sub_kategori || null,
+    jumlah: payload.jumlah,
+    deskripsi: payload.deskripsi || null,
+    referensi: payload.referensi || null,
+    akun_kas_id: payload.akun_kas_id || null,
+    penerima_pembayar: payload.penerima_pembayar || null,
+    status: payload.status || 'posted',
+    source_module: 'koperasi', // Mark as koperasi transaction
+    auto_posted: false, // Manual transactions from HPP/bagi hasil
+  };
+
   const { data: result, error } = await supabase
-    .from('keuangan_koperasi')
-    .insert([payload])
+    .from('keuangan')
+    .insert([keuanganPayload])
     .select();
 
   if (error) throw error;
+  
+  // If keuangan_koperasi table still exists and has additional fields, 
+  // we can optionally sync the extended data there for backward compatibility
+  // For now, we'll just return the keuangan result
   return result;
 };
 

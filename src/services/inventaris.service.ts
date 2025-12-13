@@ -1432,25 +1432,72 @@ export async function listAllSalesTransactions(
 }> {
   const { page, pageSize } = pagination;
   
-  // Fetch multi-item transactions
-  let multiItemQuery = supabase
+  // 1. Fetch multi-item transactions from old penjualan_header (not migrated)
+  let multiItemQueryOld = supabase
     .from('penjualan_header')
     .select(`
       *,
       items:penjualan_items(*)
     `, { count: 'exact' });
   
-  if (filters.startDate) multiItemQuery = multiItemQuery.gte('tanggal', filters.startDate);
-  if (filters.endDate) multiItemQuery = multiItemQuery.lte('tanggal', filters.endDate);
-  if (filters.search) multiItemQuery = multiItemQuery.ilike('pembeli', `%${filters.search}%`);
+  if (filters.startDate) multiItemQueryOld = multiItemQueryOld.gte('tanggal', filters.startDate);
+  if (filters.endDate) multiItemQueryOld = multiItemQueryOld.lte('tanggal', filters.endDate);
+  if (filters.search) multiItemQueryOld = multiItemQueryOld.ilike('pembeli', `%${filters.search}%`);
   
-  const { data: multiItemData, error: multiItemError } = await multiItemQuery;
+  // Exclude headers that have been migrated
+  multiItemQueryOld = multiItemQueryOld.not('id', 'in', 
+    `(SELECT ref_penjualan_inventaris_id FROM kop_penjualan WHERE ref_penjualan_inventaris_id IS NOT NULL)`
+  );
   
-  if (multiItemError) {
-    console.error('Error fetching multi-item transactions:', multiItemError);
+  const { data: multiItemDataOld, error: multiItemErrorOld } = await multiItemQueryOld;
+  
+  if (multiItemErrorOld) {
+    console.error('Error fetching old multi-item transactions:', multiItemErrorOld);
   }
   
-  // Fetch single-item transactions
+  // 2. Fetch multi-item transactions from migrated kop_penjualan
+  let multiItemQueryMigrated = supabase
+    .from('kop_penjualan')
+    .select(`
+      id,
+      no_penjualan,
+      tanggal,
+      subtotal,
+      total,
+      total_transaksi,
+      keterangan,
+      transaksi_keuangan_id,
+      ref_penjualan_inventaris_id,
+      created_at,
+      created_by
+    `, { count: 'exact' })
+    .not('ref_penjualan_inventaris_id', 'is', null);
+  
+  if (filters.startDate) multiItemQueryMigrated = multiItemQueryMigrated.gte('tanggal', filters.startDate);
+  if (filters.endDate) multiItemQueryMigrated = multiItemQueryMigrated.lte('tanggal', filters.endDate);
+  
+  const { data: multiItemDataMigrated, error: multiItemErrorMigrated } = await multiItemQueryMigrated;
+  
+  if (multiItemErrorMigrated) {
+    console.error('Error fetching migrated multi-item transactions:', multiItemErrorMigrated);
+  }
+  
+  // Convert migrated data
+  const convertedMigratedData = await Promise.all(
+    (multiItemDataMigrated || []).map(kp => convertKopPenjualanToMultiItemSale(kp))
+  );
+  
+  // Apply search filter for migrated data (after conversion)
+  let filteredMigratedData = convertedMigratedData;
+  if (filters.search) {
+    const searchLower = filters.search.toLowerCase();
+    filteredMigratedData = convertedMigratedData.filter(sale => 
+      sale.pembeli.toLowerCase().includes(searchLower) ||
+      sale.items.some(item => item.nama_barang.toLowerCase().includes(searchLower))
+    );
+  }
+  
+  // 3. Fetch single-item transactions
   let singleItemQuery = supabase
     .from('transaksi_inventaris')
     .select(`
@@ -1482,15 +1529,26 @@ export async function listAllSalesTransactions(
     })
   );
   
-  // Format multi-item transactions
-  const formattedMultiItems = (multiItemData || []).map((header: any) => ({
+  // Format old multi-item transactions
+  const formattedMultiItemsOld = (multiItemDataOld || []).map((header: any) => ({
     ...header,
     itemCount: header.items?.length || 0,
     transactionType: 'multi' as const
   }));
   
-  // Combine and sort
-  const allTransactions = [...convertedSingleItems, ...formattedMultiItems];
+  // Format migrated multi-item transactions
+  const formattedMultiItemsMigrated = filteredMigratedData.map((sale: any) => ({
+    ...sale,
+    itemCount: sale.items?.length || 0,
+    transactionType: 'multi' as const
+  }));
+  
+  // Combine all transactions
+  const allTransactions = [
+    ...convertedSingleItems, 
+    ...formattedMultiItemsOld, 
+    ...formattedMultiItemsMigrated
+  ];
   
   // Apply sorting
   if (sort) {
@@ -1905,14 +1963,16 @@ export async function createMultiItemSale(
 
 /**
  * Get a single multi-item sale by ID with all its items
- * @param headerId - The ID of the penjualan_header
+ * Supports both old penjualan_header and migrated kop_penjualan
+ * @param headerId - The ID of the penjualan_header (or ref_penjualan_inventaris_id for migrated data)
  * @returns Complete multi-item sale detail
  */
 export async function getMultiItemSale(
   headerId: string
 ): Promise<MultiItemSaleDetail | null> {
   try {
-    const { data, error } = await supabase
+    // First, try to find in old penjualan_header
+    const { data: oldData, error: oldError } = await supabase
       .from('penjualan_header')
       .select(`
         *,
@@ -1924,26 +1984,51 @@ export async function getMultiItemSale(
       .eq('id', headerId)
       .single();
     
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // Not found
-        return null;
+    if (!oldError && oldData) {
+      // Transform items to include nama_barang at root level
+      if (oldData.items) {
+        oldData.items = oldData.items.map((item: any) => ({
+          ...item,
+          nama_barang: item.inventaris?.nama_barang || 'Item tidak ditemukan'
+        }));
       }
-      throw new DatabaseError(
-        'Gagal mengambil detail transaksi multi-item',
-        { originalError: error }
-      );
+      return oldData as MultiItemSaleDetail;
     }
     
-    // Transform items to include nama_barang at root level
-    if (data && data.items) {
-      data.items = data.items.map((item: any) => ({
-        ...item,
-        nama_barang: item.inventaris?.nama_barang || 'Item tidak ditemukan'
-      }));
+    // If not found in old table, check if it's migrated to kop_penjualan
+    const { data: migratedData, error: migratedError } = await supabase
+      .from('kop_penjualan')
+      .select(`
+        id,
+        no_penjualan,
+        tanggal,
+        subtotal,
+        total,
+        total_transaksi,
+        keterangan,
+        transaksi_keuangan_id,
+        ref_penjualan_inventaris_id,
+        created_at,
+        created_by
+      `)
+      .eq('ref_penjualan_inventaris_id', headerId)
+      .single();
+    
+    if (!migratedError && migratedData) {
+      // Convert to MultiItemSaleDetail format
+      return await convertKopPenjualanToMultiItemSale(migratedData);
     }
     
-    return data as MultiItemSaleDetail;
+    // Not found in either location
+    if (oldError?.code === 'PGRST116' || migratedError?.code === 'PGRST116') {
+      return null;
+    }
+    
+    // Other errors
+    throw new DatabaseError(
+      'Gagal mengambil detail transaksi multi-item',
+      { originalError: oldError || migratedError }
+    );
   } catch (error: any) {
     console.error('Error in getMultiItemSale:', error);
     throw error;
@@ -1951,8 +2036,81 @@ export async function getMultiItemSale(
 }
 
 /**
+ * Convert kop_penjualan format to MultiItemSaleDetail format
+ * Helper function for backward compatibility
+ */
+async function convertKopPenjualanToMultiItemSale(kopPenjualan: any): Promise<MultiItemSaleDetail> {
+  // Get detail items
+  const { data: details, error: detailsError } = await supabase
+    .from('kop_penjualan_detail')
+    .select(`
+      *,
+      kop_barang!inner(
+        id,
+        nama_barang,
+        kode_barang,
+        inventaris_id,
+        inventaris:inventaris_id(
+          id,
+          nama_barang
+        )
+      )
+    `)
+    .eq('penjualan_id', kopPenjualan.id);
+
+  if (detailsError) {
+    console.error('Error fetching kop_penjualan_detail:', detailsError);
+  }
+
+  // Convert items to penjualan_items format
+  const items = (details || []).map((detail: any) => ({
+    id: detail.id,
+    penjualan_header_id: kopPenjualan.ref_penjualan_inventaris_id || kopPenjualan.id,
+    item_id: detail.kop_barang?.inventaris_id || detail.barang_id,
+    nama_barang: detail.kop_barang?.nama_barang || detail.kop_barang?.inventaris?.nama_barang || 'Item tidak ditemukan',
+    jumlah: detail.jumlah,
+    harga_dasar: detail.harga_satuan_jual,
+    sumbangan: 0, // Default untuk data migrated
+    subtotal: detail.subtotal,
+    transaksi_inventaris_id: null,
+    created_at: detail.created_at,
+    inventaris: {
+      nama_barang: detail.kop_barang?.nama_barang || detail.kop_barang?.inventaris?.nama_barang || 'Item tidak ditemukan'
+    }
+  }));
+
+  // Extract pembeli from keterangan if available (format: "Pembeli: ..." or "..." | "...")
+  let pembeli = 'Umum';
+  if (kopPenjualan.keterangan) {
+    const pembeliMatch = kopPenjualan.keterangan.match(/Pembeli:\s*(.+?)(?:\s*\||$)/);
+    if (pembeliMatch) {
+      pembeli = pembeliMatch[1].trim();
+    } else if (!kopPenjualan.keterangan.includes('|')) {
+      pembeli = kopPenjualan.keterangan.trim();
+    }
+  }
+
+  return {
+    id: kopPenjualan.ref_penjualan_inventaris_id || kopPenjualan.id,
+    pembeli: pembeli,
+    tanggal: kopPenjualan.tanggal,
+    total_harga_dasar: kopPenjualan.subtotal || 0,
+    total_sumbangan: 0, // Default untuk data migrated
+    grand_total: kopPenjualan.total || kopPenjualan.total_transaksi || 0,
+    catatan: kopPenjualan.keterangan,
+    keuangan_id: kopPenjualan.transaksi_keuangan_id,
+    created_at: kopPenjualan.created_at,
+    created_by: kopPenjualan.created_by,
+    updated_at: kopPenjualan.created_at,
+    updated_by: kopPenjualan.created_by,
+    items: items
+  } as MultiItemSaleDetail;
+}
+
+/**
  * List all multi-item sales with pagination and filtering
  * Supports cross-item search functionality
+ * Includes data from both penjualan_header (old) and kop_penjualan (migrated)
  * @param pagination - Page and page size
  * @param filters - Search and date filters
  * @returns List of multi-item sales with total count
@@ -1969,8 +2127,8 @@ export async function listMultiItemSales(
   try {
     const { page, pageSize } = pagination;
     
-    // Build base query with inventaris join to get nama_barang
-    let query = supabase
+    // 1. Fetch from penjualan_header (old data, belum ter-migrate)
+    let queryOld = supabase
       .from('penjualan_header')
       .select(`
         *,
@@ -1980,46 +2138,87 @@ export async function listMultiItemSales(
         )
       `, { count: 'exact' });
     
-    // Apply filters
+    // Apply filters for old data
     if (filters.pembeli) {
-      query = query.ilike('pembeli', `%${filters.pembeli}%`);
+      queryOld = queryOld.ilike('pembeli', `%${filters.pembeli}%`);
     }
     
     if (filters.startDate) {
-      query = query.gte('tanggal', filters.startDate);
+      queryOld = queryOld.gte('tanggal', filters.startDate);
     }
     
     if (filters.endDate) {
-      query = query.lte('tanggal', filters.endDate);
+      queryOld = queryOld.lte('tanggal', filters.endDate);
     }
     
-    // For cross-item search, we need to filter by items
-    // This is more complex - we'll fetch all and filter client-side for now
-    // In production, consider using a database view or full-text search
+    // Exclude headers that have been migrated (have ref in kop_penjualan)
+    queryOld = queryOld.not('id', 'in', 
+      `(SELECT ref_penjualan_inventaris_id FROM kop_penjualan WHERE ref_penjualan_inventaris_id IS NOT NULL)`
+    );
     
-    // Apply pagination
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
-    query = query.range(from, to);
+    queryOld = queryOld.order('tanggal', { ascending: false });
     
-    // Order by date descending
-    query = query.order('tanggal', { ascending: false });
+    const { data: oldData, error: oldError, count: oldCount } = await queryOld;
     
-    const { data, error, count } = await query;
-    
-    if (error) {
-      throw new DatabaseError(
-        'Gagal mengambil daftar transaksi multi-item',
-        { originalError: error }
-      );
+    if (oldError) {
+      console.error('Error fetching old penjualan_header:', oldError);
     }
     
-    let results = (data || []) as MultiItemSaleDetail[];
+    // 2. Fetch from kop_penjualan (migrated data)
+    let queryMigrated = supabase
+      .from('kop_penjualan')
+      .select(`
+        id,
+        no_penjualan,
+        tanggal,
+        subtotal,
+        total,
+        total_transaksi,
+        keterangan,
+        transaksi_keuangan_id,
+        ref_penjualan_inventaris_id,
+        created_at,
+        created_by
+      `, { count: 'exact' })
+      .not('ref_penjualan_inventaris_id', 'is', null); // Only migrated data
     
-    // Apply cross-item search if provided
+    // Apply filters for migrated data
+    if (filters.startDate) {
+      queryMigrated = queryMigrated.gte('tanggal', filters.startDate);
+    }
+    
+    if (filters.endDate) {
+      queryMigrated = queryMigrated.lte('tanggal', filters.endDate);
+    }
+    
+    // Note: pembeli filter will be applied after conversion since it's in keterangan
+    
+    queryMigrated = queryMigrated.order('tanggal', { ascending: false });
+    
+    const { data: migratedData, error: migratedError, count: migratedCount } = await queryMigrated;
+    
+    if (migratedError) {
+      console.error('Error fetching migrated kop_penjualan:', migratedError);
+    }
+    
+    // 3. Convert migrated data to MultiItemSaleDetail format
+    const migratedSales = await Promise.all(
+      (migratedData || []).map(kp => convertKopPenjualanToMultiItemSale(kp))
+    );
+    
+    // 4. Combine old and migrated data
+    let allSales = [
+      ...(oldData || []).map((header: any) => ({
+        ...header,
+        items: header.items || []
+      }) as MultiItemSaleDetail),
+      ...migratedSales
+    ];
+    
+    // 5. Apply filters that need to be done after conversion (search, pembeli for migrated)
     if (filters.search && filters.search.trim() !== '') {
       const searchLower = filters.search.toLowerCase();
-      results = results.filter(sale => {
+      allSales = allSales.filter(sale => {
         // Search in pembeli
         if (sale.pembeli.toLowerCase().includes(searchLower)) {
           return true;
@@ -2031,9 +2230,28 @@ export async function listMultiItemSales(
       });
     }
     
+    if (filters.pembeli && filters.pembeli.trim() !== '') {
+      const pembeliLower = filters.pembeli.toLowerCase();
+      allSales = allSales.filter(sale => 
+        sale.pembeli.toLowerCase().includes(pembeliLower)
+      );
+    }
+    
+    // 6. Sort by date descending
+    allSales.sort((a, b) => {
+      const dateA = new Date(a.tanggal).getTime();
+      const dateB = new Date(b.tanggal).getTime();
+      return dateB - dateA;
+    });
+    
+    // 7. Apply pagination
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize;
+    const paginatedData = allSales.slice(from, to);
+    
     return {
-      data: results,
-      total: count || 0
+      data: paginatedData,
+      total: allSales.length
     };
   } catch (error: any) {
     console.error('Error in listMultiItemSales:', error);
@@ -2070,7 +2288,7 @@ export async function getCombinedSalesHistory(
   total: number;
 }> {
   try {
-    // Fetch multi-item transactions first
+    // Fetch multi-item transactions (includes both old and migrated data)
     const multiResult = await listMultiItemSales(
       pagination,
       filters

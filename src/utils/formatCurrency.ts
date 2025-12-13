@@ -26,3 +26,7 @@ export const parseCurrencyString = (amount: string): number => {
   return parseFloat(amount.replace(/\./g, '').replace(',', '.'));
 };
 
+/**
+ * Alias untuk formatRupiah untuk konsistensi dengan penggunaan di berbagai komponen
+ */
+export const formatCurrency = formatRupiah;

@@ -63,6 +63,8 @@ interface SoldItem {
   item_id: string;
   nama_barang: string;
   kode_inventaris: string | null;
+  kode_barang: string | null; // kode_barang dari kop_barang (YYS-#### atau KOP-####)
+  owner_type: 'yayasan' | 'koperasi'; // owner_type dari kop_barang
   kategori: string;
   total_terjual: number;
   total_nilai: number;
@@ -79,6 +81,7 @@ const KelolaHPPDanBagiHasilPage = () => {
   const [hppValue, setHppValue] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterKategori, setFilterKategori] = useState<string>('all');
+  const [filterOwnerType, setFilterOwnerType] = useState<'all' | 'yayasan' | 'koperasi'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'with_hpp' | 'without_hpp'>('all');
   
   // State untuk Riwayat Bagi Hasil (dari BagiHasilPage)
@@ -196,17 +199,19 @@ const KelolaHPPDanBagiHasilPage = () => {
     fetchKasKoperasi();
   }, []);
 
-  // Fetch cost operasional dari keuangan_koperasi (EXCLUDE kewajiban/hutang ke yayasan)
+  // Fetch cost operasional dari keuangan (EXCLUDE kewajiban/hutang ke yayasan)
   // Cost operasional hanya pengeluaran operasional biasa, BUKAN kewajiban pembayaran ke yayasan
+  // Mengambil referensi dari modul keuangan (tabel keuangan) dengan filter source_module = 'koperasi'
   const { data: costOperasional = [] } = useQuery({
     queryKey: ['koperasi-cost-operasional', getDateRangeForBagiHasil().startDate, getDateRangeForBagiHasil().endDate],
     queryFn: async () => {
       const dateRange = getDateRangeForBagiHasil();
       const { data, error } = await supabase
-        .from('keuangan_koperasi')
-        .select('id, tanggal, deskripsi, jumlah, kategori, sub_kategori, penerima_pembayar')
+        .from('keuangan')
+        .select('id, tanggal, deskripsi, jumlah, kategori, sub_kategori, penerima_pembayar, akun_kas_id')
         .eq('jenis_transaksi', 'Pengeluaran')
         .eq('status', 'posted')
+        .eq('source_module', 'koperasi') // Filter hanya transaksi koperasi
         .gte('tanggal', dateRange.startDate.toISOString())
         .lte('tanggal', dateRange.endDate.toISOString())
         .order('tanggal', { ascending: false });
@@ -247,51 +252,25 @@ const KelolaHPPDanBagiHasilPage = () => {
   });
 
   // Fetch sold items (items that have been sold via koperasi)
-  // Menggabungkan data dari transaksi_inventaris DAN kop_penjualan
+  // Mengambil data penjualan hanya dari kop_penjualan (modul penjualan koperasi)
+  // Semua data penjualan sudah terpusat di kop_penjualan setelah migrasi
+  // Menggunakan hpp_snapshot, margin, bagian_yayasan, dan bagian_koperasi dari kop_penjualan_detail
+  // Data ini HARUS sama dengan yang ada di modul penjualan untuk konsistensi
   const { data: soldItems = [], isLoading: isLoadingSold } = useQuery({
     queryKey: ['inventaris-sold-items', getDateRangeForBagiHasil().startDate, getDateRangeForBagiHasil().endDate],
     queryFn: async () => {
       const dateRange = getDateRangeForBagiHasil();
       
-      // 1. Get items from transaksi_inventaris (penjualan lama)
-      const { data: transactions, error: txError } = await supabase
-        .from('transaksi_inventaris')
-        .select(`
-          item_id,
-          jumlah,
-          harga_satuan,
-          harga_total,
-          tanggal,
-          channel,
-          inventaris!inner(
-            id,
-            nama_barang,
-            kode_inventaris,
-            kategori,
-            hpp_yayasan,
-            harga_perolehan,
-            boleh_dijual_koperasi,
-            is_komoditas,
-            tipe_item
-          )
-        `)
-        .eq('tipe', 'Keluar')
-        .eq('keluar_mode', 'Penjualan')
-        .gte('tanggal', dateRange.startDate.toISOString())
-        .lte('tanggal', dateRange.endDate.toISOString())
-        .order('tanggal', { ascending: false });
-
-      if (txError) {
-        throw new Error(`Gagal memuat transaksi inventaris: ${txError.message}`);
-      }
-
-      // 2. Get items from kop_penjualan (penjualan koperasi terbaru)
+      // Hanya mengambil data dari kop_penjualan (modul penjualan koperasi)
+      // Semua data penjualan sudah terpusat di kop_penjualan setelah migrasi
+      // Mengambil SEMUA owner_type (yayasan dan koperasi), filter akan dilakukan di UI
       const { data: kopPenjualan, error: kopError } = await supabase
         .from('kop_penjualan')
         .select(`
           id,
           tanggal,
           total_transaksi,
+          status_pembayaran,
           kop_penjualan_detail(
             id,
             barang_id,
@@ -323,106 +302,99 @@ const KelolaHPPDanBagiHasilPage = () => {
             )
           )
         `)
+        .eq('status_pembayaran', 'lunas') // Hanya penjualan yang sudah lunas (sama dengan modul penjualan)
         .gte('tanggal', dateRange.startDate.toISOString())
         .lte('tanggal', dateRange.endDate.toISOString())
         .order('tanggal', { ascending: false });
 
       if (kopError) {
-        // Jangan throw, lanjutkan dengan data transaksi_inventaris saja
-        // Log only in development
-        if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
-          console.warn('Error fetching kop_penjualan (non-critical):', kopError);
-        }
+        throw new Error(`Gagal memuat data penjualan: ${kopError.message}`);
       }
       
-      // Filter transaksi_inventaris: hanya item yayasan yang boleh dijual koperasi
-      const filteredTransactions = (transactions || []).filter((tx: any) => {
-        const inventaris = tx.inventaris;
-        if (!inventaris) {
-          // Skip transactions without inventaris data
-          return false;
-        }
-        
-        // Filter channel: hanya koperasi atau null
-        const channelValid = !tx.channel || tx.channel === 'koperasi' || tx.channel === null;
-        if (!channelValid) {
-          return false;
-        }
-        
-        // Item yayasan: boleh_dijual_koperasi = true atau is_komoditas = true atau tipe_item = 'Komoditas'
-        const isYayasanItem = inventaris.boleh_dijual_koperasi === true ||
-                              inventaris.is_komoditas === true ||
-                              inventaris.tipe_item === 'Komoditas';
-        
-        return isYayasanItem;
-      });
-      
-      // Filter kop_penjualan: hanya produk yayasan (owner_type = 'yayasan')
+      // Process semua penjualan (yayasan dan koperasi)
+      // AMBIL SEMUA BARANG (baik yang punya inventaris_id maupun tidak)
+      // Karena ada barang koperasi yang tidak punya inventaris_id
       const filteredKopPenjualan: any[] = [];
       (kopPenjualan || []).forEach((penjualan: any) => {
         (penjualan.kop_penjualan_detail || []).forEach((detail: any) => {
           const kopBarang = detail.kop_barang;
-          if (kopBarang && kopBarang.owner_type === 'yayasan' && kopBarang.inventaris) {
-            filteredKopPenjualan.push({
-              source: 'kop_penjualan',
-              penjualan_id: penjualan.id,
-              tanggal: penjualan.tanggal,
-              item_id: kopBarang.inventaris.id,
-              inventaris: kopBarang.inventaris,
-              jumlah: detail.jumlah,
-              harga_satuan: detail.harga_satuan_jual,
-              harga_total: detail.subtotal,
-              hpp_snapshot: detail.hpp_snapshot,
-              margin: detail.margin,
-              bagian_yayasan: detail.bagian_yayasan,
-              bagian_koperasi: detail.bagian_koperasi,
-            });
-          }
+          if (!kopBarang) return; // Skip jika tidak ada kop_barang
+          
+          // Ambil SEMUA barang, tidak peduli punya inventaris_id atau tidak
+          // Untuk barang yayasan biasanya punya inventaris_id
+          // Untuk barang koperasi murni mungkin tidak punya inventaris_id
+          filteredKopPenjualan.push({
+            source: 'kop_penjualan',
+            penjualan_id: penjualan.id,
+            tanggal: penjualan.tanggal,
+            barang_id: kopBarang.id, // kop_barang.id sebagai identifier utama
+            item_id: kopBarang.inventaris_id || kopBarang.id, // Gunakan inventaris_id jika ada, jika tidak gunakan barang_id
+            inventaris: kopBarang.inventaris || null, // Bisa null untuk barang koperasi murni
+            jumlah: detail.jumlah,
+            harga_satuan: detail.harga_satuan_jual,
+            harga_total: detail.subtotal,
+            hpp_snapshot: detail.hpp_snapshot,
+            margin: detail.margin,
+            bagian_yayasan: detail.bagian_yayasan,
+            bagian_koperasi: detail.bagian_koperasi,
+            kode_barang: kopBarang.kode_barang, // YYS-#### atau KOP-####
+            owner_type: kopBarang.owner_type, // 'yayasan' atau 'koperasi'
+            nama_barang: kopBarang.nama_barang, // Dari kop_barang, bukan inventaris
+          });
         });
       });
 
-      // Group by item_id and calculate totals (gabungkan kedua sumber)
-      const allTransactions = [
-        ...filteredTransactions.map((tx: any) => ({ ...tx, source: 'transaksi_inventaris' })),
-        ...filteredKopPenjualan
-      ];
+      // Semua transaksi sekarang hanya dari kop_penjualan
+      const allTransactions = filteredKopPenjualan;
 
+      // Group by barang_id (kop_barang.id) untuk memastikan semua barang terhitung
+      // JANGAN group by inventaris_id karena ada barang tanpa inventaris_id
+      // Setiap kop_barang.id adalah unique, jadi ini adalah identifier yang tepat
       const grouped = allTransactions.reduce((acc: Record<string, SoldItem>, tx: any) => {
-        const itemId = tx.item_id;
+        // Gunakan barang_id sebagai key untuk grouping
+        // Ini memastikan setiap barang koperasi (bahkan tanpa inventaris_id) terhitung
+        const groupKey = tx.barang_id;
         const inventaris = tx.inventaris;
 
-        if (!acc[itemId]) {
-          acc[itemId] = {
-            item_id: itemId,
-            nama_barang: inventaris?.nama_barang || 'Unknown',
+        if (!acc[groupKey]) {
+          acc[groupKey] = {
+            item_id: tx.barang_id, // Gunakan barang_id sebagai item_id untuk konsistensi
+            nama_barang: tx.nama_barang || inventaris?.nama_barang || 'Unknown',
             kode_inventaris: inventaris?.kode_inventaris || null,
-            kategori: inventaris?.kategori || '',
+            kode_barang: tx.kode_barang || null, // YYS-#### atau KOP-####
+            owner_type: tx.owner_type || 'koperasi', // 'yayasan' atau 'koperasi'
+            kategori: inventaris?.kategori || 'Koperasi', // Default 'Koperasi' jika tidak ada inventaris
             total_terjual: 0,
             total_nilai: 0,
-            // Untuk kop_penjualan, gunakan hpp_snapshot jika ada, jika tidak gunakan hpp_yayasan dari inventaris
+            // Gunakan hpp_snapshot dari kop_penjualan_detail (snapshot saat penjualan)
+            // Jika belum ada, gunakan hpp_yayasan dari inventaris (untuk barang yayasan)
+            // Untuk barang koperasi murni, hpp bisa null
             hpp_yayasan: tx.hpp_snapshot || inventaris?.hpp_yayasan || null,
             harga_perolehan: inventaris?.harga_perolehan || null,
             tanggal_penjualan_terakhir: null,
           };
         }
 
-        acc[itemId].total_terjual += tx.jumlah || 0;
-        // Gunakan harga_total jika ada, jika tidak hitung dari harga_satuan * jumlah
-        const nilaiTransaksi = tx.harga_total || ((tx.harga_satuan || 0) * (tx.jumlah || 0));
-        acc[itemId].total_nilai += nilaiTransaksi;
+        // Akumulasi jumlah terjual
+        acc[groupKey].total_terjual += tx.jumlah || 0;
         
-        // Update HPP jika dari kop_penjualan dan lebih baru
-        if (tx.source === 'kop_penjualan' && tx.hpp_snapshot) {
-          // Jika belum ada HPP atau HPP dari kop_penjualan lebih baru, update
-          if (!acc[itemId].hpp_yayasan || tx.hpp_snapshot > 0) {
-            acc[itemId].hpp_yayasan = tx.hpp_snapshot;
+        // Akumulasi nilai penjualan (subtotal dari kop_penjualan_detail)
+        const nilaiTransaksi = tx.harga_total || ((tx.harga_satuan || 0) * (tx.jumlah || 0));
+        acc[groupKey].total_nilai += nilaiTransaksi;
+        
+        // Update HPP dengan hpp_snapshot dari kop_penjualan_detail jika ada
+        // hpp_snapshot adalah nilai HPP yang digunakan saat transaksi penjualan
+        if (tx.hpp_snapshot && tx.hpp_snapshot > 0) {
+          // Gunakan hpp_snapshot yang paling baru (terakhir)
+          if (!acc[groupKey].hpp_yayasan || tx.hpp_snapshot > 0) {
+            acc[groupKey].hpp_yayasan = tx.hpp_snapshot;
           }
         }
         
-        if (!acc[itemId].tanggal_penjualan_terakhir || 
-            new Date(tx.tanggal) > new Date(acc[itemId].tanggal_penjualan_terakhir || '')) {
-          acc[itemId].tanggal_penjualan_terakhir = tx.tanggal;
+        // Update tanggal penjualan terakhir
+        if (!acc[groupKey].tanggal_penjualan_terakhir || 
+            new Date(tx.tanggal) > new Date(acc[groupKey].tanggal_penjualan_terakhir || '')) {
+          acc[groupKey].tanggal_penjualan_terakhir = tx.tanggal;
         }
 
         return acc;
@@ -1047,12 +1019,22 @@ const KelolaHPPDanBagiHasilPage = () => {
                       <SelectValue placeholder="Kategori" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Semua</SelectItem>
+                      <SelectItem value="all">Semua Kategori</SelectItem>
                       {categories.map((cat) => (
                         <SelectItem key={cat} value={cat}>
                           {cat}
                         </SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterOwnerType} onValueChange={(value: 'all' | 'yayasan' | 'koperasi') => setFilterOwnerType(value)}>
+                    <SelectTrigger className="w-40 h-9">
+                      <SelectValue placeholder="Owner Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Owner</SelectItem>
+                      <SelectItem value="yayasan">Yayasan (YYS)</SelectItem>
+                      <SelectItem value="koperasi">Koperasi (KOP)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1102,13 +1084,15 @@ const KelolaHPPDanBagiHasilPage = () => {
                   <p className="text-sm mt-1">Periode: {format(new Date(getDateRangeForBagiHasil().startDate), 'd MMM yyyy', { locale: localeId })} - {format(new Date(getDateRangeForBagiHasil().endDate), 'd MMM yyyy', { locale: localeId })}</p>
                 </div>
               ) : (() => {
-                // Filter soldItems berdasarkan searchTerm dan filterKategori
+                // Filter soldItems berdasarkan searchTerm, filterKategori, dan filterOwnerType
                 const filteredSoldItems = (soldItems as SoldItem[]).filter((item: SoldItem) => {
                   const matchesSearch = !searchTerm || 
                     item.nama_barang.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    (item.kode_inventaris && item.kode_inventaris.toLowerCase().includes(searchTerm.toLowerCase()));
+                    (item.kode_inventaris && item.kode_inventaris.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (item.kode_barang && item.kode_barang.toLowerCase().includes(searchTerm.toLowerCase()));
                   const matchesCategory = filterKategori === 'all' || item.kategori === filterKategori;
-                  return matchesSearch && matchesCategory;
+                  const matchesOwnerType = filterOwnerType === 'all' || item.owner_type === filterOwnerType;
+                  return matchesSearch && matchesCategory && matchesOwnerType;
                 }) as SoldItem[];
 
                 return (
@@ -1149,8 +1133,10 @@ const KelolaHPPDanBagiHasilPage = () => {
                         <TableHeader>
                           <TableRow className="bg-muted/50">
                             <TableHead className="w-12"></TableHead>
-                            <TableHead>Kode</TableHead>
+                            <TableHead>Kode Barang</TableHead>
+                            <TableHead>Kode Inventaris</TableHead>
                             <TableHead>Nama Barang</TableHead>
+                            <TableHead>Owner</TableHead>
                             <TableHead>Kategori</TableHead>
                             <TableHead className="text-right">Qty Terjual</TableHead>
                             <TableHead className="text-right">Nilai Penjualan</TableHead>
@@ -1170,7 +1156,7 @@ const KelolaHPPDanBagiHasilPage = () => {
                         <TableBody>
                           {filteredSoldItems.length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={calculationMode === 'atur-hpp' ? 11 : 9} className="text-center py-8 text-gray-500">
+                              <TableCell colSpan={calculationMode === 'atur-hpp' ? 13 : 11} className="text-center py-8 text-gray-500">
                                 Tidak ada item yang sesuai dengan filter
                               </TableCell>
                             </TableRow>
@@ -1211,10 +1197,21 @@ const KelolaHPPDanBagiHasilPage = () => {
                                   onCheckedChange={() => handleToggleItem(item.item_id)}
                                 />
                               </TableCell>
-                              <TableCell className="font-mono text-sm">
+                              <TableCell className="font-mono text-sm font-semibold">
+                                {item.kode_barang || '-'}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs text-gray-500">
                                 {item.kode_inventaris || '-'}
                               </TableCell>
                               <TableCell className="font-medium">{item.nama_barang}</TableCell>
+                              <TableCell>
+                                <Badge 
+                                  variant={item.owner_type === 'yayasan' ? 'default' : 'secondary'}
+                                  className={item.owner_type === 'yayasan' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}
+                                >
+                                  {item.owner_type === 'yayasan' ? 'YYS' : 'KOP'}
+                                </Badge>
+                              </TableCell>
                               <TableCell>
                                 <Badge variant="outline">{item.kategori}</Badge>
                               </TableCell>
