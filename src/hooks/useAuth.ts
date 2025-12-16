@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User as SupabaseUser, Session } from "@supabase/supabase-js";
 import { getUserRoles, getUserProfile, getUserPrimaryRole } from "@/services/auth.service";
@@ -185,22 +185,36 @@ export function useAuth() {
 
     console.log("🔐 [useAuth] Initializing auth check...");
 
-    // Safety timeout - ALWAYS set loading to false after 3 seconds max
+    // Safety timeout - ALWAYS set loading to false after 2 seconds max (reduced from 3)
     timeoutId = setTimeout(() => {
       if (mounted && !hasSetLoading) {
-        console.warn("⏰ [useAuth] TIMEOUT: Force setting loading to false after 3 seconds");
+        console.warn("⏰ [useAuth] TIMEOUT: Force setting loading to false after 2 seconds");
         console.warn("⏰ [useAuth] This usually means getSession() is hanging. Check Supabase connection.");
         setLoading(false);
         hasSetLoading = true;
         // On timeout, assume no session and user needs to login
-        setSession(null);
-        setUser(null);
+        // But don't clear session/user if they might exist - let auth state change handle it
+        if (!session) {
+          setSession(null);
+          setUser(null);
+        }
       }
-    }, 3000);
+    }, 2000);
 
     // Set up auth state listener FIRST (this might fire immediately)
+    // Add a fallback timeout in case onAuthStateChange never fires
+    let authStateChangeFired = false;
+    const fallbackTimeout = setTimeout(() => {
+      if (!authStateChangeFired && mounted && !hasSetLoading) {
+        console.warn("⏰ [useAuth] onAuthStateChange never fired - forcing loading to false");
+        setLoadingFalse();
+      }
+    }, 2500); // Slightly longer than main timeout to allow auth state change to fire
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        authStateChangeFired = true;
+        clearTimeout(fallbackTimeout);
         if (!mounted) {
           console.log("🔐 [useAuth] Component unmounted, skipping auth state change");
           return;
@@ -296,14 +310,15 @@ export function useAuth() {
           } else {
             console.log("🔐 [useAuth] No session, setting user to null");
             setUser(null);
+            setLoadingFalse();
           }
         } catch (error) {
           console.error("❌ [useAuth] Error in auth state change:", error);
           setUser(null);
-        } finally {
-          // Always set loading to false, even if role fetch is still pending
           setLoadingFalse();
         }
+        // Note: setLoadingFalse() is called in each branch above, not in finally
+        // This ensures loading is set false immediately, not waiting for role fetch
       }
     );
 
@@ -311,9 +326,13 @@ export function useAuth() {
     // onAuthStateChange should fire and handle session detection
     console.log("🔐 [useAuth] Checking existing session (non-blocking)...");
     
-    // Try to get session but don't wait too long
-    // The onAuthStateChange listener above will handle session detection
-    supabase.auth.getSession().then(async (result) => {
+    // Try to get session but don't wait too long - add timeout wrapper
+    const sessionPromise = supabase.auth.getSession();
+    const sessionTimeoutPromise = new Promise((resolve) => 
+      setTimeout(() => resolve({ data: { session: null }, error: { message: 'Session check timeout' } }), 2000)
+    );
+    
+    Promise.race([sessionPromise, sessionTimeoutPromise]).then(async (result: any) => {
       if (!mounted) {
         console.log("🔐 [useAuth] Component unmounted, skipping getSession result");
         return;
@@ -322,9 +341,15 @@ export function useAuth() {
       try {
         const { data: { session }, error } = result;
 
-        if (error) {
+        if (error && error.message !== 'Session check timeout') {
           console.error("❌ [useAuth] Error getting session:", error);
-          // Don't set loading false here - let onAuthStateChange handle it
+          setLoadingFalse();
+          return;
+        }
+
+        if (error && error.message === 'Session check timeout') {
+          console.warn("⏰ [useAuth] Session check timed out - using auth state change listener");
+          setLoadingFalse();
           return;
         }
 
@@ -334,25 +359,29 @@ export function useAuth() {
           console.warn("⚠️ [useAuth] Session exists but no user - clearing");
           setSession(null);
           setUser(null);
-        }
-        // If session exists, onAuthStateChange should have already handled it
-        // Only set loading false if we got here quickly (session check completed)
-        if (session) {
+          setLoadingFalse();
+        } else if (session) {
+          // If session exists, onAuthStateChange should have already handled it
+          // But set loading false anyway to ensure we don't hang
+          setLoadingFalse();
+        } else {
+          // No session - set loading false
           setLoadingFalse();
         }
       } catch (error) {
         console.error("❌ [useAuth] Error processing getSession result:", error);
+        setLoadingFalse();
       }
-      // Don't set loading false in finally - let timeout or onAuthStateChange handle it
     }).catch((error) => {
       console.error("❌ [useAuth] Error in getSession (non-fatal):", error);
-      // This is OK - onAuthStateChange will handle session detection
+      setLoadingFalse();
     });
 
     return () => {
       console.log("🔐 [useAuth] Cleanup - unmounting");
       mounted = false;
       if (timeoutId) clearTimeout(timeoutId);
+      if (fallbackTimeout) clearTimeout(fallbackTimeout);
       subscription.unsubscribe();
     };
   }, [fetchUserRole]);

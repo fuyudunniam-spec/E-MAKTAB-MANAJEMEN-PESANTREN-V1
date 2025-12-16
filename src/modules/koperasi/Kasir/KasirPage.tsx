@@ -5,13 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, Trash2, DollarSign, Plus, Minus } from "lucide-react";
+import { ShoppingCart, Trash2, DollarSign, Plus, Minus, Wallet } from "lucide-react";
 import { koperasiService } from "@/services/koperasi.service";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ShiftControl from "./components/ShiftControl";
 import ProductSelector from "./components/ProductSelector";
 import PaymentDialog from "./components/PaymentDialog";
+import SetorCashDialog from "../Penjualan/components/SetorCashDialog";
 import type { KasirCartItem, ProfitSharing } from "@/types/koperasi.types";
 
 export default function KasirPage() {
@@ -24,6 +25,7 @@ export default function KasirPage() {
   const [simpleMode, setSimpleMode] = useState(true); // Mode sederhana tanpa shift
   const [editingPenjualanId, setEditingPenjualanId] = useState<string | null>(null);
   const [isLoadingEditData, setIsLoadingEditData] = useState(false);
+  const [showSetorCashDialog, setShowSetorCashDialog] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -92,12 +94,34 @@ export default function KasirPage() {
 
       // Convert items ke format cart
       const cartItems: KasirCartItem[] = [];
+      const produkNotFound: string[] = [];
       
       for (const item of detail.items) {
         // Fetch produk untuk mendapatkan data lengkap (dengan stok yang sudah di-restore)
         const produk = await koperasiService.getProdukById(item.item_id);
+        
         if (!produk) {
-          toast.warning(`Produk ${item.nama_barang} tidak ditemukan dan akan dilewati`);
+          // Produk sudah dihapus dari database - gunakan data historis dari detail penjualan
+          produkNotFound.push(item.nama_barang || 'Produk tidak diketahui');
+          
+          // Gunakan data historis dari detail penjualan
+          const hargaItem = item.harga_satuan_jual || 0;
+          
+          cartItems.push({
+            produk_id: item.item_id || '', // Tetap gunakan ID dari detail (meskipun produk sudah dihapus)
+            kode_produk: 'DELETED', // Kode produk tidak tersedia untuk produk yang sudah dihapus
+            nama_produk: item.nama_barang || 'Produk tidak diketahui',
+            satuan: item.satuan || 'pcs',
+            harga_jual: hargaItem,
+            harga_beli: item.hpp || 0,
+            jumlah: item.jumlah,
+            diskon: 0,
+            subtotal: item.subtotal || (hargaItem * item.jumlah),
+            stock_tersedia: 0, // Stok 0 karena produk sudah dihapus
+            sumber_modal_id: item.sumber_modal_id,
+            price_type: 'ecer', // Default ke ecer
+            is_deleted_product: true, // Flag untuk produk yang sudah dihapus
+          });
           continue;
         }
 
@@ -128,7 +152,25 @@ export default function KasirPage() {
           stock_tersedia: stokTersedia,
           sumber_modal_id: produk.sumber_modal_id,
           price_type: priceType,
+          is_deleted_product: false,
         });
+      }
+
+      // Jika ada produk yang tidak ditemukan, tampilkan info (bukan error)
+      if (produkNotFound.length > 0) {
+        toast.info(
+          `${produkNotFound.length} produk menggunakan data historis`,
+          {
+            description: `Produk yang sudah dihapus: ${produkNotFound.join(', ')}. Data historis (nama dan harga) tetap ditampilkan untuk keperluan edit transaksi.`
+          }
+        );
+      }
+
+      // Jika tidak ada item yang berhasil dimuat, error
+      if (cartItems.length === 0) {
+        toast.error('Tidak ada produk yang dapat dimuat. Semua produk mungkin sudah dihapus dari database.');
+        navigate('/koperasi/kasir');
+        return;
       }
 
       setCart(cartItems);
@@ -429,8 +471,14 @@ export default function KasirPage() {
       setSearchParams({});
       navigate('/koperasi/kasir');
     }
+    // Invalidate semua query terkait penjualan untuk refresh data di semua modul
     queryClient.invalidateQueries({ queryKey: ['koperasi-produk-active-with-stock'] });
     queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan'] });
+    queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-list'] });
+    queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-chart'] });
+    queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-hutang-summary'] });
+    queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-cicilan-summary'] });
     queryClient.invalidateQueries({ queryKey: ['unified-sales-history'] });
   };
 
@@ -462,6 +510,20 @@ export default function KasirPage() {
             </p>
           </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (userId) {
+                setShowSetorCashDialog(true);
+              } else {
+                toast.error('Silakan login terlebih dahulu');
+              }
+            }}
+            className="bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-700"
+          >
+            <Wallet className="h-4 w-4 mr-2" />
+            Setor Cash
+          </Button>
           {simpleMode ? (
             <Button variant="outline" onClick={() => setSimpleMode(false)}>
               Aktifkan Shift
@@ -753,6 +815,16 @@ export default function KasirPage() {
         editingPenjualanId={editingPenjualanId}
         onSuccess={handlePaymentSuccess}
       />
+
+      {/* Setor Cash Dialog */}
+      {userId && (
+        <SetorCashDialog
+          open={showSetorCashDialog}
+          onOpenChange={setShowSetorCashDialog}
+          kasirId={userId}
+          shiftId={simpleMode ? undefined : activeShift?.id}
+        />
+      )}
     </div>
   );
 }

@@ -204,7 +204,7 @@ export interface KoperasiPenjualanItem {
 }
 
 export interface KoperasiPenjualanInsert {
-  no_penjualan: string;
+  no_penjualan?: string;
   tanggal: string;
   shift_id?: string;
   kasir_id: string;
@@ -215,6 +215,10 @@ export interface KoperasiPenjualanInsert {
   jumlah_bayar: number;
   kembalian: number;
   keterangan?: string;
+  status_pembayaran?: 'lunas' | 'hutang' | 'cicilan';
+  jumlah_hutang?: number;
+  sisa_hutang?: number;
+  tanggal_jatuh_tempo?: string;
   items: {
     produk_id: string;
     jumlah: number;
@@ -262,6 +266,7 @@ export interface KasirCartItem {
   stock_tersedia: number;
   sumber_modal_id?: string;
   price_type?: 'ecer' | 'grosir'; // Tipe harga yang digunakan
+  is_deleted_product?: boolean; // Flag untuk produk yang sudah dihapus dari database (data historis)
 }
 
 export interface KasirCart {

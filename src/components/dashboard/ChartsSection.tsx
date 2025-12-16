@@ -1,8 +1,9 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { LineChart, Line, PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { FileX, TrendingDown } from 'lucide-react';
+import { formatCurrency } from '@/utils/formatCurrency';
 
 interface ChartsSectionProps {
   monthlyData?: Array<{
@@ -14,6 +15,18 @@ interface ChartsSectionProps {
     name: string;
     value: number;
     color: string;
+  }>;
+  categoryDataPemasukan?: Array<{
+    name: string;
+    value: number;
+    color: string;
+    amount?: number;
+  }>;
+  categoryDataPengeluaran?: Array<{
+    name: string;
+    value: number;
+    color: string;
+    amount?: number;
   }>;
   selectedAccountId?: string;
   selectedAccountName?: string;
@@ -61,6 +74,8 @@ const EmptyStateCard: React.FC<{
 const ChartsSection: React.FC<ChartsSectionProps> = ({ 
   monthlyData = [], 
   categoryData = [],
+  categoryDataPemasukan = [],
+  categoryDataPengeluaran = [],
   selectedAccountId,
   selectedAccountName
 }) => {
@@ -68,6 +83,13 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
     monthlyData.some(d => (d.pemasukan > 0 || d.pengeluaran > 0));
   const hasCategoryData = categoryData.length > 0 && 
     categoryData.some(c => c.value > 0);
+  const hasCategoryDataPemasukan = categoryDataPemasukan.length > 0 && 
+    categoryDataPemasukan.some(c => c.value > 0);
+  const hasCategoryDataPengeluaran = categoryDataPengeluaran.length > 0 && 
+    categoryDataPengeluaran.some(c => c.value > 0);
+  
+  // Use new category data if available, otherwise fallback to old categoryData
+  const useNewCategoryData = categoryDataPemasukan.length > 0 || categoryDataPengeluaran.length > 0;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -94,24 +116,37 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
     return null;
   };
 
+  // Prepare chart data for Line and Bar charts
+  const chartData = monthlyData.map(item => ({
+    month: item.month,
+    pemasukan: item.pemasukan,
+    pengeluaran: item.pengeluaran
+  }));
+
+  // Prepare chart data for pengeluaran categories (detailed breakdown)
+  // Show top 5 categories by amount
+  const topPengeluaranCategories = categoryDataPengeluaran
+    .filter(category => (category.amount || 0) > 0)
+    .slice(0, 5)
+    .map(category => ({
+      name: category.name,
+      value: category.amount || 0,
+      amount: category.amount || 0,
+      color: category.color
+    }));
+
+  const hasPengeluaranData = topPengeluaranCategories.length > 0;
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {!hasMonthlyData && selectedAccountId ? (
-        <EmptyStateCard 
-          title="Ringkasan Transaksi" 
-          message="Pemasukan vs pengeluaran bulanan"
-          icon={<TrendingDown className="w-6 h-6 text-gray-400" />}
-          selectedAccountName={selectedAccountName}
-        />
-      ) : (
+    <div className="grid gap-4 md:grid-cols-2">
+      {/* Line Chart - Trend Pemasukan vs Pengeluaran */}
+      {chartData && chartData.length > 0 ? (
         <Card className="rounded-lg border border-gray-200 shadow-sm bg-white">
           <CardHeader className="pb-4 pt-4 px-4">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-sm font-medium text-gray-900">Ringkasan Transaksi</CardTitle>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Pemasukan vs pengeluaran bulanan
-                </p>
+                <CardTitle className="text-base font-semibold text-gray-900">Tren Pemasukan vs Pengeluaran</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">Perkembangan pemasukan dan pengeluaran koperasi per bulan</p>
               </div>
               <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-xs px-2 py-0.5">
                 {selectedAccountName || 'Kas Koperasi'}
@@ -121,84 +156,70 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorPemasukan" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05}/>
-                    </linearGradient>
-                    <linearGradient id="colorPengeluaran" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.05}/>
-                    </linearGradient>
-                  </defs>
+                <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
                   <XAxis 
                     dataKey="month" 
-                    stroke="#9ca3af"
-                    style={{ fontSize: '12px' }}
-                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#9ca3af' }}
                     axisLine={false}
+                    tickLine={false}
                   />
                   <YAxis 
-                    tickFormatter={(value) => `${(value / 1000000).toFixed(1)}jt`}
-                    stroke="#9ca3af"
-                    style={{ fontSize: '12px' }}
-                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#9ca3af' }}
                     axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
                   />
                   <Tooltip 
-                    content={<CustomTooltip />}
-                    cursor={{ stroke: '#e5e7eb', strokeWidth: 1, strokeDasharray: '5 5' }}
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{ 
+                      backgroundColor: '#fff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                    }}
                   />
                   <Legend 
-                    wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
-                    iconType="circle"
-                    formatter={(value) => <span style={{ color: '#6b7280' }}>{value}</span>}
+                    wrapperStyle={{ fontSize: '11px', paddingTop: '16px' }}
+                    iconType="line"
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="pemasukan" 
-                    stroke="#3b82f6" 
+                  <Line 
+                    type="monotone"
+                    dataKey="pemasukan"
+                    stroke="#3b82f6"
                     strokeWidth={2}
-                    fill="url(#colorPemasukan)"
+                    dot={{ fill: '#3b82f6', r: 4 }}
                     name="Pemasukan"
-                    dot={false}
-                    activeDot={{ r: 5, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="pengeluaran" 
-                    stroke="#f59e0b" 
+                  <Line 
+                    type="monotone"
+                    dataKey="pengeluaran"
+                    stroke="#f59e0b"
                     strokeWidth={2}
-                    fill="url(#colorPengeluaran)"
+                    dot={{ fill: '#f59e0b', r: 4 }}
                     name="Pengeluaran"
-                    dot={false}
-                    activeDot={{ r: 5, fill: '#f59e0b', stroke: '#fff', strokeWidth: 2 }}
                   />
-                </AreaChart>
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {!hasCategoryData && selectedAccountId ? (
+      ) : (
         <EmptyStateCard 
-          title="Distribusi Kategori" 
-          message="Pengeluaran berdasarkan kategori"
-          icon={<FileX className="w-6 h-6 text-gray-400" />}
+          title="Ringkasan Transaksi" 
+          message="Pemasukan vs pengeluaran bulanan"
+          icon={<TrendingDown className="w-6 h-6 text-gray-400" />}
           selectedAccountName={selectedAccountName}
         />
-      ) : (
+      )}
+
+      {/* Pie Chart - Pengeluaran by Category */}
+      {useNewCategoryData && hasPengeluaranData ? (
         <Card className="rounded-lg border border-gray-200 shadow-sm bg-white">
           <CardHeader className="pb-4 pt-4 px-4">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-sm font-medium text-gray-900">Distribusi Kategori</CardTitle>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Pengeluaran berdasarkan kategori
-                </p>
+                <CardTitle className="text-base font-semibold text-gray-900">Pembagian Pengeluaran</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">Berdasarkan kategori pengeluaran</p>
               </div>
               <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-xs px-2 py-0.5">
                 {selectedAccountName || 'Kas Koperasi'}
@@ -210,45 +231,49 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={categoryData}
+                    data={topPengeluaranCategories}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
+                    labelLine={false}
+                    label={({ percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
                     outerRadius={100}
-                    paddingAngle={5}
+                    innerRadius={60}
+                    fill="#8884d8"
                     dataKey="value"
                   >
-                    {categoryData.map((entry, index) => (
+                    {topPengeluaranCategories.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
                   <Tooltip 
-                    formatter={(value: number) => `${value}%`}
-                    labelFormatter={(label: string) => label}
-                    contentStyle={{
-                      backgroundColor: 'white',
+                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                    contentStyle={{ 
+                      backgroundColor: '#fff',
                       border: '1px solid #e5e7eb',
-                      borderRadius: '8px'
+                      borderRadius: '8px',
                     }}
+                  />
+                  <Legend 
+                    verticalAlign="bottom"
+                    height={36}
+                    formatter={(value, entry: any) => (
+                      <span style={{ color: entry.color, fontSize: '12px' }}>
+                        {value}
+                      </span>
+                    )}
                   />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              {categoryData.map((category, index) => (
-                <div key={index} className="flex items-center space-x-2">
-                  <div 
-                    className="w-3 h-3 rounded-full flex-shrink-0" 
-                    style={{ backgroundColor: category.color }}
-                  />
-                  <span className="text-sm text-gray-600 truncate">
-                    {category.name}: {category.value}%
-                  </span>
-                </div>
-              ))}
-            </div>
           </CardContent>
         </Card>
+      ) : (
+        <EmptyStateCard 
+          title="Pembagian Pengeluaran" 
+          message="Berdasarkan kategori pengeluaran"
+          icon={<FileX className="w-6 h-6 text-gray-400" />}
+          selectedAccountName={selectedAccountName}
+        />
       )}
     </div>
   );

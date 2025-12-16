@@ -22,6 +22,8 @@ interface SummaryCardsProps {
     totalTransaksi: number;
     pemasukanTrend: number;
     pengeluaranTrend: number;
+    labaBersih?: number; // Laba bersih = pemasukan - pengeluaran
+    labaBersihTrend?: number; // Trend laba bersih
   };
   selectedAccountName?: string;
   periodLabel?: string; // Label untuk periode yang dipilih (e.g., "Bulan Ini", "Bulan Lalu", "3 Bulan Terakhir")
@@ -50,6 +52,16 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({
     const sign = roundedTrend >= 0 ? '+' : '';
     return `${sign}${roundedTrend.toFixed(2)}% dari ${previousPeriodLabel}`;
   };
+
+  // Calculate laba bersih if not provided
+  const labaBersih = stats.labaBersih !== undefined 
+    ? stats.labaBersih 
+    : stats.pemasukanBulanIni - stats.pengeluaranBulanIni;
+  
+  // Calculate laba bersih trend if not provided
+  const labaBersihTrend = stats.labaBersihTrend !== undefined
+    ? stats.labaBersihTrend
+    : 0; // Will be calculated if previous period data available
 
   const cards: StatCard[] = [
     {
@@ -83,14 +95,14 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({
       color: 'text-red-600',
     },
     {
-      title: `Transaksi ${periodLabel}`,
-      value: stats.totalTransaksi.toString(),
+      title: `Laba Bersih ${periodLabel}`,
+      value: formatCurrency(labaBersih),
       trend: {
-        value: '3 pending',
-        isPositive: true,
+        value: labaBersihTrend !== 0 ? formatTrend(labaBersihTrend) : 'Tidak ada data sebelumnya',
+        isPositive: labaBersih >= 0,
       },
-      icon: <ArrowUpRight className="h-5 w-5" />,
-      color: 'text-purple-600',
+      icon: labaBersih >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />,
+      color: labaBersih >= 0 ? 'text-green-600' : 'text-red-600',
     },
   ];
 

@@ -15,7 +15,7 @@ import {
   PieChart,
   ExternalLink
 } from "lucide-react";
-import { koperasiService } from "@/services/koperasi.service";
+import { koperasiService, monthlyCashReconciliationService } from "@/services/koperasi.service";
 import { supabase } from "@/integrations/supabase/client";
 import { startOfMonth, endOfMonth, format, subMonths } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -138,6 +138,13 @@ export default function KeuanganDashboard() {
     },
   });
 
+  // Get real cash balance (exclude closed months)
+  const { data: realCashBalance, isLoading: loadingRealCashBalance } = useQuery({
+    queryKey: ['real-cash-balance'],
+    queryFn: () => monthlyCashReconciliationService.getRealCashBalance(true),
+    refetchInterval: 30000,
+  });
+
   // Get total bagian_yayasan yang belum_disetor
   // Diambil dari koperasi_bagi_hasil_log dimana status != 'paid' atau tanggal_bayar is null
   // Menggunakan query yang sama seperti di KelolaHPPDanBagiHasilPage
@@ -243,23 +250,48 @@ export default function KeuanganDashboard() {
       </div>
 
       {/* Saldo Kas & Hak Yayasan Cards - New Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Card 1 - Saldo Kas Koperasi */}
-        <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm hover:shadow-md transition-shadow">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Card 1 - Saldo Kas Riil Koperasi */}
+        <Card className="bg-gradient-to-r from-blue-50 to-green-50 border-blue-200 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-700">Saldo Kas Koperasi</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-700">Saldo Kas Riil</CardTitle>
             <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
               <Wallet className="h-5 w-5 text-blue-600" />
             </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold text-gray-900">
-              {formatCurrency(keuanganStats?.saldoKasKoperasi || 0)}
+              {loadingRealCashBalance ? (
+                <span className="text-sm text-muted-foreground">Memuat...</span>
+              ) : (
+                formatCurrency(realCashBalance?.realBalance || 0)
+              )}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Setelah dikurangi bulan yang sudah ditransfer
+            </p>
           </CardContent>
         </Card>
 
-        {/* Card 2 - Hak Yayasan di Kas Koperasi */}
+        {/* Card 2 - Saldo Kas Koperasi (Total) */}
+        <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-gray-700">Saldo Kas Total</CardTitle>
+            <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
+              <Wallet className="h-5 w-5 text-gray-600" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold text-gray-900">
+              {formatCurrency(keuanganStats?.saldoKasKoperasi || 0)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Saldo aktual di akun kas
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Card 3 - Hak Yayasan di Kas Koperasi */}
         <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-gray-700">Hak Yayasan di Kas Koperasi</CardTitle>

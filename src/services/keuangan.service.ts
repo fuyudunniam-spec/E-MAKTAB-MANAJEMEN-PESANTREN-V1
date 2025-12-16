@@ -1,6 +1,4 @@
 import { supabase } from '@/integrations/supabase/client';
-// Fixed imports and functions for accurate statistics
-// Shared utilities untuk filtering (Phase 1 & 2 refactoring)
 import { 
   excludeTabunganTransactions, 
   applyTabunganExclusionFilter,
@@ -11,6 +9,22 @@ import {
   isKoperasiAccount
 } from '@/utils/keuanganFilters';
 
+// Constants
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DOUBLE_ENTRY_CHECK_WINDOW_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
+const DEFAULT_DATE_RANGE_DAYS = 30;
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// Source module prefixes for system-generated transactions
+const SYSTEM_SOURCE_MODULES = [
+  'inventaris',
+  'inventory_sale',
+  'donasi',
+  'pembayaran_santri',
+  'transfer_yayasan'
+] as const;
+
+// Types
 export interface KeuanganData {
   jenis_transaksi: 'Pemasukan' | 'Pengeluaran';
   kategori: string;
@@ -20,6 +34,7 @@ export interface KeuanganData {
   referensi?: string;
   akun_kas_id?: string;
   status?: 'draft' | 'verified' | 'posted' | 'cancelled';
+  auto_posted?: boolean;
 }
 
 export interface KeuanganStats {
@@ -29,8 +44,29 @@ export interface KeuanganStats {
   pendingTagihan: number;
 }
 
+interface EnhancedKeuanganData extends KeuanganData {
+  source_module?: string | null;
+  source_id?: string;
+}
+
+interface KeuanganTransaction {
+  id?: string;
+  jumlah: number;
+  auto_posted?: boolean;
+  source_module?: string | null;
+  jenis_transaksi?: 'Pemasukan' | 'Pengeluaran';
+  tanggal?: string;
+  akun_kas?: {
+    managed_by?: string | null;
+  } | Array<{
+    managed_by?: string | null;
+  }>;
+  [key: string]: unknown;
+}
+
 /**
  * Enhanced double entry detection with better accuracy
+ * Checks for duplicate transactions by source module/ID and referensi pattern
  */
 export const checkDoubleEntry = async (
   sourceModule: string,
@@ -39,157 +75,252 @@ export const checkDoubleEntry = async (
   jumlah: number,
   tanggal: string
 ): Promise<boolean> => {
-  // Check by source module and source ID (most accurate)
-  const { data: bySource } = await supabase
-    .from('keuangan')
-    .select('id')
-    .eq('source_module', sourceModule)
-    .eq('source_id', sourceId)
-    .eq('auto_posted', true);
-  
-  if (bySource && bySource.length > 0) {
-    return true;
+  try {
+    // Check by source module and source ID (most accurate)
+    const { data: bySource, error: sourceError } = await supabase
+      .from('keuangan')
+      .select('id')
+      .eq('source_module', sourceModule)
+      .eq('source_id', sourceId)
+      .eq('auto_posted', true);
+    
+    if (sourceError) {
+      console.error('Error checking double entry by source:', sourceError);
+      throw sourceError;
+    }
+    
+    if (bySource && bySource.length > 0) {
+      return true;
+    }
+    
+    // Check by referensi pattern (fallback)
+    const timeWindow = new Date(Date.now() - DOUBLE_ENTRY_CHECK_WINDOW_MS);
+    const { data: byReferensi, error: referensiError } = await supabase
+      .from('keuangan')
+      .select('id')
+      .eq('referensi', referensi)
+      .eq('auto_posted', true)
+      .gte('created_at', timeWindow.toISOString());
+    
+    if (referensiError) {
+      console.error('Error checking double entry by referensi:', referensiError);
+      throw referensiError;
+    }
+    
+    return byReferensi && byReferensi.length > 0;
+  } catch (error) {
+    console.error('Error in checkDoubleEntry:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if a referensi indicates a system-generated transaction
+ */
+const isSystemGeneratedTransaction = (referensi?: string): boolean => {
+  if (!referensi) return false;
+  return SYSTEM_SOURCE_MODULES.some(module => referensi.startsWith(`${module}:`));
+};
+
+/**
+ * Validate and extract UUID from referensi
+ */
+const extractSourceInfo = (referensi?: string): { sourceModule: string | null; sourceId: string | null; isValidUUID: boolean } => {
+  if (!referensi || !referensi.includes(':')) {
+    return { sourceModule: null, sourceId: null, isValidUUID: false };
   }
   
-  // Check by referensi pattern (fallback)
-  const { data: byReferensi } = await supabase
-    .from('keuangan')
-    .select('id')
-    .eq('referensi', referensi)
-    .eq('auto_posted', true)
-    .gte('created_at', new Date(Date.now() - 300000).toISOString()); // 5 menit terakhir
+  const parts = referensi.split(':');
+  const sourceModule = parts[0] || null;
+  const sourceId = parts[1] || null;
+  const isValidUUID = sourceId ? UUID_REGEX.test(sourceId) : false;
   
-  return byReferensi && byReferensi.length > 0;
+  return { sourceModule, sourceId, isValidUUID };
 };
 
 /**
  * Enhanced keuangan transaction with better double entry validation
+ * Validates and inserts a new financial transaction with duplicate detection
  */
-export const addKeuanganTransaction = async (data: KeuanganData): Promise<any> => {
-  // Enhanced validation for auto-posted transactions
-  if (data.referensi && data.referensi.includes(':')) {
-    const [sourceModule, sourceId] = data.referensi.split(':');
+export const addKeuanganTransaction = async (data: KeuanganData): Promise<unknown[]> => {
+  try {
+    // Enhanced validation for auto-posted transactions
+    // Only check double entry if source_id is a valid UUID
+    if (data.referensi && data.referensi.includes(':')) {
+      const { sourceModule, sourceId, isValidUUID } = extractSourceInfo(data.referensi);
+      
+      // Only check double entry if sourceId is a valid UUID
+      // Skip for referensi like "transfer_yayasan:2025-09" which is not a UUID
+      if (sourceModule && sourceId && isValidUUID) {
+        const isDuplicate = await checkDoubleEntry(
+          sourceModule,
+          sourceId,
+          data.referensi,
+          data.jumlah,
+          data.tanggal
+        );
+        
+        if (isDuplicate) {
+          throw new Error(`Double entry detected for ${sourceModule}:${sourceId}`);
+        }
+      }
+    }
     
-    const isDuplicate = await checkDoubleEntry(
-      sourceModule,
-      sourceId,
-      data.referensi,
-      data.jumlah,
-      data.tanggal
-    );
+    // Detect if this is a system fallback (not manual user entry)
+    // If referensi indicates from another module (inventaris, donasi, etc),
+    // then this is an auto-posted system entry, not a manual entry
+    const isSystemFallback = isSystemGeneratedTransaction(data.referensi);
     
-    if (isDuplicate) {
-      throw new Error(`Double entry detected for ${sourceModule}:${sourceId}`);
+    // Extract source information for enhanced tracking
+    const { sourceModule, sourceId, isValidUUID } = extractSourceInfo(data.referensi);
+    
+    const enhancedData: EnhancedKeuanganData = {
+      ...data,
+      // Set auto_posted = TRUE if this is a system fallback, FALSE if manual user
+      auto_posted: isSystemFallback ? true : (data.auto_posted ?? false),
+      source_module: sourceModule,
+      // Only set source_id if valid UUID (don't set for referensi like "transfer_yayasan:2025-09")
+      ...(isValidUUID && sourceId ? { source_id: sourceId } : {})
+    };
+    
+    const { data: result, error } = await supabase
+      .from('keuangan')
+      .insert([enhancedData])
+      .select();
+
+    if (error) {
+      console.error('Error inserting keuangan transaction:', error);
+      throw error;
+    }
+    
+    if (!result || result.length === 0) {
+      throw new Error('Failed to insert keuangan transaction: No data returned');
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Error in addKeuanganTransaction:', error);
+    throw error;
+  }
+};
+
+/**
+ * Calculate unique transactions by deduplicating based on source, amount, and auto_posted status
+ */
+const deduplicateTransactions = (transactions: KeuanganTransaction[]): KeuanganTransaction[] => {
+  const uniqueMap = new Map<string, KeuanganTransaction>();
+  
+  for (const item of transactions) {
+    const key = `${item.source_module || 'manual'}_${item.jumlah}_${item.auto_posted || false}`;
+    if (!uniqueMap.has(key)) {
+      uniqueMap.set(key, item);
     }
   }
   
-  // Deteksi apakah ini adalah fallback sistem (bukan manual user)
-  // Jika ada referensi yang mengindikasikan dari modul lain (inventaris, donasi, dll),
-  // maka ini adalah auto-posted system entry, bukan manual entry
-  const isSystemFallback = data.referensi && (
-    data.referensi.startsWith('inventaris:') ||
-    data.referensi.startsWith('inventory_sale:') ||
-    data.referensi.startsWith('donasi:') ||
-    data.referensi.startsWith('pembayaran_santri:')
-  );
-  
-  // Insert transaksi with enhanced tracking
-  const enhancedData = {
-    ...data,
-    // Set auto_posted = TRUE jika ini adalah fallback sistem, FALSE jika manual user
-    auto_posted: isSystemFallback ? true : (data.auto_posted ?? false),
-    source_module: data.referensi?.split(':')[0] || null,
-    source_id: data.referensi?.split(':')[1] || null
-    // Note: audit_trail field removed - column doesn't exist in keuangan table
-  };
-  
-  const { data: result, error } = await supabase
-    .from('keuangan')
-    .insert([enhancedData])
-    .select();
+  return Array.from(uniqueMap.values());
+};
 
-  if (error) throw error;
-  return result;
+/**
+ * Get start of current month date
+ */
+const getStartOfCurrentMonth = (): Date => {
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+  return startOfMonth;
 };
 
 /**
  * Enhanced dashboard stats using database views for better performance
  */
 export const getKeuanganDashboardStats = async (): Promise<KeuanganStats> => {
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
+  try {
+    const startOfMonth = getStartOfCurrentMonth();
 
-  // Get total saldo dari akun_kas
-  // EXCLUDE accounts managed by tabungan and koperasi modules (using shared utility)
-  const { data: akunKas } = await supabase
-    .from('akun_kas')
-    .select('saldo_saat_ini, managed_by')
-    .eq('status', 'aktif');
+    // Get total saldo dari akun_kas
+    // EXCLUDE accounts managed by tabungan and koperasi modules (using shared utility)
+    const { data: akunKas, error: akunKasError } = await supabase
+      .from('akun_kas')
+      .select('saldo_saat_ini, managed_by')
+      .eq('status', 'aktif');
 
-  // Only count accounts not managed by tabungan or koperasi (using shared utility)
-  const filteredAkunKas = excludeKoperasiAccounts(excludeTabunganAccounts(akunKas));
-  const totalSaldo = filteredAkunKas.reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
-
-  // Get pemasukan bulan ini (using improved filtering)
-  // Exclude tabungan and koperasi transactions (using shared utility)
-  let pemasukanQuery = supabase
-    .from('keuangan')
-    .select('jumlah, auto_posted, source_module, akun_kas(managed_by)')
-    .eq('jenis_transaksi', 'Pemasukan')
-    .eq('status', 'posted')
-    .gte('tanggal', startOfMonth.toISOString());
-  
-  pemasukanQuery = applyTabunganExclusionFilter(pemasukanQuery);
-    
-  const { data: pemasukan } = await pemasukanQuery;
-
-  // Filter out tabungan and koperasi transactions and potential duplicates (using shared utility)
-  const filteredPemasukan = excludeKoperasiTransactions(excludeTabunganTransactions(pemasukan));
-  
-  // Filter out potential duplicates (keep only one per source)
-  const uniquePemasukan = filteredPemasukan.reduce((acc, item) => {
-    const key = `${item.source_module || 'manual'}_${item.jumlah}_${item.auto_posted}`;
-    if (!acc.has(key)) {
-      acc.set(key, item);
+    if (akunKasError) {
+      console.error('Error fetching akun kas:', akunKasError);
+      throw akunKasError;
     }
-    return acc;
-  }, new Map()).values();
 
-  const pemasukanBulanIni = Array.from(uniquePemasukan).reduce((sum, item) => sum + (item.jumlah || 0), 0);
+    // Only count accounts not managed by tabungan or koperasi (using shared utility)
+    const filteredAkunKas = excludeKoperasiAccounts(excludeTabunganAccounts(akunKas));
+    const totalSaldo = filteredAkunKas.reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
 
-  // Get pengeluaran bulan ini
-  // Exclude tabungan and koperasi transactions (using shared utility)
-  let pengeluaranQuery = supabase
-    .from('keuangan')
-    .select('jumlah, source_module, akun_kas(managed_by)')
-    .eq('jenis_transaksi', 'Pengeluaran')
-    .eq('status', 'posted')
-    .gte('tanggal', startOfMonth.toISOString());
-  
-  pengeluaranQuery = applyTabunganExclusionFilter(pengeluaranQuery);
+    // Get pemasukan bulan ini (using improved filtering)
+    // Exclude tabungan and koperasi transactions (using shared utility)
+    let pemasukanQuery = supabase
+      .from('keuangan')
+      .select('jumlah, auto_posted, source_module, akun_kas(managed_by)')
+      .eq('jenis_transaksi', 'Pemasukan')
+      .eq('status', 'posted')
+      .gte('tanggal', startOfMonth.toISOString());
     
-  const { data: pengeluaran } = await pengeluaranQuery;
-  
-  // Filter out tabungan and koperasi transactions (using shared utility)
-  const filteredPengeluaran = excludeKoperasiTransactions(excludeTabunganTransactions(pengeluaran));
+    pemasukanQuery = applyTabunganExclusionFilter(pemasukanQuery);
+    
+    const { data: pemasukan, error: pemasukanError } = await pemasukanQuery;
 
-  const pengeluaranBulanIni = filteredPengeluaran.reduce((sum, item) => sum + (item.jumlah || 0), 0);
+    if (pemasukanError) {
+      console.error('Error fetching pemasukan:', pemasukanError);
+      throw pemasukanError;
+    }
 
-  // Get pending tagihan
-  const { data: pendingTagihan } = await supabase
-    .from('tagihan_santri')
-    .select('id')
-    .eq('status', 'pending');
+    // Filter out tabungan and koperasi transactions and potential duplicates (using shared utility)
+    const filteredPemasukan = excludeKoperasiTransactions(excludeTabunganTransactions(pemasukan || []));
+    const uniquePemasukan = deduplicateTransactions(filteredPemasukan);
+    const pemasukanBulanIni = uniquePemasukan.reduce((sum, item) => sum + (item.jumlah || 0), 0);
 
-  const pendingTagihanCount = pendingTagihan?.length || 0;
+    // Get pengeluaran bulan ini
+    // Exclude tabungan and koperasi transactions (using shared utility)
+    let pengeluaranQuery = supabase
+      .from('keuangan')
+      .select('jumlah, source_module, akun_kas(managed_by)')
+      .eq('jenis_transaksi', 'Pengeluaran')
+      .eq('status', 'posted')
+      .gte('tanggal', startOfMonth.toISOString());
+    
+    pengeluaranQuery = applyTabunganExclusionFilter(pengeluaranQuery);
+    
+    const { data: pengeluaran, error: pengeluaranError } = await pengeluaranQuery;
+
+    if (pengeluaranError) {
+      console.error('Error fetching pengeluaran:', pengeluaranError);
+      throw pengeluaranError;
+    }
+
+    // Filter out tabungan and koperasi transactions (using shared utility)
+    const filteredPengeluaran = excludeKoperasiTransactions(excludeTabunganTransactions(pengeluaran || []));
+    const pengeluaranBulanIni = filteredPengeluaran.reduce((sum, item) => sum + (item.jumlah || 0), 0);
+
+    // Get pending tagihan
+    const { data: pendingTagihan, error: tagihanError } = await supabase
+      .from('tagihan_santri')
+      .select('id')
+      .eq('status', 'pending');
+
+    if (tagihanError) {
+      console.error('Error fetching pending tagihan:', tagihanError);
+      throw tagihanError;
+    }
+
+    const pendingTagihanCount = pendingTagihan?.length || 0;
       
-  return {
-    totalSaldo,
-    pemasukanBulanIni,
-    pengeluaranBulanIni,
-    pendingTagihan: pendingTagihanCount
-  };
+    return {
+      totalSaldo,
+      pemasukanBulanIni,
+      pengeluaranBulanIni,
+      pendingTagihan: pendingTagihanCount
+    };
+  } catch (error) {
+    console.error('Error in getKeuanganDashboardStats:', error);
+    throw error;
+  }
 };
 
 /**
@@ -204,185 +335,305 @@ export interface AkunKasStats {
   pengeluaranTrend: number;
 }
 
-export const getAkunKasStats = async (akunKasId?: string): Promise<AkunKasStats> => {
-  const currentDate = new Date();
-  const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth();
-  
-  // Start and end of current month
-  const startOfCurrentMonth = new Date(currentYear, currentMonth, 1);
-  const endOfCurrentMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
-  
-  // Start and end of previous month for trend calculation
-  const startOfPrevMonth = new Date(currentYear, currentMonth - 1, 1);
-  const endOfPrevMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59);
+/**
+ * Get month boundaries for a given year and month
+ */
+const getMonthBoundaries = (year: number, month: number) => {
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month + 1, 0, 23, 59, 59);
+  return { start, end };
+};
 
-  let query = supabase.from('keuangan').select('*, akun_kas(managed_by)');
+/**
+ * Calculate trend percentage between two values
+ */
+const calculateTrend = (current: number, previous: number): number => {
+  if (previous === 0) return 0;
+  return ((current - previous) / previous) * 100;
+};
 
-  // Exclude tabungan santri transactions (using shared utility)
-  query = applyTabunganExclusionFilter(query);
-
-  // Filter by akun kas if provided
-  if (akunKasId) {
-    query = query.eq('akun_kas_id', akunKasId);
-  }
-
-  const { data: allTransactions, error } = await query;
-  if (error) throw error;
-  
-  // Additional client-side filtering to exclude tabungan and koperasi transactions (using shared utility)
-  const filteredTransactions = excludeKoperasiTransactions(excludeTabunganTransactions(allTransactions));
-
-  // Get akun kas saldo
-  // EXCLUDE accounts managed by tabungan and koperasi modules from total saldo (using shared utility)
-  let totalSaldo = 0;
-  if (akunKasId) {
-    const { data: akunKas } = await supabase
-      .from('akun_kas')
-      .select('saldo_saat_ini, managed_by')
-      .eq('id', akunKasId)
-      .single();
-    
-    // Only count if not managed by tabungan or koperasi (using shared utility)
-    if (akunKas && !isTabunganAccount(akunKas) && !isKoperasiAccount(akunKas)) {
-      totalSaldo = akunKas.saldo_saat_ini || 0;
+/**
+ * Filter transactions by date range
+ */
+const filterTransactionsByDateRange = (
+  transactions: KeuanganTransaction[],
+  startDate: Date,
+  endDate: Date
+): KeuanganTransaction[] => {
+  return transactions.filter(t => {
+    if (!t.tanggal || typeof t.tanggal !== 'string') {
+      return false;
     }
-  } else {
-    const { data: allAkun } = await supabase
-      .from('akun_kas')
-      .select('saldo_saat_ini, managed_by')
-      .eq('status', 'aktif');
+    const transactionDate = new Date(t.tanggal);
+    return transactionDate >= startDate && transactionDate <= endDate;
+  });
+};
+
+/**
+ * Calculate total amount for a transaction type
+ */
+const calculateTotalByType = (
+  transactions: KeuanganTransaction[],
+  jenisTransaksi: 'Pemasukan' | 'Pengeluaran'
+): number => {
+  return transactions
+    .filter(t => t.jenis_transaksi === jenisTransaksi)
+    .reduce((sum, t) => sum + (t.jumlah || 0), 0);
+};
+
+/**
+ * Get stats per akun kas - FIXED: Menghitung statistik per akun kas tertentu
+ */
+export const getAkunKasStats = async (akunKasId?: string): Promise<AkunKasStats> => {
+  try {
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
     
-    // Only count accounts not managed by tabungan or koperasi (using shared utility)
-    const filteredAkun = excludeKoperasiAccounts(excludeTabunganAccounts(allAkun));
-    totalSaldo = filteredAkun.reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
+    // Get month boundaries
+    const { start: startOfCurrentMonth, end: endOfCurrentMonth } = getMonthBoundaries(currentYear, currentMonth);
+    const { start: startOfPrevMonth, end: endOfPrevMonth } = getMonthBoundaries(currentYear, currentMonth - 1);
+
+    let query = supabase.from('keuangan').select('*, akun_kas(managed_by)');
+
+    // Exclude tabungan santri transactions (using shared utility)
+    query = applyTabunganExclusionFilter(query);
+
+    // Filter by akun kas if provided
+    if (akunKasId) {
+      query = query.eq('akun_kas_id', akunKasId);
+    }
+
+    const { data: allTransactions, error: transactionsError } = await query;
+    if (transactionsError) {
+      console.error('Error fetching transactions:', transactionsError);
+      throw transactionsError;
+    }
+    
+    // Additional client-side filtering to exclude tabungan and koperasi transactions (using shared utility)
+    const filteredTransactions = excludeKoperasiTransactions(
+      excludeTabunganTransactions(allTransactions || [])
+    );
+
+    // Get akun kas saldo
+    // EXCLUDE accounts managed by tabungan and koperasi modules from total saldo (using shared utility)
+    let totalSaldo = 0;
+    if (akunKasId) {
+      const { data: akunKas, error: akunKasError } = await supabase
+        .from('akun_kas')
+        .select('saldo_saat_ini, managed_by')
+        .eq('id', akunKasId)
+        .single();
+      
+      if (akunKasError) {
+        console.error('Error fetching akun kas:', akunKasError);
+        throw akunKasError;
+      }
+      
+      // Only count if not managed by tabungan or koperasi (using shared utility)
+      if (akunKas && !isTabunganAccount(akunKas) && !isKoperasiAccount(akunKas)) {
+        totalSaldo = akunKas.saldo_saat_ini || 0;
+      }
+    } else {
+      const { data: allAkun, error: allAkunError } = await supabase
+        .from('akun_kas')
+        .select('saldo_saat_ini, managed_by')
+        .eq('status', 'aktif');
+      
+      if (allAkunError) {
+        console.error('Error fetching all akun kas:', allAkunError);
+        throw allAkunError;
+      }
+      
+      // Only count accounts not managed by tabungan or koperasi (using shared utility)
+      const filteredAkun = excludeKoperasiAccounts(excludeTabunganAccounts(allAkun));
+      totalSaldo = filteredAkun.reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
+    }
+
+    // Filter transactions by month
+    const currentMonthTransactions = filterTransactionsByDateRange(
+      filteredTransactions,
+      startOfCurrentMonth,
+      endOfCurrentMonth
+    );
+
+    const prevMonthTransactions = filterTransactionsByDateRange(
+      filteredTransactions,
+      startOfPrevMonth,
+      endOfPrevMonth
+    );
+
+    // Calculate current month stats
+    const pemasukanBulanIni = calculateTotalByType(currentMonthTransactions, 'Pemasukan');
+    const pengeluaranBulanIni = calculateTotalByType(currentMonthTransactions, 'Pengeluaran');
+
+    // Calculate previous month stats for trend
+    const pemasukanBulanLalu = calculateTotalByType(prevMonthTransactions, 'Pemasukan');
+    const pengeluaranBulanLalu = calculateTotalByType(prevMonthTransactions, 'Pengeluaran');
+
+    // Calculate trends
+    const pemasukanTrend = calculateTrend(pemasukanBulanIni, pemasukanBulanLalu);
+    const pengeluaranTrend = calculateTrend(pengeluaranBulanIni, pengeluaranBulanLalu);
+
+    return {
+      totalSaldo,
+      pemasukanBulanIni,
+      pengeluaranBulanIni,
+      totalTransaksi: currentMonthTransactions.length,
+      pemasukanTrend,
+      pengeluaranTrend
+    };
+  } catch (error) {
+    console.error('Error in getAkunKasStats:', error);
+    throw error;
   }
-
-  // Filter current month transactions (already filtered for tabungan)
-  const currentMonthTransactions = filteredTransactions.filter(t => {
-    const transactionDate = new Date(t.tanggal);
-    return transactionDate >= startOfCurrentMonth && transactionDate <= endOfCurrentMonth;
-  });
-
-  // Filter previous month transactions for trend (already filtered for tabungan)
-  const prevMonthTransactions = filteredTransactions.filter(t => {
-    const transactionDate = new Date(t.tanggal);
-    return transactionDate >= startOfPrevMonth && transactionDate <= endOfPrevMonth;
-  });
-
-  // Calculate current month stats
-  const pemasukanBulanIni = currentMonthTransactions
-    .filter(t => t.jenis_transaksi === 'Pemasukan')
-    .reduce((sum, t) => sum + (t.jumlah || 0), 0);
-
-  const pengeluaranBulanIni = currentMonthTransactions
-    .filter(t => t.jenis_transaksi === 'Pengeluaran')
-    .reduce((sum, t) => sum + (t.jumlah || 0), 0);
-
-  // Calculate previous month stats for trend
-  const pemasukanBulanLalu = prevMonthTransactions
-    .filter(t => t.jenis_transaksi === 'Pemasukan')
-    .reduce((sum, t) => sum + (t.jumlah || 0), 0);
-
-  const pengeluaranBulanLalu = prevMonthTransactions
-    .filter(t => t.jenis_transaksi === 'Pengeluaran')
-    .reduce((sum, t) => sum + (t.jumlah || 0), 0);
-
-  // Calculate trends
-  const pemasukanTrend = pemasukanBulanLalu > 0 
-    ? ((pemasukanBulanIni - pemasukanBulanLalu) / pemasukanBulanLalu * 100)
-    : 0;
-
-  const pengeluaranTrend = pengeluaranBulanLalu > 0
-    ? ((pengeluaranBulanIni - pengeluaranBulanLalu) / pengeluaranBulanLalu * 100)
-    : 0;
-
-  return {
-    totalSaldo,
-    pemasukanBulanIni,
-    pengeluaranBulanIni,
-    totalTransaksi: currentMonthTransactions.length,
-    pemasukanTrend,
-    pengeluaranTrend
-  };
 };
 
 /**
  * Get akun kas detail
  */
-export const getAkunKasDetail = async () => {
+export const getAkunKasDetail = async (): Promise<unknown> => {
+  try {
     const { data, error } = await supabase
-    .from('view_akun_kas_detail')
-    .select('*')
-    .order('is_default', { ascending: false });
+      .from('view_akun_kas_detail')
+      .select('*')
+      .order('is_default', { ascending: false });
 
-    if (error) throw error;
-  return data;
+    if (error) {
+      console.error('Error fetching akun kas detail:', error);
+      throw error;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error in getAkunKasDetail:', error);
+    throw error;
+  }
 };
 
 /**
  * Get total saldo semua akun
  */
-export const getTotalSaldoSemuaAkun = async () => {
+export const getTotalSaldoSemuaAkun = async (): Promise<unknown> => {
+  try {
     const { data, error } = await supabase
-    .from('view_total_saldo_semua_akun')
+      .from('view_total_saldo_semua_akun')
       .select('*')
-    .single();
+      .single();
 
-    if (error) throw error;
-  return data;
+    if (error) {
+      console.error('Error fetching total saldo semua akun:', error);
+      throw error;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error in getTotalSaldoSemuaAkun:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get default date range for queries (last N days)
+ */
+const getDefaultDateRange = (days: number = DEFAULT_DATE_RANGE_DAYS): { start: string; end: string } => {
+  const endDate = new Date();
+  const startDate = new Date(Date.now() - days * MILLISECONDS_PER_DAY);
+  
+  return {
+    start: startDate.toISOString().split('T')[0],
+    end: endDate.toISOString().split('T')[0]
+  };
 };
 
 /**
  * Enhanced monitoring using database views
  */
-export const monitorDoubleEntry = async () => {
-  // Use the database view for better performance
-  const { data: doubleEntries } = await supabase
-    .from('v_potential_double_entries')
-    .select('*');
-  
-  if (doubleEntries && doubleEntries.length > 0) {
-    console.warn('Potential double entries detected:', doubleEntries);
-    return doubleEntries;
+export const monitorDoubleEntry = async (): Promise<unknown[]> => {
+  try {
+    // Use the database view for better performance
+    const { data: doubleEntries, error } = await supabase
+      .from('v_potential_double_entries')
+      .select('*');
+    
+    if (error) {
+      console.error('Error monitoring double entries:', error);
+      throw error;
+    }
+    
+    if (doubleEntries && doubleEntries.length > 0) {
+      console.warn('Potential double entries detected:', doubleEntries);
+      return doubleEntries;
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Error in monitorDoubleEntry:', error);
+    throw error;
   }
-  
-  return [];
 };
 
 /**
  * Get auto-posted transactions summary
  */
-export const getAutoPostedSummary = async (startDate?: string, endDate?: string) => {
-  const { data, error } = await supabase.rpc('get_auto_posted_summary', {
-    p_start_date: startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    p_end_date: endDate || new Date().toISOString().split('T')[0]
-  });
-  
-  if (error) throw error;
-  return data;
+export const getAutoPostedSummary = async (startDate?: string, endDate?: string): Promise<unknown> => {
+  try {
+    const dateRange = getDefaultDateRange();
+    const { data, error } = await supabase.rpc('get_auto_posted_summary', {
+      p_start_date: startDate || dateRange.start,
+      p_end_date: endDate || dateRange.end
+    });
+    
+    if (error) {
+      console.error('Error fetching auto-posted summary:', error);
+      throw error;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error in getAutoPostedSummary:', error);
+    throw error;
+  }
 };
 
 /**
  * Reconcile auto-posted transactions with source records
  */
-export const reconcileAutoPostedTransactions = async () => {
-  const { data, error } = await supabase.rpc('reconcile_auto_posted_transactions');
-  
-  if (error) throw error;
-  return data;
+export const reconcileAutoPostedTransactions = async (): Promise<unknown> => {
+  try {
+    const { data, error } = await supabase.rpc('reconcile_auto_posted_transactions');
+    
+    if (error) {
+      console.error('Error reconciling auto-posted transactions:', error);
+      throw error;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error in reconcileAutoPostedTransactions:', error);
+    throw error;
+  }
 };
 
 /**
  * Get orphaned keuangan entries
  */
-export const getOrphanedKeuangan = async () => {
-  const { data, error } = await supabase
-    .from('v_orphaned_keuangan')
-    .select('*');
-  
-  if (error) throw error;
-  return data;
+export const getOrphanedKeuangan = async (): Promise<unknown> => {
+  try {
+    const { data, error } = await supabase
+      .from('v_orphaned_keuangan')
+      .select('*');
+    
+    if (error) {
+      console.error('Error fetching orphaned keuangan:', error);
+      throw error;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error in getOrphanedKeuangan:', error);
+    throw error;
+  }
 };
 
 /**
@@ -393,22 +644,42 @@ export async function createDoubleEntryAlert(
   transactionId: string,
   amount: number,
   description: string
-) {
-  const { data, error } = await supabase.rpc('create_double_entry_alert', {
-    p_transaction_type: transactionType,
-    p_transaction_id: transactionId,
-    p_amount: amount,
-    p_description: description
-  });
-  
-  if (error) throw error;
-  return data;
+): Promise<unknown> {
+  try {
+    const { data, error } = await supabase.rpc('create_double_entry_alert', {
+      p_transaction_type: transactionType,
+      p_transaction_id: transactionId,
+      p_amount: amount,
+      p_description: description
+    });
+    
+    if (error) {
+      console.error('Error creating double entry alert:', error);
+      throw error;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error in createDoubleEntryAlert:', error);
+    throw error;
+  }
 }
 
-// Get duplicate keuangan report
-export async function getDuplicateKeuanganReport() {
-  const { data, error } = await supabase.rpc('get_duplicate_keuangan_summary');
-  
-  if (error) throw error;
-  return data || [];
+/**
+ * Get duplicate keuangan report
+ */
+export async function getDuplicateKeuanganReport(): Promise<unknown[]> {
+  try {
+    const { data, error } = await supabase.rpc('get_duplicate_keuangan_summary');
+    
+    if (error) {
+      console.error('Error fetching duplicate keuangan report:', error);
+      throw error;
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error in getDuplicateKeuanganReport:', error);
+    throw error;
+  }
 }

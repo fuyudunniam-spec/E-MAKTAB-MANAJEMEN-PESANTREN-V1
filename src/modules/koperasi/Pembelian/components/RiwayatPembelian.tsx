@@ -12,11 +12,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
-interface PembelianListProps {
-  compact?: boolean;
-}
-
-export default function PembelianList({ compact = false }: PembelianListProps) {
+export default function RiwayatPembelian() {
   const [search, setSearch] = useState('');
   const [selectedPembelian, setSelectedPembelian] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -29,7 +25,7 @@ export default function PembelianList({ compact = false }: PembelianListProps) {
         .from('kop_pembelian')
         .select(`
           *,
-          supplier:kop_supplier(nama)
+          supplier:kop_supplier(nama_supplier)
         `)
         .order('tanggal', { ascending: false });
 
@@ -43,7 +39,7 @@ export default function PembelianList({ compact = false }: PembelianListProps) {
     },
   });
 
-  // Fetch detail pembelian - FIX: menggunakan select yang benar
+  // Fetch detail pembelian
   const { data: pembelianDetail } = useQuery({
     queryKey: ['koperasi-pembelian-detail', selectedPembelian?.id],
     queryFn: async () => {
@@ -121,171 +117,127 @@ export default function PembelianList({ compact = false }: PembelianListProps) {
     );
   };
 
-  if (compact) {
-    return (
-      <div className="p-4">
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-          <Input
-            placeholder="Cari pembelian..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 h-9 bg-white text-sm"
-          />
-        </div>
-        {isLoading ? (
-          <div className="text-center py-8 text-sm text-gray-500">Memuat...</div>
-        ) : pembelianList.length === 0 ? (
-          <div className="text-center py-8 text-sm text-gray-500">Belum ada data</div>
-        ) : (
-          <div className="space-y-2 max-h-[400px] overflow-y-auto">
-            {pembelianList.slice(0, 5).map((item: any) => (
-              <div
-                key={item.id}
-                className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
-                onClick={() => handleViewDetail(item)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-gray-900 truncate">{item.nomor_faktur}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {format(new Date(item.tanggal), 'dd MMM yyyy', { locale: localeId })}
-                    </p>
-                  </div>
-                  <div className="text-right ml-2">
-                    <p className="font-semibold text-sm text-gray-900">
-                      Rp {Number(item.total_pembelian || 0).toLocaleString('id-ID')}
-                    </p>
-                    {getStatusBadge(item.status_pembayaran || 'lunas')}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
-    <Card className="border border-gray-200 shadow-sm">
-      <CardHeader className="border-b bg-gray-50/50">
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input
-              placeholder="Cari nomor faktur atau supplier..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 h-10 bg-white"
-            />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        {isLoading ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            <p className="text-sm text-gray-500 mt-2">Memuat data...</p>
-          </div>
-        ) : pembelianList.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-              <Package className="w-8 h-8 text-gray-400" />
+    <>
+      <Card className="border border-gray-200 shadow-sm">
+        <CardHeader className="border-b bg-gray-50/50">
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                placeholder="Cari nomor faktur atau supplier..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10 h-10 bg-white"
+              />
             </div>
-            <p className="font-medium text-gray-900">Belum ada data pembelian</p>
-            <p className="text-sm text-gray-500 mt-1">Mulai dengan membuat pembelian baru</p>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
-                  <TableHead className="font-semibold text-gray-700">Tanggal</TableHead>
-                  <TableHead className="font-semibold text-gray-700">No. Faktur</TableHead>
-                  <TableHead className="font-semibold text-gray-700">Supplier</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700">Total</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700">Dibayar</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700">Sisa</TableHead>
-                  <TableHead className="text-center font-semibold text-gray-700">Status</TableHead>
-                  <TableHead className="text-center font-semibold text-gray-700">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pembelianList.map((item: any) => (
-                  <TableRow 
-                    key={item.id} 
-                    className="hover:bg-gray-50/50 transition-colors border-b border-gray-100"
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm">
-                          {format(new Date(item.tanggal), 'dd MMM yyyy', { locale: localeId })}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-mono text-sm font-semibold text-gray-900">
-                        {item.nomor_faktur}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm font-medium text-gray-900">
-                        {item.supplier?.nama || item.supplier_nama || '-'}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="font-semibold text-gray-900">
-                        Rp {Number(item.total_pembelian || 0).toLocaleString('id-ID')}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="text-sm text-green-600 font-medium">
-                        Rp {Number(item.total_bayar || 0).toLocaleString('id-ID')}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {item.sisa_hutang > 0 ? (
-                        <span className="font-semibold text-red-600">
-                          Rp {Number(item.sisa_hutang || 0).toLocaleString('id-ID')}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-gray-400">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {getStatusBadge(item.status_pembayaran || 'lunas')}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-center gap-1">
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          onClick={() => handleViewDetail(item)}
-                          className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
-                          title="Lihat Detail"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDelete(item.id, item.nomor_faktur)}
-                          className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
-                          title="Hapus"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              <p className="text-sm text-gray-500 mt-2">Memuat data...</p>
+            </div>
+          ) : pembelianList.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                <Package className="w-8 h-8 text-gray-400" />
+              </div>
+              <p className="font-medium text-gray-900">Belum ada data pembelian</p>
+              <p className="text-sm text-gray-500 mt-1">Mulai dengan membuat pembelian baru</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
+                    <TableHead className="font-semibold text-gray-700">Tanggal</TableHead>
+                    <TableHead className="font-semibold text-gray-700">No. Faktur</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Supplier</TableHead>
+                    <TableHead className="text-right font-semibold text-gray-700">Total</TableHead>
+                    <TableHead className="text-right font-semibold text-gray-700">Dibayar</TableHead>
+                    <TableHead className="text-right font-semibold text-gray-700">Sisa</TableHead>
+                    <TableHead className="text-center font-semibold text-gray-700">Status</TableHead>
+                    <TableHead className="text-center font-semibold text-gray-700">Aksi</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
+                </TableHeader>
+                <TableBody>
+                  {pembelianList.map((item: any) => (
+                    <TableRow 
+                      key={item.id} 
+                      className="hover:bg-gray-50/50 transition-colors border-b border-gray-100"
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm">
+                            {format(new Date(item.tanggal), 'dd MMM yyyy', { locale: localeId })}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-mono text-sm font-semibold text-gray-900">
+                          {item.nomor_faktur}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm font-medium text-gray-900">
+                          {item.supplier?.nama_supplier || item.supplier_nama || '-'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="font-semibold text-gray-900">
+                          Rp {Number(item.total_pembelian || 0).toLocaleString('id-ID')}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="text-sm text-green-600 font-medium">
+                          Rp {Number(item.total_bayar || 0).toLocaleString('id-ID')}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {item.sisa_hutang > 0 ? (
+                          <span className="font-semibold text-red-600">
+                            Rp {Number(item.sisa_hutang || 0).toLocaleString('id-ID')}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {getStatusBadge(item.status_pembayaran || 'lunas')}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-center gap-1">
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => handleViewDetail(item)}
+                            className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                            title="Lihat Detail"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDelete(item.id, item.nomor_faktur)}
+                            className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
+                            title="Hapus"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Detail Dialog */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
@@ -326,7 +278,7 @@ export default function PembelianList({ compact = false }: PembelianListProps) {
                     <div>
                       <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Supplier</p>
                       <p className="font-semibold text-gray-900">
-                        {selectedPembelian.supplier?.nama || selectedPembelian.supplier_nama || '-'}
+                        {selectedPembelian.supplier?.nama_supplier || selectedPembelian.supplier_nama || '-'}
                       </p>
                     </div>
                     <div>
@@ -340,14 +292,6 @@ export default function PembelianList({ compact = false }: PembelianListProps) {
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Jatuh Tempo</p>
                         <p className="font-semibold text-red-600">
                           {format(new Date(selectedPembelian.jatuh_tempo), 'dd MMMM yyyy', { locale: localeId })}
-                        </p>
-                      </div>
-                    )}
-                    {selectedPembelian.catatan && (
-                      <div className="col-span-2 md:col-span-3">
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Catatan</p>
-                        <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                          {selectedPembelian.catatan}
                         </p>
                       </div>
                     )}
@@ -435,17 +379,7 @@ export default function PembelianList({ compact = false }: PembelianListProps) {
                       {selectedPembelian.ongkir > 0 && (
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-gray-600 font-medium">Ongkir:</span>
-                          <span className="font-semibold text-gray-900">
-                            Rp {Number(selectedPembelian.ongkir || 0).toLocaleString('id-ID')}
-                          </span>
-                        </div>
-                      )}
-                      {selectedPembelian.diskon > 0 && (
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600 font-medium">Diskon:</span>
-                          <span className="font-semibold text-red-600">
-                            - Rp {Number(selectedPembelian.diskon || 0).toLocaleString('id-ID')}
-                          </span>
+                          <span className="font-semibold text-gray-900">Rp {Number(selectedPembelian.ongkir || 0).toLocaleString('id-ID')}</span>
                         </div>
                       )}
                       <div className="border-t border-blue-200 pt-4 flex justify-between items-center">
@@ -478,6 +412,13 @@ export default function PembelianList({ compact = false }: PembelianListProps) {
           )}
         </DialogContent>
       </Dialog>
-    </Card>
+    </>
   );
 }
+
+
+
+
+
+
+

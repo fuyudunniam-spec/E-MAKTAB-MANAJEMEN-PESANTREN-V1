@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { addKeuanganTransaction } from '@/services/keuangan.service';
+import { addKeuanganKoperasiTransaction } from '@/services/keuanganKoperasi.service';
 import type { KoperasiPenjualanInsert, KoperasiProduk } from '@/types/koperasi.types';
 
 // =====================================================
@@ -809,16 +810,22 @@ export const koperasiService = {
     const totalLabaKotorFromKeuangan = (pemasukanData || []).reduce((sum, t) => sum + parseFloat(t.laba_kotor || 0), 0);
     const totalHPPFromKeuangan = (pemasukanData || []).reduce((sum, t) => sum + parseFloat(t.hpp || 0), 0);
     
-    // 3. Get total pengeluaran
+    // 3. Get total pengeluaran (dari tabel keuangan dengan source_module = 'koperasi')
     const { data: pengeluaranData } = await supabase
-      .from('keuangan_koperasi')
-      .select('jumlah')
+      .from('keuangan')
+      .select('jumlah, kategori')
       .eq('jenis_transaksi', 'Pengeluaran')
       .eq('status', 'posted')
+      .eq('source_module', 'koperasi')
       .gte('tanggal', startDate)
       .lte('tanggal', endDate);
     
     const totalPengeluaran = (pengeluaranData || []).reduce((sum, t) => sum + parseFloat(t.jumlah || 0), 0);
+    
+    // Get total transfer ke yayasan (untuk informasi tambahan)
+    const totalTransferYayasan = (pengeluaranData || [])
+      .filter(t => t.kategori === 'Transfer ke Yayasan')
+      .reduce((sum, t) => sum + parseFloat(t.jumlah || 0), 0);
     
     // 4. Get beban ke yayasan (bagian_yayasan dari penjualan)
     const { data: bebanYayasanData } = await supabase
@@ -920,6 +927,7 @@ export const koperasiService = {
       saldoKasKoperasi,
       
       // Additional metrics
+      totalTransferYayasan, // Total transfer ke yayasan untuk informasi tambahan
       marginPersen: totalPenjualan > 0 ? (totalLabaKotor / totalPenjualan * 100) : 0,
       labaBersihPersen: totalPenjualan > 0 ? (labaBersih / totalPenjualan * 100) : 0,
     };
@@ -932,11 +940,11 @@ export const koperasiService = {
     // Get data from kop_barang for produk_aktif
     const { data: produkData, error: produkError } = await supabase
       .from('kop_barang')
-      .select('id, stock, stock_minimum, is_active')
+      .select('id, stok, stok_minimum, is_active')
       .eq('is_active', true);
     
     const produk_aktif = produkData?.length || 0;
-    const stock_alert = produkData?.filter(p => (p.stock || 0) <= (p.stock_minimum || 0)).length || 0;
+    const stock_alert = produkData?.filter(p => (p.stok || 0) <= (p.stok_minimum || 0)).length || 0;
     
     // Get penjualan hari ini from kop_penjualan
     const today = new Date().toISOString().split('T')[0];
@@ -974,20 +982,23 @@ export const koperasiService = {
   async getStockAlerts() {
     const { data, error } = await supabase
       .from('kop_barang')
-      .select('id, kode_barang, nama_barang, stock, stock_minimum, satuan')
+      .select('id, kode_barang, nama_barang, stok, stok_minimum, satuan_dasar')
       .eq('is_active', true)
-      .order('stock', { ascending: true });
+      .order('stok', { ascending: true });
     
     if (error) throw error;
     
-    // Filter items where stock <= stock_minimum
-    const filtered = (data || []).filter(item => (item.stock || 0) <= (item.stock_minimum || 0));
+    // Filter items where stok <= stok_minimum
+    const filtered = (data || []).filter(item => (item.stok || 0) <= (item.stok_minimum || 0));
     
     return filtered.map(item => ({
       ...item,
-      status_stock: item.stock === 0 ? 'habis' : 'menipis',
+      status_stock: item.stok === 0 ? 'habis' : 'menipis',
       kode_produk: item.kode_barang,
       nama_produk: item.nama_barang,
+      stock: item.stok, // Alias for backward compatibility
+      stock_minimum: item.stok_minimum, // Alias for backward compatibility
+      satuan: item.satuan_dasar, // Alias for backward compatibility
     }));
   },
 
@@ -1169,6 +1180,14 @@ export const koperasiService = {
       total: data.total,
     });
     
+    // Determine status pembayaran
+    const statusPembayaran = data.status_pembayaran || 'lunas';
+    const jumlahHutang = data.jumlah_hutang ?? data.sisa_hutang ?? 0;
+    // Gunakan ?? bukan || agar 0 dianggap sebagai nilai valid
+    const totalBayar = data.jumlah_bayar !== undefined && data.jumlah_bayar !== null 
+      ? data.jumlah_bayar 
+      : (statusPembayaran === 'lunas' ? data.total : 0);
+    
     // Call atomic RPC function
     // Jika no_penjualan tidak ada, biarkan NULL - trigger akan auto-generate
     const { data: result, error } = await supabase.rpc(
@@ -1185,7 +1204,7 @@ export const koperasiService = {
         p_tipe_pelanggan: 'umum', // Can be added later if needed
         p_diskon: data.diskon,
         p_metode_pembayaran: data.metode_bayar,
-        p_status_pembayaran: 'lunas',
+        p_status_pembayaran: statusPembayaran,
         p_user_id: user?.id || null,
       }
     );
@@ -1207,6 +1226,10 @@ export const koperasiService = {
       // Check if error is related to UUID type mismatch
       if (error.message && (error.message.includes('uuid') || error.message.includes('operator does not exist'))) {
         throw new Error(`Error tipe data UUID: ${error.message}. Silakan hubungi administrator.`);
+      }
+      // Check if error is related to foreign key constraint (produk tidak ditemukan)
+      if (error.message && (error.message.includes('foreign key') || error.message.includes('barang_id') || error.message.includes('produk tidak ditemukan'))) {
+        throw new Error(`Produk tidak ditemukan di database. Beberapa produk mungkin sudah dihapus. Silakan hapus item tersebut dari keranjang atau hubungi administrator.`);
       }
       throw new Error(error.message || 'Gagal membuat penjualan');
     }
@@ -1242,6 +1265,25 @@ export const koperasiService = {
     
     console.log('✅ Penjualan berhasil dibuat:', result.penjualan_id);
     
+    // Update penjualan dengan data hutang jika status pembayaran adalah hutang
+    if (statusPembayaran === 'hutang' || statusPembayaran === 'cicilan') {
+      const sisaHutang = data.sisa_hutang || data.jumlah_hutang || (data.total - totalBayar);
+      const { error: updateError } = await supabase
+        .from('kop_penjualan')
+        .update({
+          total_bayar: totalBayar,
+          jumlah_hutang: sisaHutang,
+          sisa_hutang: sisaHutang,
+          tanggal_jatuh_tempo: data.tanggal_jatuh_tempo || null,
+        })
+        .eq('id', result.penjualan_id);
+      
+      if (updateError) {
+        console.error('❌ Error updating hutang fields:', updateError);
+        // Don't throw, just log - penjualan sudah dibuat
+      }
+    }
+    
     // Jika RPC berhasil, langsung return data dari result tanpa fetch tambahan
     // Ini menghindari query tambahan yang mungkin menyebabkan error GROUP BY
     // Return minimal data yang diperlukan
@@ -1255,7 +1297,10 @@ export const koperasiService = {
       diskon: data.diskon,
       total: data.total,
       metode_pembayaran: data.metode_bayar,
-      status_pembayaran: 'lunas',
+      status_pembayaran: statusPembayaran,
+      total_bayar: totalBayar,
+      jumlah_hutang: statusPembayaran === 'hutang' || statusPembayaran === 'cicilan' ? (data.sisa_hutang || data.jumlah_hutang || (data.total - totalBayar)) : 0,
+      sisa_hutang: statusPembayaran === 'hutang' || statusPembayaran === 'cicilan' ? (data.sisa_hutang || data.jumlah_hutang || (data.total - totalBayar)) : 0,
       kasir_id: data.kasir_id,
       shift_id: data.shift_id || null,
       total_hpp: result.total_hpp || 0,
@@ -1403,22 +1448,29 @@ export const koperasiService = {
    * Update existing penjualan
    * Strategy: Delete old transaction and create new one (safer than in-place update)
    * Note: Stock should already be restored when entering edit mode
-   * To avoid double restore, we reverse restore first, then delete (which will restore again to correct value)
+   * 
+   * Flow:
+   * 1. Delete old penjualan - this will restore stock for all old items (including deleted products)
+   * 2. Create new penjualan - this will reduce stock for new items
+   * 
+   * Note: Products that are deleted from database cannot be re-inserted due to foreign key constraint.
+   * These products are filtered out in PaymentDialog before calling this function.
+   * 
+   * We don't need reverseRestoreStockForEdit because deletePenjualan already handles stock restoration correctly.
    */
   async updatePenjualan(penjualanId: string, data: KoperasiPenjualanInsert) {
     console.log('🔄 updatePenjualan called with ID:', penjualanId);
     
     try {
-      // Step 1: Reverse restore stock (reduce stock back to original value before edit)
-      // This is needed because stock was restored when entering edit mode
-      await this.reverseRestoreStockForEdit(penjualanId);
-      console.log('✅ Stock reversed to original value');
-      
-      // Step 2: Delete old penjualan (this will restore stock again to correct value)
+      // Step 1: Delete old penjualan (this will restore stock for all old items)
+      // This handles both:
+      // - Items that are still in the new cart (will be reduced again in step 2)
+      // - Items that were removed from cart (stock will be restored correctly)
       await this.deletePenjualan(penjualanId);
-      console.log('✅ Old penjualan deleted, stock restored');
+      console.log('✅ Old penjualan deleted, stock restored for all old items');
       
-      // Step 3: Create new penjualan with updated data (this will reduce stock)
+      // Step 2: Create new penjualan with updated data (this will reduce stock for new items)
+      // Note: Items with deleted products are already filtered out in PaymentDialog
       const newPenjualan = await this.createPenjualan(data);
       console.log('✅ New penjualan created:', newPenjualan.id);
       
@@ -1745,14 +1797,17 @@ export const koperasiService = {
           id,
           tanggal,
           total_transaksi,
+          items_summary,
           kop_penjualan_detail (
             id,
+            barang_id,
             jumlah,
             hpp_snapshot,
             harga_satuan_jual,
             margin,
             bagian_yayasan,
             bagian_koperasi,
+            sumber_modal_id,
             kop_barang (
               id,
               nama_barang,
@@ -1765,19 +1820,54 @@ export const koperasiService = {
       
       if (error) throw error;
       
-      const items = (data.kop_penjualan_detail || []).map((detail: any) => ({
-        id: detail.id,
-        item_id: detail.kop_barang?.id || '',
-        nama_barang: detail.kop_barang?.nama_barang || '',
-        jumlah: detail.jumlah,
-        satuan: detail.kop_barang?.satuan_dasar || '',
-        harga_satuan_jual: detail.harga_satuan_jual,
-        subtotal: detail.harga_satuan_jual * detail.jumlah,
-        hpp: detail.hpp_snapshot || 0,
-        profit: detail.margin || 0,
-        bagian_yayasan: detail.bagian_yayasan,
-        bagian_koperasi: detail.bagian_koperasi,
-      }));
+      // Parse items_summary untuk mendapatkan nama barang jika produk sudah dihapus
+      let itemsSummaryMap: Map<string, string> = new Map();
+      if (data.items_summary) {
+        try {
+          // items_summary format: "Beras Acik 25 Kg (3), Beras Bintang Lele 5Kg (1)"
+          const items = data.items_summary.split(',').map((item: string) => item.trim());
+          items.forEach((item: string) => {
+            const match = item.match(/^(.+?)\s*\((\d+)\)$/);
+            if (match) {
+              const namaBarang = match[1].trim();
+              const jumlah = parseInt(match[2], 10);
+              // Kita tidak bisa map langsung ke barang_id, tapi kita bisa gunakan untuk fallback
+              itemsSummaryMap.set(namaBarang.toLowerCase(), namaBarang);
+            }
+          });
+        } catch (e) {
+          console.warn('Error parsing items_summary:', e);
+        }
+      }
+      
+      const items = (data.kop_penjualan_detail || []).map((detail: any) => {
+        // Jika produk sudah dihapus, kop_barang akan null
+        const isDeleted = !detail.kop_barang;
+        let namaBarang = detail.kop_barang?.nama_barang || '';
+        
+        // Jika nama_barang kosong, coba ambil dari items_summary
+        if (!namaBarang && itemsSummaryMap.size > 0) {
+          // Ambil nama pertama dari items_summary sebagai fallback
+          namaBarang = Array.from(itemsSummaryMap.values())[0] || 'Produk (Sudah Dihapus)';
+        } else if (!namaBarang) {
+          namaBarang = 'Produk (Sudah Dihapus)';
+        }
+        
+        return {
+          id: detail.id,
+          item_id: detail.barang_id || detail.kop_barang?.id || '',
+          nama_barang: namaBarang,
+          jumlah: detail.jumlah,
+          satuan: detail.kop_barang?.satuan_dasar || 'pcs',
+          harga_satuan_jual: detail.harga_satuan_jual,
+          subtotal: detail.harga_satuan_jual * detail.jumlah,
+          hpp: detail.hpp_snapshot || 0,
+          profit: detail.margin || 0,
+          bagian_yayasan: detail.bagian_yayasan,
+          bagian_koperasi: detail.bagian_koperasi,
+          sumber_modal_id: detail.sumber_modal_id,
+        };
+      });
       
       const summary = {
         total_revenue: parseFloat(data.total_transaksi || 0),
@@ -2298,11 +2388,197 @@ export const koperasiService = {
       totalRevenue: allSales.reduce((sum, s) => sum + s.total, 0),
     };
   },
+
+  /**
+   * Transfer antar akun kas
+   * Mendukung transfer dari akun kas koperasi ke akun kas manapun (termasuk keuangan umum)
+   */
+  async transferAntarAkunKas(data: {
+    dari_akun_kas_id: string;
+    ke_akun_kas_id: string;
+    jumlah: number;
+    tanggal: string;
+    keterangan?: string;
+  }) {
+    try {
+      // Validasi input
+      if (!data.dari_akun_kas_id || !data.ke_akun_kas_id) {
+        throw new Error('Akun kas sumber dan tujuan harus diisi');
+      }
+      
+      if (data.dari_akun_kas_id === data.ke_akun_kas_id) {
+        throw new Error('Akun kas sumber dan tujuan tidak boleh sama');
+      }
+      
+      if (data.jumlah <= 0) {
+        throw new Error('Jumlah transfer harus lebih dari 0');
+      }
+      
+      // Get info akun kas untuk validasi dan menentukan managed_by
+      const { data: akunKasList, error: akunError } = await supabase
+        .from('akun_kas')
+        .select('id, nama, saldo_saat_ini, managed_by, status')
+        .in('id', [data.dari_akun_kas_id, data.ke_akun_kas_id]);
+      
+      if (akunError) throw akunError;
+      if (!akunKasList || akunKasList.length !== 2) {
+        throw new Error('Akun kas tidak ditemukan');
+      }
+      
+      const dariAkun = akunKasList.find(akun => akun.id === data.dari_akun_kas_id);
+      const keAkun = akunKasList.find(akun => akun.id === data.ke_akun_kas_id);
+      
+      if (!dariAkun || !keAkun) {
+        throw new Error('Akun kas tidak ditemukan');
+      }
+      
+      // Validasi status akun
+      if (dariAkun.status !== 'aktif') {
+        throw new Error(`Akun kas sumber "${dariAkun.nama}" tidak aktif`);
+      }
+      
+      if (keAkun.status !== 'aktif') {
+        throw new Error(`Akun kas tujuan "${keAkun.nama}" tidak aktif`);
+      }
+      
+      // Validasi saldo cukup
+      if ((dariAkun.saldo_saat_ini || 0) < data.jumlah) {
+        throw new Error(
+          `Saldo tidak cukup! Saldo tersedia: Rp ${(dariAkun.saldo_saat_ini || 0).toLocaleString('id-ID')}, ` +
+          `Jumlah transfer: Rp ${data.jumlah.toLocaleString('id-ID')}`
+        );
+      }
+      
+      // Generate UUID unik untuk transfer ini (untuk source_id yang valid)
+      // Kita akan menggunakan UUID ini sebagai source_id dan juga dalam referensi untuk linking
+      const transferId = crypto.randomUUID();
+      const transferRef = `koperasi:transfer_kas:${transferId}`;
+      
+      // Buat deskripsi untuk kedua transaksi
+      const deskripsiPengeluaran = `Transfer ke ${keAkun.nama}${data.keterangan ? ` - ${data.keterangan}` : ''}`;
+      const deskripsiPemasukan = `Transfer dari ${dariAkun.nama}${data.keterangan ? ` - ${data.keterangan}` : ''}`;
+      
+      // Tentukan apakah akun sumber adalah akun koperasi
+      const dariAkunKoperasi = dariAkun.managed_by === 'koperasi' || 
+                               dariAkun.nama?.toLowerCase().includes('koperasi');
+      
+      // Tentukan apakah akun tujuan adalah akun koperasi
+      const keAkunKoperasi = keAkun.managed_by === 'koperasi' || 
+                             keAkun.nama?.toLowerCase().includes('koperasi');
+      
+      // Buat transaksi pengeluaran dari akun sumber
+      if (dariAkunKoperasi) {
+        // Gunakan addKeuanganKoperasiTransaction untuk akun koperasi
+        await addKeuanganKoperasiTransaction({
+          tanggal: data.tanggal,
+          jenis_transaksi: 'Pengeluaran',
+          kategori: 'Transfer Antar Akun',
+          sub_kategori: `Ke ${keAkun.nama}`,
+          jumlah: data.jumlah,
+          deskripsi: deskripsiPengeluaran,
+          akun_kas_id: data.dari_akun_kas_id,
+          referensi: transferRef,
+          status: 'posted',
+        });
+      } else {
+        // Gunakan insert langsung untuk akun keuangan umum untuk mengontrol source_id sebagai UUID yang valid
+        const { error: pengeluaranError } = await supabase
+          .from('keuangan')
+          .insert({
+            tanggal: data.tanggal,
+            jenis_transaksi: 'Pengeluaran',
+            kategori: 'Transfer Antar Akun',
+            jumlah: data.jumlah,
+            deskripsi: deskripsiPengeluaran,
+            akun_kas_id: data.dari_akun_kas_id,
+            referensi: transferRef,
+            status: 'posted',
+            source_module: 'koperasi',
+            source_id: transferId, // UUID yang valid
+            auto_posted: false,
+          });
+        
+        if (pengeluaranError) throw pengeluaranError;
+      }
+      
+      // Buat transaksi pemasukan ke akun tujuan
+      if (keAkunKoperasi) {
+        // Gunakan insert langsung untuk konsistensi dengan source_id UUID
+        const { error: pemasukanError } = await supabase
+          .from('keuangan')
+          .insert({
+            tanggal: data.tanggal,
+            jenis_transaksi: 'Pemasukan',
+            kategori: 'Transfer Antar Akun',
+            sub_kategori: `Dari ${dariAkun.nama}`,
+            jumlah: data.jumlah,
+            deskripsi: deskripsiPemasukan,
+            akun_kas_id: data.ke_akun_kas_id,
+            referensi: transferRef,
+            status: 'posted',
+            source_module: 'koperasi',
+            source_id: transferId, // UUID yang valid (sama dengan pengeluaran untuk linking)
+            auto_posted: false,
+          });
+        
+        if (pemasukanError) throw pemasukanError;
+    } else {
+      // Gunakan insert langsung untuk akun keuangan umum untuk mengontrol source_id sebagai UUID yang valid
+      const { error: pemasukanError } = await supabase
+        .from('keuangan')
+        .insert({
+          tanggal: data.tanggal,
+          jenis_transaksi: 'Pemasukan',
+          kategori: 'Transfer Antar Akun',
+          jumlah: data.jumlah,
+          deskripsi: deskripsiPemasukan,
+          akun_kas_id: data.ke_akun_kas_id,
+          referensi: transferRef,
+          status: 'posted',
+          source_module: 'koperasi',
+          source_id: transferId, // UUID yang valid (sama dengan pengeluaran untuk linking)
+          auto_posted: false,
+        });
+      
+      if (pemasukanError) throw pemasukanError;
+    }
+      
+      // Update saldo untuk kedua akun kas
+      try {
+        await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+          p_akun_id: data.dari_akun_kas_id,
+        });
+      } catch (saldoErr) {
+        console.warn(`Warning ensuring saldo correct for akun sumber ${data.dari_akun_kas_id}:`, saldoErr);
+      }
+      
+      try {
+        await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+          p_akun_id: data.ke_akun_kas_id,
+        });
+      } catch (saldoErr) {
+        console.warn(`Warning ensuring saldo correct for akun tujuan ${data.ke_akun_kas_id}:`, saldoErr);
+      }
+      
+      return {
+        success: true,
+        message: `Transfer berhasil: Rp ${data.jumlah.toLocaleString('id-ID')} dari ${dariAkun.nama} ke ${keAkun.nama}`,
+        transfer_ref: transferRef,
+        dari_akun: dariAkun.nama,
+        ke_akun: keAkun.nama,
+        jumlah: data.jumlah,
+      };
+    } catch (error: any) {
+      console.error('Error in transferAntarAkunKas:', error);
+      throw error;
+    }
+  },
 };
 
 // Setoran Cash Kasir Functions
 export const setoranCashKasirService = {
   // Get total cash sales for kasir (belum disetor)
+  // Logika: Penjualan dianggap sudah disetor jika tanggalnya masuk dalam periode setoran cash yang ada
   async getTotalCashSalesForKasir(kasirId: string, shiftId?: string) {
     // Get all cash sales for this kasir
     let query = supabase
@@ -2320,19 +2596,40 @@ export const setoranCashKasirService = {
     const { data: allPenjualan, error } = await query;
     if (error) throw error;
 
-    // Get penjualan yang sudah di-post ke keuangan_koperasi (sudah disetor)
-    const { data: postedSales } = await supabase
-      .from('keuangan_koperasi')
-      .select('source_id')
-      .eq('source_module', 'kop_penjualan')
-      .eq('jenis_transaksi', 'Pemasukan')
-      .eq('status', 'posted')
-      .in('source_id', (allPenjualan || []).map((p: any) => p.id));
+    if (!allPenjualan || allPenjualan.length === 0) {
+      return 0;
+    }
 
-    const postedSaleIds = new Set((postedSales || []).map((s: any) => s.source_id));
+    // Get all setoran cash untuk kasir ini
+    const { data: allSetoran, error: setoranError } = await supabase
+      .from('kop_setoran_cash_kasir')
+      .select('periode_start, periode_end, status')
+      .eq('kasir_id', kasirId)
+      .eq('status', 'posted'); // Hanya ambil setoran yang masih aktif
 
-    // Filter penjualan yang belum disetor (belum ada di keuangan_koperasi)
-    const belumDisetor = (allPenjualan || []).filter((p: any) => !postedSaleIds.has(p.id));
+    if (setoranError) throw setoranError;
+
+    // Buat set untuk menandai penjualan yang sudah disetor
+    // Penjualan dianggap sudah disetor jika tanggalnya masuk dalam periode setoran manapun
+    const penjualanSudahDisetor = new Set<string>();
+
+    (allSetoran || []).forEach((setoran: any) => {
+      if (!setoran.periode_start || !setoran.periode_end) return;
+      
+      const periodeStart = new Date(setoran.periode_start);
+      const periodeEnd = new Date(setoran.periode_end);
+      
+      // Cek setiap penjualan apakah masuk dalam periode ini
+      (allPenjualan || []).forEach((penjualan: any) => {
+        const tanggalPenjualan = new Date(penjualan.tanggal);
+        if (tanggalPenjualan >= periodeStart && tanggalPenjualan <= periodeEnd) {
+          penjualanSudahDisetor.add(penjualan.id);
+        }
+      });
+    });
+
+    // Filter penjualan yang belum disetor
+    const belumDisetor = (allPenjualan || []).filter((p: any) => !penjualanSudahDisetor.has(p.id));
 
     // Calculate total cash sales yang belum disetor
     const totalPenjualanCash = belumDisetor.reduce(
@@ -2349,7 +2646,7 @@ export const setoranCashKasirService = {
       .from('kop_setoran_cash_kasir')
       .select('jumlah_setor')
       .eq('kasir_id', kasirId)
-      .eq('status', 'posted');
+      .eq('status', 'posted'); // Hanya ambil setoran yang masih aktif
 
     // Note: shift_id tidak ada di kop_setoran_cash_kasir
     // Jika shift diperlukan, bisa filter berdasarkan tanggal_setor
@@ -2374,6 +2671,9 @@ export const setoranCashKasirService = {
     akun_kas_id?: string;
     metode_setor?: 'cash' | 'transfer';
     catatan?: string;
+    periode_start?: string;
+    periode_end?: string;
+    periode_label?: string;
   }) {
     const { data: user } = await supabase.auth.getUser();
     
@@ -2393,6 +2693,9 @@ export const setoranCashKasirService = {
         metode_setor: data.metode_setor || 'cash',
         status: 'posted',
         catatan: data.catatan || null,
+        periode_start: data.periode_start || null,
+        periode_end: data.periode_end || null,
+        periode_label: data.periode_label || null,
         created_by: user.user?.id,
       })
       .select()
@@ -2400,15 +2703,55 @@ export const setoranCashKasirService = {
 
     if (error) throw error;
 
-    // Update akun kas saldo jika ada akun_kas_id
-    if (data.akun_kas_id) {
-      const { error: updateError } = await supabase.rpc('increment_akun_kas_saldo', {
-        akun_kas_id: data.akun_kas_id,
-        amount: data.jumlah_setor,
-      });
+    // Create keuangan entry untuk muncul di riwayat keuangan koperasi
+    if (data.akun_kas_id && data.jumlah_setor > 0) {
+      try {
+        // Get kasir info for description
+        const { data: kasirData } = await supabase
+          .from('kasir')
+          .select('nama')
+          .eq('id', data.kasir_id)
+          .single();
 
-      if (updateError) {
-        console.error('Error updating akun kas saldo:', updateError);
+        const kasirNama = kasirData?.nama || 'Kasir';
+        const deskripsi = `Setor cash dari ${kasirNama}${data.catatan ? ` - ${data.catatan}` : ''}`;
+
+        // Use tanggal_setor from result (or created_at as fallback) for date consistency
+        // IMPORTANT: Gunakan tanggal_setor untuk sinkronisasi dengan entry keuangan
+        const tanggalSetor = result.tanggal_setor
+          ? new Date(result.tanggal_setor).toISOString().split('T')[0]
+          : (result.created_at 
+            ? new Date(result.created_at).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0]);
+
+        // Create entry di keuangan dengan source_module = 'koperasi'
+        await addKeuanganKoperasiTransaction({
+          tanggal: tanggalSetor,
+          jenis_transaksi: 'Pemasukan',
+          kategori: 'Setor Cash Kasir',
+          sub_kategori: data.metode_setor === 'transfer' ? 'Transfer' : 'Cash',
+          jumlah: data.jumlah_setor,
+          deskripsi: deskripsi,
+          akun_kas_id: data.akun_kas_id,
+          referensi: result.id, // Link ke kop_setoran_cash_kasir
+          status: 'posted',
+        });
+
+        // Update saldo akun kas menggunakan ensure_akun_kas_saldo_correct_for
+        // karena sudah ada entry di keuangan yang akan dihitung oleh trigger
+        try {
+          const { error: saldoError } = await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+            p_akun_id: data.akun_kas_id,
+          });
+          if (saldoError) {
+            console.warn('Warning ensuring saldo correct:', saldoError);
+          }
+        } catch (saldoErr) {
+          console.warn('Error ensuring saldo correct:', saldoErr);
+        }
+      } catch (keuanganErr) {
+        console.error('Error creating keuangan entry:', keuanganErr);
+        // Don't throw - setoran sudah berhasil, hanya entry keuangan yang gagal
       }
     }
 
@@ -2416,6 +2759,9 @@ export const setoranCashKasirService = {
   },
 
   // Get riwayat setoran kasir
+  // Hanya menampilkan setoran dengan status 'posted' (yang masih aktif)
+  // NOTE: Untuk riwayat setoran cash, kita ambil SEMUA setoran yang masih aktif,
+  // tidak perlu filter berdasarkan tanggal karena setoran bisa untuk periode yang berbeda
   async getRiwayatSetoranKasir(kasirId: string, filters?: {
     startDate?: string;
     endDate?: string;
@@ -2430,18 +2776,1067 @@ export const setoranCashKasirService = {
         )
       `)
       .eq('kasir_id', kasirId)
+      .eq('status', 'posted') // Hanya tampilkan setoran yang masih aktif (belum dihapus)
       .order('tanggal_setor', { ascending: false });
 
-    if (filters?.startDate) {
-      query = query.gte('tanggal_setor', filters.startDate);
-    }
-    if (filters?.endDate) {
-      query = query.lte('tanggal_setor', filters.endDate);
-    }
+    // Optional: Filter berdasarkan tanggal jika diperlukan
+    // Tapi untuk riwayat setoran cash, biasanya kita ingin melihat semua setoran
+    // if (filters?.startDate) {
+    //   query = query.gte('tanggal_setor', filters.startDate);
+    // }
+    // if (filters?.endDate) {
+    //   query = query.lte('tanggal_setor', filters.endDate);
+    // }
 
     const { data, error } = await query;
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Error query riwayat setoran cash:', error);
+      throw error;
+    }
+    
+    console.log('📋 Riwayat setoran cash untuk kasir (ALL dengan status posted):', {
+      kasirId,
+      filters: filters || 'NO FILTER (all dates)',
+      jumlah: data?.length || 0,
+      data: data?.map((s: any) => ({
+        id: s.id,
+        tanggal: s.tanggal_setor,
+        jumlah: s.jumlah_setor,
+        status: s.status,
+        periode: s.periode_label || `${s.periode_start} - ${s.periode_end}`
+      }))
+    });
+    
     return data || [];
+  },
+
+  // Get total penjualan cash untuk periode tertentu
+  // Logika: Penjualan dianggap sudah disetor jika tanggalnya masuk dalam periode setoran cash yang ada
+  // NOTE: Untuk setor cash, kita perlu melihat SEMUA penjualan cash untuk periode tersebut,
+  // bukan hanya penjualan dari satu kasir tertentu, karena setor cash adalah untuk seluruh penjualan periode
+  async getTotalCashSalesForPeriod(startDate: string, endDate: string, kasirId?: string) {
+    // Ensure dates include full day range
+    const startDateWithTime = `${startDate}T00:00:00`;
+    const endDateWithTime = `${endDate}T23:59:59`;
+    
+    console.log('🔍 Query penjualan cash untuk periode:', {
+      startDate,
+      endDate,
+      startDateWithTime,
+      endDateWithTime,
+      kasirId,
+      note: kasirId ? 'Filtered by kasir' : 'All cash sales (no kasir filter)'
+    });
+    
+    // Untuk setor cash, kita ambil SEMUA penjualan cash untuk periode tersebut
+    // Tidak perlu filter berdasarkan kasir karena setor cash adalah untuk seluruh penjualan periode
+    let query = supabase
+      .from('kop_penjualan')
+      .select('id, total_transaksi, metode_pembayaran, tanggal, kasir_id')
+      .eq('metode_pembayaran', 'cash')
+      .eq('status_pembayaran', 'lunas')
+      .gte('tanggal', startDateWithTime)
+      .lte('tanggal', endDateWithTime);
+
+    // Hanya filter berdasarkan kasir jika benar-benar diperlukan (untuk kasus khusus)
+    // Untuk setor cash umumnya tidak perlu filter kasir
+    // if (kasirId) {
+    //   query = query.eq('kasir_id', kasirId);
+    // }
+
+    const { data: allPenjualan, error } = await query;
+    if (error) {
+      console.error('❌ Error query penjualan cash:', error);
+      throw error;
+    }
+
+    console.log('📦 Penjualan cash ditemukan:', {
+      jumlah: allPenjualan?.length || 0,
+      data: allPenjualan?.slice(0, 5).map((p: any) => ({
+        id: p.id,
+        tanggal: p.tanggal,
+        total: p.total_transaksi
+      }))
+    });
+
+    if (!allPenjualan || allPenjualan.length === 0) {
+      console.log('⚠️ Tidak ada penjualan cash untuk periode ini');
+      return {
+        totalPenjualanCash: 0,
+        totalBelumDisetor: 0,
+        jumlahTransaksi: 0,
+        jumlahBelumDisetor: 0,
+      };
+    }
+
+    // Get all setoran cash yang aktif (posted)
+    // Untuk setor cash, kita perlu cek semua setoran yang overlap dengan periode
+    // Tidak perlu filter berdasarkan kasir karena setor cash bisa untuk seluruh penjualan periode
+    let setoranQuery = supabase
+      .from('kop_setoran_cash_kasir')
+      .select('periode_start, periode_end, kasir_id')
+      .eq('status', 'posted');
+
+    // Hanya filter berdasarkan kasir jika benar-benar diperlukan
+    // if (kasirId) {
+    //   setoranQuery = setoranQuery.eq('kasir_id', kasirId);
+    // }
+
+    const { data: allSetoran, error: setoranError } = await setoranQuery;
+    if (setoranError) throw setoranError;
+
+    // Buat set untuk menandai penjualan yang sudah disetor
+    // Penjualan dianggap sudah disetor jika tanggalnya masuk dalam periode setoran manapun
+    const penjualanSudahDisetor = new Set<string>();
+
+    (allSetoran || []).forEach((setoran: any) => {
+      if (!setoran.periode_start || !setoran.periode_end) return;
+      
+      const periodeStart = new Date(setoran.periode_start);
+      const periodeEnd = new Date(setoran.periode_end);
+      
+      // Cek setiap penjualan apakah masuk dalam periode ini
+      (allPenjualan || []).forEach((penjualan: any) => {
+        const tanggalPenjualan = new Date(penjualan.tanggal);
+        if (tanggalPenjualan >= periodeStart && tanggalPenjualan <= periodeEnd) {
+          penjualanSudahDisetor.add(penjualan.id);
+        }
+      });
+    });
+
+    // Filter penjualan yang belum disetor
+    const belumDisetor = (allPenjualan || []).filter((p: any) => !penjualanSudahDisetor.has(p.id));
+
+    // Calculate total cash sales yang belum disetor
+    const totalBelumDisetor = belumDisetor.reduce(
+      (sum: number, p: any) => sum + parseFloat(p.total_transaksi || 0),
+      0
+    );
+
+    // Calculate total cash sales (semua, termasuk yang sudah disetor)
+    const totalSemua = (allPenjualan || []).reduce(
+      (sum: number, p: any) => sum + parseFloat(p.total_transaksi || 0),
+      0
+    );
+
+    return {
+      totalPenjualanCash: totalSemua, // Total semua penjualan cash di periode
+      totalBelumDisetor: totalBelumDisetor, // Yang belum disetor
+      jumlahTransaksi: allPenjualan?.length || 0,
+      jumlahBelumDisetor: belumDisetor.length,
+    };
+  },
+
+  // Delete setor cash (mengembalikan ke penjualan)
+  async deleteSetoranCash(setoranId: string) {
+    const { data: user } = await supabase.auth.getUser();
+    
+    // Get setoran data
+    const { data: setoran, error: getError } = await supabase
+      .from('kop_setoran_cash_kasir')
+      .select('*')
+      .eq('id', setoranId)
+      .single();
+
+    if (getError) throw getError;
+    if (!setoran) throw new Error('Setoran tidak ditemukan');
+
+    // Check if status is posted
+    if (setoran.status !== 'posted') {
+      throw new Error('Hanya setoran dengan status posted yang bisa dihapus');
+    }
+
+    // NOTE: Karena tidak ada RLS policy untuk DELETE di kop_setoran_cash_kasir,
+    // kita akan menggunakan soft delete dengan mengubah status menjadi 'cancelled'
+    // dan memastikan semua query hanya mengambil data dengan status 'posted'
+
+    // Delete entry di keuangan (jika ada)
+    // Cari dengan berbagai cara untuk memastikan semua entry terkait terhapus
+    const { data: keuanganEntriesByReferensi } = await supabase
+      .from('keuangan')
+      .select('id, akun_kas_id, referensi, kategori, deskripsi')
+      .eq('referensi', setoranId)
+      .eq('source_module', 'koperasi');
+
+    // Juga cari berdasarkan kategori dan deskripsi yang mungkin terkait
+    const { data: keuanganEntriesByKategori } = await supabase
+      .from('keuangan')
+      .select('id, akun_kas_id, referensi, kategori, deskripsi')
+      .eq('kategori', 'Setor Cash Kasir')
+      .eq('source_module', 'koperasi')
+      .ilike('deskripsi', `%setor cash%`);
+
+    // Gabungkan semua entry yang perlu dihapus
+    const allKeuanganEntries = [
+      ...(keuanganEntriesByReferensi || []),
+      ...(keuanganEntriesByKategori || []).filter(
+        (e: any) => !keuanganEntriesByReferensi?.some((r: any) => r.id === e.id)
+      )
+    ];
+
+    console.log('🔍 Mencari entry keuangan untuk dihapus:', {
+      setoranId,
+      byReferensi: keuanganEntriesByReferensi?.length || 0,
+      byKategori: keuanganEntriesByKategori?.length || 0,
+      total: allKeuanganEntries.length,
+      entries: allKeuanganEntries
+    });
+
+    if (allKeuanganEntries && allKeuanganEntries.length > 0) {
+      // Delete keuangan entries
+      for (const entry of allKeuanganEntries) {
+        const { error: deleteError } = await supabase
+          .from('keuangan')
+          .delete()
+          .eq('id', entry.id);
+
+        if (deleteError) {
+          console.error('❌ Error menghapus entry keuangan:', {
+            entryId: entry.id,
+            error: deleteError
+          });
+          throw new Error(`Gagal menghapus entry keuangan: ${deleteError.message}`);
+        } else {
+          console.log('✅ Entry keuangan berhasil dihapus:', {
+            entryId: entry.id,
+            referensi: entry.referensi,
+            kategori: entry.kategori
+          });
+        }
+
+        // Update saldo akun kas
+        if (entry.akun_kas_id) {
+          try {
+            await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+              p_akun_id: entry.akun_kas_id,
+            });
+            console.log('✅ Saldo akun kas diperbarui:', entry.akun_kas_id);
+          } catch (saldoError) {
+            console.warn('⚠️ Warning ensuring saldo correct:', saldoError);
+          }
+        }
+      }
+    } else {
+      console.log('ℹ️ Tidak ada entry keuangan yang ditemukan untuk setoran:', setoranId);
+    }
+
+    // Soft delete: Update status menjadi 'cancelled' karena tidak ada RLS policy untuk DELETE
+    console.log('🗑️ Attempting to soft delete setoran cash (update status to cancelled):', setoranId);
+    
+    // Update status menjadi 'cancelled' untuk soft delete
+    const { error: updateError, data: updateResult } = await supabase
+      .from('kop_setoran_cash_kasir')
+      .update({ status: 'cancelled' })
+      .eq('id', setoranId)
+      .eq('status', 'posted') // Hanya update jika status masih 'posted'
+      .select();
+
+    if (updateError) {
+      console.error('❌ Error updating setoran cash status:', {
+        error: updateError,
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint
+      });
+      throw updateError;
+    }
+
+    // Verify update
+    if (!updateResult || updateResult.length === 0) {
+      console.warn('⚠️ Warning: Update operation tidak mengembalikan data yang diupdate:', setoranId);
+      
+      // Check if record still exists with status 'posted'
+      const { data: stillPosted } = await supabase
+        .from('kop_setoran_cash_kasir')
+        .select('id, status')
+        .eq('id', setoranId)
+        .eq('status', 'posted')
+        .single();
+
+      if (stillPosted) {
+        console.error('❌ Error: Record masih dengan status posted setelah update:', {
+          setoranId,
+          stillPosted
+        });
+        throw new Error('Gagal mengubah status setoran cash menjadi cancelled. Record masih dengan status posted.');
+      } else {
+        // Check if it's already cancelled
+        const { data: alreadyCancelled } = await supabase
+          .from('kop_setoran_cash_kasir')
+          .select('id, status')
+          .eq('id', setoranId)
+          .single();
+        
+        if (alreadyCancelled && alreadyCancelled.status === 'cancelled') {
+          console.log('✅ Record sudah dengan status cancelled');
+        } else {
+          console.log('✅ Record tidak ditemukan atau sudah dihapus');
+        }
+      }
+    } else {
+      console.log('✅ Setoran cash berhasil diubah status menjadi cancelled:', {
+        setoranId,
+        updatedRows: updateResult.length,
+        updatedData: updateResult
+      });
+    }
+
+    // Final verification - check if record still has status 'posted'
+    const { data: finalCheck } = await supabase
+      .from('kop_setoran_cash_kasir')
+      .select('id, status')
+      .eq('id', setoranId)
+      .eq('status', 'posted')
+      .single();
+
+    if (finalCheck) {
+      console.error('❌ Error: Record masih dengan status posted setelah update:', {
+        setoranId,
+        finalCheck
+      });
+      throw new Error('Gagal mengubah status setoran cash menjadi cancelled. Record masih dengan status posted.');
+    } else {
+      console.log('✅ Final verification: Record tidak lagi dengan status posted (soft delete berhasil)');
+    }
+
+    // Verify bahwa entry keuangan juga sudah terhapus
+    // Entry keuangan harus dihapus karena setoran sudah di-cancel
+    const { data: remainingEntries } = await supabase
+      .from('keuangan')
+      .select('id, akun_kas_id')
+      .eq('referensi', setoranId)
+      .eq('source_module', 'koperasi');
+
+    if (remainingEntries && remainingEntries.length > 0) {
+      console.log('🗑️ Menghapus entry keuangan terkait:', {
+        setoranId,
+        jumlahEntry: remainingEntries.length
+      });
+      
+      // Hapus semua entry keuangan terkait
+      for (const entry of remainingEntries) {
+        const { error: delError } = await supabase
+          .from('keuangan')
+          .delete()
+          .eq('id', entry.id);
+        
+        if (delError) {
+          console.error('❌ Error menghapus entry keuangan:', {
+            entryId: entry.id,
+            error: delError
+          });
+          // Jangan throw error, karena soft delete setoran sudah berhasil
+          // Entry keuangan bisa dihapus manual jika perlu
+        } else {
+          console.log('✅ Entry keuangan berhasil dihapus:', entry.id);
+          
+          // Update saldo akun kas
+          if (entry.akun_kas_id) {
+            try {
+              await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+                p_akun_id: entry.akun_kas_id,
+              });
+              console.log('✅ Saldo akun kas diperbarui:', entry.akun_kas_id);
+            } catch (saldoError) {
+              console.warn('⚠️ Warning ensuring saldo correct:', saldoError);
+            }
+          }
+        }
+      }
+    } else {
+      console.log('✅ Tidak ada entry keuangan terkait yang perlu dihapus');
+    }
+
+    return { success: true, message: 'Setoran cash berhasil dihapus dan dikembalikan ke penjualan' };
+  },
+
+  // Backfill keuangan entries untuk setor cash yang sudah ada
+  async backfillSetoranCashKeuangan() {
+    try {
+      // Get all setoran cash yang sudah posted dan punya akun_kas_id
+      const { data: setoranList, error: setoranError } = await supabase
+        .from('kop_setoran_cash_kasir')
+        .select(`
+          id,
+          kasir_id,
+          jumlah_setor,
+          akun_kas_id,
+          metode_setor,
+          catatan,
+          created_at,
+          kasir:kasir_id(nama)
+        `)
+        .eq('status', 'posted')
+        .not('akun_kas_id', 'is', null)
+        .gt('jumlah_setor', 0)
+        .order('created_at', { ascending: true });
+
+      if (setoranError) throw setoranError;
+
+      if (!setoranList || setoranList.length === 0) {
+        return { success: true, message: 'Tidak ada setor cash yang perlu di-backfill', processed: 0 };
+      }
+
+      // Check which setoran sudah punya entry di keuangan
+      const setoranIds = setoranList.map(s => s.id);
+      const { data: existingKeuangan, error: keuanganError } = await supabase
+        .from('keuangan')
+        .select('referensi')
+        .in('referensi', setoranIds)
+        .eq('source_module', 'koperasi')
+        .eq('kategori', 'Setor Cash Kasir');
+
+      if (keuanganError) throw keuanganError;
+
+      const existingReferensi = new Set((existingKeuangan || []).map(e => e.referensi));
+
+      // Filter setoran yang belum punya entry keuangan
+      const setoranToBackfill = setoranList.filter(s => !existingReferensi.has(s.id));
+
+      if (setoranToBackfill.length === 0) {
+        return { 
+          success: true, 
+          message: 'Semua setor cash sudah memiliki entry keuangan', 
+          processed: 0,
+          total: setoranList.length 
+        };
+      }
+
+      // Process each setoran
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      for (const setoran of setoranToBackfill) {
+        try {
+          const kasirNama = (setoran.kasir as any)?.nama || 'Kasir';
+          const deskripsi = `Setor cash dari ${kasirNama}${setoran.catatan ? ` - ${setoran.catatan}` : ''}`;
+
+          // Use created_at from setoran for date consistency
+          const tanggalSetor = setoran.created_at 
+            ? new Date(setoran.created_at).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0];
+
+          // Create entry di keuangan
+          await addKeuanganKoperasiTransaction({
+            tanggal: tanggalSetor,
+            jenis_transaksi: 'Pemasukan',
+            kategori: 'Setor Cash Kasir',
+            sub_kategori: setoran.metode_setor === 'transfer' ? 'Transfer' : 'Cash',
+            jumlah: setoran.jumlah_setor,
+            deskripsi: deskripsi,
+            akun_kas_id: setoran.akun_kas_id,
+            referensi: setoran.id, // Link ke kop_setoran_cash_kasir
+            status: 'posted',
+          });
+
+          successCount++;
+        } catch (err: any) {
+          errorCount++;
+          errors.push(`Setoran ${setoran.id}: ${err.message || 'Unknown error'}`);
+          console.error(`Error backfilling setoran ${setoran.id}:`, err);
+        }
+      }
+
+      // Update saldo untuk semua akun kas yang terpengaruh
+      const affectedAkunKasIds = [...new Set(setoranToBackfill.map(s => s.akun_kas_id).filter(Boolean))];
+      for (const akunKasId of affectedAkunKasIds) {
+        try {
+          await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+            p_akun_id: akunKasId,
+          });
+        } catch (saldoErr) {
+          console.warn(`Warning ensuring saldo correct for akun ${akunKasId}:`, saldoErr);
+        }
+      }
+
+      return {
+        success: errorCount === 0,
+        message: `Backfill selesai: ${successCount} berhasil, ${errorCount} gagal`,
+        processed: successCount,
+        failed: errorCount,
+        total: setoranList.length,
+        errors: errors.length > 0 ? errors : undefined,
+      };
+    } catch (error: any) {
+      console.error('Error in backfillSetoranCashKeuangan:', error);
+      throw error;
+    }
+  },
+};
+
+// Export backfill function separately for easier access
+export const backfillSetoranCashKeuangan = async () => {
+  try {
+    // Get all setoran cash yang sudah posted dan punya akun_kas_id
+    const { data: setoranList, error: setoranError } = await supabase
+      .from('kop_setoran_cash_kasir')
+      .select(`
+        id,
+        kasir_id,
+        jumlah_setor,
+        akun_kas_id,
+        metode_setor,
+        catatan,
+        created_at
+      `)
+      .eq('status', 'posted')
+      .not('akun_kas_id', 'is', null)
+      .gt('jumlah_setor', 0)
+      .order('created_at', { ascending: true });
+
+    if (setoranError) throw setoranError;
+
+    if (!setoranList || setoranList.length === 0) {
+      return { success: true, message: 'Tidak ada setor cash yang perlu di-backfill', processed: 0 };
+    }
+
+    // Check which setoran sudah punya entry di keuangan
+    const setoranIds = setoranList.map(s => s.id);
+    const { data: existingKeuangan, error: keuanganError } = await supabase
+      .from('keuangan')
+      .select('referensi')
+      .in('referensi', setoranIds)
+      .eq('source_module', 'koperasi')
+      .eq('kategori', 'Setor Cash Kasir');
+
+    if (keuanganError) throw keuanganError;
+
+    const existingReferensi = new Set((existingKeuangan || []).map(e => e.referensi));
+
+    // Filter setoran yang belum punya entry keuangan
+    const setoranToBackfill = setoranList.filter(s => !existingReferensi.has(s.id));
+
+    if (setoranToBackfill.length === 0) {
+      return { 
+        success: true, 
+        message: 'Semua setor cash sudah memiliki entry keuangan', 
+        processed: 0,
+        total: setoranList.length 
+      };
+    }
+
+    // Process each setoran
+    let successCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+
+    // Get kasir names in batch
+    const kasirIds = [...new Set(setoranToBackfill.map(s => s.kasir_id).filter(Boolean))];
+    const { data: kasirData } = await supabase
+      .from('kasir')
+      .select('id, nama')
+      .in('id', kasirIds);
+    
+    const kasirMap = new Map((kasirData || []).map(k => [k.id, k.nama]));
+
+    for (const setoran of setoranToBackfill) {
+      try {
+        const kasirNama = kasirMap.get(setoran.kasir_id) || 'Kasir';
+        const deskripsi = `Setor cash dari ${kasirNama}${setoran.catatan ? ` - ${setoran.catatan}` : ''}`;
+
+        // Use created_at from setoran for date consistency
+        const tanggalSetor = setoran.created_at 
+          ? new Date(setoran.created_at).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0];
+
+        // Create entry di keuangan
+        await addKeuanganKoperasiTransaction({
+          tanggal: tanggalSetor,
+          jenis_transaksi: 'Pemasukan',
+          kategori: 'Setor Cash Kasir',
+          sub_kategori: setoran.metode_setor === 'transfer' ? 'Transfer' : 'Cash',
+          jumlah: setoran.jumlah_setor,
+          deskripsi: deskripsi,
+          akun_kas_id: setoran.akun_kas_id,
+          referensi: setoran.id, // Link ke kop_setoran_cash_kasir
+          status: 'posted',
+        });
+
+        successCount++;
+      } catch (err: any) {
+        errorCount++;
+        errors.push(`Setoran ${setoran.id}: ${err.message || 'Unknown error'}`);
+        console.error(`Error backfilling setoran ${setoran.id}:`, err);
+      }
+    }
+
+    // Update saldo untuk semua akun kas yang terpengaruh
+    const affectedAkunKasIds = [...new Set(setoranToBackfill.map(s => s.akun_kas_id).filter(Boolean))];
+    for (const akunKasId of affectedAkunKasIds) {
+      try {
+        await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+          p_akun_id: akunKasId,
+        });
+      } catch (saldoErr) {
+        console.warn(`Warning ensuring saldo correct for akun ${akunKasId}:`, saldoErr);
+      }
+    }
+
+    return {
+      success: errorCount === 0,
+      message: `Backfill selesai: ${successCount} berhasil, ${errorCount} gagal`,
+      processed: successCount,
+      failed: errorCount,
+      total: setoranList.length,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  } catch (error: any) {
+    console.error('Error in backfillSetoranCashKeuangan:', error);
+    throw error;
+  }
+};
+
+// =====================================================
+// MONTHLY CASH RECONCILIATION SERVICE
+// =====================================================
+
+export const monthlyCashReconciliationService = {
+  /**
+   * Get monthly cash reconciliation data
+   * Menghitung: Setor Cash - Biaya Operasional = Laba/Rugi per bulan
+   */
+  async getMonthlyReconciliation(year: number, month: number) {
+    const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+    const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+
+    // 1. Get total setor cash untuk bulan tersebut
+    const { data: setoranData } = await supabase
+      .from('kop_setoran_cash_kasir')
+      .select('jumlah_setor, tanggal_setor, periode_start, periode_end, periode_label')
+      .eq('status', 'posted')
+      .gte('tanggal_setor', startDate)
+      .lte('tanggal_setor', endDate);
+
+    const totalSetorCash = (setoranData || []).reduce(
+      (sum, s) => sum + parseFloat(s.jumlah_setor || 0),
+      0
+    );
+
+    // 2. Get biaya operasional untuk bulan tersebut
+    // Exclude kewajiban/hutang ke yayasan (sama seperti di KelolaHPPDanBagiHasilPage)
+    const { data: pengeluaranData } = await supabase
+      .from('keuangan')
+      .select('jumlah, kategori, sub_kategori, deskripsi')
+      .eq('jenis_transaksi', 'Pengeluaran')
+      .eq('status', 'posted')
+      .eq('source_module', 'koperasi')
+      .gte('tanggal', startDate)
+      .lte('tanggal', endDate);
+
+    // Filter out kewajiban/hutang ke yayasan
+    const biayaOperasional = (pengeluaranData || []).filter(item => {
+      const kategori = (item.kategori || '').toLowerCase();
+      const subKategori = (item.sub_kategori || '').toLowerCase();
+      const deskripsi = (item.deskripsi || '').toLowerCase();
+      
+      const isKewajiban = 
+        kategori === 'kewajiban' ||
+        kategori === 'hutang ke yayasan' ||
+        kategori.includes('kewajiban') ||
+        kategori.includes('hutang') ||
+        subKategori === 'kewajiban penjualan inventaris yayasan' ||
+        subKategori === 'pembayaran omset penjualan inventaris yayasan' ||
+        subKategori.includes('kewajiban') ||
+        subKategori.includes('hutang') ||
+        deskripsi.includes('kewajiban penjualan') ||
+        deskripsi.includes('kewajiban:') ||
+        deskripsi.includes('hutang ke yayasan') ||
+        deskripsi.includes('pembayaran omset penjualan inventaris yayasan') ||
+        deskripsi.includes('pembayaran omset');
+      
+      return !isKewajiban;
+    });
+
+    const totalBiayaOperasional = biayaOperasional.reduce(
+      (sum, item) => sum + parseFloat(item.jumlah || 0),
+      0
+    );
+
+    // 3. Calculate laba/rugi
+    const labaRugi = totalSetorCash - totalBiayaOperasional;
+
+    // 4. Get transfer ke yayasan untuk bulan tersebut (jika ada)
+    const { data: transferYayasanData } = await supabase
+      .from('keuangan')
+      .select('jumlah, deskripsi, tanggal')
+      .eq('jenis_transaksi', 'Pengeluaran')
+      .eq('status', 'posted')
+      .eq('kategori', 'Transfer ke Yayasan')
+      .eq('source_module', 'koperasi')
+      .gte('tanggal', startDate)
+      .lte('tanggal', endDate);
+
+    const totalTransferYayasan = (transferYayasanData || []).reduce(
+      (sum, t) => sum + parseFloat(t.jumlah || 0),
+      0
+    );
+
+    // 5. Check if month is closed (already transferred to yayasan)
+    const isClosed = totalTransferYayasan > 0 && Math.abs(totalTransferYayasan - labaRugi) < 1000; // tolerance 1000
+
+    return {
+      monthKey,
+      year,
+      month,
+      startDate,
+      endDate,
+      totalSetorCash,
+      totalBiayaOperasional,
+      labaRugi,
+      totalTransferYayasan,
+      isClosed,
+      setoranDetails: setoranData || [],
+      biayaOperasionalDetails: biayaOperasional,
+      transferYayasanDetails: transferYayasanData || [],
+    };
+  },
+
+  /**
+   * Get all monthly reconciliations for a year
+   */
+  async getYearlyReconciliation(year: number) {
+    const months = [];
+    for (let month = 1; month <= 12; month++) {
+      const reconciliation = await this.getMonthlyReconciliation(year, month);
+      months.push(reconciliation);
+    }
+    return months;
+  },
+
+  /**
+   * Get real cash balance (exclude closed months)
+   * LOGIKA BARU: Saldo kas koperasi = Pemasukan bulan terakhir (setor cash) - Pengeluaran (dari bulan terakhir hingga saat ini)
+   * Contoh: Jika pemasukan terakhir di November, maka saldo = Pemasukan November - Pengeluaran (November + Desember)
+   */
+  async getRealCashBalance(excludeClosedMonths: boolean = true) {
+    // Get all setoran cash (untuk mencari bulan terakhir yang ada pemasukan)
+    const { data: allSetoran } = await supabase
+      .from('kop_setoran_cash_kasir')
+      .select('jumlah_setor, tanggal_setor')
+      .eq('status', 'posted')
+      .order('tanggal_setor', { ascending: false });
+
+    if (!allSetoran || allSetoran.length === 0) {
+      return {
+        realBalance: 0,
+        closedMonths: [],
+        monthlyBreakdown: [],
+        lastIncomeMonth: null
+      };
+    }
+
+    // Cari bulan terakhir yang ada pemasukan (setor cash)
+    const lastSetoran = allSetoran[0];
+    const lastSetoranDate = new Date(lastSetoran.tanggal_setor);
+    const lastIncomeYear = lastSetoranDate.getFullYear();
+    const lastIncomeMonth = lastSetoranDate.getMonth() + 1;
+    const lastIncomeMonthKey = `${lastIncomeYear}-${String(lastIncomeMonth).padStart(2, '0')}`;
+    
+    // Hitung total pemasukan dari bulan terakhir
+    const totalPemasukanBulanTerakhir = allSetoran
+      .filter(s => {
+        const date = new Date(s.tanggal_setor);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        return monthKey === lastIncomeMonthKey;
+      })
+      .reduce((sum, s) => sum + parseFloat(s.jumlah_setor || 0), 0);
+
+    // Get all biaya operasional from both tables (keuangan and keuangan_koperasi)
+    // Hanya ambil pengeluaran dari bulan terakhir pemasukan hingga saat ini
+    const startDate = new Date(lastIncomeYear, lastIncomeMonth - 1, 1);
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = new Date().toISOString().split('T')[0];
+
+    const [pengeluaranKeuangan, pengeluaranKoperasi] = await Promise.all([
+      supabase
+        .from('keuangan')
+        .select('jumlah, kategori, sub_kategori, deskripsi, tanggal')
+        .eq('jenis_transaksi', 'Pengeluaran')
+        .eq('status', 'posted')
+        .eq('source_module', 'koperasi')
+        .gte('tanggal', startDateStr)
+        .lte('tanggal', endDateStr),
+      supabase
+        .from('keuangan_koperasi')
+        .select('jumlah, kategori, sub_kategori, deskripsi, tanggal')
+        .eq('jenis_transaksi', 'Pengeluaran')
+        .eq('status', 'posted')
+        .gte('tanggal', startDateStr)
+        .lte('tanggal', endDateStr)
+    ]);
+    
+    // Combine pengeluaran from both tables
+    const allPengeluaran = [
+      ...(pengeluaranKeuangan.data || []),
+      ...(pengeluaranKoperasi.data || [])
+    ];
+
+    // Filter biaya operasional (exclude kewajiban/hutang, TAPI INCLUDE transfer ke yayasan sebagai pengeluaran)
+    // Transfer ke yayasan adalah pengeluaran yang valid dan harus dihitung dalam saldo
+    const biayaOperasional = (allPengeluaran || []).filter(item => {
+      const kategori = (item.kategori || '').toLowerCase();
+      const subKategori = (item.sub_kategori || '').toLowerCase();
+      const deskripsi = (item.deskripsi || '').toLowerCase();
+      
+      // INCLUDE transfer ke yayasan sebagai pengeluaran
+      if (kategori === 'transfer ke yayasan' || 
+          subKategori === 'transfer ke yayasan' ||
+          subKategori === 'laba/rugi bulanan' ||
+          deskripsi.includes('transfer ke yayasan') ||
+          deskripsi.includes('transfer laba/rugi')) {
+        return true; // Include transfer ke yayasan
+      }
+      
+      // Exclude hanya kewajiban/hutang (bukan transfer ke yayasan)
+      const isKewajiban = 
+        kategori === 'kewajiban' ||
+        kategori === 'hutang ke yayasan' ||
+        kategori.includes('kewajiban') ||
+        kategori.includes('hutang') ||
+        subKategori === 'kewajiban penjualan inventaris yayasan' ||
+        subKategori === 'pembayaran omset penjualan inventaris yayasan' ||
+        subKategori.includes('kewajiban') ||
+        subKategori.includes('hutang') ||
+        deskripsi.includes('kewajiban penjualan') ||
+        deskripsi.includes('kewajiban:') ||
+        deskripsi.includes('hutang ke yayasan') ||
+        deskripsi.includes('pembayaran omset penjualan inventaris yayasan') ||
+        deskripsi.includes('pembayaran omset');
+      
+      return !isKewajiban;
+    });
+
+    // Hitung total pengeluaran dari bulan terakhir pemasukan hingga saat ini
+    const totalPengeluaran = biayaOperasional.reduce(
+      (sum, item) => sum + parseFloat(item.jumlah || 0),
+      0
+    );
+
+    // Saldo = Pemasukan bulan terakhir - Pengeluaran (dari bulan terakhir hingga saat ini)
+    const realBalance = totalPemasukanBulanTerakhir - totalPengeluaran;
+
+    // Debug logging
+    console.log('💰 Real Cash Balance Calculation:', {
+      lastIncomeMonth: lastIncomeMonthKey,
+      totalPemasukanBulanTerakhir,
+      totalPengeluaran,
+      realBalance,
+      startDate: startDateStr,
+      endDate: endDateStr
+    });
+
+    // Get closed months for reference (untuk informasi tambahan)
+    const closedMonths = new Set<string>();
+    const { data: transferData } = await supabase
+      .from('keuangan')
+      .select('tanggal, jumlah')
+      .eq('jenis_transaksi', 'Pengeluaran')
+      .eq('status', 'posted')
+      .eq('kategori', 'Transfer ke Yayasan')
+      .eq('source_module', 'koperasi');
+
+    // Group by month for breakdown
+    const monthlyData = new Map<string, { setor: number; biaya: number; transfer: number }>();
+    
+    (allSetoran || []).forEach(s => {
+      const date = new Date(s.tanggal_setor);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const current = monthlyData.get(monthKey) || { setor: 0, biaya: 0, transfer: 0 };
+      current.setor += parseFloat(s.jumlah_setor || 0);
+      monthlyData.set(monthKey, current);
+    });
+
+    biayaOperasional.forEach(item => {
+      const date = new Date(item.tanggal);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const current = monthlyData.get(monthKey) || { setor: 0, biaya: 0, transfer: 0 };
+      current.biaya += parseFloat(item.jumlah || 0);
+      monthlyData.set(monthKey, current);
+    });
+
+    (transferData || []).forEach(t => {
+      const date = new Date(t.tanggal);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const current = monthlyData.get(monthKey) || { setor: 0, biaya: 0, transfer: 0 };
+      current.transfer += parseFloat(t.jumlah || 0);
+      monthlyData.set(monthKey, current);
+    });
+
+    // Mark months as closed if transfer ≈ laba/rugi
+    monthlyData.forEach((data, monthKey) => {
+      const labaRugi = data.setor - data.biaya;
+      if (data.transfer > 0 && Math.abs(data.transfer - labaRugi) < 1000) {
+        closedMonths.add(monthKey);
+      }
+    });
+
+    return {
+      realBalance,
+      closedMonths: Array.from(closedMonths),
+      monthlyBreakdown: Array.from(monthlyData.entries()).map(([monthKey, data]) => ({
+        monthKey,
+        setor: data.setor,
+        biaya: data.biaya,
+        labaRugi: data.setor - data.biaya,
+        transfer: data.transfer,
+        isClosed: closedMonths.has(monthKey),
+      })),
+      lastIncomeMonth: lastIncomeMonthKey,
+      totalPemasukanBulanTerakhir,
+      totalPengeluaran
+    };
+  },
+
+  /**
+   * Record transfer to yayasan (mark month as closed)
+   * Mencatat transfer sebagai:
+   * 1. Pemasukan di keuangan umum (akun kas 'Bank Operasional Umum')
+   * 2. Pengeluaran di keuangan koperasi (akun kas koperasi)
+   */
+  async recordTransferToYayasan(data: {
+    year: number;
+    month: number;
+    amount: number;
+    akunKasId: string; // Akun kas koperasi (sumber)
+    akunKasTujuanId?: string; // Akun kas yayasan (tujuan) - default: Bank Operasional Umum
+    deskripsi?: string;
+    tanggal?: string;
+  }) {
+    const { data: user } = await supabase.auth.getUser();
+    if (!user) throw new Error('User tidak terautentikasi');
+    
+    const tanggal = data.tanggal || new Date().toISOString().split('T')[0];
+    const monthName = new Date(data.year, data.month - 1).toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+    
+    // Get akun kas koperasi (sumber)
+    const { data: akunKasKoperasi } = await supabase
+      .from('akun_kas')
+      .select('id, nama')
+      .eq('id', data.akunKasId)
+      .single();
+    
+    if (!akunKasKoperasi) {
+      throw new Error('Akun kas koperasi tidak ditemukan');
+    }
+
+    // Get akun kas yayasan (tujuan) - default: Bank Operasional Umum
+    let akunKasYayasanId = data.akunKasTujuanId;
+    if (!akunKasYayasanId) {
+      const { data: bankOperasionalUmum } = await supabase
+        .from('akun_kas')
+        .select('id, nama')
+        .or('nama.ilike.%bank operasional umum%,nama.ilike.%operasional umum%')
+        .eq('status', 'aktif')
+        .eq('managed_by', 'keuangan')
+        .limit(1)
+        .single();
+      
+      if (!bankOperasionalUmum) {
+        throw new Error('Akun kas Bank Operasional Umum tidak ditemukan. Silakan pilih akun kas tujuan secara manual.');
+      }
+      
+      akunKasYayasanId = bankOperasionalUmum.id;
+    }
+
+    const { data: akunKasYayasan } = await supabase
+      .from('akun_kas')
+      .select('id, nama')
+      .eq('id', akunKasYayasanId)
+      .single();
+    
+    if (!akunKasYayasan) {
+      throw new Error('Akun kas yayasan tidak ditemukan');
+    }
+
+    const deskripsiTransfer = data.deskripsi || `Transfer laba/rugi ${monthName} ke yayasan`;
+    const referensiTransfer = `transfer_yayasan:${data.year}-${String(data.month).padStart(2, '0')}`;
+
+    console.log('💸 Recording transfer to yayasan:', {
+      year: data.year,
+      month: data.month,
+      amount: data.amount,
+      akunKasKoperasi: akunKasKoperasi.nama,
+      akunKasYayasan: akunKasYayasan.nama,
+      tanggal
+    });
+
+    // 1. Create entry di keuangan umum (PEMASUKAN) - akun kas Bank Operasional Umum
+    const { addKeuanganTransaction } = await import('@/services/keuangan.service');
+    const { data: keuanganUmumEntry, error: errorUmum } = await addKeuanganTransaction({
+      tanggal,
+      jenis_transaksi: 'Pemasukan',
+      kategori: 'Transfer dari Koperasi',
+      jumlah: data.amount,
+      deskripsi: `${deskripsiTransfer} (Laba/Rugi Bulanan)`,
+      akun_kas_id: akunKasYayasanId,
+      referensi: referensiTransfer,
+      status: 'posted',
+    });
+
+    if (errorUmum) {
+      console.error('❌ Error creating keuangan umum entry:', errorUmum);
+      throw new Error(`Gagal mencatat pemasukan di keuangan umum: ${errorUmum.message}`);
+    }
+
+    console.log('✅ Entry keuangan umum (pemasukan) berhasil dibuat:', keuanganUmumEntry?.[0]?.id);
+
+    // 2. Create entry di keuangan koperasi (PENGELUARAN) - akun kas koperasi
+    const { addKeuanganKoperasiTransaction } = await import('@/services/keuanganKoperasi.service');
+    const { data: keuanganKoperasiEntry, error: errorKoperasi } = await addKeuanganKoperasiTransaction({
+      tanggal,
+      jenis_transaksi: 'Pengeluaran',
+      kategori: 'Transfer ke Yayasan',
+      sub_kategori: 'Laba/Rugi Bulanan',
+      jumlah: data.amount,
+      deskripsi: deskripsiTransfer,
+      akun_kas_id: data.akunKasId,
+      referensi: referensiTransfer,
+      status: 'posted',
+    });
+
+    if (errorKoperasi) {
+      console.error('❌ Error creating keuangan koperasi entry:', errorKoperasi);
+      // Rollback: delete keuangan umum entry if koperasi entry fails
+      if (keuanganUmumEntry?.[0]?.id) {
+        await supabase
+          .from('keuangan')
+          .delete()
+          .eq('id', keuanganUmumEntry[0].id);
+      }
+      throw new Error(`Gagal mencatat pengeluaran di keuangan koperasi: ${errorKoperasi.message}`);
+    }
+
+    console.log('✅ Entry keuangan koperasi (pengeluaran) berhasil dibuat:', keuanganKoperasiEntry?.[0]?.id);
+
+    // 3. Update saldo untuk kedua akun kas
+    try {
+      await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+        p_akun_id: data.akunKasId, // Akun kas koperasi
+      });
+      console.log('✅ Saldo akun kas koperasi diperbarui');
+    } catch (saldoError) {
+      console.warn('⚠️ Warning ensuring saldo koperasi correct:', saldoError);
+    }
+
+    try {
+      await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+        p_akun_id: akunKasYayasanId, // Akun kas yayasan
+      });
+      console.log('✅ Saldo akun kas yayasan diperbarui');
+    } catch (saldoError) {
+      console.warn('⚠️ Warning ensuring saldo yayasan correct:', saldoError);
+    }
+
+    return { 
+      success: true,
+      keuanganUmumId: keuanganUmumEntry?.[0]?.id,
+      keuanganKoperasiId: keuanganKoperasiEntry?.[0]?.id,
+      akunKasKoperasi: akunKasKoperasi.nama,
+      akunKasYayasan: akunKasYayasan.nama,
+    };
   },
 };
 

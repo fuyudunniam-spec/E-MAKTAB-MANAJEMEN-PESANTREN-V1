@@ -78,6 +78,7 @@ const KasirPage = lazy(() => import('./modules/koperasi/Kasir/KasirPage'));
 const StockKoperasiPage = lazy(() => import('./modules/koperasi/Inventaris/StockKoperasiPage'));
 const TransferInventarisPage = lazy(() => import('./modules/koperasi/Transfer/TransferInventarisPage'));
 const RiwayatPenjualanPage = lazy(() => import('./modules/koperasi/Penjualan/RiwayatPenjualanPage'));
+const PembelianPage = lazy(() => import('./modules/koperasi/Pembelian/PembelianPage'));
 const KeuanganKoperasiPage = lazy(() => import('./modules/koperasi/Keuangan/KeuanganUnifiedPage'));
 const KeuanganDashboardKoperasi = lazy(() => import('./modules/koperasi/Keuangan/KeuanganDashboard'));
 // Using KeuanganUnifiedPage for all keuangan routes (replaces separate pages)
@@ -220,6 +221,13 @@ const App = () => (
               <Layout>
                 <Suspense fallback={<div>Loading...</div>}>
                   <RiwayatPenjualanPage />
+                </Suspense>
+              </Layout>
+            } />
+            <Route path="/koperasi/pembelian" element={
+              <Layout>
+                <Suspense fallback={<div>Loading...</div>}>
+                  <PembelianPage />
                 </Suspense>
               </Layout>
             } />

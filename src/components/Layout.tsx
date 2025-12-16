@@ -197,15 +197,14 @@ const SidebarContent = () => {
         { icon: CreditCard, label: 'Kasir/POS', path: '/koperasi/kasir' },
         { icon: Warehouse, label: 'Inventaris Koperasi', path: '/koperasi/inventaris' },
         { icon: ShoppingCart, label: 'Penjualan', path: '/koperasi/penjualan' },
+        { icon: TruckIcon, label: 'Pembelian', path: '/koperasi/pembelian', dividerBefore: true },
         { 
           icon: DollarSign, 
           label: 'Keuangan Koperasi', 
           path: '/koperasi/keuangan',
-          dividerBefore: true,
           subItems: [
             { icon: BarChart3, label: 'Dashboard Keuangan', path: '/koperasi/keuangan/dashboard' },
             { icon: FileText, label: 'Transaksi Keuangan', path: '/koperasi/keuangan' },
-            { icon: TruckIcon, label: 'Pembelian', path: '/koperasi/keuangan/pembelian' },
             { icon: Coins, label: 'Operasional', path: '/koperasi/keuangan/operasional' },
             { icon: Calculator, label: 'Kelola HPP & Bagi Hasil', path: '/koperasi/keuangan/kelola-hpp' }
           ]
@@ -552,13 +551,13 @@ const Layout = ({ children }: LayoutProps) => {
 
   // Single useEffect for all navigation logic - MUST be called before any early returns
   useEffect(() => {
-    // Add timeout to prevent infinite redirect loop
+    // Add timeout to prevent infinite redirect loop - reduced to 3 seconds
     const timeoutId = setTimeout(() => {
       if (authLoading) {
-        console.warn("⚠️ [Layout] Auth loading timeout - redirecting to auth page");
+        console.warn("⚠️ [Layout] Auth loading timeout after 3 seconds - redirecting to auth page");
         navigate("/auth");
       }
-    }, 6000); // 6 seconds timeout
+    }, 3000); // 3 seconds timeout (reduced from 6)
 
     // Redirect if no user after loading completes
     if (!authLoading && !authUser && !session && window.location.pathname !== '/auth') {

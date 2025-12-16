@@ -37,32 +37,61 @@ export default function PaymentDialog({
   editingPenjualanId,
 }: PaymentDialogProps) {
   const [metodeBayar, setMetodeBayar] = useState<'cash' | 'transfer'>('cash');
+  const [statusPembayaran, setStatusPembayaran] = useState<'lunas' | 'hutang'>('lunas');
   const [jumlahBayar, setJumlahBayar] = useState(0);
+  const [tanggalJatuhTempo, setTanggalJatuhTempo] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const queryClient = useQueryClient();
 
-  const kembalian = jumlahBayar - total;
+  const kembalian = statusPembayaran === 'lunas' ? jumlahBayar - total : 0;
 
   const createPenjualanMutation = useMutation({
     mutationFn: async () => {
-      // Validasi stok di frontend sebelum checkout
+      // Validasi produk dan stok di frontend sebelum checkout
       const produkList = await koperasiService.getProduk({ is_active: true });
       const stokErrors: string[] = [];
+      const produkNotFound: string[] = [];
       
       for (const item of cart) {
-        const produk = produkList.find(p => p.id === item.produk_id);
-        if (!produk) {
-          stokErrors.push(`${item.nama_produk}: Produk tidak ditemukan`);
+        // Skip validasi untuk produk yang sudah dihapus (data historis)
+        if (item.is_deleted_product) {
           continue;
         }
         
-        const stokTersedia = Math.max(0, Math.floor(produk.stok ?? produk.stock ?? 0));
-        if (stokTersedia < item.jumlah) {
-          stokErrors.push(`${item.nama_produk}: Stok tersedia ${stokTersedia}, dibutuhkan ${item.jumlah}`);
+        const produk = produkList.find(p => p.id === item.produk_id);
+        if (!produk) {
+          // Produk tidak ditemukan dan bukan produk yang sudah dihapus (seharusnya tidak terjadi)
+          produkNotFound.push(item.nama_produk);
+          continue;
+        }
+        
+        // Untuk edit mode, stok sudah di-restore, jadi kita hanya perlu validasi untuk item baru
+        // atau perubahan jumlah yang melebihi stok tersedia
+        if (!editingPenjualanId) {
+          // Mode create: validasi stok ketat
+          const stokTersedia = Math.max(0, Math.floor(produk.stok ?? produk.stock ?? 0));
+          if (stokTersedia < item.jumlah) {
+            stokErrors.push(`${item.nama_produk}: Stok tersedia ${stokTersedia}, dibutuhkan ${item.jumlah}`);
+          }
+        } else {
+          // Mode edit: validasi stok lebih longgar karena stok sudah di-restore
+          // Tapi tetap perlu memastikan produk ada
+          const stokTersedia = Math.max(0, Math.floor(produk.stok ?? produk.stock ?? 0));
+          // Hanya error jika stok tidak cukup dan ini bukan karena restore (stok harus >= jumlah)
+          // Karena stok sudah di-restore, seharusnya stok >= jumlah yang akan dibeli
+          if (stokTersedia < item.jumlah) {
+            stokErrors.push(`${item.nama_produk}: Stok tersedia ${stokTersedia}, dibutuhkan ${item.jumlah}. Stok mungkin belum di-restore dengan benar.`);
+          }
         }
       }
       
+      // Error jika ada produk yang tidak ditemukan (kecuali yang sudah ditandai sebagai deleted)
+      if (produkNotFound.length > 0) {
+        throw new Error(`Produk tidak ditemukan:\n${produkNotFound.join('\n')}\n\nProduk ini mungkin sudah dihapus dari database. Silakan hapus item ini dari keranjang.`);
+      }
+      
+      // Error jika stok tidak mencukupi
       if (stokErrors.length > 0) {
         throw new Error(`Stok tidak mencukupi:\n${stokErrors.join('\n')}`);
       }
@@ -72,6 +101,38 @@ export default function PaymentDialog({
       
       // Jika sedang edit, gunakan updatePenjualan, jika tidak gunakan createPenjualan
       if (editingPenjualanId) {
+        // Filter out produk yang sudah dihapus dari items yang akan di-insert
+        // Produk yang sudah dihapus tidak bisa di-insert karena foreign key constraint
+        const deletedProducts = cart.filter(item => item.is_deleted_product);
+        const itemsToSave = cart
+          .filter(item => !item.is_deleted_product)
+          .map(item => ({
+            produk_id: item.produk_id,
+            jumlah: item.jumlah,
+            harga_jual: item.harga_jual,
+            harga_beli: item.harga_beli,
+            diskon: item.diskon || 0,
+            sumber_modal_id: item.sumber_modal_id,
+            price_type: item.price_type || 'ecer',
+          }));
+        
+        // Jika semua item adalah produk yang sudah dihapus, error
+        if (itemsToSave.length === 0 && cart.length > 0) {
+          const deletedNames = deletedProducts.map(p => p.nama_produk).join(', ');
+          throw new Error(
+            `Tidak dapat menyimpan transaksi karena semua produk sudah dihapus dari database:\n${deletedNames}\n\n` +
+            `Transaksi dengan produk yang sudah dihapus tidak dapat diubah. Silakan hapus transaksi ini atau hubungi administrator.`
+          );
+        }
+        
+        // Jika ada produk yang sudah dihapus, tampilkan warning
+        if (deletedProducts.length > 0) {
+          const deletedNames = deletedProducts.map(p => p.nama_produk).join(', ');
+          console.warn(`⚠️ Produk yang sudah dihapus akan dihilangkan dari transaksi: ${deletedNames}`);
+          // Note: We don't show toast here because the save will still succeed
+          // The user was already warned when loading the edit data
+        }
+        
         return koperasiService.updatePenjualan(editingPenjualanId, {
           tanggal: tanggal,
           shift_id: shiftId || undefined,
@@ -82,19 +143,15 @@ export default function PaymentDialog({
           metode_bayar: metodeBayar,
           jumlah_bayar: jumlahBayar,
           kembalian: metodeBayar === 'cash' ? kembalian : 0,
-          items: cart.map(item => ({
-            produk_id: item.produk_id,
-            jumlah: item.jumlah,
-            harga_jual: item.harga_jual,
-            harga_beli: item.harga_beli,
-            diskon: item.diskon || 0,
-            sumber_modal_id: item.sumber_modal_id,
-            price_type: item.price_type || 'ecer',
-          })),
+          items: itemsToSave,
         });
       } else {
         // Biarkan nomor_struk NULL, trigger database akan auto-generate
         // Ini menghindari race condition dengan trigger
+        const isHutang = statusPembayaran === 'hutang';
+        const jumlahBayarFinal = isHutang ? jumlahBayar : (metodeBayar === 'cash' ? jumlahBayar : total);
+        const sisaHutang = isHutang ? (total - jumlahBayarFinal) : 0;
+        
         return koperasiService.createPenjualan({
           no_penjualan: undefined, // Trigger akan generate otomatis
           tanggal: tanggal,
@@ -104,8 +161,12 @@ export default function PaymentDialog({
           diskon: totalDiskon,
           total,
           metode_bayar: metodeBayar,
-          jumlah_bayar: jumlahBayar,
-          kembalian: metodeBayar === 'cash' ? kembalian : 0,
+          jumlah_bayar: jumlahBayarFinal,
+          kembalian: isHutang ? 0 : (metodeBayar === 'cash' ? kembalian : 0),
+          status_pembayaran: statusPembayaran,
+          jumlah_hutang: sisaHutang,
+          sisa_hutang: sisaHutang,
+          tanggal_jatuh_tempo: isHutang && tanggalJatuhTempo ? tanggalJatuhTempo : undefined,
           items: cart.map(item => ({
             produk_id: item.produk_id,
             jumlah: item.jumlah,
@@ -121,7 +182,16 @@ export default function PaymentDialog({
     onSuccess: async (result) => {
       toast.success(editingPenjualanId ? 'Penjualan berhasil diperbarui' : 'Transaksi berhasil');
       
-          // Fetch detail penjualan untuk receipt
+      // Invalidate queries untuk refresh data di modul penjualan
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-list'] });
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-chart'] });
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-hutang-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-cicilan-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan'] });
+      queryClient.invalidateQueries({ queryKey: ['unified-sales-history'] });
+      
+      // Fetch detail penjualan untuk receipt
       try {
         const penjualanId = result?.id || editingPenjualanId;
         if (penjualanId) {
@@ -187,16 +257,30 @@ export default function PaymentDialog({
 
   const resetForm = () => {
     setMetodeBayar('cash');
+    setStatusPembayaran('lunas');
     setJumlahBayar(0);
+    setTanggalJatuhTempo('');
   };
 
   const handleSubmit = () => {
-    if (metodeBayar === 'cash' && jumlahBayar < total) {
-      toast.error('Jumlah bayar kurang');
-      return;
-    }
-    if (metodeBayar === 'transfer' && jumlahBayar !== total) {
-      setJumlahBayar(total);
+    if (statusPembayaran === 'lunas') {
+      if (metodeBayar === 'cash' && jumlahBayar < total) {
+        toast.error('Jumlah bayar kurang');
+        return;
+      }
+      if (metodeBayar === 'transfer' && jumlahBayar !== total) {
+        setJumlahBayar(total);
+      }
+    } else {
+      // Hutang - jumlah bayar bisa 0 (belum bayar sama sekali)
+      if (jumlahBayar < 0) {
+        toast.error('Jumlah bayar tidak boleh negatif');
+        return;
+      }
+      if (jumlahBayar >= total) {
+        toast.error('Untuk pembayaran penuh, pilih status "Lunas"');
+        return;
+      }
     }
     createPenjualanMutation.mutate();
   };
@@ -232,6 +316,27 @@ export default function PaymentDialog({
             </div>
 
             <div>
+              <Label>Status Pembayaran</Label>
+              <RadioGroup value={statusPembayaran} onValueChange={(v: any) => {
+                setStatusPembayaran(v);
+                if (v === 'lunas') {
+                  setJumlahBayar(total);
+                } else {
+                  setJumlahBayar(0);
+                }
+              }}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="lunas" id="lunas" />
+                  <Label htmlFor="lunas">Lunas</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="hutang" id="hutang" />
+                  <Label htmlFor="hutang">Hutang</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            <div>
               <Label>Metode Pembayaran</Label>
               <RadioGroup value={metodeBayar} onValueChange={(v: any) => setMetodeBayar(v)}>
                 <div className="flex items-center space-x-2">
@@ -245,7 +350,38 @@ export default function PaymentDialog({
               </RadioGroup>
             </div>
 
-            {metodeBayar === 'cash' && (
+            {statusPembayaran === 'hutang' && (
+              <>
+                <div>
+                  <Label>Jumlah Bayar (Cicilan) - Opsional</Label>
+                  <Input
+                    type="number"
+                    value={jumlahBayar}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value) || 0;
+                      setJumlahBayar(Math.min(Math.max(0, value), total));
+                    }}
+                    placeholder="0"
+                    min="0"
+                    max={total}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sisa hutang: Rp {(total - jumlahBayar).toLocaleString('id-ID')}
+                    {jumlahBayar === 0 && ' (Belum ada pembayaran)'}
+                  </p>
+                </div>
+                <div>
+                  <Label>Tanggal Jatuh Tempo (Opsional)</Label>
+                  <Input
+                    type="date"
+                    value={tanggalJatuhTempo}
+                    onChange={(e) => setTanggalJatuhTempo(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+
+            {statusPembayaran === 'lunas' && metodeBayar === 'cash' && (
               <>
                 <div>
                   <Label>Jumlah Bayar</Label>
@@ -294,7 +430,7 @@ export default function PaymentDialog({
               </>
             )}
 
-            {metodeBayar === 'transfer' && (
+            {statusPembayaran === 'lunas' && metodeBayar === 'transfer' && (
               <div className="bg-blue-50 text-blue-700 p-3 rounded">
                 <p className="text-sm">Transfer: Rp {total.toLocaleString('id-ID')}</p>
               </div>
@@ -306,9 +442,13 @@ export default function PaymentDialog({
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={createPenjualanMutation.isPending || (metodeBayar === 'cash' && jumlahBayar < total)}
+                disabled={
+                  createPenjualanMutation.isPending || 
+                  (statusPembayaran === 'lunas' && metodeBayar === 'cash' && jumlahBayar < total) ||
+                  (statusPembayaran === 'hutang' && jumlahBayar >= total)
+                }
               >
-                Proses Pembayaran
+                {statusPembayaran === 'hutang' ? 'Simpan Sebagai Hutang' : 'Proses Pembayaran'}
               </Button>
             </div>
           </div>

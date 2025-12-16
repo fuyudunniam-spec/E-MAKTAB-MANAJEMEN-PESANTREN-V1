@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Search, Eye, Calendar, DollarSign, TrendingUp, Edit, Trash2, Printer, Building2, Store, RefreshCw, Wallet } from 'lucide-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { koperasiService } from '@/services/koperasi.service';
+import { koperasiService, setoranCashKasirService } from '@/services/koperasi.service';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, startOfYear, endOfYear, startOfMonth, endOfMonth, startOfDay, endOfDay, subDays } from 'date-fns';
@@ -37,9 +37,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { formatCurrency } from '@/utils/formatCurrency';
 import ReceiptNota from '@/modules/koperasi/Kasir/components/ReceiptNota';
 import SetorCashDialog from './components/SetorCashDialog';
+import PembayaranHutangPenjualanDialog from './components/PembayaranHutangPenjualanDialog';
+import EditStatusPembayaranDialog from './components/EditStatusPembayaranDialog';
 import { useAuth } from '@/hooks/useAuth';
 
 // =====================================================
@@ -89,6 +98,9 @@ interface PenjualanListItem {
   total_bayar: number;
   metode_pembayaran: PaymentMethod;
   status_pembayaran: string;
+  jumlah_hutang?: number;
+  sisa_hutang?: number;
+  tanggal_jatuh_tempo?: string;
   items_summary?: string;
   kasir_id: string;
   shift_id?: string;
@@ -163,12 +175,20 @@ function RiwayatPenjualanPage() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilterType>('year');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'lunas' | 'hutang' | 'cicilan'>('all');
   const [page, setPage] = useState(1);
   const [viewingPenjualan, setViewingPenjualan] = useState<PenjualanListItem | null>(null);
   const [printingPenjualan, setPrintingPenjualan] = useState<PenjualanListItem | null>(null);
   const [deletingPenjualan, setDeletingPenjualan] = useState<PenjualanListItem | null>(null);
   const [receiptItems, setReceiptItems] = useState<ReceiptItem[]>([]);
   const [showSetorCashDialog, setShowSetorCashDialog] = useState(false);
+  const [deletingSetoranId, setDeletingSetoranId] = useState<string | null>(null);
+  const [editingSetoran, setEditingSetoran] = useState<any>(null);
+  const [editTanggalSetor, setEditTanggalSetor] = useState<string>('');
+  const [showPembayaranHutangDialog, setShowPembayaranHutangDialog] = useState(false);
+  const [selectedPenjualanForPayment, setSelectedPenjualanForPayment] = useState<PenjualanListItem | null>(null);
+  const [showEditStatusDialog, setShowEditStatusDialog] = useState(false);
+  const [selectedPenjualanForEditStatus, setSelectedPenjualanForEditStatus] = useState<PenjualanListItem | null>(null);
   const { user } = useAuth();
 
   const getDateRange = (): DateRange => {
@@ -216,9 +236,24 @@ function RiwayatPenjualanPage() {
 
   const dateRange = getDateRange();
 
+  // Auto-refresh ketika window/tab kembali fokus (untuk refresh setelah edit dari kasir)
+  useEffect(() => {
+    const handleFocus = () => {
+      // Refresh queries ketika window kembali fokus
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-list'] });
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-chart'] });
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-hutang-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-cicilan-summary'] });
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [queryClient]);
+
   // Fetch penjualan data dengan pagination
   const { data: penjualanResponse, isLoading } = useQuery({
-    queryKey: ['koperasi-penjualan-list', dateRange, page, searchTerm],
+    queryKey: ['koperasi-penjualan-list', dateRange, page, searchTerm, statusFilter],
     queryFn: async () => {
       // Build base query without nested relations first
       let baseQuery = supabase
@@ -232,14 +267,22 @@ function RiwayatPenjualanPage() {
           total_bayar,
           metode_pembayaran,
           status_pembayaran,
+          jumlah_hutang,
+          sisa_hutang,
+          tanggal_jatuh_tempo,
           items_summary,
           kasir_id,
           shift_id,
           created_at,
           updated_at
-        `, { count: 'exact' })
-        .eq('status_pembayaran', 'lunas')
-        .order('tanggal', { ascending: false });
+        `, { count: 'exact' });
+      
+      // Apply status filter
+      if (statusFilter !== 'all') {
+        baseQuery = baseQuery.eq('status_pembayaran', statusFilter);
+      }
+      
+      baseQuery = baseQuery.order('tanggal', { ascending: false });
 
       // Apply date filter
       baseQuery = baseQuery.gte('tanggal', dateRange.startDate + 'T00:00:00');
@@ -307,6 +350,7 @@ function RiwayatPenjualanPage() {
           items_summary,
           total_transaksi,
           tanggal,
+          status_pembayaran,
           kop_penjualan_detail(
             id,
             subtotal,
@@ -317,7 +361,7 @@ function RiwayatPenjualanPage() {
             )
           )
         `, { count: 'exact' })
-        .eq('status_pembayaran', 'lunas');
+        .in('status_pembayaran', ['lunas', 'hutang', 'cicilan']);
 
       // Apply date filter
       statsQuery = statsQuery.gte('tanggal', dateRange.startDate + 'T00:00:00');
@@ -401,6 +445,38 @@ function RiwayatPenjualanPage() {
     },
   });
 
+  // Fetch hutang summary
+  const { data: hutangSummary, isLoading: isLoadingHutang } = useQuery({
+    queryKey: ['koperasi-penjualan-hutang-summary', dateRange],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('kop_penjualan')
+        .select('id, total_transaksi, total_bayar, sisa_hutang, jumlah_hutang, status_pembayaran')
+        .in('status_pembayaran', ['hutang', 'cicilan'])
+        .gte('tanggal', dateRange.startDate + 'T00:00:00')
+        .lte('tanggal', dateRange.endDate + 'T23:59:59');
+
+      if (error) throw error;
+
+      const totalHutang = (data || []).reduce((sum, p) => {
+        const sisaHutang = Number(p.sisa_hutang || p.jumlah_hutang || 0);
+        return sum + sisaHutang;
+      }, 0);
+
+      const totalPenjualanHutang = (data || []).reduce((sum, p) => {
+        return sum + Number(p.total_transaksi || 0);
+      }, 0);
+
+      const jumlahTransaksiHutang = data?.length || 0;
+
+      return {
+        totalHutang,
+        totalPenjualanHutang,
+        jumlahTransaksiHutang,
+      };
+    },
+  });
+
   // Fetch chart data with owner_type separation
   const { data: chartData, isLoading: isLoadingChart } = useQuery({
     queryKey: ['koperasi-penjualan-chart', dateRange],
@@ -420,7 +496,7 @@ function RiwayatPenjualanPage() {
             )
           )
         `)
-        .eq('status_pembayaran', 'lunas')
+        .in('status_pembayaran', ['lunas', 'hutang', 'cicilan'])
         .gte('tanggal', dateRange.startDate + 'T00:00:00')
         .lte('tanggal', dateRange.endDate + 'T23:59:59')
         .order('tanggal', { ascending: true });
@@ -707,41 +783,167 @@ function RiwayatPenjualanPage() {
     }
   };
 
+  // Get riwayat setoran cash
+  // NOTE: Query ini mengambil SEMUA setoran cash untuk user, tidak hanya untuk periode yang dipilih
+  // karena setoran cash bisa untuk periode yang berbeda dengan filter dateRange
+  const { data: riwayatSetoranCash, refetch: refetchRiwayatSetoran } = useQuery({
+    queryKey: ['riwayat-setoran-cash', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      // Ambil semua setoran cash untuk user ini (tidak filter berdasarkan dateRange)
+      // karena setoran cash bisa untuk periode yang berbeda
+      const result = await setoranCashKasirService.getRiwayatSetoranKasir(user.id, {
+        // Tidak filter berdasarkan dateRange untuk melihat semua setoran
+        // startDate: dateRange.startDate,
+        // endDate: dateRange.endDate,
+      });
+      console.log('📋 Riwayat setoran cash loaded (ALL):', {
+        jumlah: result?.length || 0,
+        data: result?.map((s: any) => ({
+          id: s.id,
+          tanggal: s.tanggal_setor,
+          jumlah: s.jumlah_setor,
+          status: s.status,
+          periode: s.periode_label || `${s.periode_start} - ${s.periode_end}`
+        }))
+      });
+      return result;
+    },
+    enabled: !!user?.id,
+    staleTime: 0, // Always consider data stale to ensure fresh data
+    gcTime: 0, // Don't cache to ensure fresh data after delete (React Query v5)
+    refetchOnMount: true, // Always refetch on mount
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+  });
+
+  // Delete setoran mutation
+  const deleteSetoranMutation = useMutation({
+    mutationFn: async (setoranId: string) => {
+      return setoranCashKasirService.deleteSetoranCash(setoranId);
+    },
+    onSuccess: async () => {
+      toast.success('Setoran cash berhasil dihapus dan dikembalikan ke penjualan');
+      setDeletingSetoranId(null);
+      
+      // Hapus cache terlebih dahulu - ini penting untuk memastikan data lama tidak muncul
+      queryClient.removeQueries({ 
+        queryKey: ['riwayat-setoran-cash'],
+        exact: false // Remove all queries that start with this key
+      });
+      
+      // Invalidate semua query terkait
+      await queryClient.invalidateQueries({ 
+        queryKey: ['riwayat-setoran-cash'],
+        exact: false
+      });
+      await queryClient.invalidateQueries({ queryKey: ['cash-belum-disetor'] });
+      await queryClient.invalidateQueries({ queryKey: ['total-cash-sales'] });
+      await queryClient.invalidateQueries({ queryKey: ['total-setoran-kasir'] });
+      await queryClient.invalidateQueries({ queryKey: ['total-cash-sales-period'] });
+      await queryClient.invalidateQueries({ queryKey: ['total-setoran-period'] });
+      await queryClient.invalidateQueries({ queryKey: ['available-years-penjualan-cash'] });
+      await queryClient.invalidateQueries({ queryKey: ['monthly-cash-reconciliation'] });
+      await queryClient.invalidateQueries({ queryKey: ['real-cash-balance'] });
+      await queryClient.invalidateQueries({ queryKey: ['koperasi-keuangan-dashboard-stats'] });
+      await queryClient.invalidateQueries({ queryKey: ['koperasi-keuangan-dashboard-stats-last'] });
+      await queryClient.invalidateQueries({ queryKey: ['koperasi-keuangan-daily'] });
+      await queryClient.invalidateQueries({ queryKey: ['koperasi-expense-breakdown'] });
+      // Invalidate query di KeuanganUnifiedPage yang mengambil data dari tabel keuangan
+      await queryClient.invalidateQueries({ queryKey: ['koperasi-keuangan-unified'] });
+      await queryClient.invalidateQueries({ queryKey: ['koperasi-keuangan-transactions'] });
+      
+      // Force refetch dengan delay untuk memastikan database sudah ter-update
+      // Dan pastikan refetch benar-benar mengambil data baru dari database
+      setTimeout(async () => {
+        console.log('🔄 Refetching riwayat setoran cash setelah delete...');
+        const { data: freshData } = await refetchRiwayatSetoran();
+        console.log('✅ Refetch completed, fresh data:', {
+          jumlah: freshData?.length || 0,
+          data: freshData
+        });
+      }, 300);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Gagal menghapus setoran cash');
+    },
+  });
+
   // Get total cash belum disetor untuk periode yang dipilih
+  // Logika: Penjualan dianggap sudah disetor jika tanggalnya masuk dalam periode setoran cash yang ada
   const { data: cashBelumDisetor } = useQuery({
     queryKey: ['cash-belum-disetor', dateRange],
     queryFn: async () => {
-      // Get total penjualan cash
+      // Get total penjualan cash untuk periode yang dipilih
       const { data: penjualanCash } = await supabase
         .from('kop_penjualan')
-        .select('total_transaksi')
+        .select('id, total_transaksi, tanggal')
         .eq('metode_pembayaran', 'cash')
-        .eq('status_pembayaran', 'lunas')
+        .in('status_pembayaran', ['lunas', 'hutang', 'cicilan'])
         .gte('tanggal', dateRange.startDate + 'T00:00:00')
         .lte('tanggal', dateRange.endDate + 'T23:59:59');
+
+      if (!penjualanCash || penjualanCash.length === 0) {
+        return {
+          totalPenjualanCash: 0,
+          totalSetoranCash: 0,
+          sisaBelumDisetor: 0,
+        } as CashBelumDisetor;
+      }
 
       const totalPenjualanCash = (penjualanCash || []).reduce(
         (sum, p) => sum + parseFloat(p.total_transaksi || 0),
         0
       );
 
-      // Get total setoran cash untuk periode yang sama
-      const { data: setoranCash } = await supabase
+      // Get all setoran cash yang aktif (posted)
+      // Kita perlu cek apakah penjualan masuk dalam periode setoran manapun
+      const { data: allSetoranCash } = await supabase
         .from('kop_setoran_cash_kasir')
-        .select('jumlah_setor')
-        .eq('status', 'posted')
-        .gte('tanggal_setor', dateRange.startDate + 'T00:00:00')
-        .lte('tanggal_setor', dateRange.endDate + 'T23:59:59');
+        .select('periode_start, periode_end, jumlah_setor')
+        .eq('status', 'posted');
 
-      const totalSetoranCash = (setoranCash || []).reduce(
-        (sum, s) => sum + parseFloat(s.jumlah_setor || 0),
+      // Hitung total setoran dan identifikasi penjualan yang sudah disetor
+      let totalSetoranCash = 0;
+      const penjualanSudahDisetor = new Set<string>();
+
+      (allSetoranCash || []).forEach((setoran: any) => {
+        if (setoran.periode_start && setoran.periode_end) {
+          const periodeStart = new Date(setoran.periode_start);
+          const periodeEnd = new Date(setoran.periode_end);
+          
+          // Cek apakah periode setoran overlap dengan dateRange
+          const rangeStart = new Date(dateRange.startDate);
+          const rangeEnd = new Date(dateRange.endDate);
+          
+          // Jika ada overlap, hitung setoran dan tandai penjualan yang masuk periode
+          if (periodeStart <= rangeEnd && periodeEnd >= rangeStart) {
+            totalSetoranCash += parseFloat(setoran.jumlah_setor || 0);
+            
+            // Tandai penjualan yang masuk dalam periode setoran ini
+            (penjualanCash || []).forEach((penjualan: any) => {
+              const tanggalPenjualan = new Date(penjualan.tanggal);
+              if (tanggalPenjualan >= periodeStart && tanggalPenjualan <= periodeEnd) {
+                penjualanSudahDisetor.add(penjualan.id);
+              }
+            });
+          }
+        }
+      });
+
+      // Hitung sisa belum disetor berdasarkan penjualan yang belum masuk dalam periode setoran manapun
+      const penjualanBelumDisetor = (penjualanCash || []).filter(
+        (p: any) => !penjualanSudahDisetor.has(p.id)
+      );
+      
+      const sisaBelumDisetor = penjualanBelumDisetor.reduce(
+        (sum, p) => sum + parseFloat(p.total_transaksi || 0),
         0
       );
 
       return {
         totalPenjualanCash,
         totalSetoranCash,
-        sisaBelumDisetor: totalPenjualanCash - totalSetoranCash,
+        sisaBelumDisetor,
       } as CashBelumDisetor;
     },
   });
@@ -755,6 +957,23 @@ function RiwayatPenjualanPage() {
           <p className="text-sm text-muted-foreground mt-1">Kelola dan pantau semua transaksi penjualan</p>
         </div>
         <div className="flex items-center gap-2">
+          <Select 
+            value={statusFilter} 
+            onValueChange={(value: 'all' | 'lunas' | 'hutang' | 'cicilan') => {
+              setStatusFilter(value);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[140px] h-10">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Status</SelectItem>
+              <SelectItem value="lunas">Lunas</SelectItem>
+              <SelectItem value="hutang">Hutang</SelectItem>
+              <SelectItem value="cicilan">Cicilan</SelectItem>
+            </SelectContent>
+          </Select>
           <Select 
             value={dateFilter} 
             onValueChange={(value: DateFilterType) => {
@@ -783,6 +1002,7 @@ function RiwayatPenjualanPage() {
               queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-stats'] });
               queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-chart'] });
               queryClient.invalidateQueries({ queryKey: ['cash-belum-disetor'] });
+              queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-hutang-summary'] });
               toast.success('Data diperbarui');
             }}
           >
@@ -792,7 +1012,7 @@ function RiwayatPenjualanPage() {
       </div>
 
       {/* Summary Cards - Minimalis & Simetris */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         {/* Total Penjualan */}
         <Card className="border border-gray-200 bg-white shadow-sm hover:shadow transition-all overflow-hidden h-full">
           <CardContent className="p-4 flex flex-col h-full">
@@ -892,6 +1112,30 @@ function RiwayatPenjualanPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Total Hutang */}
+        <Card className="border border-red-200 bg-gradient-to-br from-red-50/50 to-white shadow-sm hover:shadow transition-all overflow-hidden h-full">
+          <CardContent className="p-4 flex flex-col h-full">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-red-600 uppercase tracking-wide">
+                Total Hutang
+              </p>
+              <Wallet className="h-4 w-4 text-red-500 flex-shrink-0" />
+            </div>
+            {isLoadingHutang ? (
+              <div className="h-8 w-full animate-pulse bg-gray-100 rounded mb-2"></div>
+            ) : (
+              <p className="text-xl font-bold text-red-700 mb-2 truncate">
+                {formatCurrency(hutangSummary?.totalHutang || 0)}
+              </p>
+            )}
+            {!isLoadingHutang && (
+              <p className="text-xs text-gray-500 mt-auto truncate">
+                {hutangSummary?.jumlahTransaksiHutang || 0} transaksi hutang
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Cash Belum Disetor Card */}
@@ -923,6 +1167,83 @@ function RiwayatPenjualanPage() {
                 <Wallet className="h-4 w-4 mr-2" />
                 Setor Cash
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Riwayat Setoran Cash */}
+      {riwayatSetoranCash && Array.isArray(riwayatSetoranCash) && riwayatSetoranCash.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-green-600" />
+              Riwayat Setoran Cash
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tanggal Setor</TableHead>
+                    <TableHead>Periode</TableHead>
+                    <TableHead className="text-right">Jumlah</TableHead>
+                    <TableHead>Metode</TableHead>
+                    <TableHead>Akun Kas</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {riwayatSetoranCash.map((setoran: any) => (
+                    <TableRow key={setoran.id}>
+                      <TableCell className="text-sm">
+                        {format(new Date(setoran.tanggal_setor || setoran.created_at), 'd MMM yyyy', { locale: id })}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {setoran.periode_label || 
+                          (setoran.periode_start && setoran.periode_end
+                            ? `${format(new Date(setoran.periode_start), 'd MMM', { locale: id })} - ${format(new Date(setoran.periode_end), 'd MMM yyyy', { locale: id })}`
+                            : '-')}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-green-600">
+                        {formatCurrency(parseFloat(setoran.jumlah_setor || 0))}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={setoran.metode_setor === 'transfer' ? 'secondary' : 'default'}>
+                          {setoran.metode_setor === 'transfer' ? 'Transfer' : 'Cash'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {setoran.akun_kas?.nama || '-'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEditingSetoran(setoran);
+                              setEditTanggalSetor(setoran.tanggal_setor || setoran.created_at?.split('T')[0] || '');
+                            }}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeletingSetoranId(setoran.id)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>
@@ -1068,6 +1389,7 @@ function RiwayatPenjualanPage() {
                       <TableHead>Nomor Struk</TableHead>
                       <TableHead>Items</TableHead>
                       <TableHead className="text-right">Total</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Metode Bayar</TableHead>
                       <TableHead className="text-right">Aksi</TableHead>
                     </TableRow>
@@ -1111,12 +1433,47 @@ function RiwayatPenjualanPage() {
                             {formatCurrency(penjualan.total_transaksi || 0)}
                           </TableCell>
                           <TableCell>
+                            {penjualan.status_pembayaran === 'lunas' ? (
+                              <Badge variant="default" className="bg-green-500">
+                                Lunas
+                              </Badge>
+                            ) : penjualan.status_pembayaran === 'hutang' ? (
+                              <Badge variant="destructive">
+                                Hutang
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="border-orange-500 text-orange-600">
+                                Cicilan
+                              </Badge>
+                            )}
+                            {(penjualan.status_pembayaran === 'hutang' || penjualan.status_pembayaran === 'cicilan') && (
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Sisa: {formatCurrency(Number(penjualan.sisa_hutang || penjualan.jumlah_hutang || 0))}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             <Badge variant={penjualan.metode_pembayaran === 'transfer' ? 'default' : 'secondary'}>
                               {penjualan.metode_pembayaran === 'transfer' ? 'Transfer' : 'Cash'}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
+                              {(penjualan.status_pembayaran === 'hutang' || penjualan.status_pembayaran === 'cicilan') && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedPenjualanForPayment(penjualan);
+                                    setShowPembayaranHutangDialog(true);
+                                  }}
+                                  title="Bayar Hutang"
+                                  className="text-green-600 border-green-600 hover:bg-green-50"
+                                >
+                                  <Wallet className="h-4 w-4 mr-1" />
+                                  Bayar
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1124,6 +1481,18 @@ function RiwayatPenjualanPage() {
                                 title="Lihat Detail"
                               >
                                 <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedPenjualanForEditStatus(penjualan);
+                                  setShowEditStatusDialog(true);
+                                }}
+                                title="Edit Status Pembayaran"
+                                className="text-blue-600 hover:text-blue-700"
+                              >
+                                <Wallet className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
@@ -1329,38 +1698,19 @@ function RiwayatPenjualanPage() {
         </div>
       )}
 
-      {/* Print Receipt Modal */}
+      {/* Print Receipt - Hidden component untuk auto print */}
       {printingPenjualan && receiptData && receiptItems.length > 0 && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="max-w-md w-full">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Cetak Nota</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setPrintingPenjualan(null);
-                    setReceiptItems([]);
-                  }}
-                >
-                  ✕
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ReceiptNota
-                penjualan={receiptData}
-                items={receiptItems}
-                autoPrint={true}
-                showActions={true}
-                onClose={() => {
-                  setPrintingPenjualan(null);
-                  setReceiptItems([]);
-                }}
-              />
-            </CardContent>
-          </Card>
+        <div className="hidden">
+          <ReceiptNota
+            penjualan={receiptData}
+            items={receiptItems}
+            autoPrint={true}
+            showActions={false}
+            onClose={() => {
+              setPrintingPenjualan(null);
+              setReceiptItems([]);
+            }}
+          />
         </div>
       )}
 
@@ -1406,6 +1756,181 @@ function RiwayatPenjualanPage() {
           shiftId={undefined}
         />
       )}
+
+      {/* Pembayaran Hutang Penjualan Dialog */}
+      <PembayaranHutangPenjualanDialog
+        open={showPembayaranHutangDialog}
+        onClose={() => {
+          setShowPembayaranHutangDialog(false);
+          setSelectedPenjualanForPayment(null);
+        }}
+        penjualan={selectedPenjualanForPayment}
+      />
+
+      {/* Edit Status Pembayaran Dialog */}
+      {selectedPenjualanForEditStatus && (
+        <EditStatusPembayaranDialog
+          open={showEditStatusDialog}
+          onClose={() => {
+            setShowEditStatusDialog(false);
+            setSelectedPenjualanForEditStatus(null);
+          }}
+          penjualan={selectedPenjualanForEditStatus}
+        />
+      )}
+
+      {/* Delete Setoran Confirmation Dialog */}
+      <AlertDialog open={!!deletingSetoranId} onOpenChange={(open) => !open && setDeletingSetoranId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Setoran Cash?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Setoran cash akan dihapus dan dikembalikan ke penjualan. 
+              Entry keuangan terkait juga akan dihapus. Tindakan ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteSetoranMutation.isPending}>
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deletingSetoranId) {
+                  deleteSetoranMutation.mutate(deletingSetoranId);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteSetoranMutation.isPending}
+            >
+              {deleteSetoranMutation.isPending ? 'Menghapus...' : 'Ya, Hapus'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Tanggal Setor Cash Dialog */}
+      <Dialog open={!!editingSetoran} onOpenChange={() => setEditingSetoran(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Tanggal Setor Cash</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Tanggal Setor</Label>
+              <Input
+                type="date"
+                value={editTanggalSetor}
+                onChange={(e) => setEditTanggalSetor(e.target.value)}
+              />
+            </div>
+            {editingSetoran && (
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p><strong>Periode Penjualan:</strong> {editingSetoran.periode_label || 
+                  (editingSetoran.periode_start && editingSetoran.periode_end
+                    ? `${format(new Date(editingSetoran.periode_start), 'd MMM yyyy', { locale: id })} - ${format(new Date(editingSetoran.periode_end), 'd MMM yyyy', { locale: id })}`
+                    : '-')}
+                </p>
+                <p><strong>Jumlah:</strong> {formatCurrency(parseFloat(editingSetoran.jumlah_setor || 0))}</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Catatan: Mengubah tanggal setor tidak akan mengubah periode penjualan yang disetor.
+                </p>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setEditingSetoran(null)}
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!editingSetoran || !editTanggalSetor) return;
+                  
+                  try {
+                    // 1. Update tanggal_setor di kop_setoran_cash_kasir
+                    const { error: updateSetoranError } = await supabase
+                      .from('kop_setoran_cash_kasir')
+                      .update({ tanggal_setor: editTanggalSetor })
+                      .eq('id', editingSetoran.id);
+                    
+                    if (updateSetoranError) {
+                      toast.error('Gagal mengubah tanggal setor');
+                      return;
+                    }
+                    
+                    // 2. Update entry di keuangan yang terkait (referensi = setoranId)
+                    // Trigger akan otomatis update, tapi kita juga update manual untuk memastikan
+                    const { data: keuanganEntries } = await supabase
+                      .from('keuangan')
+                      .select('id')
+                      .eq('referensi', editingSetoran.id)
+                      .eq('kategori', 'Setor Cash Kasir')
+                      .eq('source_module', 'koperasi')
+                      .eq('status', 'posted');
+                    
+                    if (keuanganEntries && keuanganEntries.length > 0) {
+                      // Update semua entry keuangan yang terkait
+                      const { error: updateKeuanganError } = await supabase
+                        .from('keuangan')
+                        .update({ tanggal: editTanggalSetor })
+                        .in('id', keuanganEntries.map(e => e.id));
+                      
+                      if (updateKeuanganError) {
+                        console.warn('Warning: Gagal update tanggal di keuangan:', updateKeuanganError);
+                        // Tidak throw error, karena setoran sudah berhasil diupdate dan trigger akan handle
+                      }
+                    } else {
+                      // Jika belum ada entry di keuangan, buat entry baru (backfill)
+                      if (editingSetoran.akun_kas_id && editingSetoran.jumlah_setor) {
+                        try {
+                          const { addKeuanganKoperasiTransaction } = await import('@/services/keuanganKoperasi.service');
+                          await addKeuanganKoperasiTransaction({
+                            tanggal: editTanggalSetor,
+                            jenis_transaksi: 'Pemasukan',
+                            kategori: 'Setor Cash Kasir',
+                            sub_kategori: editingSetoran.metode_setor === 'transfer' ? 'Transfer' : 'Cash',
+                            jumlah: parseFloat(editingSetoran.jumlah_setor || 0),
+                            deskripsi: `Setor cash dari kasir${editingSetoran.catatan ? ` - ${editingSetoran.catatan}` : ''}`,
+                            akun_kas_id: editingSetoran.akun_kas_id,
+                            referensi: editingSetoran.id,
+                            status: 'posted',
+                          });
+                        } catch (backfillError) {
+                          console.warn('Warning: Gagal membuat entry keuangan baru:', backfillError);
+                        }
+                      }
+                    }
+                    
+                    // Update saldo akun kas setelah perubahan tanggal
+                    if (editingSetoran.akun_kas_id) {
+                      try {
+                        await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+                          p_akun_id: editingSetoran.akun_kas_id
+                        });
+                      } catch (saldoError) {
+                        console.warn('Warning: Gagal update saldo akun kas:', saldoError);
+                      }
+                    }
+                    
+                    toast.success('Tanggal setor berhasil diubah');
+                    setEditingSetoran(null);
+                    refetchRiwayatSetoran();
+                    
+                    // Invalidate queries untuk refresh data di modul keuangan
+                    queryClient.invalidateQueries({ queryKey: ['koperasi-keuangan-dashboard-stats'] });
+                    queryClient.invalidateQueries({ queryKey: ['kop-keuangan-unified-transactions'] });
+                  } catch (error: any) {
+                    toast.error(error.message || 'Gagal mengubah tanggal setor');
+                  }
+                }}
+              >
+                Simpan
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

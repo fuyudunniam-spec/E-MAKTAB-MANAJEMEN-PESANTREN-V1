@@ -199,34 +199,102 @@ const KelolaHPPDanBagiHasilPage = () => {
     fetchKasKoperasi();
   }, []);
 
-  // Fetch cost operasional dari keuangan (EXCLUDE kewajiban/hutang ke yayasan)
+  // Fetch cost operasional dari keuangan (EXCLUDE kewajiban/hutang ke yayasan DAN transfer ke yayasan)
   // Cost operasional hanya pengeluaran operasional biasa, BUKAN kewajiban pembayaran ke yayasan
-  // Mengambil referensi dari modul keuangan (tabel keuangan) dengan filter source_module = 'koperasi'
+  // BUKAN juga transfer ke yayasan (transfer laba/rugi adalah distribusi laba, bukan cost operasional)
+  // IMPORTANT: Mengambil dari KEDUA tabel (keuangan dan keuangan_koperasi) untuk sinkronisasi dengan riwayat transaksi
+  // Sama seperti di KeuanganUnifiedPage untuk konsistensi data
   const { data: costOperasional = [] } = useQuery({
-    queryKey: ['koperasi-cost-operasional', getDateRangeForBagiHasil().startDate, getDateRangeForBagiHasil().endDate],
+    queryKey: ['koperasi-cost-operasional', getDateRangeForBagiHasil().startDate, getDateRangeForBagiHasil().endDate, kasKoperasiId],
     queryFn: async () => {
       const dateRange = getDateRangeForBagiHasil();
-      const { data, error } = await supabase
+      
+      // Get akun kas koperasi untuk filter (sama seperti di KeuanganUnifiedPage)
+      // IMPORTANT: Gunakan filter yang sama persis dengan KeuanganUnifiedPage untuk konsistensi
+      const { data: akunKasData } = await supabase
+        .from('akun_kas')
+        .select('id, nama, managed_by')
+        .eq('status', 'aktif');
+      
+      // Filter sama seperti di KeuanganUnifiedPage: managed_by === 'koperasi' || nama includes 'koperasi'
+      const koperasiAccountIds = (akunKasData || [])
+        .filter(akun => akun.managed_by === 'koperasi' || akun.nama?.toLowerCase().includes('koperasi'))
+        .map(akun => akun.id);
+      
+      if (koperasiAccountIds.length === 0) {
+        return [];
+      }
+      
+      // 1. Ambil dari keuangan (source_module = 'koperasi') - transaksi baru
+      const { data: dataKeuangan, error: errorKeuangan } = await supabase
         .from('keuangan')
         .select('id, tanggal, deskripsi, jumlah, kategori, sub_kategori, penerima_pembayar, akun_kas_id')
         .eq('jenis_transaksi', 'Pengeluaran')
         .eq('status', 'posted')
-        .eq('source_module', 'koperasi') // Filter hanya transaksi koperasi
+        .eq('source_module', 'koperasi')
+        .in('akun_kas_id', koperasiAccountIds)
         .gte('tanggal', dateRange.startDate.toISOString())
         .lte('tanggal', dateRange.endDate.toISOString())
         .order('tanggal', { ascending: false });
 
-      if (error) throw error;
+      if (errorKeuangan) throw errorKeuangan;
       
-      // Filter out kewajiban/hutang ke yayasan
+      // 2. Ambil dari keuangan_koperasi (tabel lama) - untuk backward compatibility
+      const { data: dataKoperasi, error: errorKoperasi } = await supabase
+        .from('keuangan_koperasi')
+        .select('id, tanggal, deskripsi, jumlah, kategori, sub_kategori, penerima_pembayar, akun_kas_id')
+        .eq('jenis_transaksi', 'Pengeluaran')
+        .eq('status', 'posted')
+        .in('akun_kas_id', koperasiAccountIds)
+        .gte('tanggal', dateRange.startDate.toISOString())
+        .lte('tanggal', dateRange.endDate.toISOString())
+        .order('tanggal', { ascending: false });
+
+      if (errorKoperasi) throw errorKoperasi;
+      
+      // 3. Gabungkan data dari kedua tabel (sama seperti di KeuanganUnifiedPage)
+      // Prioritaskan keuangan_koperasi untuk deduplication
+      const transactionMap = new Map();
+      
+      // Masukkan dari keuangan_koperasi dulu
+      (dataKoperasi || []).forEach((item: any) => {
+        transactionMap.set(item.id, item);
+      });
+      
+      // Tambahkan dari keuangan hanya jika ID belum ada
+      (dataKeuangan || []).forEach((item: any) => {
+        if (!transactionMap.has(item.id)) {
+          transactionMap.set(item.id, item);
+        }
+      });
+      
+      // Convert map back to array
+      const allData = Array.from(transactionMap.values());
+      
+      // Filter out kewajiban/hutang ke yayasan DAN transfer ke yayasan
       // Cost operasional hanya pengeluaran operasional biasa, BUKAN kewajiban pembayaran ke yayasan
+      // BUKAN juga transfer ke yayasan (transfer laba/rugi)
       // Kewajiban ke yayasan hanya muncul saat "Simpan Keputusan" di mode "Atur HPP"
-      const filtered = (data || []).filter(item => {
+      const filtered = allData.filter(item => {
         const kategori = (item.kategori || '').toLowerCase();
         const subKategori = (item.sub_kategori || '').toLowerCase();
         const deskripsi = (item.deskripsi || '').toLowerCase();
         
-        // Exclude semua yang terkait kewajiban/hutang ke yayasan
+        // EXCLUDE transfer ke yayasan (transfer laba/rugi)
+        // Transfer ke yayasan BUKAN cost operasional, melainkan distribusi laba/rugi
+        const isTransferYayasan = 
+          kategori === 'transfer ke yayasan' ||
+          subKategori === 'transfer ke yayasan' ||
+          subKategori === 'laba/rugi bulanan' ||
+          deskripsi.includes('transfer ke yayasan') ||
+          deskripsi.includes('transfer laba/rugi') ||
+          deskripsi.includes('transfer ke bank operasional umum');
+        
+        if (isTransferYayasan) {
+          return false; // Exclude transfer ke yayasan
+        }
+        
+        // EXCLUDE semua yang terkait kewajiban/hutang ke yayasan
         // Termasuk variasi: "Kewajiban", "Hutang ke Yayasan", "Kewajiban Penjualan", dll
         const isKewajiban = 
           kategori === 'kewajiban' ||

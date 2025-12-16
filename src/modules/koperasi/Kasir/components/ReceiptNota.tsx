@@ -52,27 +52,135 @@ export default function ReceiptNota({
   const componentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (autoPrint && !onClose) {
-      // Auto print jika tidak ada onClose (untuk direct print)
+    if (autoPrint && componentRef.current) {
       const timer = setTimeout(() => {
-        if (componentRef.current) {
-          window.print();
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+          toast.error('Popup diblokir. Izinkan popup untuk mencetak nota.');
+          return;
         }
-      }, 100);
-      return () => clearTimeout(timer);
-    } else if (autoPrint && onClose) {
-      // Auto print dengan close callback
-      const timer = setTimeout(() => {
-        if (componentRef.current) {
-          window.print();
+
+        // Clone element dan hapus tombol action sebelum copy
+        const clonedElement = componentRef.current!.cloneNode(true) as HTMLElement;
+        const actionButtons = clonedElement.querySelectorAll('.no-print');
+        actionButtons.forEach(btn => btn.remove());
+        
+        const receiptHTML = clonedElement.innerHTML;
+        const printContent = `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>Nota ${penjualan.nomor_struk || penjualan.id.slice(0, 8)}</title>
+              <style>
+                @page {
+                  size: 80mm auto;
+                  margin: 0;
+                }
+                * {
+                  margin: 0;
+                  padding: 0;
+                  box-sizing: border-box;
+                }
+                html, body {
+                  margin: 0;
+                  padding: 0;
+                  width: 80mm;
+                  background: white;
+                  font-family: Arial, sans-serif;
+                }
+                .receipt-print {
+                  width: 80mm !important;
+                  max-width: 80mm !important;
+                  padding: 8mm 5mm !important;
+                  margin: 0 !important;
+                  background: white !important;
+                  page-break-inside: avoid !important;
+                  page-break-after: avoid !important;
+                }
+                .no-print { display: none !important; }
+                .text-center { text-align: center !important; }
+                .text-left { text-align: left !important; }
+                .text-right { text-align: right !important; }
+                .mb-1 { margin-bottom: 0.25rem !important; }
+                .mb-2 { margin-bottom: 0.5rem !important; }
+                .mb-3 { margin-bottom: 0.75rem !important; }
+                .mb-4 { margin-bottom: 1rem !important; }
+                .mt-1 { margin-top: 0.25rem !important; }
+                .pt-2 { padding-top: 0.5rem !important; }
+                .pb-2 { padding-bottom: 0.5rem !important; }
+                .pb-3 { padding-bottom: 0.75rem !important; }
+                .pr-2 { padding-right: 0.5rem !important; }
+                .pl-2 { padding-left: 0.5rem !important; }
+                .mr-1 { margin-right: 0.25rem !important; }
+                .flex { display: flex !important; }
+                .items-center { align-items: center !important; }
+                .items-start { align-items: flex-start !important; }
+                .justify-center { justify-content: center !important; }
+                .justify-between { justify-content: space-between !important; }
+                .gap-2 { gap: 0.5rem !important; }
+                .flex-1 { flex: 1 1 0% !important; }
+                .text-xl { font-size: 1.25rem !important; line-height: 1.75rem !important; }
+                .text-2xl { font-size: 1.5rem !important; line-height: 2rem !important; }
+                .text-xs { font-size: 0.75rem !important; line-height: 1rem !important; }
+                .text-sm { font-size: 0.875rem !important; line-height: 1.25rem !important; }
+                .text-\\[9px\\] { font-size: 9px !important; }
+                .text-\\[10px\\] { font-size: 10px !important; }
+                .font-bold { font-weight: 700 !important; }
+                .font-semibold { font-weight: 600 !important; }
+                .font-medium { font-weight: 500 !important; }
+                .font-mono { font-family: ui-monospace, monospace !important; }
+                .text-gray-600 { color: rgb(75 85 99) !important; }
+                .text-gray-700 { color: rgb(55 65 81) !important; }
+                .text-gray-800 { color: rgb(31 41 55) !important; }
+                .text-gray-900 { color: rgb(17 24 39) !important; }
+                .border-b { border-bottom-width: 1px !important; border-bottom-style: solid !important; }
+                .border-b-2 { border-bottom-width: 2px !important; border-bottom-style: solid !important; }
+                .border-t { border-top-width: 1px !important; border-top-style: solid !important; }
+                .border-gray-300 { border-color: rgb(209 213 219) !important; }
+                .border-gray-800 { border-color: rgb(31 41 55) !important; }
+                .leading-tight { line-height: 1.25 !important; }
+                .tracking-wide { letter-spacing: 0.025em !important; }
+                .tracking-tight { letter-spacing: -0.025em !important; }
+                .whitespace-nowrap { white-space: nowrap !important; }
+                .break-all { word-break: break-all !important; }
+                .max-w-\\[60\\%\\] { max-width: 60% !important; }
+                .space-y-2 > * + * { margin-top: 0.5rem !important; }
+                .space-y-0\\.5 > * + * { margin-top: 0.125rem !important; }
+                .capitalize { text-transform: capitalize !important; }
+                h1 { margin: 0 !important; font-size: 1.5rem !important; line-height: 2rem !important; font-weight: 700 !important; }
+                p { margin: 0 !important; }
+                ul { list-style: none !important; padding: 0 !important; margin: 0 !important; }
+                li { margin: 0 !important; }
+                span { display: inline-block !important; }
+              </style>
+            </head>
+            <body>
+              <div class="receipt-print">
+                ${receiptHTML}
+              </div>
+            </body>
+          </html>
+        `;
+
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+
+        printWindow.onload = () => {
           setTimeout(() => {
-            if (onClose) onClose();
-          }, 1000);
-        }
+            printWindow.print();
+            if (onClose) {
+              setTimeout(() => {
+                printWindow.close();
+                onClose();
+              }, 500);
+            }
+          }, 250);
+        };
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [autoPrint, onClose]);
+  }, [autoPrint, penjualan.nomor_struk, penjualan.id, onClose]);
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -106,7 +214,6 @@ export default function ReceiptNota({
         useCORS: true,
         width: componentRef.current.scrollWidth,
         height: componentRef.current.scrollHeight,
-        letterRendering: true, // Better text rendering
         onclone: (clonedDoc) => {
           // Ensure fonts are loaded before capture
           const clonedElement = clonedDoc.querySelector('.receipt-print');
@@ -126,18 +233,39 @@ export default function ReceiptNota({
       const imgData = canvas.toDataURL('image/png');
 
       // Calculate PDF dimensions (80mm width, maintain aspect ratio)
-      const imgWidth = 80; // 80mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const receiptWidth = 80; // 80mm - standard receipt width
+      const receiptHeight = (canvas.height * receiptWidth) / canvas.width;
 
-      // Create PDF
+      // Use A4 format to ensure single page
+      // A4 dimensions: 210mm x 297mm
+      const a4Width = 210;
+      const a4Height = 297;
+      
+      // Calculate scale to fit receipt on A4 page (ensure it fits on one page)
+      // Scale down if receipt is larger than A4, but don't scale up if smaller
+      const scaleX = receiptWidth <= a4Width ? 1 : a4Width / receiptWidth;
+      const scaleY = receiptHeight <= a4Height ? 1 : a4Height / receiptHeight;
+      
+      // Use the smaller scale to ensure content fits on one page
+      const scale = Math.min(scaleX, scaleY);
+      
+      // Calculate final dimensions
+      const finalWidth = receiptWidth * scale;
+      const finalHeight = receiptHeight * scale;
+      
+      // Center the content on A4 page
+      const xOffset = (a4Width - finalWidth) / 2;
+      const yOffset = Math.max(5, (a4Height - finalHeight) / 2); // At least 5mm from top
+
+      // Create PDF with A4 format (single page)
       const doc = new jsPDF({
         unit: 'mm',
-        format: [imgWidth, imgHeight],
-        orientation: imgHeight > imgWidth ? 'portrait' : 'landscape',
+        format: 'a4',
+        orientation: 'portrait',
       });
 
-      // Add image to PDF
-      doc.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
+      // Add image to PDF, centered and scaled to fit on single page
+      doc.addImage(imgData, 'PNG', xOffset, yOffset, finalWidth, finalHeight, undefined, 'FAST');
 
       // Save PDF
       const nomorStruk = penjualan.nomor_struk || penjualan.id.slice(0, 8).toUpperCase();
@@ -204,19 +332,32 @@ HP/WA: 085955303882`;
             size: 80mm auto;
             margin: 0;
           }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 80mm !important;
+            background: white !important;
+          }
           body * {
             visibility: hidden;
           }
-          .receipt-print, .receipt-print * {
-            visibility: visible;
-          }
           .receipt-print {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 80mm;
-            padding: 8mm 5mm;
-            background: white;
+            visibility: visible !important;
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
+            padding: 8mm 5mm !important;
+            margin: 0 !important;
+            background: white !important;
+            page-break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-inside: avoid !important;
+          }
+          .receipt-print * {
+            visibility: visible !important;
           }
           .no-print {
             display: none !important;
@@ -235,14 +376,10 @@ HP/WA: 085955303882`;
       `}</style>
       <div className="receipt-print" ref={componentRef}>
         {/* Header dengan desain modern */}
-        <div className="text-center mb-4 pb-3 border-b-2 border-dashed border-gray-400">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <span className="text-gray-600 text-xl">*</span>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight" style={{ fontFamily: 'Arial, sans-serif' }}>
-              SANTRA MART
-            </h1>
-            <span className="text-gray-600 text-xl">*</span>
-          </div>
+        <div className="text-center mb-4 pb-3 border-b-2 border-gray-800">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight mb-1" style={{ fontFamily: 'Arial, sans-serif' }}>
+            SANTRA MART
+          </h1>
           <p className="text-xs font-semibold text-gray-700 mb-1 tracking-wide">
             Santri Nusantara Mart
           </p>
@@ -252,7 +389,7 @@ HP/WA: 085955303882`;
         </div>
 
         {/* Info Kontak & Bank */}
-        <div className="text-center mb-3 pb-2 border-b border-dashed border-gray-300">
+        <div className="text-center mb-3 pb-2 border-b border-gray-300">
           <p className="text-[9px] text-gray-600 leading-tight">
             Gunung Anyar Lor 2/62, Surabaya
           </p>
@@ -265,7 +402,7 @@ HP/WA: 085955303882`;
         </div>
 
         {/* Transaction Details */}
-        <div className="mb-3 pb-2 border-b border-dashed border-gray-300">
+        <div className="mb-3 pb-2 border-b border-gray-300">
           <div className="flex justify-between items-start text-[10px] mb-1">
             <span className="text-gray-600 font-medium">No. Transaksi:</span>
             <span className="text-gray-900 font-mono text-[9px] text-right max-w-[60%] break-all">
@@ -287,7 +424,7 @@ HP/WA: 085955303882`;
         </div>
 
         {/* Items List */}
-        <div className="mb-3 pb-2 border-b border-dashed border-gray-300">
+        <div className="mb-3 pb-2 border-b border-gray-300">
           <div className="space-y-2">
             {items.map((item, index) => (
               <div key={item.id || index} className="text-[10px]">
@@ -310,7 +447,7 @@ HP/WA: 085955303882`;
         </div>
 
         {/* Payment Summary */}
-        <div className="mb-3 pb-2 border-b-2 border-dashed border-gray-400">
+        <div className="mb-3 pb-2 border-b-2 border-gray-800">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-bold text-gray-900">TOTAL</span>
             <span className="text-sm font-bold text-gray-900">
@@ -358,7 +495,7 @@ HP/WA: 085955303882`;
             </ul>
           </div>
 
-          <div className="mt-3 pt-2 border-t border-dashed border-gray-300">
+          <div className="mt-3 pt-2 border-t border-gray-300">
             <p className="text-[9px] text-gray-600">
               Layanan Pelanggan: WA: 085955303882
             </p>
