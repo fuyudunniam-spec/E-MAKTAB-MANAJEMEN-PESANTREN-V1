@@ -38,7 +38,9 @@ import {
   ChevronRight,
   Wallet,
   ArrowDownCircle,
-  Home
+  Home,
+  Settings,
+  Key
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDate, formatRupiah } from "@/utils/inventaris.utils";
@@ -181,6 +183,37 @@ const SantriProfileRedesigned = () => {
   const [withdrawDescription, setWithdrawDescription] = useState<string>('');
   const [withdrawNote, setWithdrawNote] = useState<string>('');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+
+  // Settings panel state (mobile app style)
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+
+  // Check profile completion and redirect to onboarding if needed
+  useEffect(() => {
+    if (!santriId) return;
+
+    const checkOnboarding = async () => {
+      try {
+        const { SantriOnboardingService } = await import('@/services/santriOnboarding.service');
+        const completion = await SantriOnboardingService.checkProfileCompletion(santriId);
+        
+        // Only redirect if profile is incomplete and user can't skip
+        // This allows users who already have basic info to access profile
+        if (!completion.isComplete && !completion.canSkipOnboarding) {
+          const skipOnboarding = localStorage.getItem(`skip_onboarding_${santriId}`);
+          if (!skipOnboarding) {
+            console.log('📋 [SantriProfile] Profile incomplete, redirecting to onboarding');
+            navigate(`/santri/onboarding?santriId=${santriId}`, { replace: true });
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ [SantriProfile] Error checking profile completion:', error);
+        // Continue loading profile even if check fails
+      }
+    };
+
+    checkOnboarding();
+  }, [santriId, navigate]);
 
   // Load all data
   useEffect(() => {
@@ -1235,6 +1268,14 @@ const SantriProfileRedesigned = () => {
                 <ArrowLeft className="w-4 h-4" />
               </Button>
               <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setShowSettingsPanel(true)}
+                className="sm:hidden"
+              >
+                <Settings className="w-4 h-4" />
+              </Button>
+              <Button 
                 variant="default" 
                 size="sm" 
                 onClick={() => {
@@ -1250,22 +1291,6 @@ const SantriProfileRedesigned = () => {
               >
                 <Edit className="w-4 h-4 mr-2" />
                 Edit
-              </Button>
-              <Button 
-                variant="default" 
-                size="icon" 
-                onClick={() => {
-                  setActiveTab('informasi');
-                  setTimeout(() => {
-                    const tabContent = document.querySelector('[data-value="informasi"]');
-                    if (tabContent) {
-                      tabContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                  }, 100);
-                }}
-                className="sm:hidden"
-              >
-                <Edit className="w-4 h-4" />
               </Button>
             </div>
           </div>
@@ -1326,60 +1351,6 @@ const SantriProfileRedesigned = () => {
         </Carousel>
       </div>
 
-      {/* SUPERAPP Menu Grid */}
-      <div className="container mx-auto px-4 pb-6">
-        <div className="mb-4">
-          <h2 className="text-xl font-bold text-foreground mb-1">Menu Utama</h2>
-          <p className="text-sm text-muted-foreground">Akses cepat ke semua fitur profil santri</p>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={cn(
-                  "group relative overflow-hidden rounded-xl p-4 md:p-5 text-left transition-all duration-300",
-                  "border-2 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
-                  isActive 
-                    ? "border-primary bg-primary/5 shadow-md" 
-                    : "border-primary/20 bg-white hover:border-primary/40 hover:shadow-lg hover:scale-[1.02]"
-                )}
-              >
-                <div className={cn(
-                  "absolute top-0 right-0 w-20 h-20 rounded-full blur-2xl opacity-10 transition-opacity group-hover:opacity-20",
-                  "bg-primary"
-                )}></div>
-                <div className="relative z-10">
-                <div className={cn(
-                  "inline-flex p-3 rounded-xl mb-3 transition-all duration-300",
-                  isActive 
-                    ? `${item.color} text-white shadow-lg` 
-                    : `bg-primary/5 group-hover:${item.color} text-primary group-hover:text-white`
-                )}>
-                    <Icon className="w-5 h-5 md:w-6 md:h-6" />
-                  </div>
-                  <h3 className={cn(
-                    "font-semibold text-sm md:text-base mb-1 transition-colors",
-                    isActive ? "text-primary" : "text-foreground group-hover:text-primary"
-                  )}>
-                    {item.label}
-                  </h3>
-                  <p className="text-xs text-muted-foreground line-clamp-2">
-                    {item.description}
-                  </p>
-                  <ChevronRight className={cn(
-                    "w-4 h-4 absolute bottom-4 right-4 transition-all duration-300",
-                    isActive ? "translate-x-0 opacity-100 text-primary" : "translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 group-hover:text-primary text-muted-foreground"
-                  )} />
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
 
       {/* Main Content */}
       <div className="container mx-auto px-4 pb-20 md:pb-8 max-w-full overflow-x-hidden">
@@ -2346,8 +2317,8 @@ const SantriProfileRedesigned = () => {
         </Tabs>
       </div>
 
-      {/* Mobile Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-primary/10 shadow-lg md:hidden">
+      {/* Mobile Bottom Navigation - Simplified */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-primary/10 shadow-lg md:hidden">
         <div className="grid grid-cols-5 h-16">
           {menuItems.map((item) => {
             const Icon = item.icon;
@@ -2361,18 +2332,21 @@ const SantriProfileRedesigned = () => {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 transition-all duration-200",
+                  "flex flex-col items-center justify-center gap-0.5 transition-all duration-200 relative",
                   isActive 
                     ? "text-primary" 
-                    : "text-muted-foreground"
+                    : "text-muted-foreground active:text-primary"
                 )}
               >
+                {isActive && (
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-primary rounded-b-full" />
+                )}
                 <Icon className={cn(
                   "w-5 h-5 transition-all",
                   isActive && "scale-110"
                 )} />
                 <span className={cn(
-                  "text-[10px] font-medium",
+                  "text-[10px] font-medium leading-tight",
                   isActive && "font-semibold"
                 )}>
                   {item.label.split(' ')[0]}
@@ -2382,6 +2356,127 @@ const SantriProfileRedesigned = () => {
           })}
         </div>
       </div>
+
+      {/* Settings Panel - Mobile App Style */}
+      <Dialog open={showSettingsPanel} onOpenChange={setShowSettingsPanel}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-0">
+          <div className="sticky top-0 bg-white border-b border-primary/10 px-6 py-4 z-10">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-primary" />
+                Pengaturan
+              </DialogTitle>
+            </DialogHeader>
+          </div>
+          
+          <div className="px-6 py-4 space-y-1">
+            {/* Profile Actions */}
+            <div className="space-y-1 mb-4">
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-auto py-3 px-4"
+                onClick={() => {
+                  setActiveTab('informasi');
+                  setShowSettingsPanel(false);
+                  setTimeout(() => {
+                    const tabContent = document.querySelector('[data-value="informasi"]');
+                    if (tabContent) {
+                      tabContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }, 100);
+                }}
+              >
+                <Edit className="w-4 h-4 mr-3 text-muted-foreground" />
+                <div className="flex-1 text-left">
+                  <div className="font-medium">Edit Profil</div>
+                  <div className="text-xs text-muted-foreground">Ubah data pribadi</div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </Button>
+
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-auto py-3 px-4"
+                onClick={() => {
+                  navigate('/change-password');
+                  setShowSettingsPanel(false);
+                }}
+              >
+                <Key className="w-4 h-4 mr-3 text-muted-foreground" />
+                <div className="flex-1 text-left">
+                  <div className="font-medium">Ubah Password</div>
+                  <div className="text-xs text-muted-foreground">Ganti kata sandi akun</div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </Button>
+            </div>
+
+            {/* Quick Navigation */}
+            <div className="pt-4 border-t border-primary/10">
+              <div className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-4">Navigasi Cepat</div>
+              {menuItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <Button
+                    key={item.id}
+                    variant="ghost"
+                    className={cn(
+                      "w-full justify-start h-auto py-3 px-4",
+                      isActive && "bg-primary/5"
+                    )}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setShowSettingsPanel(false);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  >
+                    <Icon className={cn(
+                      "w-4 h-4 mr-3",
+                      isActive ? "text-primary" : "text-muted-foreground"
+                    )} />
+                    <div className="flex-1 text-left">
+                      <div className={cn(
+                        "font-medium",
+                        isActive && "text-primary"
+                      )}>
+                        {item.label}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{item.description}</div>
+                    </div>
+                    {isActive && <CheckCircle className="w-4 h-4 text-primary" />}
+                  </Button>
+                );
+              })}
+            </div>
+
+            {/* Account Info */}
+            <div className="pt-4 border-t border-primary/10">
+              <div className="px-4 py-3 bg-primary/5 rounded-lg">
+                <div className="text-xs font-semibold text-muted-foreground mb-2">Informasi Akun</div>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Kategori:</span>
+                    <span className="font-medium">{santri?.kategori || 'Belum dipilih'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Status:</span>
+                    <Badge className={cn("text-xs", getStatusColor(santri?.status_santri))}>
+                      {santri?.status_santri || 'Tidak Diketahui'}
+                    </Badge>
+                  </div>
+                  {santri?.id_santri && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">ID Santri:</span>
+                      <span className="font-medium font-mono text-xs">{santri.id_santri}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Withdrawal Dialog */}
       <Dialog open={showWithdrawDialog} onOpenChange={setShowWithdrawDialog}>

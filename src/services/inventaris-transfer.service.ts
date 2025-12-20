@@ -102,46 +102,73 @@ export async function createTransfer(
     );
   }
 
-  // For koperasi transfers: Create pengajuan_item_yayasan (NO stock reduction)
-  // Stock will only be reduced when admin koperasi approves the pengajuan
+  // PERUBAHAN: Transfer ke koperasi langsung catat sebagai pengeluaran (tidak perlu approval)
+  // Modul koperasi input barang manual, transfer hanya catat pengeluaran di inventaris
   if (data.tujuan === 'koperasi') {
-    const nilaiPerolehan = item.harga_perolehan || 0;
-    const usulanHpp = nilaiPerolehan; // Default usulan HPP = nilai perolehan
+    // Reduce stock immediately (transfer = pengeluaran barang)
+    const newStock = availableStock - data.jumlah;
+    const { error: updateError } = await supabase
+      .from('inventaris')
+      .update({ jumlah: newStock })
+      .eq('id', data.item_id);
 
-    // Create pengajuan_item_yayasan
-    // Note: catatan field might not exist in table, so we don't include it
-    const pengajuanData: any = {
-      inventaris_item_id: data.item_id,
-      nama: item.nama_barang,
-      qty: data.jumlah,
-      nilai_perolehan: nilaiPerolehan,
-      usulan_hpp: usulanHpp,
-      status: 'pending_koperasi',
+    if (updateError) {
+      throw new TransferStockError('Gagal mengurangi stok: ' + updateError.message);
+    }
+
+    // Create transfer record (status = completed, langsung selesai)
+    const transferData = {
+      item_id: data.item_id,
+      jumlah: data.jumlah,
+      tujuan: 'koperasi' as TransferDestination,
+      status: 'completed' as TransferStatus,
       created_by: user.id,
+      hpp_yayasan: item.harga_perolehan || null,
+      catatan: data.catatan || `Transfer ke koperasi - ${item.nama_barang}`,
     };
 
-    const { data: pengajuan, error: pengajuanError } = await supabase
-      .from('pengajuan_item_yayasan')
-      .insert(pengajuanData)
+    const { data: transfer, error: transferError } = await supabase
+      .from('transfer_inventaris')
+      .insert(transferData)
       .select('*')
       .single();
 
-    if (pengajuanError) {
-      throw new TransferValidationError('Gagal membuat pengajuan: ' + pengajuanError.message);
+    if (transferError) {
+      // Rollback stock reduction
+      await supabase
+        .from('inventaris')
+        .update({ jumlah: availableStock })
+        .eq('id', data.item_id);
+      
+      throw new TransferValidationError('Gagal membuat transfer: ' + transferError.message);
     }
 
-    // Return a transfer-like object for consistency
+    // Record transaksi inventaris (keluar) untuk tracking
+    const { error: transaksiError } = await supabase
+      .from('transaksi_inventaris')
+      .insert({
+        item_id: data.item_id,
+        tipe: 'Keluar',
+        keluar_mode: 'Koperasi',
+        channel: 'koperasi',
+        jumlah: data.jumlah,
+        harga_satuan: item.harga_perolehan || 0,
+        tanggal: new Date().toISOString(),
+        catatan: `Transfer ke koperasi - ${item.nama_barang}`,
+        before_qty: availableStock,
+        after_qty: newStock,
+      });
+
+    if (transaksiError) {
+      console.warn('Warning: Gagal mencatat transaksi inventaris:', transaksiError);
+      // Tidak throw error, transfer sudah berhasil
+    }
+
     return {
-      id: pengajuan.id,
-      item_id: data.item_id,
+      ...transfer,
       item_name: item.nama_barang,
-      jumlah: data.jumlah,
       tujuan: 'koperasi' as TransferDestination,
-      status: 'pending' as TransferStatus,
-      created_by: user.id,
-      created_at: pengajuan.created_at,
-      hpp_yayasan: nilaiPerolehan,
-      catatan: data.catatan || null,
+      status: 'completed' as TransferStatus,
     } as Transfer;
   }
 
@@ -237,16 +264,17 @@ export function calculateProfitSharing(
 }
 
 /**
- * Approve a pending transfer to koperasi
+ * PERUBAHAN: Fungsi ini DEPRECATED untuk transfer baru ke koperasi
  * 
- * Validates transfer status, pricing rules, creates koperasi product,
- * records liability, and updates transfer status to approved.
+ * Transfer ke koperasi sekarang langsung catat sebagai pengeluaran (tidak perlu approval).
+ * Modul koperasi input barang manual dengan owner_type dan HPP.
  * 
- * Requirements: AC-2.4, AC-2.5, AC-2.7, AC-2.8
+ * Fungsi ini tetap ada untuk backward compatibility dengan data lama yang masih pending.
  * 
  * @param transferId - ID of transfer to approve
  * @param approval - Approval data with condition and pricing
  * @throws TransferApprovalError if validation fails
+ * @deprecated Transfer ke koperasi sekarang langsung selesai, tidak perlu approval
  */
 export async function approveTransfer(
   transferId: string,
@@ -296,21 +324,51 @@ export async function approveTransfer(
     .eq('nama', 'Yayasan')
     .single();
 
-  // Create kop_barang record (map to kop_barang structure)
+  // Create kop_barang record (INDEPENDEN - tidak ada referensi ke inventaris)
+  // Generate kode YYS- untuk barang yayasan
+  const { data: lastKode } = await supabase
+    .from('kop_barang')
+    .select('kode_barang')
+    .eq('owner_type', 'yayasan')
+    .like('kode_barang', 'YYS-%')
+    .order('kode_barang', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let kodeBarang = 'YYS-0001';
+  if (lastKode?.kode_barang) {
+    const match = lastKode.kode_barang.match(/YYS-(\d+)/);
+    if (match) {
+      const num = parseInt(match[1]) + 1;
+      kodeBarang = `YYS-${String(num).padStart(4, '0')}`;
+    }
+  }
+
+  // Get kategori_id jika ada (copy dari inventaris)
+  let kategoriId = null;
+  if (transfer.inventaris?.kategori) {
+    const { data: kategori } = await supabase
+      .from('kop_kategori')
+      .select('id')
+      .eq('nama', transfer.inventaris.kategori)
+      .maybeSingle();
+    kategoriId = kategori?.id || null;
+  }
+
   const produkData = {
-    kode_barang: `INV-${transfer.inventaris_id?.slice(0, 8) || Date.now().toString().slice(-8)}`,
-    nama_barang: transfer.inventaris?.nama_barang || 'Item Transfer',
-    kategori_id: null, // Will be set based on kategori if needed
-    satuan_dasar: transfer.inventaris?.satuan || 'pcs',
+    kode_barang: kodeBarang,
+    nama_barang: transfer.inventaris?.nama_barang || 'Item Transfer', // Copy dari inventaris
+    kategori_id: kategoriId, // Copy dari inventaris jika ada
+    satuan_dasar: transfer.inventaris?.satuan || 'pcs', // Copy dari inventaris
     harga_beli: hppYayasan,
     harga_jual_ecer: approval.harga_jual,
     harga_jual_grosir: approval.harga_jual * 0.95, // 5% discount for grosir
     stok: transfer.jumlah,
     stok_minimum: 0,
-    inventaris_id: transfer.inventaris_id,
+    // inventaris_id: DIHAPUS - tidak ada referensi ke inventaris (INDEPENDEN)
     harga_transfer: hppYayasan,
     transfer_date: new Date().toISOString(),
-    transfer_reference: transferId,
+    transfer_reference: transferId, // Gunakan transfer_reference untuk tracking
     owner_type: 'yayasan' as const,
     bagi_hasil_yayasan: profitSplit.yayasan_percentage || 70,
     sumber_modal_id: sumberModal?.id || '',

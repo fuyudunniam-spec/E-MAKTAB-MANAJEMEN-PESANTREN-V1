@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeKondisi } from '@/utils/inventaris.utils';
 
 export interface InventoryStats {
   totalItems: number;
@@ -446,17 +447,8 @@ export const getInventoryConditionData = async (): Promise<InventoryConditionDat
   const conditionMap = new Map<string, { itemCount: number }>();
 
   items?.forEach(item => {
-    // Normalize kondisi dari data lama ke format baru
-    let kondisi = item.kondisi || 'Baik';
-    if (kondisi === 'Rusak Ringan' || kondisi === 'Perlu Perbaikan' || kondisi === 'Butuh Perbaikan') {
-      kondisi = 'Perlu perbaikan';
-    } else if (kondisi === 'Rusak Berat' || kondisi === 'Rusak') {
-      kondisi = 'Rusak';
-    } else if (kondisi === 'Baik') {
-      kondisi = 'Baik';
-    } else {
-      kondisi = 'Baik'; // Default
-    }
+    // Normalize kondisi menggunakan utility function untuk konsistensi
+    const kondisi = normalizeKondisi(item.kondisi);
     
     if (!conditionMap.has(kondisi)) {
       conditionMap.set(kondisi, { itemCount: 0 });
@@ -484,12 +476,8 @@ export const getInventoryConditionData = async (): Promise<InventoryConditionDat
  * Get color for condition
  */
 function getConditionColor(condition: string): string {
-  // Normalize kondisi untuk mapping warna
-  const normalized = condition === 'Perlu Perbaikan' || condition === 'Butuh Perbaikan' || condition === 'Rusak Ringan' 
-    ? 'Perlu perbaikan'
-    : condition === 'Rusak Berat' || condition === 'Rusak'
-    ? 'Rusak'
-    : 'Baik';
+  // Normalize kondisi menggunakan utility function untuk konsistensi
+  const normalized = normalizeKondisi(condition);
   
   const colors: Record<string, string> = {
     'Baik': '#10b981', // Green

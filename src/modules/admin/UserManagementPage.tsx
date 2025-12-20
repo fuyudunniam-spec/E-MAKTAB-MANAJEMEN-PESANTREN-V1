@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { UserManagementService, UserWithRoles, AppRole, CreateUserInput } from '@/services/userManagement.service';
+import { UserService, UserComplete, UserFilters } from '@/services/user.service';
 import { supabase } from '@/integrations/supabase/client';
 import { AkademikKelasService, KelasMaster } from '@/services/akademikKelas.service';
 import { AkademikAgendaService, AkademikAgenda } from '@/services/akademikAgenda.service';
@@ -70,6 +71,7 @@ const UserManagementPage: React.FC = () => {
   const [filterRole, setFilterRole] = useState<AppRole | 'all'>('all');
   const [viewMode, setViewMode] = useState<'dashboard' | 'table'>('dashboard');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'all' | 'santri' | 'pengajar' | 'staff'>('all');
   
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -125,9 +127,69 @@ const UserManagementPage: React.FC = () => {
     try {
       setLoading(true);
       console.log('[UserManagementPage] Loading users...');
-      const data = await UserManagementService.listUsers();
-      console.log('[UserManagementPage] Users loaded:', data?.length || 0);
-      setUsers(data || []);
+      
+      // Try to use new UserService first, fallback to UserManagementService
+      try {
+        const filters: UserFilters = {
+          user_type: activeTab === 'all' ? 'all' : activeTab,
+          role: filterRole === 'all' ? 'all' : filterRole,
+          search: searchTerm || undefined,
+        };
+        const data = await UserService.listUsers(filters);
+        console.log('[UserManagementPage] Users loaded via UserService:', data?.length || 0);
+        
+        // Convert UserComplete to UserWithRoles format for compatibility
+        const convertedUsers: UserWithRoles[] = data.map(u => {
+          // Debug: log if user has santri role but no santri data
+          if (u.roles.includes('santri' as AppRole) && !u.santri) {
+            console.warn('[UserManagementPage] User has santri role but no santri data:', {
+              id: u.id,
+              email: u.email,
+              roles: u.roles,
+              user_type: u.user_type,
+            });
+          }
+          
+          return {
+            id: u.id,
+            email: u.email,
+            full_name: u.full_name,
+            created_at: u.created_at,
+            updated_at: u.updated_at,
+            roles: u.roles as AppRole[],
+            username: u.santri?.id_santri || undefined,
+            password_plain: undefined, // Will be loaded separately if needed
+            santri: u.santri ? {
+              id: u.santri.id,
+              id_santri: u.santri.id_santri,
+              nama_lengkap: u.santri.nama_lengkap,
+              status_santri: u.santri.status_santri,
+              kategori: u.santri.kategori,
+              jenis_kelamin: u.santri.jenis_kelamin as 'Laki-laki' | 'Perempuan' | null,
+            } : undefined,
+            pengajar: u.pengajar ? {
+              id: u.pengajar.id,
+              nama_lengkap: u.pengajar.nama_lengkap,
+              kode_pengajar: u.pengajar.kode_pengajar || undefined,
+              status: u.pengajar.status,
+            } : undefined,
+          };
+        });
+        
+        console.log('[UserManagementPage] Converted users:', {
+          total: convertedUsers.length,
+          withSantri: convertedUsers.filter(u => u.santri).length,
+          withSantriRole: convertedUsers.filter(u => u.roles.includes('santri')).length,
+        });
+        
+        setUsers(convertedUsers);
+      } catch (serviceError) {
+        // Fallback to UserManagementService
+        console.warn('[UserManagementPage] UserService failed, using fallback:', serviceError);
+        const data = await UserManagementService.listUsers();
+        console.log('[UserManagementPage] Users loaded via UserManagementService:', data?.length || 0);
+        setUsers(data || []);
+      }
     } catch (error: any) {
       console.error('[UserManagementPage] Error loading users:', error);
       toast.error(error.message || 'Gagal memuat daftar user');
@@ -136,7 +198,7 @@ const UserManagementPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeTab, filterRole, searchTerm]);
 
   const loadKelas = useCallback(async () => {
     try {
@@ -166,7 +228,7 @@ const UserManagementPage: React.FC = () => {
       loadUsers();
       loadKelas();
     }
-  }, [isAdmin, loadUsers, loadKelas]);
+  }, [isAdmin, loadUsers, loadKelas, activeTab]);
 
   useEffect(() => {
     if (selectedKelasId) {
@@ -419,8 +481,14 @@ const UserManagementPage: React.FC = () => {
   // Calculate statistics
   const statistics = useMemo(() => {
     const totalUsers = users.length;
-    const santriUsers = users.filter(u => u.santri);
-    const pengajarUsers = users.filter(u => u.pengajar);
+    // Filter santri: check both santri property and 'santri' role
+    const santriUsers = users.filter(u => 
+      u.santri || u.roles.includes('santri')
+    );
+    // Filter pengajar: check both pengajar property and 'pengajar' role
+    const pengajarUsers = users.filter(u => 
+      u.pengajar || u.roles.includes('pengajar')
+    );
     const adminUsers = users.filter(u => u.roles.includes('admin'));
     const pengurusUsers = users.filter(u => 
       ['admin_keuangan', 'admin_inventaris', 'admin_akademik', 'pengurus'].some(r => u.roles.includes(r as AppRole))
@@ -876,6 +944,7 @@ const UserManagementPage: React.FC = () => {
                 onClick={() => {
                   setActiveFilter(null);
                   setFilterRole('all');
+                  setActiveTab('all');
                 }}
               >
                 <X className="w-4 h-4 mr-2" />
@@ -885,14 +954,75 @@ const UserManagementPage: React.FC = () => {
           </div>
           </CardHeader>
           <CardContent>
+            {/* Tabs untuk memisahkan Santri, Pengajar, dan Staff */}
+            <div className="mb-4 border-b">
+              <div className="flex gap-2">
+                <Button
+                  variant={activeTab === 'all' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => {
+                    setActiveTab('all');
+                    setFilterRole('all');
+                    setActiveFilter(null);
+                  }}
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Semua User
+                </Button>
+                <Button
+                  variant={activeTab === 'santri' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => {
+                    setActiveTab('santri');
+                    setFilterRole('santri');
+                    setActiveFilter(null);
+                  }}
+                >
+                  <GraduationCap className="w-4 h-4 mr-2" />
+                  Santri ({statistics.totalSantri})
+                </Button>
+                <Button
+                  variant={activeTab === 'pengajar' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => {
+                    setActiveTab('pengajar');
+                    setFilterRole('pengajar');
+                    setActiveFilter(null);
+                  }}
+                >
+                  <BookOpen className="w-4 h-4 mr-2" />
+                  Pengajar ({statistics.totalPengajar})
+                </Button>
+                <Button
+                  variant={activeTab === 'staff' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => {
+                    setActiveTab('staff');
+                    setFilterRole('all');
+                    setActiveFilter(null);
+                  }}
+                >
+                  <UserCog className="w-4 h-4 mr-2" />
+                  Staff ({statistics.totalAdmin + statistics.totalPengurus})
+                </Button>
+              </div>
+            </div>
+
             <div className="mb-4 flex flex-col md:flex-row gap-4">
               <Input
-                placeholder="Cari user berdasarkan email, nama, atau nama pengajar..."
+                placeholder="Cari user berdasarkan email, nama, ID santri, atau kode pengajar..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  // Trigger reload when search changes
+                  setTimeout(() => loadUsers(), 300);
+                }}
                 className="flex-1 max-w-md"
               />
-              <Select value={filterRole} onValueChange={(value) => setFilterRole(value as AppRole | 'all')}>
+              <Select value={filterRole} onValueChange={(value) => {
+                setFilterRole(value as AppRole | 'all');
+                setTimeout(() => loadUsers(), 100);
+              }}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Filter berdasarkan role" />
                 </SelectTrigger>
@@ -1109,7 +1239,8 @@ const UserManagementPage: React.FC = () => {
                                 onClick={() => {
                                   setSelectedUser(u);
                                   setNewPassword('');
-                                  setPasswordDialogOpen(true);
+                                  setShowPassword(false);
+                                setPasswordDialogOpen(true);
                                 }}
                               >
                                 <Key className="w-4 h-4 mr-2" />
@@ -1331,12 +1462,24 @@ const UserManagementPage: React.FC = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Password Baru *</Label>
-              <Input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Minimal 6 karakter"
-              />
+              <div className="relative">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimal 6 karakter"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
                 Password minimal 6 karakter
               </p>
@@ -1347,6 +1490,7 @@ const UserManagementPage: React.FC = () => {
               setPasswordDialogOpen(false);
               setNewPassword('');
               setSelectedUser(null);
+              setShowPassword(false);
             }}>
               Batal
             </Button>

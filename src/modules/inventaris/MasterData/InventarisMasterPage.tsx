@@ -86,28 +86,46 @@ const InventarisMasterPage = () => {
         }
     };
 
-    const handleDeleteItem = async () => {
+    const handleDeleteItem = async (forceDelete: boolean = false) => {
         if (!itemToDelete) return;
 
         setIsDeleting(true);
         try {
-            await deleteInventoryItem(itemToDelete.id);
+            await deleteInventoryItem(itemToDelete.id, forceDelete);
             
             toast({
                 title: 'Berhasil',
-                description: `Item "${itemToDelete.nama_barang}" berhasil dihapus`,
+                description: `Item "${itemToDelete.nama_barang}" berhasil dihapus${forceDelete ? ' (dengan menghapus referensi produk koperasi)' : ''}`,
             });
 
             // Refresh data
             fetchInventoryData();
             setItemToDelete(null);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error deleting item:', error);
-            toast({
-                title: 'Error',
-                description: 'Gagal menghapus item. Silakan coba lagi.',
-                variant: 'destructive'
-            });
+            
+            // Cek apakah error karena foreign key constraint
+            if (error.message && error.message.includes('direferensikan') && !forceDelete) {
+                // Tampilkan dialog konfirmasi untuk force delete
+                const shouldForceDelete = window.confirm(
+                    `${error.message}\n\n` +
+                    `Apakah Anda yakin ingin menghapus item ini dengan menghapus referensi di produk koperasi? ` +
+                    `Tindakan ini akan mengubah produk koperasi yang terkait menjadi tidak memiliki referensi inventaris.`
+                );
+                
+                if (shouldForceDelete) {
+                    // Retry dengan forceDelete = true
+                    setIsDeleting(false); // Reset state sebelum retry
+                    await handleDeleteItem(true);
+                    return;
+                }
+            } else {
+                toast({
+                    title: 'Error',
+                    description: error.message || 'Gagal menghapus item. Silakan coba lagi.',
+                    variant: 'destructive'
+                });
+            }
         } finally {
             setIsDeleting(false);
         }

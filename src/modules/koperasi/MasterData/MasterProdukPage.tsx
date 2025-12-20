@@ -282,38 +282,38 @@ export default function MasterProdukPage() {
 
       <Tabs defaultValue="products" value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-8 lg:w-auto">
-          <TabsTrigger value="products" className="flex items-center gap-2">
+          <TabsTrigger key="products" value="products" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Produk</span>
           </TabsTrigger>
-          <TabsTrigger value="approval" className="flex items-center gap-2">
+          <TabsTrigger key="approval" value="approval" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             <span className="hidden sm:inline">Approval</span>
           </TabsTrigger>
-          <TabsTrigger value="yayasan-items" className="flex items-center gap-2">
+          <TabsTrigger key="yayasan-items" value="yayasan-items" className="flex items-center gap-2">
             <Store className="h-4 w-4" />
             <span className="hidden sm:inline">Item Yayasan</span>
           </TabsTrigger>
-          <TabsTrigger value="alerts" className="flex items-center gap-2">
+          <TabsTrigger key="alerts" value="alerts" className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
             <span className="hidden sm:inline">Alert</span>
             {stockAlerts.length > 0 && (
               <Badge variant="destructive" className="ml-1">{stockAlerts.length}</Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="stock-opname" className="flex items-center gap-2">
+          <TabsTrigger key="stock-opname" value="stock-opname" className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4" />
             <span className="hidden sm:inline">Opname</span>
           </TabsTrigger>
-          <TabsTrigger value="kategori" className="flex items-center gap-2">
+          <TabsTrigger key="kategori" value="kategori" className="flex items-center gap-2">
             <Tag className="h-4 w-4" />
             <span className="hidden sm:inline">Kategori</span>
           </TabsTrigger>
-          <TabsTrigger value="supplier" className="flex items-center gap-2">
+          <TabsTrigger key="supplier" value="supplier" className="flex items-center gap-2">
             <Store className="h-4 w-4" />
             <span className="hidden sm:inline">Supplier</span>
           </TabsTrigger>
-          <TabsTrigger value="import-export" className="flex items-center gap-2">
+          <TabsTrigger key="import-export" value="import-export" className="flex items-center gap-2">
             <FileSpreadsheet className="h-4 w-4" />
             <span className="hidden sm:inline">I/E</span>
           </TabsTrigger>

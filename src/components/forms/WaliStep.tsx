@@ -59,14 +59,16 @@ const WaliStep: React.FC<WaliStepProps> = ({
   };
 
   return (
-    <Card className="rounded-xl shadow-sm border border-slate-200">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Users className="w-5 h-5 text-blue-600" />
+    <Card className="rounded-2xl shadow-sm border border-slate-100 bg-white">
+      <CardHeader className="pb-4 border-b border-slate-100">
+        <CardTitle className="text-xl font-semibold flex items-center gap-2.5 text-slate-800">
+          <div className="p-2 rounded-lg bg-blue-50">
+            <Users className="w-5 h-5 text-blue-600" />
+          </div>
           Data Wali
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5 pt-6">
         {isMukim && (
           <Alert>
             <AlertCircle className="h-4 w-4" />
@@ -77,14 +79,14 @@ const WaliStep: React.FC<WaliStepProps> = ({
         )}
 
         {waliData.map((wali, index) => (
-          <div key={index} className={`p-5 border-2 rounded-lg ${wali.is_utama ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200'}`}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <h4 className="font-semibold text-slate-700">
+          <div key={index} className={`p-6 border-2 rounded-xl transition-all ${wali.is_utama ? 'border-blue-300 bg-blue-50/50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2.5">
+                <h4 className="font-semibold text-slate-800 text-base">
                   {wali.is_utama ? '⭐ Wali Utama' : `Wali ${index + 1}`}
                 </h4>
                 {wali.is_utama && (
-                  <Badge variant="default" className="text-xs">Primary</Badge>
+                  <Badge variant="default" className="text-xs bg-blue-600">Primary</Badge>
                 )}
               </div>
               <div className="flex gap-2">
@@ -115,22 +117,27 @@ const WaliStep: React.FC<WaliStepProps> = ({
             </div>
             
             {/* Basic Info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-slate-700">Nama Lengkap *</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-700">
+                  Nama Lengkap <span className="text-red-500">*</span>
+                </Label>
                 <Input 
                   value={wali.nama_lengkap || ''}
                   onChange={(e) => updateWali(index, 'nama_lengkap', e.target.value)}
                   placeholder="Masukkan nama wali"
+                  className="bg-white border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-slate-700">Hubungan Keluarga *</Label>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-700">
+                  Hubungan Keluarga <span className="text-red-500">*</span>
+                </Label>
                 <Select 
                   value={wali.hubungan_keluarga || ''}
                   onValueChange={(value) => updateWali(index, 'hubungan_keluarga', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-white border-slate-200 focus:ring-2 focus:ring-blue-500/20">
                     <SelectValue placeholder="Pilih hubungan" />
                   </SelectTrigger>
                   <SelectContent>
@@ -147,45 +154,57 @@ const WaliStep: React.FC<WaliStepProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-slate-700">Nomor WhatsApp *</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-700">
+                  Nomor WhatsApp <span className="text-red-500">*</span>
+                </Label>
                 <Input 
                   value={wali.no_whatsapp || ''}
                   onChange={(e) => updateWali(index, 'no_whatsapp', e.target.value)}
                   placeholder="+62..."
+                  className="bg-white border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-slate-700">Alamat</Label>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-700">Alamat</Label>
                 <Input 
                   value={wali.alamat || ''}
                   onChange={(e) => updateWali(index, 'alamat', e.target.value)}
                   placeholder="Masukkan alamat wali"
+                  className="bg-white border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
                 />
               </div>
             </div>
 
             {/* Economic Data - For Binaan */}
             {isBinaan && (
-              <div className="pt-4 border-t border-slate-200">
-                <h5 className="text-sm font-semibold text-slate-700 mb-3">Data Ekonomi</h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-slate-700">Pekerjaan *</Label>
+              <div className="pt-5 border-t border-slate-200 mt-5">
+                <h5 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                  <div className="w-1 h-4 bg-blue-500 rounded-full"></div>
+                  Data Ekonomi
+                </h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-slate-700">
+                      Pekerjaan <span className="text-red-500">*</span>
+                    </Label>
                     <Input 
                       value={wali.pekerjaan || ''}
                       onChange={(e) => updateWali(index, 'pekerjaan', e.target.value)}
                       placeholder="Karyawan Swasta, Wiraswasta, PNS"
+                      className="bg-white border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-slate-700">Penghasilan Bulanan *</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-slate-700">
+                      Penghasilan Bulanan <span className="text-red-500">*</span>
+                    </Label>
                     <Select 
                       value={wali.penghasilan_bulanan !== undefined && wali.penghasilan_bulanan !== null ? wali.penghasilan_bulanan.toString() : ''}
                       onValueChange={(value) => updateWali(index, 'penghasilan_bulanan', parseFloat(value))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-white border-slate-200 focus:ring-2 focus:ring-blue-500/20">
                         <SelectValue placeholder="Pilih range penghasilan" />
                       </SelectTrigger>
                       <SelectContent>
@@ -212,7 +231,7 @@ const WaliStep: React.FC<WaliStepProps> = ({
             type="button"
             variant="outline"
             onClick={addWali}
-            className="w-full border-dashed border-2"
+            className="w-full border-dashed border-2 border-slate-300 hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
           >
             <Plus className="w-4 h-4 mr-2" />
             Tambah Wali {isMukim ? 'Pendamping' : 'Lainnya'}

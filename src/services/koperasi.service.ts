@@ -110,7 +110,6 @@ export const listKoperasiProduk = async (filters?: {
       is_active,
       owner_type,
       bagi_hasil_yayasan,
-      inventaris_id,
       created_at,
       updated_at
     `)
@@ -157,7 +156,7 @@ export const listKoperasiProduk = async (filters?: {
     deskripsi: null,
     foto_url: null,
     is_active: item.is_active !== false,
-    inventaris_id: item.inventaris_id || null,
+    inventaris_id: null, // DIHAPUS - tidak digunakan lagi karena independen
     sumber_modal_id: item.sumber_modal_id || '',
     created_at: item.created_at || new Date().toISOString(),
     updated_at: item.updated_at || new Date().toISOString(),
@@ -189,7 +188,6 @@ export const getKoperasiProduk = async (id: string): Promise<KoperasiProduk | nu
       is_active,
       owner_type,
       bagi_hasil_yayasan,
-      inventaris_id,
       created_at,
       updated_at
     `)
@@ -221,7 +219,7 @@ export const getKoperasiProduk = async (id: string): Promise<KoperasiProduk | nu
     deskripsi: null,
     foto_url: null,
     is_active: data.is_active !== false,
-    inventaris_id: data.inventaris_id || null,
+    inventaris_id: null, // DIHAPUS - tidak digunakan lagi karena independen
     sumber_modal_id: data.sumber_modal_id || '',
     created_at: data.created_at || new Date().toISOString(),
     updated_at: data.updated_at || new Date().toISOString(),
@@ -394,15 +392,43 @@ export const updateKoperasiProduk = async (
 };
 
 /**
- * Delete produk koperasi (soft delete)
+ * Delete produk koperasi
+ * 
+ * Dengan denormalisasi snapshot, sekarang bisa hard delete karena:
+ * - Data barang sudah tersimpan di kop_penjualan_detail sebagai snapshot
+ * - History penjualan tetap lengkap meski barang dihapus
+ * 
+ * @param id - ID produk yang akan dihapus
+ * @param hardDelete - Jika true, hapus permanen. Jika false, soft delete (is_active = false)
  */
-export const deleteKoperasiProduk = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('kop_barang')
-    .update({ is_active: false })
-    .eq('id', id);
+export const deleteKoperasiProduk = async (id: string, hardDelete: boolean = false): Promise<void> => {
+  if (hardDelete) {
+    // Hard delete - hapus permanen
+    // History penjualan tetap aman karena sudah ada snapshot di kop_penjualan_detail
+    const { error } = await supabase
+      .from('kop_barang')
+      .delete()
+      .eq('id', id);
 
-  if (error) throw error;
+    if (error) {
+      // Jika masih ada foreign key constraint error, berarti ada referensi lain
+      if (error.code === '23503' || error.message?.includes('foreign key')) {
+        throw new Error(
+          'Barang tidak dapat dihapus karena masih direferensikan oleh data lain. ' +
+          'Gunakan soft delete (is_active = false) atau hapus referensi terlebih dahulu.'
+        );
+      }
+      throw error;
+    }
+  } else {
+    // Soft delete - set is_active = false
+    const { error } = await supabase
+      .from('kop_barang')
+      .update({ is_active: false })
+      .eq('id', id);
+
+    if (error) throw error;
+  }
 };
 
 // =====================================================
@@ -1808,6 +1834,8 @@ export const koperasiService = {
             bagian_yayasan,
             bagian_koperasi,
             sumber_modal_id,
+            barang_nama_snapshot,
+            barang_kode_snapshot,
             kop_barang (
               id,
               nama_barang,
@@ -1841,24 +1869,16 @@ export const koperasiService = {
       }
       
       const items = (data.kop_penjualan_detail || []).map((detail: any) => {
-        // Jika produk sudah dihapus, kop_barang akan null
-        const isDeleted = !detail.kop_barang;
-        let namaBarang = detail.kop_barang?.nama_barang || '';
-        
-        // Jika nama_barang kosong, coba ambil dari items_summary
-        if (!namaBarang && itemsSummaryMap.size > 0) {
-          // Ambil nama pertama dari items_summary sebagai fallback
-          namaBarang = Array.from(itemsSummaryMap.values())[0] || 'Produk (Sudah Dihapus)';
-        } else if (!namaBarang) {
-          namaBarang = 'Produk (Sudah Dihapus)';
-        }
+        // Gunakan snapshot jika kop_barang NULL (barang sudah dihapus)
+        const namaBarang = detail.kop_barang?.nama_barang || detail.barang_nama_snapshot || 'Barang Dihapus';
+        const satuan = detail.kop_barang?.satuan_dasar || 'pcs';
         
         return {
           id: detail.id,
           item_id: detail.barang_id || detail.kop_barang?.id || '',
           nama_barang: namaBarang,
           jumlah: detail.jumlah,
-          satuan: detail.kop_barang?.satuan_dasar || 'pcs',
+          satuan: satuan,
           harga_satuan_jual: detail.harga_satuan_jual,
           subtotal: detail.harga_satuan_jual * detail.jumlah,
           hpp: detail.hpp_snapshot || 0,
@@ -2581,12 +2601,14 @@ export const setoranCashKasirService = {
   // Logika: Penjualan dianggap sudah disetor jika tanggalnya masuk dalam periode setoran cash yang ada
   async getTotalCashSalesForKasir(kasirId: string, shiftId?: string) {
     // Get all cash sales for this kasir
+    // PENTING: Hanya ambil penjualan yang benar-benar sudah lunas (tidak ada sisa hutang)
     let query = supabase
       .from('kop_penjualan')
-      .select('id, total_transaksi, metode_pembayaran, tanggal')
+      .select('id, total_transaksi, metode_pembayaran, tanggal, status_pembayaran, sisa_hutang')
       .eq('kasir_id', kasirId)
       .eq('metode_pembayaran', 'cash')
-      .eq('status_pembayaran', 'lunas');
+      .eq('status_pembayaran', 'lunas')
+      .or('sisa_hutang.is.null,sisa_hutang.eq.0');
 
     if (shiftId) {
       // Note: shift_id tidak ada di kop_penjualan, jadi kita skip filter ini
@@ -2629,11 +2651,31 @@ export const setoranCashKasirService = {
     });
 
     // Filter penjualan yang belum disetor
-    const belumDisetor = (allPenjualan || []).filter((p: any) => !penjualanSudahDisetor.has(p.id));
+    // Pastikan hanya menghitung penjualan yang benar-benar sudah lunas (tidak ada sisa hutang)
+    const belumDisetor = (allPenjualan || []).filter((p: any) => {
+      // Exclude jika sudah disetor
+      if (penjualanSudahDisetor.has(p.id)) return false;
+      
+      // Exclude jika masih memiliki sisa hutang (double check untuk safety)
+      const sisaHutang = parseFloat(p.sisa_hutang || 0);
+      if (sisaHutang > 0) return false;
+      
+      // Exclude jika status pembayaran bukan 'lunas' (double check untuk safety)
+      if (p.status_pembayaran !== 'lunas') return false;
+      
+      return true;
+    });
 
     // Calculate total cash sales yang belum disetor
     const totalPenjualanCash = belumDisetor.reduce(
-      (sum: number, p: any) => sum + parseFloat(p.total_transaksi || 0),
+      (sum: number, p: any) => {
+        // Double check: hanya hitung yang benar-benar sudah lunas
+        const sisaHutang = parseFloat(p.sisa_hutang || 0);
+        if (sisaHutang > 0 || p.status_pembayaran !== 'lunas') {
+          return sum; // Skip penjualan yang masih berhutang
+        }
+        return sum + parseFloat(p.total_transaksi || 0);
+      },
       0
     );
 
@@ -2830,13 +2872,19 @@ export const setoranCashKasirService = {
     
     // Untuk setor cash, kita ambil SEMUA penjualan cash untuk periode tersebut
     // Tidak perlu filter berdasarkan kasir karena setor cash adalah untuk seluruh penjualan periode
+    // PENTING: Hanya ambil penjualan yang benar-benar sudah lunas (tidak ada sisa hutang)
+    // Exclude penjualan dengan status 'hutang' atau 'cicilan', dan juga yang masih memiliki sisa_hutang > 0
     let query = supabase
       .from('kop_penjualan')
-      .select('id, total_transaksi, metode_pembayaran, tanggal, kasir_id')
+      .select('id, total_transaksi, metode_pembayaran, tanggal, kasir_id, status_pembayaran, sisa_hutang')
       .eq('metode_pembayaran', 'cash')
       .eq('status_pembayaran', 'lunas')
       .gte('tanggal', startDateWithTime)
       .lte('tanggal', endDateWithTime);
+    
+    // Filter: hanya ambil yang sisa_hutang = 0 atau NULL (benar-benar sudah lunas)
+    // Exclude yang masih memiliki sisa hutang
+    query = query.or('sisa_hutang.is.null,sisa_hutang.eq.0');
 
     // Hanya filter berdasarkan kasir jika benar-benar diperlukan (untuk kasus khusus)
     // Untuk setor cash umumnya tidak perlu filter kasir
@@ -2905,7 +2953,20 @@ export const setoranCashKasirService = {
     });
 
     // Filter penjualan yang belum disetor
-    const belumDisetor = (allPenjualan || []).filter((p: any) => !penjualanSudahDisetor.has(p.id));
+    // Pastikan hanya menghitung penjualan yang benar-benar sudah lunas (tidak ada sisa hutang)
+    const belumDisetor = (allPenjualan || []).filter((p: any) => {
+      // Exclude jika sudah disetor
+      if (penjualanSudahDisetor.has(p.id)) return false;
+      
+      // Exclude jika masih memiliki sisa hutang (double check untuk safety)
+      const sisaHutang = parseFloat(p.sisa_hutang || 0);
+      if (sisaHutang > 0) return false;
+      
+      // Exclude jika status pembayaran bukan 'lunas' (double check untuk safety)
+      if (p.status_pembayaran !== 'lunas') return false;
+      
+      return true;
+    });
 
     // Calculate total cash sales yang belum disetor
     const totalBelumDisetor = belumDisetor.reduce(
@@ -2914,8 +2975,16 @@ export const setoranCashKasirService = {
     );
 
     // Calculate total cash sales (semua, termasuk yang sudah disetor)
+    // Pastikan hanya menghitung penjualan yang benar-benar sudah lunas
     const totalSemua = (allPenjualan || []).reduce(
-      (sum: number, p: any) => sum + parseFloat(p.total_transaksi || 0),
+      (sum: number, p: any) => {
+        // Double check: hanya hitung yang benar-benar sudah lunas
+        const sisaHutang = parseFloat(p.sisa_hutang || 0);
+        if (sisaHutang > 0 || p.status_pembayaran !== 'lunas') {
+          return sum; // Skip penjualan yang masih berhutang
+        }
+        return sum + parseFloat(p.total_transaksi || 0);
+      },
       0
     );
 
@@ -3708,7 +3777,15 @@ export const monthlyCashReconciliationService = {
     const { data: user } = await supabase.auth.getUser();
     if (!user) throw new Error('User tidak terautentikasi');
     
-    const tanggal = data.tanggal || new Date().toISOString().split('T')[0];
+    // Gunakan tanggal akhir bulan dari periode yang ditransfer jika tanggal tidak diberikan
+    // Ini memastikan transaksi tercatat pada periode yang benar untuk grafik keuangan
+    let tanggal = data.tanggal;
+    if (!tanggal) {
+      // Hitung tanggal akhir bulan dari periode yang ditransfer
+      const lastDayOfMonth = new Date(data.year, data.month, 0).getDate();
+      tanggal = `${data.year}-${String(data.month).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}`;
+    }
+    
     const monthName = new Date(data.year, data.month - 1).toLocaleString('id-ID', { month: 'long', year: 'numeric' });
     
     // Get akun kas koperasi (sumber)

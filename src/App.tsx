@@ -31,6 +31,7 @@ import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
 import SantriProfile from "./pages/SantriProfile";
 import SantriProfileRedesigned from "./pages/SantriProfileRedesigned";
+import SantriOnboarding from "./pages/SantriOnboarding";
 import SantriAccountManagement from "./pages/SantriAccountManagement";
 import ChangePassword from "./pages/ChangePassword";
 // Removed: ProgramSantri, ApprovalSantri (no longer used)
@@ -396,6 +397,7 @@ const App = () => (
               </Layout>
             } />
             <Route path="/santri/add" element={<SantriProfileFull mode="add" />} />
+            <Route path="/santri/onboarding" element={<SantriOnboarding />} />
             <Route path="/santri/profile" element={
               <Layout>
                 <SantriProfileRedesigned />

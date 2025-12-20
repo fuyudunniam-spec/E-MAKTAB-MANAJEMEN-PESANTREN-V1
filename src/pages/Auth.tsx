@@ -174,12 +174,28 @@ export default function Auth() {
                 const santri = Array.isArray(santriData) && santriData.length > 0 ? santriData[0] : null;
                 
                 if (santri?.id) {
-                  console.log('🔐 [Auth] Redirecting santri to profile:', {
+                  console.log('🔐 [Auth] Redirecting santri:', {
                     santriId: santri.id,
                     idSantri: santri.id_santri,
                     nama: santri.nama_lengkap
                   });
-                  // Redirect to santri profile
+                  
+                  // Check profile completion
+                  try {
+                    const { SantriOnboardingService } = await import('@/services/santriOnboarding.service');
+                    const completion = await SantriOnboardingService.checkProfileCompletion(santri.id);
+                    
+                    if (!completion.isComplete && !completion.canSkipOnboarding) {
+                      // Redirect to onboarding if profile is incomplete
+                      console.log('📋 [Auth] Profile incomplete, redirecting to onboarding');
+                      window.location.href = `/santri/onboarding?santriId=${santri.id}`;
+                      return;
+                    }
+                  } catch (onboardingError) {
+                    console.warn('⚠️ [Auth] Error checking profile completion, redirecting to profile:', onboardingError);
+                  }
+                  
+                  // Redirect to santri profile if complete or can skip
                   window.location.href = `/santri/profile?santriId=${santri.id}&santriName=${encodeURIComponent(santri.nama_lengkap || 'Santri')}`;
                   return;
                 } else {
@@ -338,12 +354,23 @@ export default function Auth() {
           <TabsContent value="register">
             <Card className="border-slate-200 shadow-lg">
               <CardHeader className="space-y-1 pb-4">
-                <CardTitle className="text-xl font-semibold text-slate-800">Daftar Akun Baru</CardTitle>
+                <CardTitle className="text-xl font-semibold text-slate-800">Daftar Akun Pengajar</CardTitle>
                 <CardDescription className="text-slate-600">
-                  Buat akun baru untuk mengakses sistem
+                  Form pendaftaran khusus untuk Pengajar. Akun akan memerlukan persetujuan admin.
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <Alert className="mb-4 bg-blue-50 border-blue-200">
+                  <AlertDescription className="text-blue-800 text-sm">
+                    <strong>Catatan Penting:</strong>
+                    <ul className="list-disc list-inside mt-2 space-y-1">
+                      <li>Form ini khusus untuk <strong>Pengajar</strong> yang ingin mendaftar</li>
+                      <li>Akun Santri <strong>tidak dapat</strong> dibuat melalui form ini. Silakan hubungi admin</li>
+                      <li>Setelah pendaftaran, akun Anda akan menunggu persetujuan admin</li>
+                      <li>Anda akan menerima email notifikasi setelah akun disetujui</li>
+                    </ul>
+                  </AlertDescription>
+                </Alert>
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="register-fullname" className="text-slate-700 font-medium">Nama Lengkap</Label>

@@ -25,7 +25,17 @@ export default function ImportExportData() {
       const headers = ['Kode Produk', 'Nama Produk', 'Kategori', 'Satuan', 'Harga Beli', 'Harga Jual Ecer', 'Harga Jual Grosir', 'Barcode', 'Deskripsi'];
       const csvRows = [headers.join(',')];
 
-      data?.forEach((item: any) => {
+      interface KopBarang {
+        kode_barang: string;
+        nama_barang: string;
+        kategori_id: string | null;
+        satuan_dasar: string;
+        harga_beli: number;
+        harga_jual_ecer: number;
+        harga_jual_grosir: number;
+      }
+
+      data?.forEach((item: KopBarang) => {
         const row = [
           item.kode_barang || '',
           `"${item.nama_barang || ''}"`,
@@ -53,8 +63,9 @@ export default function ImportExportData() {
       document.body.removeChild(link);
 
       toast.success('Data produk berhasil diekspor');
-    } catch (error: any) {
-      toast.error(error.message || 'Gagal mengekspor data');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Gagal mengekspor data';
+      toast.error(errorMessage);
     } finally {
       setIsExporting(false);
     }
@@ -112,17 +123,8 @@ export default function ImportExportData() {
             harga_jual_ecer: p.harga_jual,
             harga_jual_grosir: p.harga_jual * 0.95,
             stok: 0,
-            stok_minimum: 0,
-            sumber_modal_id: sumberModal?.id || '',
-            is_active: true,
-            kode_barang: p.kode_produk,
-            nama_barang: p.nama_produk,
-            satuan_dasar: p.satuan,
-            harga_beli: p.harga_beli,
-            harga_jual_ecer: p.harga_jual,
-            harga_jual_grosir: p.harga_jual,
-            stok: 0,
             stok_minimum: 5,
+            sumber_modal_id: sumberModal?.id || '',
             is_active: true,
           })),
           { onConflict: 'kode_barang' }
@@ -134,8 +136,9 @@ export default function ImportExportData() {
       
       // Reset input
       event.target.value = '';
-    } catch (error: any) {
-      toast.error(error.message || 'Gagal mengimpor data');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Gagal mengimpor data';
+      toast.error(errorMessage);
     } finally {
       setIsImporting(false);
     }

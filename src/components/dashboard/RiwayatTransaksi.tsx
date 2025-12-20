@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Edit, Trash2, ArrowUpRight, ArrowDownLeft, X, Calendar, CheckSquare, Square } from 'lucide-react';
+import { Search, Edit, Trash2, ArrowUpRight, ArrowDownLeft, X, Calendar, CheckSquare, Square, CalendarDays } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,6 +32,7 @@ interface Transaction {
   display_description?: string;
   auto_posted?: boolean;
   source_module?: string;
+  source_id?: string; // ID dari modul sumber (misalnya donation.id)
   referensi?: string;
   is_pengeluaran_riil?: boolean; // Baru: untuk tracking nominal vs pengeluaran riil
 }
@@ -56,6 +57,7 @@ interface RiwayatTransaksiProps {
   onViewDetail?: (transaction: Transaction) => void;
   onEditTransaction?: (transaction: Transaction) => void;
   onDeleteTransaction?: (transaction: Transaction) => void;
+  onEditTanggalDonasi?: (transaction: Transaction) => void; // New: untuk edit tanggal transfer donasi
   initialDateFilter?: string; // For syncing date filter from parent
   onDateFilterChange?: (filter: string) => void; // Callback when date filter changes
   initialCustomStartDate?: string; // For syncing custom start date from parent
@@ -71,6 +73,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
   onViewDetail,
   onEditTransaction,
   onDeleteTransaction,
+  onEditTanggalDonasi,
   initialDateFilter,
   onDateFilterChange,
   initialCustomStartDate,
@@ -913,11 +916,23 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-right">
                             <div className="flex items-center justify-end space-x-1">
-                              {transaction.auto_posted || 
+                              {/* Transaksi donasi: tampilkan tombol edit tanggal khusus */}
+                              {(transaction.source_module === 'donasi' || 
+                                transaction.referensi?.startsWith('donasi:') ||
+                                transaction.referensi?.startsWith('donation:')) && 
+                               transaction.jenis_transaksi === 'Pemasukan' ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => onEditTanggalDonasi?.(transaction)}
+                                  className="h-8 w-8 p-0 hover:bg-green-100"
+                                  title="Edit tanggal transfer"
+                                >
+                                  <CalendarDays className="h-4 w-4 text-green-600" />
+                                </Button>
+                              ) : transaction.auto_posted || 
                                transaction.referensi?.startsWith('inventory_sale:') ||
                                transaction.referensi?.startsWith('inventaris:') ||
-                               transaction.referensi?.startsWith('donation:') ||
-                               transaction.referensi?.startsWith('donasi:') ||
                                transaction.referensi?.startsWith('pembayaran_santri:') ||
                                transaction.kategori === 'Penjualan Inventaris' ? (
                                 <span className="text-xs text-muted-foreground">-</span>
@@ -1034,11 +1049,25 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                       </div>
 
                       {/* Actions */}
-                      {!(transaction.auto_posted || 
+                      {/* Transaksi donasi: tampilkan tombol edit tanggal khusus */}
+                      {(transaction.source_module === 'donasi' || 
+                        transaction.referensi?.startsWith('donasi:') ||
+                        transaction.referensi?.startsWith('donation:')) && 
+                       transaction.jenis_transaksi === 'Pemasukan' ? (
+                        <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onEditTanggalDonasi?.(transaction)}
+                            className="flex-1 h-8 text-xs text-green-600 hover:bg-green-50"
+                          >
+                            <CalendarDays className="h-3 w-3 mr-1" />
+                            Edit Tanggal
+                          </Button>
+                        </div>
+                      ) : !(transaction.auto_posted || 
                          transaction.referensi?.startsWith('inventory_sale:') ||
                          transaction.referensi?.startsWith('inventaris:') ||
-                         transaction.referensi?.startsWith('donation:') ||
-                         transaction.referensi?.startsWith('donasi:') ||
                          transaction.referensi?.startsWith('pembayaran_santri:') ||
                          transaction.kategori === 'Penjualan Inventaris') && (
                         <div className="flex items-center gap-2 pt-2 border-t border-gray-200">

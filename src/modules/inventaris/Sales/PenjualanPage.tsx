@@ -89,7 +89,6 @@ const PenjualanPage = () => {
   const tabs = [
     { label: 'Dashboard', path: '/inventaris' },
     { label: 'Master Data', path: '/inventaris/master' },
-    { label: 'Transfer', path: '/inventaris/transfer' },
     { label: 'Distribusi', path: '/inventaris/distribution' }
   ];
 

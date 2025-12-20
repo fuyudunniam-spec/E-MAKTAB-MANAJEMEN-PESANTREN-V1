@@ -14,6 +14,7 @@ import SaldoPerAkun from '../components/SaldoPerAkun';
 import RiwayatTransaksi from '../components/dashboard/RiwayatTransaksi';
 import TransactionDetailModal from '../components/TransactionDetailModal';
 import TransactionEditModal from '../components/TransactionEditModal';
+import EditTanggalTransferDonasiDialog from '../components/EditTanggalTransferDonasiDialog';
 import StackedAccountCards from '../components/dashboard/StackedAccountCards';
 import TotalBalanceDisplay from '../components/dashboard/TotalBalanceDisplay';
 
@@ -66,6 +67,8 @@ const KeuanganV3: React.FC = () => {
   const [showEditAccount, setShowEditAccount] = useState(false);
   const [showTransactionDetail, setShowTransactionDetail] = useState(false);
   const [showTransactionEdit, setShowTransactionEdit] = useState(false);
+  const [showEditTanggalDonasi, setShowEditTanggalDonasi] = useState(false);
+  const [selectedTransactionForEditTanggal, setSelectedTransactionForEditTanggal] = useState<any>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
@@ -933,6 +936,16 @@ const KeuanganV3: React.FC = () => {
     setShowTransactionEdit(true);
   };
 
+  const handleEditTanggalDonasi = (transaction: any) => {
+    // Hanya untuk transaksi donasi dengan jenis pemasukan
+    if (transaction.source_module === 'donasi' && transaction.jenis_transaksi === 'Pemasukan') {
+      setSelectedTransactionForEditTanggal(transaction);
+      setShowEditTanggalDonasi(true);
+    } else {
+      toast.error('Fitur ini hanya untuk transaksi pemasukan dari donasi');
+    }
+  };
+
   const handleDeleteTransaction = async (transaction: any) => {
     // Prevent deleting auto-posted entries
     if (transaction.auto_posted) {
@@ -1175,6 +1188,7 @@ const KeuanganV3: React.FC = () => {
         onViewDetail={handleViewDetail}
         onEditTransaction={handleEditTransaction}
         onDeleteTransaction={handleDeleteTransaction}
+        onEditTanggalDonasi={handleEditTanggalDonasi}
       />
 
       {/* Modal for Input Pengeluaran */}
@@ -1397,6 +1411,22 @@ const KeuanganV3: React.FC = () => {
         isOpen={showTransactionEdit}
         onClose={() => setShowTransactionEdit(false)}
         onSuccess={handleEditSuccess}
+      />
+
+      {/* Edit Tanggal Transfer Donasi Dialog */}
+      <EditTanggalTransferDonasiDialog
+        transaction={selectedTransactionForEditTanggal}
+        isOpen={showEditTanggalDonasi}
+        onClose={() => {
+          setShowEditTanggalDonasi(false);
+          setSelectedTransactionForEditTanggal(null);
+        }}
+        onSuccess={async () => {
+          setShowEditTanggalDonasi(false);
+          setSelectedTransactionForEditTanggal(null);
+          await loadData();
+          await loadChartData(selectedAccountFilter);
+        }}
       />
 
       {/* Export PDF Dialog V3 */}

@@ -312,6 +312,8 @@ function RiwayatPenjualanPage() {
               jumlah,
               harga_satuan_jual,
               subtotal,
+              barang_nama_snapshot,
+              barang_kode_snapshot,
               kop_barang(
                 id,
                 nama_barang,
@@ -323,10 +325,23 @@ function RiwayatPenjualanPage() {
 
           return {
             ...penjualan,
-            kop_penjualan_detail: (details || []).map(d => ({
-              ...d,
-              kop_barang: Array.isArray(d.kop_barang) ? d.kop_barang[0] : d.kop_barang
-            })) as KopPenjualanDetail[]
+            kop_penjualan_detail: (details || []).map(d => {
+              const kopBarang = Array.isArray(d.kop_barang) ? d.kop_barang[0] : d.kop_barang;
+              // Gunakan snapshot jika kop_barang NULL (barang sudah dihapus)
+              return {
+                ...d,
+                kop_barang: kopBarang ? {
+                  ...kopBarang,
+                  nama_barang: kopBarang.nama_barang || d.barang_nama_snapshot || 'Barang Dihapus',
+                  kode_barang: kopBarang.kode_barang || d.barang_kode_snapshot || null
+                } : {
+                  id: null,
+                  nama_barang: d.barang_nama_snapshot || 'Barang Dihapus',
+                  kode_barang: d.barang_kode_snapshot || null,
+                  satuan_dasar: 'pcs'
+                }
+              };
+            }) as KopPenjualanDetail[]
           };
         })
       );
@@ -653,6 +668,8 @@ function RiwayatPenjualanPage() {
             margin,
             bagian_yayasan,
             bagian_koperasi,
+            barang_nama_snapshot,
+            barang_kode_snapshot,
             kop_barang(
               id,
               kode_barang,
@@ -678,12 +695,24 @@ function RiwayatPenjualanPage() {
         kop_shift_kasir: Array.isArray(data.kop_shift_kasir) 
           ? (data.kop_shift_kasir[0] as KopShiftKasir | undefined) || null
           : data.kop_shift_kasir,
-        kop_penjualan_detail: (data.kop_penjualan_detail || []).map((d: {
-          kop_barang?: KopBarang | KopBarang[];
-        }) => ({
-          ...d,
-          kop_barang: Array.isArray(d.kop_barang) ? d.kop_barang[0] : d.kop_barang
-        })) as KopPenjualanDetail[]
+        kop_penjualan_detail: (data.kop_penjualan_detail || []).map((d: any) => {
+          const kopBarang = Array.isArray(d.kop_barang) ? d.kop_barang[0] : d.kop_barang;
+          // Gunakan snapshot jika kop_barang NULL (barang sudah dihapus)
+          return {
+            ...d,
+            kop_barang: kopBarang ? {
+              ...kopBarang,
+              nama_barang: kopBarang.nama_barang || d.barang_nama_snapshot || 'Barang Dihapus',
+              kode_barang: kopBarang.kode_barang || d.barang_kode_snapshot || null
+            } : {
+              id: null,
+              nama_barang: d.barang_nama_snapshot || 'Barang Dihapus',
+              kode_barang: d.barang_kode_snapshot || null,
+              satuan_dasar: 'pcs',
+              owner_type: d.barang_owner_type_snapshot || 'koperasi'
+            }
+          };
+        }) as KopPenjualanDetail[]
       } as unknown as PenjualanDetail;
       
       return detail;

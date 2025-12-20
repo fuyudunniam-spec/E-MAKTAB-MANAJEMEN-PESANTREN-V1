@@ -349,23 +349,20 @@ const KelolaHPPDanBagiHasilPage = () => {
             margin,
             bagian_yayasan,
             bagian_koperasi,
-            kop_barang!inner(
+            barang_nama_snapshot,
+            barang_kode_snapshot,
+            barang_owner_type_snapshot,
+            barang_bagi_hasil_snapshot,
+            barang_kategori_snapshot,
+            kop_barang(
               id,
               nama_barang,
               kode_barang,
-              inventaris_id,
               owner_type,
               bagi_hasil_yayasan,
-              inventaris:inventaris_id(
-                id,
-                nama_barang,
-                kode_inventaris,
-                kategori,
-                hpp_yayasan,
-                harga_perolehan,
-                boleh_dijual_koperasi,
-                is_komoditas,
-                tipe_item
+              kategori_id,
+              kop_kategori:kategori_id(
+                nama
               )
             )
           )
@@ -386,18 +383,27 @@ const KelolaHPPDanBagiHasilPage = () => {
       (kopPenjualan || []).forEach((penjualan: any) => {
         (penjualan.kop_penjualan_detail || []).forEach((detail: any) => {
           const kopBarang = detail.kop_barang;
-          if (!kopBarang) return; // Skip jika tidak ada kop_barang
           
-          // Ambil SEMUA barang, tidak peduli punya inventaris_id atau tidak
-          // Untuk barang yayasan biasanya punya inventaris_id
-          // Untuk barang koperasi murni mungkin tidak punya inventaris_id
+          // PERUBAHAN: Gunakan snapshot jika kop_barang NULL (barang sudah dihapus)
+          // Dengan denormalisasi, history tetap lengkap meski barang dihapus
+          const namaBarang = kopBarang?.nama_barang || detail.barang_nama_snapshot || 'Barang Dihapus';
+          const kodeBarang = kopBarang?.kode_barang || detail.barang_kode_snapshot || null;
+          const ownerType = kopBarang?.owner_type || detail.barang_owner_type_snapshot || 'koperasi';
+          const kategori = kopBarang?.kop_kategori?.nama || detail.barang_kategori_snapshot || 'Koperasi';
+          const barangId = kopBarang?.id || detail.barang_id; // Gunakan barang_id dari detail jika kop_barang NULL
+          
+          // Skip jika tidak ada identifier sama sekali (tidak seharusnya terjadi)
+          if (!barangId && !detail.barang_id) {
+            console.warn('Penjualan detail tanpa barang_id:', detail);
+            return;
+          }
+          
           filteredKopPenjualan.push({
             source: 'kop_penjualan',
             penjualan_id: penjualan.id,
             tanggal: penjualan.tanggal,
-            barang_id: kopBarang.id, // kop_barang.id sebagai identifier utama
-            item_id: kopBarang.inventaris_id || kopBarang.id, // Gunakan inventaris_id jika ada, jika tidak gunakan barang_id
-            inventaris: kopBarang.inventaris || null, // Bisa null untuk barang koperasi murni
+            barang_id: barangId || detail.barang_id, // Identifier utama
+            item_id: barangId || detail.barang_id, // Gunakan barang_id (bisa NULL jika barang dihapus)
             jumlah: detail.jumlah,
             harga_satuan: detail.harga_satuan_jual,
             harga_total: detail.subtotal,
@@ -405,9 +411,10 @@ const KelolaHPPDanBagiHasilPage = () => {
             margin: detail.margin,
             bagian_yayasan: detail.bagian_yayasan,
             bagian_koperasi: detail.bagian_koperasi,
-            kode_barang: kopBarang.kode_barang, // YYS-#### atau KOP-####
-            owner_type: kopBarang.owner_type, // 'yayasan' atau 'koperasi'
-            nama_barang: kopBarang.nama_barang, // Dari kop_barang, bukan inventaris
+            kode_barang: kodeBarang, // Dari kop_barang atau snapshot
+            owner_type: ownerType, // Dari kop_barang atau snapshot
+            nama_barang: namaBarang, // Dari kop_barang atau snapshot (history tetap lengkap)
+            kategori: kategori, // Dari kop_kategori atau snapshot
           });
         });
       });
@@ -416,29 +423,25 @@ const KelolaHPPDanBagiHasilPage = () => {
       const allTransactions = filteredKopPenjualan;
 
       // Group by barang_id (kop_barang.id) untuk memastikan semua barang terhitung
-      // JANGAN group by inventaris_id karena ada barang tanpa inventaris_id
-      // Setiap kop_barang.id adalah unique, jadi ini adalah identifier yang tepat
+      // PERUBAHAN: Handle barang yang sudah dihapus (barang_id bisa NULL, gunakan snapshot)
       const grouped = allTransactions.reduce((acc: Record<string, SoldItem>, tx: any) => {
         // Gunakan barang_id sebagai key untuk grouping
-        // Ini memastikan setiap barang koperasi (bahkan tanpa inventaris_id) terhitung
-        const groupKey = tx.barang_id;
-        const inventaris = tx.inventaris;
+        // Jika barang_id NULL (barang sudah dihapus), gunakan kombinasi nama+kode dari snapshot
+        const groupKey = tx.barang_id || `deleted_${tx.kode_barang || tx.nama_barang || 'unknown'}`;
 
         if (!acc[groupKey]) {
           acc[groupKey] = {
             item_id: tx.barang_id, // Gunakan barang_id sebagai item_id untuk konsistensi
-            nama_barang: tx.nama_barang || inventaris?.nama_barang || 'Unknown',
-            kode_inventaris: inventaris?.kode_inventaris || null,
+            nama_barang: tx.nama_barang || 'Unknown', // Dari kop_barang langsung
+            kode_inventaris: null, // DIHAPUS - tidak ada lagi referensi ke inventaris
             kode_barang: tx.kode_barang || null, // YYS-#### atau KOP-####
             owner_type: tx.owner_type || 'koperasi', // 'yayasan' atau 'koperasi'
-            kategori: inventaris?.kategori || 'Koperasi', // Default 'Koperasi' jika tidak ada inventaris
+            kategori: tx.kategori || 'Koperasi', // Dari kop_kategori atau default
             total_terjual: 0,
             total_nilai: 0,
             // Gunakan hpp_snapshot dari kop_penjualan_detail (snapshot saat penjualan)
-            // Jika belum ada, gunakan hpp_yayasan dari inventaris (untuk barang yayasan)
-            // Untuk barang koperasi murni, hpp bisa null
-            hpp_yayasan: tx.hpp_snapshot || inventaris?.hpp_yayasan || null,
-            harga_perolehan: inventaris?.harga_perolehan || null,
+            hpp_yayasan: tx.hpp_snapshot || null,
+            harga_perolehan: null, // DIHAPUS - tidak ada lagi referensi ke inventaris
             tanggal_penjualan_terakhir: null,
           };
         }

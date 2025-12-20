@@ -316,11 +316,15 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
     }
 
     // Buat transaksi keuangan
+    // Gunakan donation_date sebagai tanggal transaksi untuk representasi grafik yang lebih akurat
+    // Jika donation_date tidak ada, fallback ke tanggal_setoran
+    const tanggalTransaksi = donation.donation_date || donation.tanggal_setoran || new Date().toISOString().split('T')[0];
+    
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData.user?.id;
 
     const keuanganData = {
-      tanggal: donation.tanggal_setoran,
+      tanggal: tanggalTransaksi,
       jenis_transaksi: 'Pemasukan',
       kategori: kategoriKeuangan,
       jumlah: donation.cash_amount,

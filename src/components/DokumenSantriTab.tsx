@@ -70,7 +70,7 @@ const DokumenSantriTab: React.FC<DokumenSantriTabProps> = ({
 
   useEffect(() => {
     loadDokumen();
-  }, [santriId]);
+  }, [santriId, santriData?.status_sosial, santriData?.kategori, isBantuanRecipient]);
 
   // Normalize incoming document names to align with DB enum dokumen_santri_jenis_dokumen_check
   const normalizeJenisDokumen = (raw: string): string => {
@@ -135,12 +135,42 @@ const DokumenSantriTab: React.FC<DokumenSantriTabProps> = ({
         };
       }
       
+      // List of documents to exclude (redundant or not needed)
+      const excludedDocuments = [
+        'Surat Permohonan Bantuan',
+        'Surat Keterangan Sehat',
+        'KTP Orang Tua',
+        'Akta Kematian Orang Tua',
+        'Surat Permohonan',
+        'Surat Keterangan Penghasilan',
+        'Surat Keterangan Tidak Mampu',
+        'Sertifikat Prestasi',
+        'Raport',
+        'Slip Gaji Orang Tua',
+        'Surat Keterangan',
+        'Dokumen Lainnya'
+      ];
+
       // Konversi ke format yang diharapkan oleh komponen (filter legacy/blocked, normalize names)
+      // Deduplicate berdasarkan jenis_dokumen (keep first occurrence)
+      const seenJenis = new Set<string>();
       const dokumenList = requiredDocuments
         .map(doc => {
           const mappedJenis = normalizeJenisDokumen(doc.jenis_dokumen);
-          // drop legacy 'Surat Permohonan Bantuan' from UI
-          if (mappedJenis === 'Surat Permohonan Bantuan') return null;
+          
+          // Exclude blocked/redundant documents
+          if (excludedDocuments.includes(mappedJenis)) {
+            console.log('⚠️ [DokumenSantriTab] Excluding document:', mappedJenis);
+            return null;
+          }
+          
+          // Skip if already seen (deduplicate)
+          if (seenJenis.has(mappedJenis)) {
+            console.log('⚠️ [DokumenSantriTab] Skipping duplicate:', mappedJenis);
+            return null;
+          }
+          
+          seenJenis.add(mappedJenis);
           return {
             jenis_dokumen: mappedJenis,
             label: mappedJenis,
@@ -269,6 +299,14 @@ const DokumenSantriTab: React.FC<DokumenSantriTabProps> = ({
   };
 
   const handleFileUpload = async (jenisDokumen: string, file: File) => {
+    // Prevent multiple simultaneous uploads
+    if (uploadingFiles[jenisDokumen]) {
+      toast.warning('Upload sedang berlangsung, harap tunggu...');
+      return;
+    }
+
+    let uploadedFilePath: string | null = null;
+
     try {
       // Normalize jenis dokumen to match DB enum values
       const normalizedJenis = normalizeJenisDokumen(jenisDokumen);
@@ -276,6 +314,7 @@ const DokumenSantriTab: React.FC<DokumenSantriTabProps> = ({
         toast.warning('Jenis dokumen ini tidak lagi digunakan. Silakan abaikan.');
         return;
       }
+      
       console.log('🚀 Starting upload:', {
         jenisDokumen: normalizedJenis,
         fileName: file.name,
@@ -286,10 +325,15 @@ const DokumenSantriTab: React.FC<DokumenSantriTabProps> = ({
       
       setUploadingFiles(prev => ({ ...prev, [jenisDokumen]: true }));
       
-      // Validate file
+      // Validate file size early
       const maxSize = 10 * 1024 * 1024; // 10MB
       if (file.size > maxSize) {
         throw new Error('File terlalu besar. Maksimal 10MB.');
+      }
+
+      // Validate file size is not 0
+      if (file.size === 0) {
+        throw new Error('File kosong. Silakan pilih file yang valid.');
       }
       
       const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
@@ -298,19 +342,41 @@ const DokumenSantriTab: React.FC<DokumenSantriTabProps> = ({
       }
       
       // ✅ Use consistent path structure: santri/{santriId}/{jenisDokumen}/{timestamp}.{ext}
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `santri/${santriId}/${normalizedJenis}/${fileName}`;
+      uploadedFilePath = filePath;
       
       console.log('📁 Upload path:', filePath);
       
-      // Upload file ke storage with correct bucket name
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('santri-documents')  // ✅ Fixed: was 'dokumen-santri'
-        .upload(filePath, file);
+      // Upload file ke storage with error handling and timeout
+      const uploadPromise = supabase.storage
+        .from('santri-documents')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Upload timeout. File terlalu besar atau koneksi lambat.')), 120000) // 2 minutes
+      );
+
+      const { data: uploadData, error: uploadError } = await Promise.race([
+        uploadPromise,
+        timeoutPromise
+      ]) as any;
 
       if (uploadError) {
         console.error('❌ Upload error:', uploadError);
+        // Clean up if file was partially uploaded
+        if (uploadedFilePath) {
+          try {
+            await supabase.storage.from('santri-documents').remove([uploadedFilePath]);
+          } catch (cleanupError) {
+            console.warn('Failed to cleanup partial upload:', cleanupError);
+          }
+        }
         throw uploadError;
       }
 
@@ -324,9 +390,9 @@ const DokumenSantriTab: React.FC<DokumenSantriTabProps> = ({
         nama_file: file.name,
         ukuran_file: file.size,
         tipe_file: file.type,
-        path_file: filePath,  // ✅ Use full path
+        path_file: filePath,
         status_verifikasi: 'Belum Diverifikasi',
-        is_editable_by_santri: true  // ✅ Required for RLS policy
+        is_editable_by_santri: true
       };
       
       console.log('💾 Inserting to database:', insertData);
@@ -337,15 +403,37 @@ const DokumenSantriTab: React.FC<DokumenSantriTabProps> = ({
 
       if (insertError) {
         console.error('❌ Database insert error:', insertError);
+        // Clean up uploaded file if database insert fails
+        if (uploadedFilePath) {
+          try {
+            await supabase.storage.from('santri-documents').remove([uploadedFilePath]);
+          } catch (cleanupError) {
+            console.warn('Failed to cleanup uploaded file:', cleanupError);
+          }
+        }
         throw insertError;
       }
 
       console.log('✅ Database insert successful');
       toast.success('Dokumen berhasil diupload!');
-      loadDokumen(); // Reload data
+      
+      // Reload data after a short delay to ensure consistency
+      setTimeout(() => {
+        loadDokumen();
+      }, 500);
     } catch (error: any) {
       console.error('❌ Upload failed:', error);
-      toast.error(`Gagal mengupload dokumen: ${error.message || 'Unknown error'}`);
+      const errorMessage = error?.message || error?.error_description || 'Unknown error';
+      toast.error(`Gagal mengupload dokumen: ${errorMessage}`);
+      
+      // Clean up on error
+      if (uploadedFilePath) {
+        try {
+          await supabase.storage.from('santri-documents').remove([uploadedFilePath]);
+        } catch (cleanupError) {
+          console.warn('Failed to cleanup on error:', cleanupError);
+        }
+      }
     } finally {
       setUploadingFiles(prev => ({ ...prev, [jenisDokumen]: false }));
     }

@@ -23,6 +23,7 @@ import ChartsSection from '@/components/dashboard/ChartsSection';
 import RiwayatTransaksi from '@/components/dashboard/RiwayatTransaksi';
 import TransactionDetailModal from '@/components/TransactionDetailModal';
 import TransactionEditModal from '@/components/TransactionEditModal';
+import EditTanggalTransferDonasiDialog from '@/components/EditTanggalTransferDonasiDialog';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay, subMonths, format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -72,6 +73,8 @@ const KeuanganUnifiedPage: React.FC = () => {
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showTransactionDetail, setShowTransactionDetail] = useState(false);
   const [showTransactionEdit, setShowTransactionEdit] = useState(false);
+  const [showEditTanggalDonasi, setShowEditTanggalDonasi] = useState(false);
+  const [selectedTransactionForEditTanggal, setSelectedTransactionForEditTanggal] = useState<any>(null);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [selectedAccountFilter, setSelectedAccountFilter] = useState<string | undefined>(undefined);
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(undefined);
@@ -1868,6 +1871,16 @@ const KeuanganUnifiedPage: React.FC = () => {
     setShowTransactionEdit(true);
   };
 
+  const handleEditTanggalDonasi = (transaction: any) => {
+    // Hanya untuk transaksi donasi dengan jenis pemasukan
+    if (transaction.source_module === 'donasi' && transaction.jenis_transaksi === 'Pemasukan') {
+      setSelectedTransactionForEditTanggal(transaction);
+      setShowEditTanggalDonasi(true);
+    } else {
+      toast.error('Fitur ini hanya untuk transaksi pemasukan dari donasi');
+    }
+  };
+
   const handleDeleteTransaction = async (transaction: any) => {
     if (transaction.auto_posted) {
       const sourceModule = transaction.source_module || 'modul lain';
@@ -2124,6 +2137,7 @@ const KeuanganUnifiedPage: React.FC = () => {
         onViewDetail={handleViewDetail}
         onEditTransaction={handleEditTransaction}
         onDeleteTransaction={handleDeleteTransaction}
+        onEditTanggalDonasi={handleEditTanggalDonasi}
         initialDateFilter={dateFilter}
         onDateFilterChange={(filter) => {
           setDateFilter(filter);
@@ -2189,6 +2203,22 @@ const KeuanganUnifiedPage: React.FC = () => {
           onSuccess={handleFormSuccess}
         />
       )}
+
+      {/* Edit Tanggal Transfer Donasi Dialog */}
+      <EditTanggalTransferDonasiDialog
+        transaction={selectedTransactionForEditTanggal}
+        isOpen={showEditTanggalDonasi}
+        onClose={() => {
+          setShowEditTanggalDonasi(false);
+          setSelectedTransactionForEditTanggal(null);
+        }}
+        onSuccess={async () => {
+          setShowEditTanggalDonasi(false);
+          setSelectedTransactionForEditTanggal(null);
+          await loadData();
+          await loadChartData(selectedAccountFilter);
+        }}
+      />
 
       {/* Transfer Antar Akun Kas Dialog */}
       <TransferAkunKasDialog

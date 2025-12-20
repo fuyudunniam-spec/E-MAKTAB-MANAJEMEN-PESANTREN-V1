@@ -57,33 +57,148 @@ export class DocumentService {
 
       if (error) throw error;
 
+      console.log('📋 [DocumentService] Raw requirements from DB:', {
+        kategoriSantri,
+        statusSosial,
+        isBantuanRecipient,
+        totalRaw: data?.length || 0,
+        sample: data?.slice(0, 3)
+      });
+
+      // Helper function to check if status sosial matches kondisi_required
+      const checkKondisiRequired = (kondisiRequired: string | null, currentStatusSosial?: string): boolean => {
+        if (!kondisiRequired) return true; // No condition = always include
+        
+        if (!currentStatusSosial) return false; // No status = don't include if has condition
+        
+        // Parse kondisi_required (format: "Yatim,Piatu,Yatim Piatu" or single value)
+        const conditions = kondisiRequired.split(',').map(c => c.trim());
+        const matches = conditions.includes(currentStatusSosial);
+        
+        console.log('🔍 [DocumentService] Checking kondisi:', {
+          kondisiRequired,
+          currentStatusSosial,
+          conditions,
+          matches
+        });
+        
+        return matches;
+      };
+
+      // List of documents to exclude for Binaan (redundant or not needed)
+      const excludedDocumentsForBinaan = [
+        'Surat Keterangan Sehat',
+        'KTP Orang Tua', // Already have KTP Wali Utama and Pendamping
+        'Akta Kematian Orang Tua', // Already have specific Akta Kematian Ayah/Ibu
+        'Surat Permohonan',
+        'Surat Keterangan Penghasilan',
+        'Surat Keterangan Tidak Mampu', // Redundant with SKTM
+        'Sertifikat Prestasi',
+        'Raport',
+        'Slip Gaji Orang Tua',
+        'Surat Keterangan', // Generic, not needed
+        'KTP Santri', // Optional, not needed for onboarding
+        'Dokumen Lainnya' // Generic, not needed
+      ];
+
+      // Check if this is Binaan category
+      const isBinaanCategory = kategoriSantri?.includes('Binaan') || false;
+
       // Filter based on conditions
-      return (data || []).filter(req => {
-        // RULE 1: Regular documents - always include for all santri
-        if (req.kategori_dokumen === 'Reguler' && !req.kondisi_required) {
+      const filtered = (data || []).filter(req => {
+        // Exclude redundant documents for Binaan
+        if (isBinaanCategory && excludedDocumentsForBinaan.includes(req.jenis_dokumen)) {
+          return false;
+        }
+
+        // RULE 1: Regular documents
+        if (req.kategori_dokumen === 'Reguler') {
+          // If has kondisi_required, check if status matches
+          if (req.kondisi_required) {
+            return checkKondisiRequired(req.kondisi_required, statusSosial);
+          }
+          // No condition = always include
           return true;
         }
         
-        // RULE 2: Bantuan documents - only for bantuan recipients
-        if (req.kategori_dokumen === 'Bantuan') {
+        // RULE 2: Beasiswa/Bantuan documents - only for bantuan recipients
+        // BUT: For Binaan, we don't need Beasiswa category documents (they have their own Reguler docs)
+        if (req.kategori_dokumen === 'Beasiswa' || req.kategori_dokumen === 'Bantuan') {
+          // Skip Beasiswa documents for Binaan (they use Reguler category)
+          if (isBinaanCategory) return false;
+          
           if (!isBantuanRecipient) return false; // Skip if not bantuan
           
           // If has condition, check if status matches
           if (req.kondisi_required) {
-            return statusSosial && req.kondisi_required.includes(statusSosial);
+            return checkKondisiRequired(req.kondisi_required, statusSosial);
           }
           
           // No condition = required for all bantuan
           return true;
         }
         
-        // RULE 3: Optional documents - always show
+        // RULE 3: Optional documents - exclude for Binaan (they have specific optional docs)
         if (req.kategori_dokumen === 'Optional') {
+          // For Binaan, only show specific optional docs (Ijazah, Transkrip) from Reguler category
+          if (isBinaanCategory) return false;
           return true;
         }
         
         return false;
       });
+
+      // Deduplicate: Prioritize specific category over 'ALL'
+      // If same jenis_dokumen exists in both specific category and 'ALL', keep the specific one
+      const deduplicated = new Map<string, DocumentRequirement>();
+      
+      // First pass: Add documents from specific category (prioritized)
+      filtered.forEach(req => {
+        if (req.kategori_santri === kategoriSantri && req.kategori_santri !== 'ALL') {
+          deduplicated.set(req.jenis_dokumen, req);
+        }
+      });
+      
+      // Second pass: Add documents from 'ALL' only if not already in map
+      filtered.forEach(req => {
+        if (req.kategori_santri === 'ALL' && !deduplicated.has(req.jenis_dokumen)) {
+          deduplicated.set(req.jenis_dokumen, req);
+        }
+      });
+      
+      // Convert map back to array and sort by urutan
+      const result = Array.from(deduplicated.values()).sort((a, b) => {
+        // Sort by urutan, but prioritize specific category
+        if (a.kategori_santri === kategoriSantri && b.kategori_santri === 'ALL') return -1;
+        if (a.kategori_santri === 'ALL' && b.kategori_santri === kategoriSantri) return 1;
+        return (a.urutan || 0) - (b.urutan || 0);
+      });
+
+      console.log('✅ [DocumentService] Filtered & Deduplicated requirements:', {
+        kategoriSantri,
+        statusSosial,
+        isBantuanRecipient,
+        isBinaanCategory,
+        totalBeforeDedup: filtered.length,
+        totalAfterDedup: result.length,
+        duplicatesRemoved: filtered.length - result.length,
+        excludedCount: (data || []).length - filtered.length,
+        byCategory: {
+          reguler: result.filter(r => r.kategori_dokumen === 'Reguler').length,
+          beasiswa: result.filter(r => r.kategori_dokumen === 'Beasiswa' || r.kategori_dokumen === 'Bantuan').length,
+          optional: result.filter(r => r.kategori_dokumen === 'Optional').length,
+        },
+        withCondition: result.filter(r => r.kondisi_required).length,
+        documents: result.map(r => ({
+          jenis: r.jenis_dokumen,
+          kategori: r.kategori_dokumen,
+          kategoriSantri: r.kategori_santri,
+          required: r.is_required,
+          kondisi: r.kondisi_required
+        }))
+      });
+
+      return result;
     } catch (error) {
       console.error('Error getting document requirements:', error);
       throw error;

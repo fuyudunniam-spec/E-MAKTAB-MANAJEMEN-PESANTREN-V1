@@ -178,77 +178,16 @@ async function logFlagChange(
 }
 
 /**
- * Auto-sync inventaris item ke kop_barang ketika boleh_dijual_koperasi = true
+ * PERUBAHAN: Auto-sync DIHAPUS
+ * 
+ * Modul koperasi sekarang input barang secara manual.
+ * Flag 'boleh_dijual_koperasi' hanya untuk visibility - koperasi bisa lihat inventaris yayasan.
+ * Tidak ada lagi auto-sync atau approval workflow.
  */
 async function syncToKopBarang(inventarisItem: any) {
-  // Hanya sync jika boleh_dijual_koperasi = true dan tipe_item = 'Komoditas'
-  if (!inventarisItem.boleh_dijual_koperasi || inventarisItem.tipe_item !== 'Komoditas') {
-    // Jika tidak boleh dijual, set is_active = false di kop_barang jika ada
-    const { data: existing } = await supabase
-      .from('kop_barang')
-      .select('id')
-      .eq('inventaris_id', inventarisItem.id)
-      .maybeSingle();
-    
-    if (existing) {
-      await supabase
-        .from('kop_barang')
-        .update({ is_active: false })
-        .eq('id', existing.id);
-    }
-    return;
-  }
-
-  // Jangan create baru di sini - hanya update existing
-  // Create baru hanya dilakukan saat approval pengajuan_item_yayasan
-
-  // Generate kode produk
-  const ownerType = inventarisItem.owner_type || 'yayasan';
-  const prefix = ownerType === 'yayasan' ? 'YYS' : 'KOP';
-  
-  // Get last kode
-  const { data: lastKode } = await supabase
-    .from('kop_barang')
-    .select('kode_barang')
-    .like('kode_barang', `${prefix}-%`)
-    .order('kode_barang', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  let kodeProduk = `${prefix}-0001`;
-  if (lastKode?.kode_barang) {
-    const match = lastKode.kode_barang.match(/\d+$/);
-    if (match) {
-      const num = parseInt(match[0]) + 1;
-      kodeProduk = `${prefix}-${String(num).padStart(4, '0')}`;
-    }
-  }
-
-  // Check if kop_barang already exists
-  const { data: existing } = await supabase
-    .from('kop_barang')
-    .select('id')
-    .eq('inventaris_id', inventarisItem.id)
-    .maybeSingle();
-
-  const hppYayasan = inventarisItem.hpp_yayasan || inventarisItem.harga_perolehan || 0;
-
-  if (existing) {
-    // Update existing (hanya update, tidak create baru)
-    await supabase
-      .from('kop_barang')
-      .update({
-        nama_barang: inventarisItem.nama_barang,
-        satuan_dasar: inventarisItem.satuan || 'pcs',
-        harga_beli: hppYayasan,
-        harga_transfer: hppYayasan,
-        owner_type: ownerType,
-        is_active: true,
-        // Harga jual tetap, tidak di-overwrite
-      })
-      .eq('id', existing.id);
-  }
-  // Tidak create baru di sini - create baru hanya dilakukan saat approval pengajuan_item_yayasan
+  // DIHAPUS - tidak ada lagi auto-sync
+  // Koperasi input barang manual dengan owner_type dan HPP
+  return;
 }
 
 export async function createInventoryItem(payload: Partial<InventoryItem>) {
@@ -275,15 +214,15 @@ export async function createInventoryItem(payload: Partial<InventoryItem>) {
     await logFlagChange(data.id, 'boleh_dijual_koperasi', null, payload.boleh_dijual_koperasi);
   }
   
-  // Auto-sync ke kop_barang jika boleh_dijual_koperasi = true
-  if (data.boleh_dijual_koperasi && data.tipe_item === 'Komoditas') {
-    try {
-      await syncToKopBarang(data);
-    } catch (syncError) {
-      console.error('Error syncing to kop_barang:', syncError);
-      // Tidak throw error, hanya log
-    }
-  }
+  // PERUBAHAN: Nonaktifkan auto-sync ke kop_barang karena inventaris koperasi sudah independen
+  // Auto-sync dihapus - kop_barang harus dibuat manual melalui pengajuan_item_yayasan
+  // if (data.boleh_dijual_koperasi && data.tipe_item === 'Komoditas') {
+  //   try {
+  //     await syncToKopBarang(data);
+  //   } catch (syncError) {
+  //     console.error('Error syncing to kop_barang:', syncError);
+  //   }
+  // }
   
   return data as InventoryItem;
 }
@@ -313,104 +252,10 @@ export async function updateInventoryItem(id: string, payload: Partial<Inventory
     await logFlagChange(id, 'boleh_dijual_koperasi', oldData?.boleh_dijual_koperasi, payload.boleh_dijual_koperasi);
   }
   
-  // Jika boleh_dijual_koperasi berubah menjadi true, buat pengajuan_item_yayasan
-  if (
-    'boleh_dijual_koperasi' in payload && 
-    payload.boleh_dijual_koperasi === true && 
-    oldData?.boleh_dijual_koperasi === false &&
-    data.tipe_item === 'Komoditas'
-  ) {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        // Cek apakah sudah ada pengajuan pending untuk item ini
-        const { data: existingPengajuan } = await supabase
-          .from('pengajuan_item_yayasan')
-          .select('id')
-          .eq('inventaris_item_id', id)
-          .eq('status', 'pending_koperasi')
-          .maybeSingle();
-
-        if (!existingPengajuan) {
-          // Validasi qty - constraint memerlukan qty > 0
-          const jumlahStok = Number(data.jumlah) || 0;
-          if (jumlahStok <= 0) {
-            console.warn('Tidak dapat membuat pengajuan: jumlah stok harus > 0. Item:', data.nama_barang);
-            // Tidak throw error, hanya log - user sudah update flag
-            // Lanjutkan ke return data di akhir fungsi
-          } else {
-            // Buat pengajuan baru
-            const nilaiPerolehan = data.harga_perolehan || 0;
-            const usulanHpp = nilaiPerolehan; // Default usulan HPP = nilai perolehan
-            
-            const { error: pengajuanError } = await supabase
-              .from('pengajuan_item_yayasan')
-              .insert({
-                inventaris_item_id: id,
-                nama: data.nama_barang,
-                qty: jumlahStok, // Pastikan qty > 0
-                nilai_perolehan: nilaiPerolehan,
-                usulan_hpp: usulanHpp,
-                status: 'pending_koperasi',
-                created_by: user.id,
-              });
-
-            if (pengajuanError) {
-              console.error('Error creating pengajuan_item_yayasan:', pengajuanError);
-              // Tidak throw error, hanya log - user sudah update flag
-            }
-          }
-        }
-      }
-    } catch (pengajuanError) {
-      console.error('Error creating pengajuan_item_yayasan:', pengajuanError);
-      // Tidak throw error, hanya log
-    }
-  }
-
-  // Jika boleh_dijual_koperasi berubah menjadi false, reject pengajuan yang pending
-  if (
-    'boleh_dijual_koperasi' in payload && 
-    payload.boleh_dijual_koperasi === false && 
-    oldData?.boleh_dijual_koperasi === true
-  ) {
-    try {
-      // Reject pengajuan yang pending untuk item ini
-      await supabase
-        .from('pengajuan_item_yayasan')
-        .update({ status: 'rejected' })
-        .eq('inventaris_item_id', id)
-        .eq('status', 'pending_koperasi');
-    } catch (rejectError) {
-      console.error('Error rejecting pengajuan:', rejectError);
-      // Tidak throw error, hanya log
-    }
-  }
-  
-  // Auto-sync ke kop_barang hanya jika sudah ada (setelah approval)
-  // Jangan langsung create baru, tunggu approval dulu
-  const shouldSync = 
-    ('owner_type' in payload && payload.owner_type !== oldData?.owner_type) ||
-    (data.boleh_dijual_koperasi && data.tipe_item === 'Komoditas');
-  
-  if (shouldSync) {
-    try {
-      // Cek apakah sudah ada kop_barang untuk item ini (setelah approval)
-      const { data: existingKopBarang } = await supabase
-        .from('kop_barang')
-        .select('id')
-        .eq('inventaris_id', id)
-        .maybeSingle();
-
-      // Hanya sync jika sudah ada (update existing), jangan create baru
-      if (existingKopBarang) {
-        await syncToKopBarang(data);
-      }
-    } catch (syncError) {
-      console.error('Error syncing to kop_barang:', syncError);
-      // Tidak throw error, hanya log
-    }
-  }
+  // PERUBAHAN: Tidak ada lagi auto-create pengajuan_item_yayasan
+  // Flag 'boleh_dijual_koperasi' hanya untuk visibility - koperasi bisa lihat inventaris yayasan
+  // Koperasi input barang manual dengan owner_type dan HPP
+  // Transfer ke koperasi langsung catat sebagai pengeluaran (tidak perlu approval)
   
   // Normalize kondisi pada response
   const { normalizeKondisi } = await import('@/utils/inventaris.utils');
@@ -421,9 +266,153 @@ export async function updateInventoryItem(id: string, payload: Partial<Inventory
   return data as InventoryItem;
 }
 
-export async function deleteInventoryItem(id: string) {
+export async function deleteInventoryItem(id: string, forceDelete: boolean = false) {
+  // Cek semua referensi yang mungkin ada sebelum menghapus
+  const references: string[] = [];
+  
+  // 1. Cek kop_barang - PERUBAHAN: Tidak cek berdasarkan inventaris_id karena sudah independen
+  // Cek berdasarkan transfer_reference atau pengajuan_item_yayasan jika ada
+  // Tapi karena kop_barang sudah independen, tidak perlu cek referensi dari kop_barang
+  // Inventaris bisa dihapus tanpa perlu hapus referensi dari kop_barang
+  
+  // 2. Cek asset_transfer_log
+  const { data: assetTransferLogs } = await supabase
+    .from('asset_transfer_log')
+    .select('id')
+    .eq('inventaris_id', id);
+  
+  if (assetTransferLogs && assetTransferLogs.length > 0) {
+    references.push(`riwayat transfer asset (${assetTransferLogs.length} record)`);
+  }
+  
+  // 3. Cek transaksi_inventaris
+  const { data: transaksiInventaris } = await supabase
+    .from('transaksi_inventaris')
+    .select('id')
+    .eq('item_id', id)
+    .limit(1);
+  
+  if (transaksiInventaris && transaksiInventaris.length > 0) {
+    references.push('transaksi inventaris');
+  }
+  
+  // 4. Cek penjualan_items
+  // PERUBAHAN: Setelah migration, item_id sudah nullable dan akan otomatis set NULL
+  // saat inventaris dihapus karena foreign key constraint ON DELETE SET NULL
+  // Jadi tidak perlu block delete, hanya informasikan saja
+  const { data: penjualanItems } = await supabase
+    .from('penjualan_items')
+    .select('id')
+    .eq('item_id', id)
+    .limit(1);
+  
+  if (penjualanItems && penjualanItems.length > 0 && !forceDelete) {
+    // Hanya informasikan, tidak block delete karena foreign key akan handle
+    references.push(`riwayat penjualan (${penjualanItems.length} record - akan di-set NULL)`);
+  }
+  
+  // 5. Cek transfer_inventaris
+  // PERUBAHAN: Setelah migration, item_id sudah nullable dan akan otomatis set NULL
+  // saat inventaris dihapus karena foreign key constraint ON DELETE SET NULL
+  // Jadi tidak perlu block delete, hanya informasikan saja
+  const { data: transferInventaris } = await supabase
+    .from('transfer_inventaris')
+    .select('id')
+    .eq('item_id', id)
+    .limit(1);
+  
+  if (transferInventaris && transferInventaris.length > 0 && !forceDelete) {
+    // Hanya informasikan, tidak block delete karena foreign key akan handle
+    references.push(`riwayat transfer (${transferInventaris.length} record - akan di-set NULL)`);
+  }
+  
+  // 6. Cek paket_komponen
+  const { data: paketKomponen } = await supabase
+    .from('paket_komponen')
+    .select('id')
+    .eq('item_id', id)
+    .limit(1);
+  
+  if (paketKomponen && paketKomponen.length > 0) {
+    references.push('komponen paket');
+  }
+  
+  // Jika ada referensi dan forceDelete = false, throw error
+  if (references.length > 0 && !forceDelete) {
+    throw new Error(
+      `Item tidak dapat dihapus karena masih direferensikan oleh: ${references.join(', ')}. ` +
+      `Silakan hapus referensi terlebih dahulu, atau gunakan opsi force delete.`
+    );
+  }
+  
+  // Jika forceDelete = true, hapus referensi terlebih dahulu
+  if (forceDelete && references.length > 0) {
+    // PERUBAHAN: Tidak perlu hapus referensi di kop_barang karena sudah independen
+    // kop_barang tidak lagi bergantung pada inventaris_id
+    
+    // Hapus referensi di asset_transfer_log (set inventaris_id = null)
+    // PERUBAHAN: Setelah migration, inventaris_id sudah nullable dan akan otomatis set NULL
+    // saat inventaris dihapus karena foreign key constraint ON DELETE SET NULL
+    // Tapi kita tetap update manual untuk memastikan
+    if (assetTransferLogs && assetTransferLogs.length > 0) {
+      const { error: deleteAssetTransferError } = await supabase
+        .from('asset_transfer_log')
+        .update({ inventaris_id: null })
+        .eq('inventaris_id', id);
+      
+      if (deleteAssetTransferError) {
+        console.error('Error removing asset_transfer_log references:', deleteAssetTransferError);
+        // Jangan throw error, karena foreign key constraint ON DELETE SET NULL akan handle ini
+        // Hanya log warning
+        console.warn('Warning: Gagal update asset_transfer_log, akan di-handle oleh foreign key constraint');
+      } else {
+        console.log(`✅ Removed ${assetTransferLogs.length} asset_transfer_log reference(s)`);
+      }
+    }
+    
+    // Catatan: Untuk referensi lain (transaksi_inventaris, penjualan_items, dll),
+    // kita tidak bisa menghapus karena itu adalah data historis yang penting
+    // User harus menghapus secara manual atau menggunakan cascade delete jika diperlukan
+  }
+  
+  // Hapus item inventaris
+  // PERUBAHAN: Setelah migration, foreign key constraints sudah diubah ke ON DELETE SET NULL
+  // untuk penjualan_items dan asset_transfer_log, jadi bisa langsung delete
   const { error } = await supabase.from("inventaris").delete().eq("id", id);
-  if (error) throw error;
+  if (error) {
+    // Jika masih ada error, kemungkinan ada referensi lain yang tidak bisa dihapus
+    if (error.code === '23503' || error.code === 'PGRST409' || error.code === '409') {
+      const errorMessage = error.message || '';
+      
+      // Cek apakah error dari constraint yang sudah di-migrate
+      // Setelah migration, constraint berikut sudah ON DELETE SET NULL:
+      // - penjualan_items_item_id_fkey
+      // - asset_transfer_log_inventaris_id_fkey
+      // - transfer_inventaris_item_id_fkey
+      // - bagi_hasil_detail_inventaris_id_fkey
+      if (errorMessage.includes('penjualan_items_item_id_fkey') || 
+          errorMessage.includes('asset_transfer_log_inventaris_id_fkey') ||
+          errorMessage.includes('transfer_inventaris_item_id_fkey') ||
+          errorMessage.includes('bagi_hasil_detail_inventaris_id_fkey')) {
+        // Ini seharusnya tidak terjadi setelah migration
+        // Tapi jika terjadi, mungkin constraint belum ter-update atau ada masalah lain
+        console.warn('Warning: Foreign key constraint error meski sudah migration:', errorMessage);
+        throw new Error(
+          `Item tidak dapat dihapus karena masih direferensikan. ` +
+          `Detail: ${errorMessage}. ` +
+          `Constraint seharusnya sudah di-update ke ON DELETE SET NULL. ` +
+          `Silakan hubungi administrator untuk verifikasi migration.`
+        );
+      }
+      
+      throw new Error(
+        `Item tidak dapat dihapus karena masih direferensikan oleh tabel lain. ` +
+        `Detail: ${errorMessage}. ` +
+        `Silakan hapus referensi secara manual atau hubungi administrator.`
+      );
+    }
+    throw error;
+  }
 }
 
 export type TransactionFilters = {
