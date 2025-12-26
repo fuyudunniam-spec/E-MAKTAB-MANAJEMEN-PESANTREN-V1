@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,9 +7,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, User, DollarSign, AlertTriangle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, User, DollarSign, AlertTriangle, Calendar, Wallet } from 'lucide-react';
 import { TabunganSantriService } from '@/services/tabunganSantri.service';
+import { AkunKasService, AkunKas } from '@/services/akunKas.service';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface FormTarikProps {
   santriId: string;
@@ -27,17 +30,55 @@ export const FormTarik: React.FC<FormTarikProps> = ({
   onCancel
 }) => {
   const [loading, setLoading] = useState(false);
+  const [loadingAkunKas, setLoadingAkunKas] = useState(false);
+  const [akunKasOptions, setAkunKasOptions] = useState<AkunKas[]>([]);
   const [formData, setFormData] = useState({
+    tanggal: new Date().toISOString().split('T')[0],
     nominal: '',
+    akunKasId: null as string | null,
     deskripsi: '',
     catatan: ''
   });
   const { toast } = useToast();
 
+  useEffect(() => {
+    loadAkunKas();
+  }, []);
+
+  const loadAkunKas = async () => {
+    try {
+      setLoadingAkunKas(true);
+      const accounts = await AkunKasService.getAll();
+      // Filter hanya akun kas operasional (bukan tabungan)
+      const operasionalAccounts = accounts.filter(acc => 
+        acc.status === 'aktif' && 
+        acc.managed_by !== 'tabungan'
+      );
+      setAkunKasOptions(operasionalAccounts);
+      
+      // Set default
+      const defaultAccount = operasionalAccounts.find(acc => acc.is_default);
+      if (defaultAccount) {
+        setFormData(prev => ({ ...prev, akunKasId: defaultAccount.id }));
+      } else if (operasionalAccounts.length > 0) {
+        setFormData(prev => ({ ...prev, akunKasId: operasionalAccounts[0].id }));
+      }
+    } catch (error) {
+      console.error('Error loading akun kas:', error);
+      toast({
+        title: 'Error',
+        description: 'Gagal memuat akun kas',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoadingAkunKas(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const nominal = parseFloat(formData.nominal);
+    const nominal = parseFloat(formData.nominal.replace(/[^\d]/g, ''));
     
     if (!formData.nominal || nominal <= 0) {
       toast({
@@ -57,15 +98,60 @@ export const FormTarik: React.FC<FormTarikProps> = ({
       return;
     }
 
+    if (!formData.akunKasId) {
+      toast({
+        title: 'Error',
+        description: 'Pilih akun kas untuk penarikan',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     try {
       setLoading(true);
-      await TabunganSantriService.tarikTabungan({
+      
+      // 1. Create transaksi tabungan
+      const tabunganId = await TabunganSantriService.tarikTabungan({
         santri_id: santriId,
         nominal: nominal,
         deskripsi: formData.deskripsi || `Penarikan tunai dari ${santriName}`,
-        catatan: formData.catatan || null
+        catatan: formData.catatan || null,
+        akun_kas_id: formData.akunKasId,
+        tanggal: formData.tanggal
       });
+
+      // 2. Create entry di keuangan untuk tracking (penarikan selalu mengurangi kas)
+      await supabase
+        .from('keuangan')
+        .insert({
+          tanggal: formData.tanggal,
+          jenis_transaksi: 'Pengeluaran',
+          kategori: 'Tabungan Santri',
+          sub_kategori: 'Penarikan Tunai',
+          jumlah: nominal,
+          deskripsi: `Penarikan tabungan: ${santriName}`,
+          penerima_pembayar: santriName,
+          akun_kas_id: formData.akunKasId,
+          source_module: 'tabungan',
+          source_id: tabunganId,
+          status: 'posted',
+          auto_posted: false
+        });
+
+      // Update saldo akun kas
+      try {
+        await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+          p_akun_id: formData.akunKasId
+        });
+      } catch (saldoError) {
+        // Silent fail - saldo will be recalculated
+        console.warn('Warning ensuring saldo correct:', saldoError);
+      }
       
+      toast({
+        title: 'Berhasil',
+        description: 'Penarikan tabungan berhasil dicatat'
+      });
       onSuccess();
     } catch (error: any) {
       console.error('Error tarik tabungan:', error);
@@ -87,13 +173,13 @@ export const FormTarik: React.FC<FormTarikProps> = ({
     }).format(amount);
   };
 
-  const nominal = parseFloat(formData.nominal) || 0;
+  const nominal = parseFloat(formData.nominal.replace(/[^\d]/g, '')) || 0;
   const saldoSesudah = saldoSaatIni - nominal;
   const isInsufficient = nominal > saldoSaatIni;
 
   return (
     <Dialog open={true} onOpenChange={onCancel}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Tarik Tabungan Santri</DialogTitle>
         </DialogHeader>
@@ -115,26 +201,69 @@ export const FormTarik: React.FC<FormTarikProps> = ({
           <Separator />
 
           {/* Form Fields */}
-          <div className="space-y-4">
-            <div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="tanggal">Tanggal *</Label>
+              <div className="relative">
+                <Calendar className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="tanggal"
+                  type="date"
+                  value={formData.tanggal}
+                  onChange={(e) => setFormData(prev => ({ ...prev, tanggal: e.target.value }))}
+                  className="pl-8"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="nominal">Nominal Penarikan *</Label>
               <Input
                 id="nominal"
-                type="number"
-                placeholder="Masukkan nominal penarikan"
-                value={formData.nominal}
-                onChange={(e) => setFormData(prev => ({ ...prev, nominal: e.target.value }))}
+                type="text"
+                placeholder="0"
+                value={formData.nominal.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^\d]/g, '');
+                  setFormData(prev => ({ ...prev, nominal: value }));
+                }}
                 required
-                min="1"
-                max={saldoSaatIni}
-                step="1"
               />
               {formData.nominal && (
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-sm text-muted-foreground">
                   {formatCurrency(nominal)}
                 </p>
               )}
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="akun_kas_id">Akun Kas *</Label>
+              <Select 
+                value={formData.akunKasId || ''} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, akunKasId: value }))}
+                required
+                disabled={loadingAkunKas}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingAkunKas ? "Memuat..." : "Pilih akun kas"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {akunKasOptions.map(akun => (
+                    <SelectItem key={akun.id} value={akun.id}>
+                      <div className="flex items-center gap-2">
+                        <Wallet className="h-4 w-4" />
+                        {akun.nama}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Uang akan keluar dari akun kas ini
+              </p>
+            </div>
+          </div>
 
             {/* Saldo Preview */}
             {formData.nominal && (
@@ -171,27 +300,26 @@ export const FormTarik: React.FC<FormTarikProps> = ({
               </Alert>
             )}
 
-            <div>
-              <Label htmlFor="deskripsi">Deskripsi</Label>
-              <Textarea
-                id="deskripsi"
-                placeholder="Contoh: Penarikan untuk kebutuhan pribadi, dll"
-                value={formData.deskripsi}
-                onChange={(e) => setFormData(prev => ({ ...prev, deskripsi: e.target.value }))}
-                rows={2}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="deskripsi">Deskripsi</Label>
+            <Textarea
+              id="deskripsi"
+              placeholder="Contoh: Penarikan untuk kebutuhan pribadi, dll"
+              value={formData.deskripsi}
+              onChange={(e) => setFormData(prev => ({ ...prev, deskripsi: e.target.value }))}
+              rows={2}
+            />
+          </div>
 
-            <div>
-              <Label htmlFor="catatan">Catatan Tambahan</Label>
-              <Textarea
-                id="catatan"
-                placeholder="Catatan internal (opsional)"
-                value={formData.catatan}
-                onChange={(e) => setFormData(prev => ({ ...prev, catatan: e.target.value }))}
-                rows={2}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="catatan">Catatan Tambahan</Label>
+            <Textarea
+              id="catatan"
+              placeholder="Catatan internal (opsional)"
+              value={formData.catatan}
+              onChange={(e) => setFormData(prev => ({ ...prev, catatan: e.target.value }))}
+              rows={2}
+            />
           </div>
 
           {/* Action Buttons */}
@@ -207,8 +335,8 @@ export const FormTarik: React.FC<FormTarikProps> = ({
             </Button>
             <Button
               type="submit"
-              className="flex-1"
-              disabled={loading || !formData.nominal || isInsufficient}
+              className="flex-1 bg-red-600 hover:bg-red-700"
+              disabled={loading || !formData.nominal || isInsufficient || !formData.akunKasId}
             >
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               <DollarSign className="h-4 w-4 mr-2" />

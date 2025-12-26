@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   AkademikSemesterService,
   Semester,
@@ -27,6 +28,7 @@ import { format } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { CalendarPlus, CheckCircle2, Copy, Loader2, Pencil, Trash2, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { SemesterSyncService } from '@/services/semesterSync.service';
 
 const formatDate = (dateStr: string) => {
   try {
@@ -40,6 +42,7 @@ const DEFAULT_SEMESTER_OPTIONS: SemesterNama[] = ['Ganjil', 'Genap', 'Pendek'];
 
 const SemesterManagementPage: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isAdmin = user?.role === 'admin' || user?.roles?.includes('admin');
   
   const [tahunList, setTahunList] = useState<TahunAjaran[]>([]);
@@ -113,6 +116,36 @@ const SemesterManagementPage: React.FC = () => {
     loadData();
   }, [loadData]);
 
+  // Handle edit query parameter
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (editId && !loading && Object.keys(semesterMap).length > 0) {
+      // Find semester by ID
+      const allSemesters = Object.values(semesterMap).flat();
+      const semesterToEdit = allSemesters.find(s => s.id === editId);
+      if (semesterToEdit) {
+        setCreateSemesterDialog({
+          open: true,
+          tahunId: semesterToEdit.tahun_ajaran_id,
+          editingSemester: semesterToEdit,
+        });
+        setSemesterForm({
+          tahun_ajaran_id: semesterToEdit.tahun_ajaran_id,
+          nama: semesterToEdit.nama,
+          tanggal_mulai: semesterToEdit.tanggal_mulai,
+          tanggal_selesai: semesterToEdit.tanggal_selesai,
+          status: semesterToEdit.status,
+          is_aktif: semesterToEdit.is_aktif,
+          kode: semesterToEdit.kode || '',
+          catatan: semesterToEdit.catatan || '',
+          template_source_id: null,
+        });
+        // Clear query parameter
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [searchParams, loading, semesterMap, setSearchParams]);
+
   const activeYearId = useMemo(() => tahunList.find(t => t.is_aktif)?.id, [tahunList]);
   const activeSemesterId = useMemo(() => {
     const sems = Object.values(semesterMap).flat();
@@ -159,11 +192,56 @@ const SemesterManagementPage: React.FC = () => {
       toast.error('Lengkapi data semester (tahun ajaran, nama semester, dan tanggal wajib diisi).');
       return;
     }
+
+    // Validasi tanggal
+    if (new Date(semesterForm.tanggal_mulai) >= new Date(semesterForm.tanggal_selesai)) {
+      toast.error('Tanggal mulai harus sebelum tanggal selesai');
+      return;
+    }
+
     try {
       setSaving(true);
       const editingSemester = createSemesterDialog.editingSemester;
       
       if (editingSemester) {
+        // Validasi overlap dengan semester lain (kecuali semester yang sedang diedit)
+        const validation = await SemesterSyncService.validateSemesterDates(
+          semesterForm.tahun_ajaran_id,
+          semesterForm.tanggal_mulai,
+          semesterForm.tanggal_selesai,
+          editingSemester.id
+        );
+
+        if (!validation.valid) {
+          toast.error(`Tanggal semester overlap dengan semester lain: ${validation.conflicts.map(s => s.nama).join(', ')}`);
+          return;
+        }
+
+        // Analyze impact jika tanggal berubah
+        const datesChanged = editingSemester.tanggal_mulai !== semesterForm.tanggal_mulai ||
+                            editingSemester.tanggal_selesai !== semesterForm.tanggal_selesai;
+        
+        if (datesChanged) {
+          const impact = await SemesterSyncService.analyzeSemesterUpdateImpact(
+            editingSemester.id,
+            {
+              mulai: editingSemester.tanggal_mulai,
+              selesai: editingSemester.tanggal_selesai
+            },
+            {
+              mulai: semesterForm.tanggal_mulai,
+              selesai: semesterForm.tanggal_selesai
+            }
+          );
+
+          if (impact.warnings.length > 0) {
+            const confirmMessage = `Perubahan tanggal semester akan mempengaruhi:\n${impact.warnings.join('\n')}\n\nLanjutkan?`;
+            if (!confirm(confirmMessage)) {
+              return;
+            }
+          }
+        }
+
         // Update existing semester
         await AkademikSemesterService.updateSemester(editingSemester.id, {
           tahun_ajaran_id: semesterForm.tahun_ajaran_id,
@@ -182,6 +260,17 @@ const SemesterManagementPage: React.FC = () => {
         
         toast.success('Semester berhasil diperbarui');
       } else {
+        // Validasi overlap untuk semester baru
+        const validation = await SemesterSyncService.validateSemesterDates(
+          semesterForm.tahun_ajaran_id,
+          semesterForm.tanggal_mulai,
+          semesterForm.tanggal_selesai
+        );
+
+        if (!validation.valid) {
+          toast.error(`Tanggal semester overlap dengan semester lain: ${validation.conflicts.map(s => s.nama).join(', ')}`);
+          return;
+        }
         // Create new semester
         const semester = await AkademikSemesterService.createSemester(semesterForm);
         if (semesterForm.is_aktif) {

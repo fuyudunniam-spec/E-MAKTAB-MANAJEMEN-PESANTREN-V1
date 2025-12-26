@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Search, Filter, MoreHorizontal, Eye, Edit, Trash2, X, Calendar, FileText, Heart, DollarSign, Package, Clock, Utensils, Box, Printer, User, CheckCircle, GraduationCap, Building2, HeartHandshake } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -185,7 +186,7 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
   // Helper function untuk mapping kategori_donasi ke kategori keuangan
   const getKategoriKeuangan = (kategoriDonasi: string | null | undefined): string => {
     switch (kategoriDonasi) {
-      case 'Orang Tua Asuh Pendidikan':
+      case 'Orang Tua Asuh Santri':
         return 'Donasi Pendidikan';
       case 'Pembangunan':
         return 'Donasi Pembangunan';
@@ -203,7 +204,7 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
     try {
       let accountNamePattern = '';
       
-      if (kategori === 'Orang Tua Asuh Pendidikan') {
+      if (kategori === 'Orang Tua Asuh Santri') {
         accountNamePattern = '%Pendidikan%Santri%';
       } else if (kategori === 'Pembangunan') {
         accountNamePattern = '%Pembangunan%';
@@ -462,7 +463,7 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
     if (!kategori) return null;
     
     switch (kategori) {
-      case 'Orang Tua Asuh Pendidikan':
+      case 'Orang Tua Asuh Santri':
         return <GraduationCap className="h-3.5 w-3.5 text-blue-600" />;
       case 'Pembangunan':
         return <Building2 className="h-3.5 w-3.5 text-orange-600" />;
@@ -489,14 +490,14 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
-      'posted': { color: 'bg-green-100 text-green-800', label: 'Diposting' },
-      'received': { color: 'bg-blue-100 text-blue-800', label: 'Diterima' },
-      'pending': { color: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
-      'cancelled': { color: 'bg-red-100 text-red-800', label: 'Dibatalkan' },
+      'posted': { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Diposting' },
+      'received': { color: 'bg-blue-50 text-blue-700 border-blue-200', label: 'Diterima' },
+      'pending': { color: 'bg-amber-50 text-amber-700 border-amber-200', label: 'Pending' },
+      'cancelled': { color: 'bg-red-50 text-red-700 border-red-200', label: 'Dibatalkan' },
     };
     
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig['pending'];
-    return <Badge className={config.color} variant="secondary">{config.label}</Badge>;
+    return <Badge className={`${config.color} border text-xs px-2.5 py-0.5 font-medium`} variant="outline">{config.label}</Badge>;
   };
 
   // Get unique types for filter
@@ -832,59 +833,58 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
         ) : (
           <>
             {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto -mx-4 px-4">
-              <div className="inline-block min-w-full align-middle">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50 sticky top-0 z-10">
-                    <tr>
-                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        <button
-                          onClick={() => handleSort('donation_date')}
-                          className="flex items-center gap-1 hover:text-gray-900 transition-colors"
-                        >
-                          Tanggal
-                          {sortBy === 'donation_date' && (
-                            <span className="text-gray-400">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                          )}
-                        </button>
-                      </th>
-                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        <button
-                          onClick={() => handleSort('donor_name')}
-                          className="flex items-center gap-1 hover:text-gray-900 transition-colors"
-                        >
-                          Donatur
-                          {sortBy === 'donor_name' && (
-                            <span className="text-gray-400">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                          )}
-                        </button>
-                      </th>
-                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        Tipe / Kategori
-                      </th>
-                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Rincian Item
-                      </th>
-                      <th className="text-right py-2 px-3 text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        <button
-                          onClick={() => handleSort('cash_amount')}
-                          className="flex items-center gap-1 ml-auto hover:text-gray-900 transition-colors"
-                        >
-                          Jumlah
-                          {sortBy === 'cash_amount' && (
-                            <span className="text-gray-400">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                          )}
-                        </button>
-                      </th>
-                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        Status / Setoran
-                      </th>
-                      <th className="text-right py-2 px-3 text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                        Aksi
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+            <div className="hidden md:block border border-gray-200 rounded-xl bg-white overflow-hidden shadow-sm">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50/80">
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-100/80 font-semibold text-xs uppercase tracking-wide text-gray-600"
+                      onClick={() => handleSort('donation_date')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Tanggal
+                        {sortBy === 'donation_date' && (
+                          <span className="text-gray-400">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-100/80 font-semibold text-xs uppercase tracking-wide text-gray-600"
+                      onClick={() => handleSort('donor_name')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Donatur
+                        {sortBy === 'donor_name' && (
+                          <span className="text-gray-400">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wide text-gray-600">
+                      Tipe / Kategori
+                    </TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wide text-gray-600">
+                      Rincian Item
+                    </TableHead>
+                    <TableHead 
+                      className="text-right cursor-pointer hover:bg-gray-100/80 font-semibold text-xs uppercase tracking-wide text-gray-600"
+                      onClick={() => handleSort('cash_amount')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Jumlah
+                        {sortBy === 'cash_amount' && (
+                          <span className="text-gray-400">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wide text-gray-600">
+                      Status
+                    </TableHead>
+                    <TableHead className="text-right font-semibold text-xs uppercase tracking-wide text-gray-600">
+                      Aksi
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                     {currentDonations.map((donation) => {
                       // Filter items based on selected tab
                       const filteredItems = donation.items?.filter(item => {
@@ -893,76 +893,79 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
                       }) || [];
 
                       return (
-                        <tr key={donation.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="py-2 px-3 text-xs text-gray-900 whitespace-nowrap">
+                        <TableRow
+                          key={donation.id}
+                          className="hover:bg-gray-50/80 transition-colors"
+                        >
+                          <TableCell className="font-medium text-sm text-gray-900 whitespace-nowrap">
                             {formatDate(donation.donation_date)}
-                          </td>
-                          <td className="py-2 px-3">
-                            <div className="text-xs font-medium text-gray-900">{donation.donor_name}</div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium text-sm text-gray-900">{donation.donor_name}</div>
                             {donation.donor_email && (
-                              <div className="text-xs text-gray-500 truncate max-w-[150px]">{donation.donor_email}</div>
+                              <div className="text-xs text-gray-500 mt-0.5 truncate max-w-[200px]">{donation.donor_email}</div>
                             )}
-                          </td>
-                          <td className="py-2 px-3 whitespace-nowrap">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-1.5">
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center gap-2">
                                 {getDonationTypeIcon(donation.donation_type)}
-                                <span className="text-xs text-gray-700">{getDonationTypeLabel(donation.donation_type)}</span>
+                                <span className="text-sm text-gray-900 font-medium">{getDonationTypeLabel(donation.donation_type)}</span>
                               </div>
                               {donation.kategori_donasi && (
                                 <div className="flex items-center gap-1.5">
                                   {getKategoriDonasiIcon(donation.kategori_donasi)}
-                                  <span className="text-[10px] text-gray-500 truncate max-w-[120px]" title={donation.kategori_donasi || ''}>
+                                  <span className="text-xs text-gray-600 truncate max-w-[140px]" title={donation.kategori_donasi || ''}>
                                     {donation.kategori_donasi}
                                   </span>
                                 </div>
                               )}
                             </div>
-                          </td>
-                          <td className="py-2 px-3">
+                          </TableCell>
+                          <TableCell>
                             {filteredItems.length > 0 ? (
-                              <div className="space-y-0.5 max-w-[300px]">
+                              <div className="space-y-1.5 max-w-[320px]">
                                 {filteredItems.slice(0, 2).map((item, idx) => (
-                                  <div key={idx} className="flex items-start gap-1.5 text-xs">
+                                  <div key={idx} className="flex items-start gap-2">
                                     {item.item_type === 'inventory' ? (
-                                      <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-[10px] px-1.5 py-0 h-4 flex items-center gap-1 flex-shrink-0">
-                                        <Box className="h-2.5 w-2.5" />
+                                      <Badge className="bg-orange-50 text-orange-700 border border-orange-200 text-xs px-2 py-0.5 h-5 flex items-center gap-1.5 flex-shrink-0">
+                                        <Box className="h-3 w-3" />
                                         Inventaris
                                       </Badge>
                                     ) : item.item_type === 'direct_consumption' ? (
-                                      <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px] px-1.5 py-0 h-4 flex items-center gap-1 flex-shrink-0">
-                                        <Utensils className="h-2.5 w-2.5" />
+                                      <Badge className="bg-red-50 text-red-700 border border-red-200 text-xs px-2 py-0.5 h-5 flex items-center gap-1.5 flex-shrink-0">
+                                        <Utensils className="h-3 w-3" />
                                         Makanan
                                       </Badge>
                                     ) : null}
                                     <div className="flex-1 min-w-0">
-                                      <span className="text-gray-700 truncate block">{item.raw_item_name}</span>
-                                      <span className="text-gray-500 text-[10px]">({item.quantity} {item.uom})</span>
+                                      <span className="text-sm text-gray-900 truncate block font-medium">{item.raw_item_name}</span>
+                                      <span className="text-xs text-gray-500">({item.quantity} {item.uom})</span>
                                     </div>
                                   </div>
                                 ))}
                                 {filteredItems.length > 2 && (
-                                  <div className="text-[10px] text-gray-500 ml-4">+{filteredItems.length - 2} item lainnya</div>
+                                  <div className="text-xs text-gray-500 ml-6 mt-1">+{filteredItems.length - 2} item lainnya</div>
                                 )}
                               </div>
                             ) : donation.items && donation.items.length > 0 ? (
-                              <span className="text-xs text-gray-400">Tidak ada item di kategori ini</span>
+                              <span className="text-sm text-gray-400">Tidak ada item di kategori ini</span>
                             ) : (
-                              <span className="text-xs text-gray-400">-</span>
+                              <span className="text-sm text-gray-400">-</span>
                             )}
-                          </td>
-                          <td className="py-2 px-3 text-right whitespace-nowrap">
+                          </TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
                             {(() => {
                               if (donation.donation_type === 'cash' && donation.cash_amount) {
                                 return (
-                                  <div className="text-xs font-semibold text-gray-900">
+                                  <div className="text-sm font-semibold text-gray-900">
                                     {formatCurrency(donation.cash_amount)}
                                   </div>
                                 );
                               }
                               if (donation.donation_type === 'mixed' && donation.cash_amount) {
                                 return (
-                                  <div className="text-xs font-semibold text-gray-900">
+                                  <div className="text-sm font-semibold text-gray-900">
                                     {formatCurrency(donation.cash_amount)}
                                   </div>
                                 );
@@ -975,7 +978,7 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
                                   item.item_type === 'inventory'
                                 );
                                 if (hasDirectConsumptionOnly && !hasInventoryItems) {
-                                  return <div className="text-xs text-gray-400">-</div>;
+                                  return <div className="text-sm text-gray-400">-</div>;
                                 }
                                 if (hasInventoryItems) {
                                   const totalEstimatedValue = donation.items
@@ -983,105 +986,40 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
                                     .reduce((sum, item) => sum + ((item.estimated_value || 0) * item.quantity), 0);
                                   if (totalEstimatedValue > 0) {
                                     return (
-                                      <div className="text-xs font-semibold text-gray-900">
+                                      <div className="text-sm font-semibold text-gray-900">
                                         {formatCurrency(totalEstimatedValue)}
                                       </div>
                                     );
                                   }
                                 }
                               }
-                              return <div className="text-xs text-gray-500">-</div>;
+                              return <div className="text-sm text-gray-400">-</div>;
                             })()}
-                          </td>
-                          <td className="py-2 px-3 whitespace-nowrap">
-                            <div className="flex flex-col gap-1.5">
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <div className="flex flex-col gap-2">
                               {getStatusBadge(donation.status)}
-                              {/* Status Setoran */}
-                              {editingStatusSetoran === donation.id ? (
-                                <div className="space-y-1">
-                                  <Select
-                                    value={donation.status_setoran || "Belum disetor"}
-                                    onValueChange={(value) => {
-                                      const oldStatus = donation.status_setoran || "Belum disetor";
-                                      if (value === "Sudah disetor") {
-                                        const today = new Date().toISOString().split('T')[0];
-                                        handleUpdateStatusSetoran(donation.id, value, donation.tanggal_setoran || today, oldStatus);
-                                      } else {
-                                        handleUpdateStatusSetoran(donation.id, value, null, oldStatus);
-                                      }
-                                    }}
-                                    onOpenChange={(open) => {
-                                      if (!open) setEditingStatusSetoran(null);
-                                    }}
-                                  >
-                                    <SelectTrigger className="h-7 text-xs w-[140px]">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="Belum disetor">Belum disetor</SelectItem>
-                                      <SelectItem value="Sudah disetor">Sudah disetor</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  {donation.status_setoran === "Sudah disetor" && donation.tanggal_setoran && (
-                                    <div className="text-[10px] text-gray-500">
-                                      {formatDate(donation.tanggal_setoran)}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div
-                                  className="text-xs cursor-pointer hover:text-blue-600 hover:underline"
-                                  onClick={() => setEditingStatusSetoran(donation.id)}
-                                >
-                                  <div className="flex items-center gap-1">
-                                    {donation.status_setoran === "Sudah disetor" ? (
-                                      <>
-                                        <CheckCircle className="h-3 w-3 text-green-600" />
-                                        <span className="text-green-700 font-medium">Sudah disetor</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Clock className="h-3 w-3 text-gray-400" />
-                                        <span className="text-gray-600">Belum disetor</span>
-                                      </>
-                                    )}
-                                  </div>
-                                  {donation.status_setoran === "Sudah disetor" && donation.tanggal_setoran && (
-                                    <div className="text-[10px] text-gray-500 mt-0.5">
-                                      {formatDate(donation.tanggal_setoran)}
-                                    </div>
-                                  )}
-                                  {/* Badge "Masuk kas" jika sudah ada transaksi keuangan */}
-                                  {donation.status_setoran === "Sudah disetor" && donation.has_keuangan_transaction && (
-                                    <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0 h-4 flex items-center gap-1 mt-1">
-                                      <DollarSign className="h-2.5 w-2.5" />
-                                      Masuk kas
-                                    </Badge>
-                                  )}
-                                </div>
-                              )}
-                              {/* Penerima Awal - Compact */}
                               {donation.penerima_awal?.full_name && (
-                                <div className="text-[10px] text-gray-500 flex items-center gap-1">
-                                  <User className="h-3 w-3" />
-                                  <span className="truncate max-w-[120px]" title={donation.penerima_awal.full_name}>
+                                <div className="text-xs text-gray-600 flex items-center gap-1.5">
+                                  <User className="h-3.5 w-3.5 text-gray-400" />
+                                  <span className="truncate max-w-[140px]" title={donation.penerima_awal.full_name}>
                                     {donation.penerima_awal.full_name}
                                   </span>
                                 </div>
                               )}
                             </div>
-                          </td>
-                          <td className="py-2 px-3">
-                            <div className="flex items-center justify-end gap-0.5">
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
                               {onPrintNota && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => onPrintNota(donation)}
-                                  className="h-7 w-7 p-0"
+                                  className="h-8 w-8 p-0 hover:bg-gray-100"
                                   title="Print Nota"
                                 >
-                                  <Printer className="h-3.5 w-3.5" />
+                                  <Printer className="h-4 w-4 text-gray-600" />
                                 </Button>
                               )}
                               {onViewDetail && (
@@ -1089,16 +1027,16 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => onViewDetail(donation)}
-                                  className="h-7 w-7 p-0"
+                                  className="h-8 w-8 p-0 hover:bg-gray-100"
                                   title="Lihat Detail"
                                 >
-                                  <Eye className="h-3.5 w-3.5" />
+                                  <Eye className="h-4 w-4 text-gray-600" />
                                 </Button>
                               )}
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Menu">
-                                    <MoreHorizontal className="h-3.5 w-3.5" />
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100" title="Menu">
+                                    <MoreHorizontal className="h-4 w-4 text-gray-600" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
@@ -1120,13 +1058,12 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
+                </TableBody>
+              </Table>
             </div>
 
             {/* Mobile Card View */}
@@ -1244,18 +1181,6 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         {getStatusBadge(donation.status)}
-                        {/* Status Setoran - Compact */}
-                        {donation.status_setoran === "Sudah disetor" ? (
-                          <div className="flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3 text-green-600" />
-                            <span className="text-[10px] text-green-700">Sudah disetor</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3 text-gray-400" />
-                            <span className="text-[10px] text-gray-500">Belum disetor</span>
-                          </div>
-                        )}
                       </div>
                     </div>
                     
@@ -1301,72 +1226,6 @@ const DonationHistory: React.FC<DonationHistoryProps> = ({
                         )}
                       </div>
                       
-                      <div>
-                        <div className="text-[10px] text-gray-500 mb-1">Status Setoran</div>
-                        {editingStatusSetoran === donation.id ? (
-                          <div className="space-y-1">
-                            <Select
-                              value={donation.status_setoran || "Belum disetor"}
-                              onValueChange={(value) => {
-                                const oldStatus = donation.status_setoran || "Belum disetor";
-                                if (value === "Sudah disetor") {
-                                  const today = new Date().toISOString().split('T')[0];
-                                  handleUpdateStatusSetoran(donation.id, value, donation.tanggal_setoran || today, oldStatus);
-                                } else {
-                                  handleUpdateStatusSetoran(donation.id, value, null, oldStatus);
-                                }
-                              }}
-                              onOpenChange={(open) => {
-                                if (!open) setEditingStatusSetoran(null);
-                              }}
-                            >
-                              <SelectTrigger className="h-7 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Belum disetor">Belum disetor</SelectItem>
-                                <SelectItem value="Sudah disetor">Sudah disetor</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            {donation.status_setoran === "Sudah disetor" && donation.tanggal_setoran && (
-                              <div className="text-[10px] text-gray-500">
-                                {formatDate(donation.tanggal_setoran)}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div
-                            className="text-xs cursor-pointer hover:text-blue-600 hover:underline"
-                            onClick={() => setEditingStatusSetoran(donation.id)}
-                          >
-                            <div className="flex items-center gap-1">
-                              {donation.status_setoran === "Sudah disetor" ? (
-                                <>
-                                  <CheckCircle className="h-3 w-3 text-green-600" />
-                                  <span className="text-green-700 font-medium">Sudah disetor</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Clock className="h-3 w-3 text-gray-400" />
-                                  <span className="text-gray-600">Belum disetor</span>
-                                </>
-                              )}
-                            </div>
-                            {donation.status_setoran === "Sudah disetor" && donation.tanggal_setoran && (
-                              <div className="text-[10px] text-gray-500 mt-0.5">
-                                {formatDate(donation.tanggal_setoran)}
-                              </div>
-                            )}
-                            {/* Badge "Masuk kas" jika sudah ada transaksi keuangan */}
-                            {donation.status_setoran === "Sudah disetor" && donation.has_keuangan_transaction && (
-                              <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0 h-4 flex items-center gap-1 mt-1">
-                                <DollarSign className="h-2.5 w-2.5" />
-                                Masuk kas
-                              </Badge>
-                            )}
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </div>
                 );

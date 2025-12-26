@@ -59,6 +59,8 @@ const MODULE_PATH_MAP: Record<string, ModuleName> = {
   '/tagihan-santri': 'pembayaran',
   '/tabungan': 'tabungan',
   '/donasi': 'donasi',
+  '/donasi/rancangan-pelayanan': 'donasi',
+  '/donasi/rancangan-pelayanan/dashboard': 'donasi',
   '/inventaris': 'inventaris',
   '/inventaris/master': 'inventaris',
   '/inventaris/sales': 'koperasi', // Redirects to koperasi - sales blocked in yayasan

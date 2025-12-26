@@ -278,37 +278,11 @@ const DonasiDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
-        <div className="flex items-center justify-between">
-          <div className="space-y-3">
-            <div className="h-4 w-48 bg-gray-200 rounded animate-pulse"></div>
-            <div className="h-9 w-80 bg-gray-200 rounded animate-pulse"></div>
-            <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
-          </div>
-          <div className="flex gap-3">
-            <div className="h-9 w-24 bg-gray-200 rounded-lg animate-pulse"></div>
-            <div className="h-9 w-36 bg-gray-200 rounded-lg animate-pulse"></div>
-            <div className="h-9 w-28 bg-gray-200 rounded-lg animate-pulse"></div>
-          </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center space-y-4">
+          <RefreshCw className="h-8 w-8 animate-spin" />
+          <p className="text-muted-foreground">Memuat data donasi...</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="rounded-xl border-0 shadow-sm bg-white">
-              <div className="h-1 w-full bg-gray-200 animate-pulse"></div>
-              <div className="pb-2 pt-6 px-6">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-10 h-10 bg-gray-200 rounded-lg animate-pulse"></div>
-                  <div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div>
-                </div>
-              </div>
-              <div className="px-6 pb-6">
-                <div className="h-9 w-40 bg-gray-200 rounded animate-pulse mb-2"></div>
-                <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="h-96 bg-white rounded-xl shadow-sm animate-pulse"></div>
       </div>
     );
   }
@@ -329,54 +303,54 @@ const DonasiDashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
-      {/* Header - Inspired Design */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-            <span>Overview</span>
-            <span>/</span>
-            <span className="text-gray-900 font-medium">Donasi</span>
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 bg-white min-h-screen">
+      {/* Header - Adopsi dari KeuanganV3 */}
+      <div className="mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-light tracking-tight text-gray-900">Donasi</h1>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-1">
-            Dashboard Donasi
-          </h1>
-          <p className="text-sm text-gray-500">Kelola dan pantau donasi masuk</p>
-        </div>
-        
-        {/* Action Buttons */}
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="border-gray-300 text-gray-700 hover:bg-gray-50 h-9"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          <Button 
-            size="sm" 
-            onClick={handleAddDonation}
-            className="bg-blue-600 hover:bg-blue-700 text-white h-9 shadow-sm"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Tambah Donasi
-          </Button>
-          <Button 
-            size="sm" 
-            variant="outline"
-            onClick={handleViewReports}
-            className="border-gray-300 text-gray-700 hover:bg-gray-50 h-9"
-          >
-            <FileText className="h-4 w-4 mr-2" />
-            Laporan
-          </Button>
+          
+          {/* Action Buttons - Grouped and Clean seperti KeuanganV3 */}
+          <div className="flex items-center gap-2 flex-wrap justify-end ml-auto">
+            {/* Primary Actions */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Button 
+                size="sm" 
+                onClick={handleAddDonation}
+                className="bg-gray-900 hover:bg-gray-800 text-white shadow-sm whitespace-nowrap text-xs sm:text-sm"
+              >
+                <Plus className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Tambah Donasi</span>
+              </Button>
+            </div>
+            
+            {/* Secondary Actions */}
+            <div className="flex items-center gap-2 border-l border-gray-200 pl-2 flex-shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleViewReports}
+                className="text-gray-600 hover:text-gray-900 hover:bg-gray-50 whitespace-nowrap text-xs sm:text-sm"
+              >
+                <FileText className="h-4 w-4 sm:mr-2" />
+                <span className="hidden md:inline">Laporan</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="text-gray-600 hover:text-gray-900 hover:bg-gray-50 flex-shrink-0"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Section 1: Total Donation Display */}
+      {/* Section 1: Total Donation Display - Mirip dengan TotalBalanceDisplay */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Total Donation Display */}
         <div>
@@ -390,13 +364,13 @@ const DonasiDashboard: React.FC = () => {
           />
         </div>
 
-        {/* Quick Stats - bisa ditambahkan komponen lain di sini */}
+        {/* Quick Stats atau komponen tambahan */}
         <div className="flex items-center justify-center">
           {/* Placeholder untuk komponen tambahan */}
         </div>
       </div>
 
-      {/* Section 2: Summary Cards */}
+      {/* Section 2: Summary Cards - Menggunakan komponen yang sudah ada */}
       {statistics && (
         <DonationSummaryCards 
           stats={{
@@ -415,7 +389,14 @@ const DonasiDashboard: React.FC = () => {
         />
       )}
 
-      {/* Section 3: Hajat Hari Ini */}
+      {/* Section 3: Charts Section - Menggunakan komponen yang sudah ada */}
+      <DonationChartsSection 
+        monthlyData={monthlyData}
+        categoryData={categoryData}
+        selectedDonorName={selectedDonor || undefined}
+      />
+
+      {/* Section 4: Hajat Hari Ini - Tetap dipertahankan */}
       <HajatHariIni
         donations={donations}
         onPrintNota={handlePrintNota}
@@ -429,17 +410,9 @@ const DonasiDashboard: React.FC = () => {
           }
         }}
         onEdit={handleEditDonation}
-        // onPrintAll tidak perlu di-pass, komponen sudah handle sendiri dengan default implementation
       />
 
-      {/* Section 4: Charts Section */}
-      <DonationChartsSection 
-        monthlyData={monthlyData}
-        categoryData={categoryData}
-        selectedDonorName={selectedDonor || undefined}
-      />
-
-      {/* Section 5: Donation History */}
+      {/* Section 5: Donation History - Menggunakan komponen yang sudah ada */}
       <DonationHistory 
         donations={filteredDonations as any}
         selectedDonorName={selectedDonor || undefined}

@@ -20,6 +20,7 @@ interface KeluarItemDialogProps {
 const TujuanOptions = [
   { value: 'Dapur', label: 'Dapur' },
   { value: 'Distribusi', label: 'Distribusi Bantuan' },
+  { value: 'Koperasi', label: 'Koperasi' },
 ];
 
 export default function KeluarItemDialog({ open, onClose, item, onSuccess }: KeluarItemDialogProps) {
@@ -52,10 +53,24 @@ export default function KeluarItemDialog({ open, onClose, item, onSuccess }: Kel
     try {
       setIsSubmitting(true);
 
-      // Untuk tujuan (Dapur, Distribusi): Langsung kurangi stok dan catat transaksi
-      // Note: Transfer ke Koperasi hanya bisa dilakukan dari modul Koperasi (tab "Item Yayasan")
-      const keluarMode: "Distribusi" = 'Distribusi';
-      const penerima = tujuan === 'Dapur' ? 'Dapur' : 'Distribusi Bantuan';
+      // Tentukan keluar_mode dan penerima berdasarkan tujuan
+      let keluarMode: "Distribusi" | "Koperasi" | null = null;
+      let penerima = '';
+      let channel: 'koperasi' | 'dapur' | 'distribusi_bantuan' | null = null;
+      
+      if (tujuan === 'Dapur') {
+        penerima = 'Dapur';
+        keluarMode = 'Distribusi';
+        channel = 'dapur';
+      } else if (tujuan === 'Distribusi') {
+        penerima = 'Distribusi Bantuan';
+        keluarMode = 'Distribusi';
+        channel = 'distribusi_bantuan';
+      } else if (tujuan === 'Koperasi') {
+        penerima = 'Koperasi';
+        keluarMode = 'Koperasi';
+        channel = 'koperasi';
+      }
 
       await createTransaction({
         item_id: item.id,
@@ -66,7 +81,8 @@ export default function KeluarItemDialog({ open, onClose, item, onSuccess }: Kel
         penerima: penerima,
         catatan: catatan || `Pengeluaran ke ${penerima}`,
         harga_satuan: null,
-      });
+        channel: channel,
+      } as any);
 
       toast.success(`Item berhasil dikeluarkan ke ${penerima}`);
       

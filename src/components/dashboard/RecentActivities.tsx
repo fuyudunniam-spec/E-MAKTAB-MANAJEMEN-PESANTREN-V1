@@ -285,8 +285,8 @@ const RecentActivities: React.FC<RecentActivitiesProps> = ({
                         <Eye className="h-4 w-4 mr-2" />
                         Lihat Detail
                       </DropdownMenuItem>
-                      {/* Hide edit/delete for auto-posted entries */}
-                      {!transaction.auto_posted && (
+                      {/* Izinkan edit/delete untuk auto-posted jika jenis_transaksi === 'Pemasukan' */}
+                      {(!transaction.auto_posted || (transaction.auto_posted && transaction.jenis_transaksi === 'Pemasukan')) ? (
                         <>
                           <DropdownMenuItem onClick={() => onEditTransaction?.(transaction)}>
                             <Edit className="h-4 w-4 mr-2" />
@@ -300,8 +300,7 @@ const RecentActivities: React.FC<RecentActivitiesProps> = ({
                             Hapus
                           </DropdownMenuItem>
                         </>
-                      )}
-                      {transaction.auto_posted && (
+                      ) : (
                         <DropdownMenuItem disabled className="text-muted-foreground">
                           <span className="text-xs">Edit/Hapus tidak tersedia untuk transaksi auto-post</span>
                         </DropdownMenuItem>

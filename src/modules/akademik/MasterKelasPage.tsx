@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AkademikKelasService, KelasMasterInput } from '@/services/akademikKelas.service';
 import { AkademikAgendaService, AgendaFrekuensi, AgendaJenis, AgendaHari, AgendaPertemuanSummary } from '@/services/akademikAgenda.service';
 import { AkademikSemesterService, Semester } from '@/services/akademikSemester.service';
@@ -13,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit, Settings } from 'lucide-react';
+import { Plus, Trash2, Edit, Settings, Calendar } from 'lucide-react';
 import {
   AGENDA_FREKUENSI_OPTIONS,
   AGENDA_JENIS_OPTIONS,
@@ -315,6 +316,7 @@ const AgendaItemsList: React.FC<AgendaItemsListProps> = ({
 );
 
 const MasterKelasPage: React.FC = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [kelas, setKelas] = useState<Array<any>>([]);
   const [form, setForm] = useState<KelasMasterInput>({
@@ -1007,6 +1009,14 @@ const MasterKelasPage: React.FC = () => {
                 <Settings className="w-4 h-4 mr-2" />
                 Ubah Semester Aktif
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/akademik/semester')}
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                Kelola Semester
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -1026,14 +1036,24 @@ const MasterKelasPage: React.FC = () => {
                 Buat Semester
               </Button>
               {allSemesters.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSemesterDialogOpen(true)}
-                >
-                  <Settings className="w-4 h-4 mr-2" />
-                  Atur Semester Aktif
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSemesterDialogOpen(true)}
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    Atur Semester Aktif
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate('/akademik/semester')}
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Kelola Semester
+                  </Button>
+                </>
               )}
             </div>
           </CardContent>
@@ -1841,15 +1861,17 @@ const MasterKelasPage: React.FC = () => {
                 {allSemesters.map(semester => (
                   <div
                     key={semester.id}
-                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                    className={`p-3 rounded-lg border transition-colors ${
                       activeSemester?.id === semester.id
                         ? 'border-green-500 bg-green-50'
                         : 'border-border hover:bg-accent'
                     }`}
-                    onClick={() => handleSetSemesterAktif(semester.id)}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div 
+                        className="flex-1 cursor-pointer"
+                        onClick={() => handleSetSemesterAktif(semester.id)}
+                      >
                         <div className="font-semibold">
                           {semester.nama} • {semester.tahun_ajaran?.nama || 'Tahun Ajaran'}
                         </div>
@@ -1857,9 +1879,22 @@ const MasterKelasPage: React.FC = () => {
                           {formatDate(semester.tanggal_mulai)} — {formatDate(semester.tanggal_selesai)}
                         </div>
                       </div>
-                      {activeSemester?.id === semester.id && (
-                        <Badge className="bg-green-600">Aktif</Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {activeSemester?.id === semester.id && (
+                          <Badge className="bg-green-600">Aktif</Badge>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/akademik/semester?edit=${semester.id}`);
+                          }}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}

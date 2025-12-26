@@ -274,7 +274,7 @@ const TagihanSantri: React.FC = () => {
       const { data, error } = await supabase
         .from('donations')
         .select('id, donor_name, kategori_donasi, status_setoran')
-        .eq('kategori_donasi', 'Orang Tua Asuh Pendidikan')
+        .eq('kategori_donasi', 'Orang Tua Asuh Santri')
         .eq('status_setoran', 'Sudah disetor')
         .order('donor_name');
 
@@ -1366,7 +1366,7 @@ const TagihanSantri: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="orang_tua">Orang Tua / Wali</SelectItem>
-                    <SelectItem value="donatur">Orang Tua Asuh Pendidikan</SelectItem>
+                    <SelectItem value="donatur">Orang Tua Asuh Santri</SelectItem>
                     <SelectItem value="yayasan">Yayasan / Subsidi Internal</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1374,17 +1374,17 @@ const TagihanSantri: React.FC = () => {
 
               {paymentForm.sumber_pembayaran === 'donatur' && (
                 <div className="space-y-2 animate-in slide-in-from-top-2">
-                  <Label className="text-sm font-medium text-gray-700">Pilih Orang Tua Asuh Pendidikan / Kampanye *</Label>
+                  <Label className="text-sm font-medium text-gray-700">Pilih Orang Tua Asuh Santri / Kampanye *</Label>
                   <Select
                     value={paymentForm.donatur_id}
                     onValueChange={(value) => setPaymentForm({ ...paymentForm, donatur_id: value })}
                   >
                     <SelectTrigger className="border-gray-200 focus:border-blue-500">
-                      <SelectValue placeholder="Pilih orang tua asuh pendidikan/kampanye" />
+                      <SelectValue placeholder="Pilih orang tua asuh santri/kampanye" />
                     </SelectTrigger>
                     <SelectContent>
                       {donaturList.length === 0 ? (
-                        <SelectItem value="" disabled>Tidak ada orang tua asuh pendidikan tersedia</SelectItem>
+                        <SelectItem value="" disabled>Tidak ada orang tua asuh santri tersedia</SelectItem>
                       ) : (
                         donaturList.map(donatur => (
                           <SelectItem key={donatur.id} value={donatur.id}>

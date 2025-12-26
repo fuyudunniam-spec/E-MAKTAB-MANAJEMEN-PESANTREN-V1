@@ -9,6 +9,94 @@ vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    warning: vi.fn(),
+  },
+}));
+
+// Mock DonorService
+vi.mock('@/services/donor.service', () => ({
+  DonorService: {
+    getDonorById: vi.fn().mockResolvedValue({
+      id: 'donor-123',
+      nama_lengkap: 'Ahmad Yani',
+      nama_panggilan: 'Ahmad',
+      nomor_telepon: '081234567890',
+      email: 'ahmad@example.com',
+      alamat: 'Jl. Merdeka No. 123',
+      jenis_donatur: 'Individu',
+    }),
+  },
+}));
+
+// Mock SantriSearch component
+vi.mock('@/components/santri/SantriSearch', () => ({
+  default: ({ onSelect, value, placeholder }: any) => (
+    <div data-testid="santri-search">
+      <input
+        data-testid="santri-search-input"
+        placeholder={placeholder}
+        value={value || ''}
+        onChange={(e) => {
+          if (e.target.value && onSelect) {
+            onSelect({
+              id: 'santri-123',
+              nama_lengkap: 'Santri Test',
+              id_santri: 'ST001',
+            });
+          }
+        }}
+      />
+    </div>
+  ),
+}));
+
+// Mock DonorSearch component
+vi.mock('@/components/donor/DonorSearch', () => ({
+  default: ({ onSelect, value, placeholder, onAddNew }: any) => (
+    <div data-testid="donor-search">
+      <input
+        data-testid="donor-search-input"
+        placeholder={placeholder}
+        value={value || ''}
+        onChange={(e) => {
+          if (e.target.value && onSelect) {
+            onSelect({
+              id: 'donor-123',
+              nama_lengkap: 'Ahmad Yani',
+              nama_panggilan: 'Ahmad',
+              nomor_telepon: '081234567890',
+              email: 'ahmad@example.com',
+              jenis_donatur: 'Individu',
+            });
+          }
+        }}
+      />
+      {onAddNew && (
+        <button data-testid="add-donor-btn" onClick={onAddNew}>
+          Add New
+        </button>
+      )}
+    </div>
+  ),
+}));
+
+// Mock DonorFormDialog
+vi.mock('@/components/donor/DonorFormDialog', () => ({
+  default: ({ open, onOpenChange, onSuccess }: any) => (
+    open ? (
+      <div data-testid="donor-form-dialog">
+        <button onClick={() => onSuccess && onSuccess()}>Save Donor</button>
+        <button onClick={() => onOpenChange(false)}>Close</button>
+      </div>
+    ) : null
+  ),
+}));
+
+// Mock RancanganPelayananService
+vi.mock('@/services/rancanganPelayanan.service', () => ({
+  RancanganPelayananService: {
+    getAllRancangan: vi.fn().mockResolvedValue([]),
+    createDukungan: vi.fn().mockResolvedValue({ id: 'dukungan-123' }),
   },
 }));
 
@@ -43,6 +131,20 @@ describe('DonationFormDialog - Integration Test: Full Edit Flow', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    
+    // Mock supabase auth
+    (supabase.auth as any) = {
+      getUser: vi.fn().mockResolvedValue({
+        data: { user: { id: 'user-123' } },
+        error: null,
+      }),
+    };
+    
+    // Mock supabase RPC
+    (supabase.rpc as any) = vi.fn().mockResolvedValue({
+      data: [],
+      error: null,
+    });
     
     // Mock supabase responses with proper chaining
     const mockFrom = vi.fn().mockImplementation((table: string) => {
@@ -87,6 +189,9 @@ describe('DonationFormDialog - Integration Test: Full Edit Flow', () => {
               error: null,
             }),
           }),
+          insert: vi.fn().mockResolvedValue({
+            error: null,
+          }),
         };
       }
       
@@ -99,6 +204,32 @@ describe('DonationFormDialog - Integration Test: Full Edit Flow', () => {
                   data: { ...mockDonation, akun_kas_id: 'akun-2' },
                   error: null,
                 }),
+              }),
+            }),
+          }),
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { ...mockDonation, id: 'new-donation-123' },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      
+      if (table === 'santri') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'santri-123',
+                  nama_lengkap: 'Santri Test',
+                  id_santri: 'ST001',
+                  kategori: 'Binaan Mukim',
+                },
+                error: null,
               }),
             }),
           }),

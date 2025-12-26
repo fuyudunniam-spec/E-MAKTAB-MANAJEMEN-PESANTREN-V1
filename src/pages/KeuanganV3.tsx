@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -87,28 +87,9 @@ const KeuanganV3: React.FC = () => {
   const [deletedAccountInfo, setDeletedAccountInfo] = useState<any>(null);
   const [showRestoreOption, setShowRestoreOption] = useState(false);
 
-  // Load initial data
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  // Reload chart data when account filter changes
-  useEffect(() => {
-    console.log('⚡ useEffect triggered by selectedAccountFilter change:', {
-      selectedAccountFilter,
-      isUndefined: selectedAccountFilter === undefined,
-      timestamp: new Date().toISOString()
-    });
-    
-    if (selectedAccountFilter !== undefined) {
-      console.log('🔄 useEffect calling loadChartData and loadData...');
-      loadChartData(selectedAccountFilter);
-      loadData(); // FIXED: Also reload main data when filter changes
-    }
-  }, [selectedAccountFilter]);
-
   // Chart data loading menggunakan service layer (Phase 3 refactoring)
-  const loadChartData = async (accountId?: string) => {
+  // Memoize dengan useCallback untuk mencegah re-creation setiap render
+  const loadChartData = useCallback(async (accountId?: string) => {
     try {
       // Use passed accountId or fall back to current state
       const filterAccountId = accountId !== undefined ? accountId : selectedAccountFilter;
@@ -122,9 +103,10 @@ const KeuanganV3: React.FC = () => {
       console.error('Error loading chart data:', error);
       toast.error('Gagal memuat data chart');
     }
-  };
+  }, [selectedAccountFilter]);
 
-  const loadData = async () => {
+  // Memoize loadData dengan useCallback untuk mencegah re-creation setiap render
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -144,6 +126,11 @@ const KeuanganV3: React.FC = () => {
       // For auto-posted transactions (Donasi, Penjualan Inventaris), only get 'posted' status
       // For manual entries, get all statuses (they can be filtered by user)
       // OPTIMIZATION: Add default limit to improve initial load time (user can filter/load more if needed)
+      // Note: Using .single() is not needed here as we're getting multiple rows
+      // Add timestamp to query to prevent caching issues
+      // This ensures we always get fresh data from database
+      const queryTimestamp = Date.now();
+      
       let query = supabase
         .from('keuangan')
         .select(`
@@ -510,7 +497,19 @@ const KeuanganV3: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedAccountFilter]);
+
+  // Load initial data
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Reload chart data when account filter changes
+  useEffect(() => {
+    if (selectedAccountFilter !== undefined) {
+      loadChartData(selectedAccountFilter);
+    }
+  }, [selectedAccountFilter, loadChartData]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -925,8 +924,8 @@ const KeuanganV3: React.FC = () => {
   };
 
   const handleEditTransaction = (transaction: any) => {
-    // Prevent editing auto-posted entries
-    if (transaction.auto_posted) {
+    // Izinkan edit untuk auto-posted jika jenis_transaksi === 'Pemasukan'
+    if (transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') {
       const sourceModule = transaction.source_module || 'modul lain';
       toast.error(`Transaksi ini berasal dari ${sourceModule} dan tidak dapat diedit. Edit dari modul sumber terlebih dahulu.`);
       return;
@@ -947,8 +946,8 @@ const KeuanganV3: React.FC = () => {
   };
 
   const handleDeleteTransaction = async (transaction: any) => {
-    // Prevent deleting auto-posted entries
-    if (transaction.auto_posted) {
+    // Izinkan delete untuk auto-posted jika jenis_transaksi === 'Pemasukan'
+    if (transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') {
       const sourceModule = transaction.source_module || 'modul lain';
       toast.error(`Transaksi ini berasal dari ${sourceModule} dan tidak dapat dihapus. Hapus dari modul sumber terlebih dahulu.`);
       return;
@@ -964,25 +963,126 @@ const KeuanganV3: React.FC = () => {
     
     if (confirmed) {
       try {
-        // Use atomic RPC to delete and recalc saldo in one DB transaction
-        const { error } = await supabase.rpc('delete_keuangan_and_recalc', { p_keuangan_id: transaction.id });
+        console.log('Attempting to delete transaction:', {
+          id: transaction.id,
+          jenis_transaksi: transaction.jenis_transaksi,
+          auto_posted: transaction.auto_posted,
+          source_module: transaction.source_module
+        });
+
+        // Untuk transaksi pemasukan auto_posted, coba direct delete dulu (lebih langsung)
+        // Jika direct delete gagal, baru coba RPC
+        let deleteSuccess = false;
         
-        // Handle RLS policy error (403 Forbidden)
-        if (error) {
-          if (error.code === '42501' || error.message?.includes('permission denied') || error.message?.includes('policy')) {
-            toast.error('Transaksi ini tidak dapat dihapus karena berasal dari modul lain. Hapus dari modul sumber terlebih dahulu.');
+        if (transaction.jenis_transaksi === 'Pemasukan' && transaction.auto_posted) {
+          // Coba direct delete terlebih dahulu
+          const { error: directDeleteError, data: deleteData } = await supabase
+            .from('keuangan')
+            .delete()
+            .eq('id', transaction.id)
+            .select();
+          
+          if (!directDeleteError) {
+            deleteSuccess = true;
+            console.log('✅ Direct delete berhasil', { deletedId: transaction.id, akun_kas_id: transaction.akun_kas_id });
+            
+            // Update saldo akun kas
+            if (transaction.akun_kas_id) {
+              try {
+                const { error: saldoError } = await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+                  p_akun_id: transaction.akun_kas_id
+                });
+                if (saldoError) {
+                  console.warn('Warning: Gagal update saldo setelah delete:', saldoError);
+                } else {
+                  console.log('✅ Saldo akun kas berhasil di-update');
+                }
+              } catch (saldoError) {
+                console.warn('Warning: Gagal update saldo setelah delete:', saldoError);
+              }
+            }
+          } else {
+            console.error('❌ Direct delete gagal:', {
+              error: directDeleteError,
+              code: directDeleteError.code,
+              message: directDeleteError.message,
+              details: directDeleteError.details,
+              hint: directDeleteError.hint,
+              transactionId: transaction.id,
+              akun_kas_id: transaction.akun_kas_id,
+              source_module: transaction.source_module
+            });
+            
+            // Fallback: Coba dengan RPC jika ada
+            try {
+              const { error: rpcError } = await supabase.rpc('delete_keuangan_and_recalc', { p_keuangan_id: transaction.id });
+              
+              if (!rpcError) {
+                deleteSuccess = true;
+                console.log('✅ RPC delete berhasil (fallback)');
+              } else {
+                console.error('❌ RPC delete juga gagal:', rpcError);
+                // Jika RPC juga gagal, tampilkan error detail
+                toast.error(`Gagal menghapus transaksi: ${directDeleteError.message || 'Tidak memiliki izin untuk menghapus transaksi ini'}. Error: ${directDeleteError.code || 'UNKNOWN'}`);
+                return;
+              }
+            } catch (rpcCallError: any) {
+              // Jika RPC tidak ada atau error, tampilkan error dari direct delete
+              console.error('❌ RPC call error (function mungkin tidak ada):', rpcCallError);
+              toast.error(`Gagal menghapus transaksi: ${directDeleteError.message || 'Tidak memiliki izin untuk menghapus transaksi ini'}. Error code: ${directDeleteError.code || 'UNKNOWN'}`);
+              return;
+            }
+          }
+        } else {
+          // Untuk transaksi non-auto-posted atau pengeluaran, gunakan RPC
+          const { error } = await supabase.rpc('delete_keuangan_and_recalc', { p_keuangan_id: transaction.id });
+          
+          if (error) {
+            console.error('❌ RPC delete gagal:', error);
+            toast.error(`Gagal menghapus transaksi: ${error.message}`);
             return;
           }
-          throw error;
+          deleteSuccess = true;
         }
         
-        toast.success('Transaksi berhasil dihapus');
-        // Refetch data to sync UI
-        await loadData();
-        await loadChartData(selectedAccountFilter);
-      } catch (error) {
+        if (deleteSuccess) {
+          console.log('🗑️ Delete success, refreshing UI...');
+          toast.success('Transaksi berhasil dihapus');
+          
+          // Don't filter state manually - let loadData() fetch fresh data from DB
+          // This ensures we get the actual current state from database
+          console.log('🔄 Calling loadData() to fetch fresh data from database...');
+          
+          // Call loadData immediately to refresh from database
+          // Add a small delay only to ensure database commit is complete
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          try {
+            await loadData();
+            console.log('✅ loadData() completed successfully');
+            
+            // Refresh chart data
+            await loadChartData(selectedAccountFilter);
+            console.log('✅ Chart data refreshed successfully');
+          } catch (refreshError) {
+            console.error('❌ Error during refresh:', refreshError);
+            // Retry once more
+            try {
+              console.log('🔄 Retrying refresh...');
+              await new Promise(resolve => setTimeout(resolve, 300));
+              await loadData();
+              await loadChartData(selectedAccountFilter);
+              console.log('✅ Retry successful');
+            } catch (retryError) {
+              console.error('❌ Retry also failed:', retryError);
+            }
+          }
+        }
+      } catch (error: any) {
         console.error('Error deleting transaction:', error);
-        toast.error('Gagal menghapus transaksi');
+        toast.error(`Gagal menghapus transaksi: ${error.message || 'Terjadi kesalahan yang tidak diketahui'}`);
+        // Reload data on error to ensure UI is in sync
+        await loadData();
       }
     }
   };

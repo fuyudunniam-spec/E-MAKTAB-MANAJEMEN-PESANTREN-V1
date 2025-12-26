@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { X, Save } from 'lucide-react';
 import { createInventoryItem, updateInventoryItem } from '@/services/inventaris.service';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { getKategoriOptions, SATUAN_OPTIONS, ZONA_OPTIONS, normalizeKondisi } from '@/utils/inventaris.utils';
+import { getKategoriOptions, SATUAN_OPTIONS, ZONA_OPTIONS, getLokasiOptions, normalizeKondisi } from '@/utils/inventaris.utils';
 
 interface ItemFormProps {
   onClose: () => void;
@@ -37,12 +37,26 @@ const ItemForm = ({ onClose, editItem }: ItemFormProps) => {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [useCustomLokasi, setUseCustomLokasi] = useState(false);
   const queryClient = useQueryClient();
 
   // Get kategori options based on tipe_item
   const kategoriOptions = useMemo(() => {
     return getKategoriOptions(formData.tipe_item || 'Aset');
   }, [formData.tipe_item]);
+
+  // Get lokasi options based on zona
+  const lokasiOptions = useMemo(() => {
+    return getLokasiOptions(formData.zona || '');
+  }, [formData.zona]);
+
+  // Check if current lokasi is in options when editing
+  useEffect(() => {
+    if (editItem?.lokasi && formData.zona && lokasiOptions.length > 0) {
+      const isInOptions = lokasiOptions.includes(editItem.lokasi);
+      setUseCustomLokasi(!isInOptions);
+    }
+  }, [editItem, formData.zona, lokasiOptions]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,7 +159,10 @@ const ItemForm = ({ onClose, editItem }: ItemFormProps) => {
                 <Label htmlFor="zona">Zona</Label>
                 <Select 
                   value={formData.zona} 
-                  onValueChange={(value) => setFormData({...formData, zona: value})}
+                  onValueChange={(value) => {
+                    setFormData({...formData, zona: value, lokasi: ''});
+                    setUseCustomLokasi(false);
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih zona" />
@@ -162,13 +179,53 @@ const ItemForm = ({ onClose, editItem }: ItemFormProps) => {
 
               <div>
                 <Label htmlFor="lokasi">Lokasi *</Label>
-                <Input
-                  id="lokasi"
-                  value={formData.lokasi}
-                  onChange={(e) => setFormData({...formData, lokasi: e.target.value})}
-                  placeholder="Contoh: Lt. 1 Gudang, Dapur, dll"
-                  required
-                />
+                {formData.zona && lokasiOptions.length > 0 ? (
+                  <>
+                    <Select
+                      value={useCustomLokasi ? 'custom' : (lokasiOptions.includes(formData.lokasi) ? formData.lokasi : '')}
+                      onValueChange={(value) => {
+                        if (value === 'custom') {
+                          setUseCustomLokasi(true);
+                          setFormData({...formData, lokasi: ''});
+                        } else {
+                          setUseCustomLokasi(false);
+                          setFormData({...formData, lokasi: value});
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih lokasi" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {lokasiOptions.map((lokasi) => (
+                          <SelectItem key={lokasi} value={lokasi}>
+                            {lokasi}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="custom">Lainnya (ketik manual)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {useCustomLokasi && (
+                      <Input
+                        id="lokasi"
+                        value={formData.lokasi}
+                        onChange={(e) => setFormData({...formData, lokasi: e.target.value})}
+                        placeholder="Ketik lokasi manual"
+                        className="mt-2"
+                        required
+                      />
+                    )}
+                  </>
+                ) : (
+                  <Input
+                    id="lokasi"
+                    value={formData.lokasi}
+                    onChange={(e) => setFormData({...formData, lokasi: e.target.value})}
+                    placeholder={formData.zona ? "Masukkan lokasi manual" : "Pilih zona terlebih dahulu"}
+                    required
+                    disabled={!formData.zona}
+                  />
+                )}
               </div>
 
               <div>
@@ -292,13 +349,13 @@ const ItemForm = ({ onClose, editItem }: ItemFormProps) => {
                       setFormData({ ...formData, boleh_dijual_koperasi: checked })
                     }
                   />
-                  <Label htmlFor="boleh_dijual_koperasi">Boleh Dijual di Koperasi</Label>
+                  <Label htmlFor="boleh_dijual_koperasi">Tampilkan di Modul Koperasi</Label>
                 </div>
                 {formData.boleh_dijual_koperasi && (
                   <div className="bg-blue-50 p-3 rounded-md text-sm text-blue-800">
                     <p>
-                      Item ini akan muncul di kasir koperasi. Pastikan harga jual sudah diatur di
-                      Master Produk Koperasi.
+                      Item ini akan terlihat di modul koperasi (tab "Item Yayasan"). 
+                      Koperasi dapat melihat dan mengelola item ini. Tidak ada proses approval yang diperlukan.
                     </p>
                   </div>
                 )}

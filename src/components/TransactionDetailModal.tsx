@@ -142,7 +142,12 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                       <Badge variant="outline" className="font-mono text-xs">
                         {transaction.referensi}
                       </Badge>
-                      {transaction.referensi.startsWith('donation:') && (
+                      {/* Badge ungu untuk semua transaksi donasi (lama dan baru) */}
+                      {(transaction.kategori === 'Donasi' || 
+                        transaction.kategori === 'Donasi Tunai' ||
+                        transaction.referensi?.startsWith('donation:') ||
+                        transaction.referensi?.startsWith('donasi:') ||
+                        transaction.source_module === 'donasi') && (
                         <Badge className="bg-purple-100 text-purple-800 text-xs">
                           Dari Donasi
                         </Badge>

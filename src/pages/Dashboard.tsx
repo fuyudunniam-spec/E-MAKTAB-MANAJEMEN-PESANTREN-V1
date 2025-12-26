@@ -120,9 +120,9 @@ const Dashboard = () => {
         keuanganResult
       ] = await Promise.all([
         supabase.from('santri').select('id').eq('status', 'Aktif'),
-        supabase.from('donasi').select('*'),
-        supabase.from('inventaris').select('*'),
-        supabase.from('keuangan').select('*')
+        supabase.from('donasi').select('id, jumlah, tanggal_donasi, nama_donatur, jenis_donasi, created_at').order('tanggal_donasi', { ascending: false }).limit(1000),
+        supabase.from('inventaris').select('id, kondisi').limit(1000),
+        supabase.from('keuangan').select('id, jumlah, jenis_transaksi, tanggal').order('tanggal', { ascending: false }).limit(500)
       ]);
 
       // Calculate stats

@@ -27,7 +27,7 @@ export type InventoryTransaction = {
   id: string;
   item_id: string;
   tipe: "Masuk" | "Keluar" | "Stocktake";
-  keluar_mode?: "Penjualan" | "Distribusi" | null;
+  keluar_mode?: "Penjualan" | "Distribusi" | "Koperasi" | null;
   jumlah?: number | null;
   harga_satuan?: number | null;
   harga_dasar?: number | null;
@@ -68,7 +68,7 @@ export type InventoryFilters = {
 export type TransactionFilters = {
   search?: string | null; // by nama_barang
   tipe?: "Masuk" | "Keluar" | "Stocktake" | "all" | null;
-  keluar_mode?: "Penjualan" | "Distribusi" | "all" | null;
+  keluar_mode?: "Penjualan" | "Distribusi" | "Koperasi" | "all" | null;
   channel?: 'koperasi' | 'dapur' | 'distribusi_bantuan' | 'all' | null;
   startDate?: string | null;
   endDate?: string | null;

@@ -38,12 +38,18 @@ interface Transaction {
 }
 
 // Helper function to extract source from referensi or kategori
-const getSourceFromReferensi = (referensi?: string, kategori?: string): string | null => {
+const getSourceFromReferensi = (referensi?: string, kategori?: string, sourceModule?: string): string | null => {
   // Check kategori first for Penjualan Inventaris (to catch all cases)
   if (kategori === 'Penjualan Inventaris') return 'Penjualan Inventaris';
   
+  // Check kategori untuk Donasi (menangkap semua transaksi donasi)
+  if (kategori === 'Donasi' || kategori === 'Donasi Tunai') return 'Donasi';
+  
+  // Check source_module untuk Donasi
+  if (sourceModule === 'donasi') return 'Donasi';
+  
   if (!referensi) return null;
-  if (referensi.startsWith('donation:')) return 'Donasi';
+  if (referensi.startsWith('donation:') || referensi.startsWith('donasi:')) return 'Donasi';
   if (referensi.startsWith('inventory_sale:') || referensi.startsWith('inventaris:')) return 'Penjualan Inventaris';
   if (referensi.startsWith('pembayaran_santri:')) return 'Pembayaran Santri';
   return null;
@@ -236,7 +242,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
   // Get unique sources for filter
   const uniqueSources = Array.from(new Set(
     transactions
-      .map(t => getSourceFromReferensi(t.referensi, t.kategori))
+      .map(t => getSourceFromReferensi(t.referensi, t.kategori, t.source_module))
       .filter((source): source is string => source !== null)
   ));
 
@@ -314,7 +320,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
     const matchesDate = getDateFilter(transaction);
     
     // Filter by source (donation, inventory, etc.)
-    const transactionSource = getSourceFromReferensi(transaction.referensi, transaction.kategori);
+    const transactionSource = getSourceFromReferensi(transaction.referensi, transaction.kategori, transaction.source_module);
     const matchesSource = filterSource === 'all' || 
                          (filterSource === 'manual' && !transactionSource) ||
                          transactionSource === filterSource;
@@ -445,20 +451,23 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
       setIsBatchUpdating(true);
       const transactionIds = Array.from(selectedTransactions);
       
-      // Filter transactions yang bisa di-edit (bukan auto-posted)
+      // Filter transactions yang bisa di-edit
+      // Izinkan auto-posted jika jenis_transaksi === 'Pemasukan'
+      // Hapus filter donasi karena transaksi donasi pemasukan auto_posted bisa di-edit/di-delete
       const editableTransactions = currentTransactions.filter(t => 
         transactionIds.includes(t.id) &&
-        !t.auto_posted &&
+        (
+          !t.auto_posted || 
+          (t.auto_posted && t.jenis_transaksi === 'Pemasukan')
+        ) &&
         !t.referensi?.startsWith('inventory_sale:') &&
         !t.referensi?.startsWith('inventaris:') &&
-        !t.referensi?.startsWith('donation:') &&
-        !t.referensi?.startsWith('donasi:') &&
         !t.referensi?.startsWith('pembayaran_santri:') &&
         t.kategori !== 'Penjualan Inventaris'
       );
 
       if (editableTransactions.length === 0) {
-        toast.error('Tidak ada transaksi yang bisa di-edit. Transaksi auto-posted tidak bisa diubah.');
+        toast.error('Tidak ada transaksi yang bisa di-edit.');
         return;
       }
 
@@ -816,20 +825,18 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                               onClick={() => handleSelectTransaction(transaction.id)}
                               className="flex items-center justify-center"
                               disabled={
-                                transaction.auto_posted ||
+                                // Izinkan auto-posted jika jenis_transaksi === 'Pemasukan'
+                                // Hapus filter donasi karena transaksi donasi pemasukan auto_posted bisa di-edit/di-delete
+                                (transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') ||
                                 transaction.referensi?.startsWith('inventory_sale:') ||
                                 transaction.referensi?.startsWith('inventaris:') ||
-                                transaction.referensi?.startsWith('donation:') ||
-                                transaction.referensi?.startsWith('donasi:') ||
                                 transaction.referensi?.startsWith('pembayaran_santri:') ||
                                 transaction.kategori === 'Penjualan Inventaris'
                               }
                               title={
-                                transaction.auto_posted ||
+                                (transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') ||
                                 transaction.referensi?.startsWith('inventory_sale:') ||
                                 transaction.referensi?.startsWith('inventaris:') ||
-                                transaction.referensi?.startsWith('donation:') ||
-                                transaction.referensi?.startsWith('donasi:') ||
                                 transaction.referensi?.startsWith('pembayaran_santri:') ||
                                 transaction.kategori === 'Penjualan Inventaris'
                                   ? "Transaksi ini tidak bisa di-edit"
@@ -842,11 +849,9 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                                 <CheckSquare className="h-4 w-4 text-blue-600" />
                               ) : (
                                 <Square className={`h-4 w-4 ${
-                                  transaction.auto_posted ||
+                                  (transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') ||
                                   transaction.referensi?.startsWith('inventory_sale:') ||
                                   transaction.referensi?.startsWith('inventaris:') ||
-                                  transaction.referensi?.startsWith('donation:') ||
-                                  transaction.referensi?.startsWith('donasi:') ||
                                   transaction.referensi?.startsWith('pembayaran_santri:') ||
                                   transaction.kategori === 'Penjualan Inventaris'
                                     ? 'text-gray-300 cursor-not-allowed'
@@ -868,7 +873,12 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                               {transaction.display_category || transaction.kategori}
                             </div>
                             <div className="flex flex-wrap gap-1">
-                              {transaction.referensi?.startsWith('donation:') && (
+                              {/* Badge ungu untuk semua transaksi donasi (lama dan baru) */}
+                              {(transaction.kategori === 'Donasi' || 
+                                transaction.kategori === 'Donasi Tunai' ||
+                                transaction.referensi?.startsWith('donation:') ||
+                                transaction.referensi?.startsWith('donasi:') ||
+                                transaction.source_module === 'donasi') && (
                                 <Badge className="text-[10px] px-1.5 py-0 bg-purple-100 text-purple-800 border-purple-200">
                                   Donasi
                                 </Badge>
@@ -916,21 +926,10 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-right">
                             <div className="flex items-center justify-end space-x-1">
-                              {/* Transaksi donasi: tampilkan tombol edit tanggal khusus */}
-                              {(transaction.source_module === 'donasi' || 
-                                transaction.referensi?.startsWith('donasi:') ||
-                                transaction.referensi?.startsWith('donation:')) && 
-                               transaction.jenis_transaksi === 'Pemasukan' ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => onEditTanggalDonasi?.(transaction)}
-                                  className="h-8 w-8 p-0 hover:bg-green-100"
-                                  title="Edit tanggal transfer"
-                                >
-                                  <CalendarDays className="h-4 w-4 text-green-600" />
-                                </Button>
-                              ) : transaction.auto_posted || 
+                              {/* Cek apakah transaksi bisa di-edit/di-delete */}
+                              {/* Untuk transaksi pemasukan auto_posted, tetap izinkan edit/delete */}
+                              {/* Hanya nonaktifkan untuk transaksi pengeluaran auto_posted atau transaksi dari modul tertentu */}
+                              {(transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') || 
                                transaction.referensi?.startsWith('inventory_sale:') ||
                                transaction.referensi?.startsWith('inventaris:') ||
                                transaction.referensi?.startsWith('pembayaran_santri:') ||
@@ -1011,7 +1010,12 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                           {transaction.display_category || transaction.kategori}
                         </div>
                         <div className="flex flex-wrap gap-1">
-                          {transaction.referensi?.startsWith('donation:') && (
+                          {/* Badge ungu untuk semua transaksi donasi (lama dan baru) */}
+                          {(transaction.kategori === 'Donasi' || 
+                            transaction.kategori === 'Donasi Tunai' ||
+                            transaction.referensi?.startsWith('donation:') ||
+                            transaction.referensi?.startsWith('donasi:') ||
+                            transaction.source_module === 'donasi') && (
                             <Badge className="text-[10px] px-1.5 py-0 bg-purple-100 text-purple-800 border-purple-200">
                               Donasi
                             </Badge>
@@ -1049,23 +1053,8 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                       </div>
 
                       {/* Actions */}
-                      {/* Transaksi donasi: tampilkan tombol edit tanggal khusus */}
-                      {(transaction.source_module === 'donasi' || 
-                        transaction.referensi?.startsWith('donasi:') ||
-                        transaction.referensi?.startsWith('donation:')) && 
-                       transaction.jenis_transaksi === 'Pemasukan' ? (
-                        <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onEditTanggalDonasi?.(transaction)}
-                            className="flex-1 h-8 text-xs text-green-600 hover:bg-green-50"
-                          >
-                            <CalendarDays className="h-3 w-3 mr-1" />
-                            Edit Tanggal
-                          </Button>
-                        </div>
-                      ) : !(transaction.auto_posted || 
+                      {/* Untuk transaksi pemasukan auto_posted, tetap izinkan edit/delete */}
+                      {!((transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') || 
                          transaction.referensi?.startsWith('inventory_sale:') ||
                          transaction.referensi?.startsWith('inventaris:') ||
                          transaction.referensi?.startsWith('pembayaran_santri:') ||

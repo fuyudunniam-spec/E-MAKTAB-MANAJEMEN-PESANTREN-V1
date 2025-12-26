@@ -486,7 +486,14 @@ const KelolaHPPDanBagiHasilPage = () => {
 
       if (error) throw error;
 
-      const uniqueCategories = Array.from(new Set((data || []).map(item => item.kategori)));
+      // Filter out null, undefined, and empty string categories
+      const uniqueCategories = Array.from(
+        new Set(
+          (data || [])
+            .map(item => item.kategori)
+            .filter(cat => cat && cat.trim() !== '') // Filter out empty strings
+        )
+      );
       return uniqueCategories.sort();
     },
   });
@@ -1091,11 +1098,13 @@ const KelolaHPPDanBagiHasilPage = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Semua Kategori</SelectItem>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
+                      {categories
+                        .filter(cat => cat && cat.trim() !== '') // Additional safety filter
+                        .map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <Select value={filterOwnerType} onValueChange={(value: 'all' | 'yayasan' | 'koperasi') => setFilterOwnerType(value)}>

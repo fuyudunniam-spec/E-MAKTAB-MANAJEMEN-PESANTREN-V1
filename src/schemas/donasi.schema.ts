@@ -15,13 +15,61 @@ export const mappingStatusEnum = z.enum(["unmapped", "suggested", "mapped", "new
   errorMap: () => ({ message: "Status pemetaan tidak valid" })
 });
 
-export const kategoriDonasiEnum = z.enum(["Orang Tua Asuh Pendidikan", "Pembangunan", "Donasi Umum"], {
+export const kategoriDonasiEnum = z.enum(["Orang Tua Asuh Santri", "Pembangunan", "Donasi Umum"], {
   errorMap: () => ({ message: "Kategori donasi tidak valid" })
 });
 
 export const statusSetoranEnum = z.enum(["Belum disetor", "Sudah disetor"], {
   errorMap: () => ({ message: "Status setoran tidak valid" })
 });
+
+// ================================================
+// HELPER FUNCTIONS
+// ================================================
+
+/**
+ * Validates if a date string is valid
+ */
+const isValidDate = (date: string | null | undefined): boolean => {
+  if (!date) return true;
+  const d = new Date(date);
+  return !isNaN(d.getTime());
+};
+
+/**
+ * Validates if a date is in the future
+ */
+const isFutureDate = (date: string | null | undefined): boolean => {
+  if (!date) return true;
+  const d = new Date(date);
+  return !isNaN(d.getTime()) && d > new Date();
+};
+
+/**
+ * Validates donation item quantity and UoM
+ */
+const validateDonationItem = (
+  item: { quantity?: number | null; uom?: string | null },
+  index: number,
+  ctx: z.RefinementCtx,
+  pathPrefix: (string | number)[] = []
+): void => {
+  if (!item.quantity || item.quantity <= 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Item ${index + 1}: Jumlah harus lebih dari 0`,
+      path: [...pathPrefix, index, "quantity"]
+    });
+  }
+  
+  if (!item.uom || item.uom.trim() === "") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Item ${index + 1}: Satuan wajib diisi`,
+      path: [...pathPrefix, index, "uom"]
+    });
+  }
+};
 
 // ================================================
 // DONATION HEADER SCHEMA
@@ -50,18 +98,11 @@ export const donationHeaderSchema = z.object({
   
   // Dates
   donation_date: z.string()
-    .refine((date) => {
-      const d = new Date(date);
-      return !isNaN(d.getTime());
-    }, "Format tanggal tidak valid"),
+    .refine(isValidDate, "Format tanggal tidak valid"),
   received_date: z.string()
     .optional()
     .nullable()
-    .refine((date) => {
-      if (!date) return true;
-      const d = new Date(date);
-      return !isNaN(d.getTime());
-    }, "Format tanggal tidak valid"),
+    .refine(isValidDate, "Format tanggal tidak valid"),
   
   // Cash-specific
   cash_amount: z.number()
@@ -122,11 +163,7 @@ export const donationHeaderSchema = z.object({
   tanggal_setoran: z.string()
     .optional()
     .nullable()
-    .refine((date) => {
-      if (!date) return true;
-      const d = new Date(date);
-      return !isNaN(d.getTime());
-    }, "Format tanggal tidak valid"),
+    .refine(isValidDate, "Format tanggal tidak valid"),
 }).superRefine((data, ctx) => {
   // Validate tanggal_setoran required if status_setoran = Sudah disetor
   if (data.status_setoran === "Sudah disetor" && !data.tanggal_setoran) {
@@ -145,8 +182,8 @@ export const donationHeaderSchema = z.object({
         path: ["cash_amount"]
       });
     }
-    // Validate akun_kas_id for cash donations
-    if (!data.akun_kas_id) {
+    // Validate akun_kas_id for cash donations (kecuali "Orang Tua Asuh Santri" yang menggunakan akun kas per pilar)
+    if (data.kategori_donasi !== "Orang Tua Asuh Santri" && !data.akun_kas_id) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Akun kas wajib dipilih untuk donasi tunai",
@@ -167,8 +204,8 @@ export const donationHeaderSchema = z.object({
         path: ["cash_amount"]
       });
     }
-    // Validate akun_kas_id for mixed donations with cash
-    if (hasCash && !data.akun_kas_id) {
+    // Validate akun_kas_id for mixed donations with cash (kecuali "Orang Tua Asuh Santri" yang menggunakan akun kas per pilar)
+    if (data.kategori_donasi !== "Orang Tua Asuh Santri" && hasCash && !data.akun_kas_id) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Akun kas wajib dipilih untuk donasi campuran dengan tunai",
@@ -235,11 +272,7 @@ export const donationItemSchema = z.object({
   expiry_date: z.string()
     .optional()
     .nullable()
-    .refine((date) => {
-      if (!date) return true;
-      const d = new Date(date);
-      return !isNaN(d.getTime()) && d > new Date();
-    }, "Tanggal kedaluwarsa harus di masa depan"),
+    .refine(isFutureDate, "Tanggal kedaluwarsa harus di masa depan"),
   
   // Mapping (only required for inventory items)
   mapped_item_id: z.string()
@@ -266,10 +299,7 @@ export const donationItemSchema = z.object({
     });
   }
   
-  // Direct consumption items don't need mapping
-  if (data.item_type === "direct_consumption") {
-    // Can skip mapping requirement
-  }
+  // Direct consumption items don't need mapping - validation skipped intentionally
 });
 
 // ================================================
@@ -302,21 +332,7 @@ export const fullDonationSchema = z.object({
     
     // Check each item has required fields
     data.items.forEach((item, index) => {
-      if (!item.quantity || item.quantity <= 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Item ${index + 1}: Jumlah harus lebih dari 0`,
-          path: ["items", index, "quantity"]
-        });
-      }
-      
-      if (!item.uom || item.uom.trim() === "") {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Item ${index + 1}: Satuan wajib diisi`,
-          path: ["items", index, "uom"]
-        });
-      }
+      validateDonationItem(item, index, ctx, ["items"]);
     });
   }
   
@@ -345,21 +361,7 @@ export const fullDonationSchema = z.object({
     // Validate items if present
     if (hasItems) {
       data.items.forEach((item, index) => {
-        if (!item.quantity || item.quantity <= 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Item ${index + 1}: Jumlah harus lebih dari 0`,
-            path: ["items", index, "quantity"]
-          });
-        }
-        
-        if (!item.uom || item.uom.trim() === "") {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Item ${index + 1}: Satuan wajib diisi`,
-            path: ["items", index, "uom"]
-          });
-        }
+        validateDonationItem(item, index, ctx, ["items"]);
       });
     }
   }
@@ -426,8 +428,12 @@ export type ItemMapping = z.infer<typeof itemMappingSchema>;
 export type PostToStock = z.infer<typeof postToStockSchema>;
 
 // ================================================
-// HELPER: Check if item is perishable
+// PERISHABLE ITEM HELPER
 // ================================================
+
+/**
+ * Check if item is perishable based on name
+ */
 export const isItemPerishable = (itemName: string): boolean => {
   const perishableKeywords = [
     'makanan', 'minuman', 'roti', 'kue', 'buah', 'sayur',

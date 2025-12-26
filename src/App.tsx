@@ -19,6 +19,10 @@ import TabunganRouter from "./pages/TabunganRouter";
 import TabunganSantriAdmin from "./pages/TabunganSantriAdmin";
 import LaporanTabungan from "./pages/LaporanTabungan";
 import DonasiDashboard from "./pages/DonasiDashboard";
+// Modul Kebutuhan Layanan Santri - DINONAKTIFKAN
+// import RancanganPelayananSantri from "./pages/RancanganPelayananSantri";
+// import RancanganDashboard from "./components/rancangan/RancanganDashboard";
+import MasterDonatur from "./pages/MasterDonatur";
 import Inventaris from "./pages/Inventaris";
 import InventarisRefactored from "./pages/InventarisRefactored";
 // Removed: InventarisV2, InventarisV2Simple - using new dashboard structure
@@ -69,6 +73,7 @@ const MasterPaketPage = lazy(() => import('./modules/inventaris/Distribution/Mas
 const RiwayatInventarisYayasanPage = lazy(() => import('./modules/inventaris/Transactions/RiwayatInventarisYayasanPage'));
 const KeuanganAuditPage = lazy(() => import('./pages/admin/KeuanganAuditPage'));
 const KeuanganV3 = lazy(() => import('./pages/KeuanganV3'));
+const RiwayatPenyaluranBantuanPage = lazy(() => import('./modules/keuangan/PenyaluranBantuan/RiwayatPenyaluranBantuanPage'));
 const InventarisDashboard = lazy(() => import('./pages/InventarisDashboard'));
 
 // Lazy imports for koperasi modules
@@ -448,6 +453,32 @@ const App = () => (
                 <DonasiDashboard />
               </Layout>
             } />
+            {/* Modul Kebutuhan Layanan Santri - DINONAKTIFKAN */}
+            {/* <Route path="/donasi/kebutuhan-layanan" element={
+              <Layout>
+                <RancanganPelayananSantri />
+              </Layout>
+            } /> */}
+            {/* <Route path="/donasi/rancangan-pelayanan" element={
+              <Layout>
+                <RancanganPelayananSantri />
+              </Layout>
+            } /> */}
+            {/* <Route path="/donasi/kebutuhan-layanan/dashboard" element={
+              <Layout>
+                <RancanganDashboard />
+              </Layout>
+            } /> */}
+            {/* <Route path="/donasi/rancangan-pelayanan/dashboard" element={
+              <Layout>
+                <RancanganDashboard />
+              </Layout>
+            } /> */}
+            <Route path="/donasi/master-donatur" element={
+              <Layout>
+                <MasterDonatur />
+              </Layout>
+            } />
             {/* Removed: Route /inventaris and /inventaris-v2 using InventarisV2 - now using new dashboard structure */}
             <Route path="/inventaris-test" element={
               <Layout>
@@ -478,6 +509,13 @@ const App = () => (
               <Layout>
                 <Suspense fallback={<div>Loading...</div>}>
                   <KeuanganV3 />
+                </Suspense>
+              </Layout>
+            } />
+            <Route path="/keuangan-v3/penyaluran-bantuan" element={
+              <Layout>
+                <Suspense fallback={<div>Loading...</div>}>
+                  <RiwayatPenyaluranBantuanPage />
                 </Suspense>
               </Layout>
             } />

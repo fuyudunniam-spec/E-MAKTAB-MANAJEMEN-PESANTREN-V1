@@ -836,7 +836,7 @@ const SantriProfileRedesigned = () => {
             
             const sumberLabel = 
               p.sumber_pembayaran === 'orang_tua' ? 'Orang Tua' :
-              p.sumber_pembayaran === 'donatur' ? 'Orang Tua Asuh Pendidikan' :
+              p.sumber_pembayaran === 'donatur' ? 'Orang Tua Asuh Santri' :
               p.sumber_pembayaran === 'yayasan' ? 'Yayasan' : 'Lainnya';
 
             allPayments.push({
@@ -2047,7 +2047,7 @@ const SantriProfileRedesigned = () => {
                           <TableRow 
                             key={index}
                             className={
-                              payment.sumber === 'Orang Tua Asuh Pendidikan' 
+                              payment.sumber === 'Orang Tua Asuh Santri' 
                                 ? 'bg-green-50/50 hover:bg-green-50' 
                                 : payment.sumber === 'Yayasan'
                                 ? 'bg-blue-50/50 hover:bg-blue-50'
@@ -2061,7 +2061,7 @@ const SantriProfileRedesigned = () => {
                             <TableCell>
                               <Badge 
                                 className={
-                                  payment.sumber === 'Orang Tua Asuh Pendidikan' 
+                                  payment.sumber === 'Orang Tua Asuh Santri' 
                                     ? 'bg-green-100 text-green-800 border-green-200' 
                                     : payment.sumber === 'Yayasan'
                                     ? 'bg-blue-100 text-blue-800 border-blue-200'
@@ -2103,7 +2103,7 @@ const SantriProfileRedesigned = () => {
                               </div>
                               <Badge 
                                 className={
-                                  payment.sumber === 'Orang Tua Asuh Pendidikan' 
+                                  payment.sumber === 'Orang Tua Asuh Santri' 
                                     ? 'bg-green-100 text-green-800 border-green-200 text-xs' 
                                     : payment.sumber === 'Yayasan'
                                     ? 'bg-blue-100 text-blue-800 border-blue-200 text-xs'

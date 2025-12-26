@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,8 +9,8 @@ import StockOpname from './components/StockOpname';
 import StockExpiryTable from './components/StockExpiryTable';
 import DeleteConfirmDialog from './components/DeleteConfirmDialog';
 import { Package, ClipboardList, FileSpreadsheet, AlertTriangle } from 'lucide-react';
-import { getLowStock, getNearExpiry, listInventory, deleteInventoryItem } from '@/services/inventaris.service';
-import { InventoryItem } from '@/types/inventaris.types';
+import { getLowStock, getNearExpiry, listInventory, deleteInventoryItem, InventoryFilters } from '@/services/inventaris.service';
+import { InventoryItem, Sort } from '@/types/inventaris.types';
 import { useToast } from '@/hooks/use-toast';
 import { useStockNotifications } from '@/hooks/useStockNotifications';
 
@@ -26,6 +26,8 @@ const InventarisMasterPage = () => {
     const [totalItems, setTotalItems] = useState(0);
     const [itemToDelete, setItemToDelete] = useState<InventoryItem | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [filters, setFilters] = useState<InventoryFilters>({});
+    const [sort, setSort] = useState<Sort>({ column: 'nama_barang', direction: 'asc' });
     const { toast } = useToast();
 
     // Enable real-time stock notifications
@@ -40,12 +42,12 @@ const InventarisMasterPage = () => {
         } else if (activeTab === 'expiry') {
             fetchAlertData();
         }
-    }, [activeTab, pagination.page]);
+    }, [activeTab, pagination, filters, sort]);
 
     const fetchInventoryData = async () => {
         setIsLoadingInventory(true);
         try {
-            const result = await listInventory(pagination, {});
+            const result = await listInventory(pagination, filters, sort);
             // Type assertion untuk kompatibilitas
             setInventoryData((result.data || []) as InventoryItem[]);
             setTotalItems(result.total || 0);
@@ -178,7 +180,24 @@ const InventarisMasterPage = () => {
                         data={inventoryData}
                         isLoading={isLoadingInventory}
                         pagination={pagination}
-                        onPaginationChange={setPagination}
+                        totalItems={totalItems}
+                        onPaginationChange={(newPagination) => {
+                            // Reset to page 1 when pageSize changes
+                            if (newPagination.pageSize !== pagination.pageSize) {
+                                setPagination({ ...newPagination, page: 1 });
+                            } else {
+                                setPagination(newPagination);
+                            }
+                        }}
+                        filters={filters}
+                        onFiltersChange={useCallback((newFilters: InventoryFilters) => {
+                            setFilters(newFilters);
+                            setPagination(prev => ({ ...prev, page: 1 })); // Reset to page 1 when filters change
+                        }, [])}
+                        sort={sort}
+                        onSortChange={(newSort) => {
+                            setSort(newSort);
+                        }}
                         onAdd={() => {
                             fetchInventoryData();
                         }}

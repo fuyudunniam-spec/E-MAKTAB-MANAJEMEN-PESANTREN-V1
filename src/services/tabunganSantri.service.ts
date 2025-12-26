@@ -65,7 +65,37 @@ export class TabunganSantriService {
       throw new Error(`Error setor tabungan: ${error.message}`);
     }
 
-    return data;
+    const tabunganId = data;
+
+    // Update record dengan field baru jika ada
+    const updateData: any = {};
+    if (request.tanggal) {
+      updateData.tanggal = request.tanggal;
+    }
+    if (request.tipe_setoran) {
+      updateData.tipe_setoran = request.tipe_setoran;
+    }
+    if (request.sumber_dana) {
+      updateData.sumber_dana = request.sumber_dana;
+    }
+    if (request.akun_kas_id) {
+      updateData.akun_kas_id = request.akun_kas_id;
+    }
+
+    // Update record jika ada field baru
+    if (Object.keys(updateData).length > 0) {
+      const { error: updateError } = await supabase
+        .from('santri_tabungan')
+        .update(updateData)
+        .eq('id', tabunganId);
+
+      if (updateError) {
+        console.warn('Warning updating tabungan metadata:', updateError);
+        // Don't throw - RPC already succeeded
+      }
+    }
+
+    return tabunganId;
   }
 
   // Tarik tabungan santri
@@ -84,7 +114,31 @@ export class TabunganSantriService {
       throw new Error(`Error tarik tabungan: ${error.message}`);
     }
 
-    return data;
+    const tabunganId = data;
+
+    // Update record dengan field baru jika ada
+    const updateData: any = {};
+    if (request.tanggal) {
+      updateData.tanggal = request.tanggal;
+    }
+    if (request.akun_kas_id) {
+      updateData.akun_kas_id = request.akun_kas_id;
+    }
+
+    // Update record jika ada field baru
+    if (Object.keys(updateData).length > 0) {
+      const { error: updateError } = await supabase
+        .from('santri_tabungan')
+        .update(updateData)
+        .eq('id', tabunganId);
+
+      if (updateError) {
+        console.warn('Warning updating tabungan metadata:', updateError);
+        // Don't throw - RPC already succeeded
+      }
+    }
+
+    return tabunganId;
   }
 
   // Setor massal tabungan santri
@@ -102,7 +156,37 @@ export class TabunganSantriService {
       throw new Error(`Error setor massal: ${error.message}`);
     }
 
-    return data;
+    const tabunganIds = data || [];
+
+    // Update records dengan field baru jika ada
+    const updateData: any = {};
+    if (request.tanggal) {
+      updateData.tanggal = request.tanggal;
+    }
+    if (request.tipe_setoran) {
+      updateData.tipe_setoran = request.tipe_setoran;
+    }
+    if (request.sumber_dana) {
+      updateData.sumber_dana = request.sumber_dana;
+    }
+    if (request.akun_kas_id) {
+      updateData.akun_kas_id = request.akun_kas_id;
+    }
+
+    // Update records jika ada field baru
+    if (Object.keys(updateData).length > 0 && tabunganIds.length > 0) {
+      const { error: updateError } = await supabase
+        .from('santri_tabungan')
+        .update(updateData)
+        .in('id', tabunganIds);
+
+      if (updateError) {
+        console.warn('Warning updating tabungan metadata:', updateError);
+        // Don't throw - RPC already succeeded
+      }
+    }
+
+    return tabunganIds;
   }
 
   // Tarik massal tabungan santri

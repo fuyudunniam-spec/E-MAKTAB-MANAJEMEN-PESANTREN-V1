@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,37 +14,25 @@ import {
   DollarSign,
   Settings,
   LogOut,
-  Menu,
   X,
   User as UserIcon,
-  CheckCircle,
-  Crown,
   GraduationCap,
   FileText,
-  ClipboardCheck,
   ChevronDown,
   ChevronRight,
   TrendingUp,
-  Award,
-  UserCog,
   Key,
   BookOpen,
   HandCoins,
-  CalendarCog,
-  Calendar,
-  UserPlus,
   BookMarked,
-  CheckSquare,
   Coins,
-  Receipt,
-  TrendingDown,
   Store,
   CreditCard,
   Warehouse,
   TruckIcon,
-  BarChart2,
   FileBarChart,
-  Calculator
+  Calculator,
+  Target
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -78,45 +66,14 @@ const SidebarContent = () => {
   // Semua section tertutup by default
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
   const [expandedSubmenus, setExpandedSubmenus] = useState<string[]>([]);
-  const [pendingTransferCount, setPendingTransferCount] = useState<number>(0);
 
   // Check feature flag for module dashboards
   const showModuleDashboards = getFeature('MODULE_DASHBOARD_ALPHA');
 
-  // Fetch pending transfer count for koperasi admin
-  useEffect(() => {
-    const fetchPendingCount = async () => {
-      if (!user) return;
-      
-      // Only fetch for koperasi admin
-      const isKoperasiAdmin = user?.role === 'admin' || user?.roles?.includes('admin_koperasi');
-      if (!isKoperasiAdmin) return;
-
-      try {
-        const { count, error } = await supabase
-          .from('transfer_inventaris')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'pending')
-          .eq('tujuan', 'koperasi');
-
-        if (!error && count !== null) {
-          setPendingTransferCount(count);
-        }
-      } catch (err) {
-        console.error('Error fetching pending transfer count:', err);
-      }
-    };
-
-    fetchPendingCount();
-    
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchPendingCount, 30000);
-    return () => clearInterval(interval);
-  }, [user]);
-
   // Reorganized menu structure with modules and sub-modules
   // Urutan: Dashboard, Santri, Akademik, Keuangan, Inventaris, Koperasi, Administrasi
-  const reorganizedMenuSections: MenuSection[] = [
+  // Memoize menu sections to prevent recreation on every render
+  const reorganizedMenuSections: MenuSection[] = useMemo(() => [
     {
       title: 'DASHBOARD',
       icon: LayoutDashboard,
@@ -172,11 +129,22 @@ const SidebarContent = () => {
       title: 'KEUANGAN',
       icon: DollarSign,
       items: [
-        ...(showModuleDashboards ? [{ icon: LayoutDashboard, label: 'Dashboard Keuangan', path: '/keuangan-dashboard' }] : []),
+        { icon: LayoutDashboard, label: 'Dashboard Keuangan', path: '/keuangan-v3/penyaluran-bantuan' },
         { icon: TrendingUp, label: 'Keuangan Umum', path: '/keuangan-v3' },
-        { icon: FileText, label: 'Pembayaran Santri', path: '/tagihan-santri' },
-        { icon: PiggyBank, label: 'Tabungan Santri', path: '/tabungan-santri' },
-        { icon: Heart, label: 'Donasi', path: '/donasi' }
+        { icon: FileText, label: 'SPP & Pembayaran Santri', path: '/tagihan-santri' },
+        { icon: PiggyBank, label: 'Tabungan Santri', path: '/tabungan-santri' }
+      ]
+    },
+    {
+      title: 'DONASI',
+      icon: Heart,
+      items: [
+        ...(showModuleDashboards ? [{ icon: LayoutDashboard, label: 'Dashboard Donasi', path: '/donasi-dashboard' }] : []),
+        { icon: Heart, label: 'Donasi', path: '/donasi' },
+        { icon: UserIcon, label: 'Master Donatur', path: '/donasi/master-donatur' }
+        // Modul Kebutuhan Layanan Santri - DINONAKTIFKAN
+        // { icon: Target, label: 'Kebutuhan Layanan Santri', path: '/donasi/kebutuhan-layanan' },
+        // ...(showModuleDashboards ? [{ icon: LayoutDashboard, label: 'Dashboard Kebutuhan', path: '/donasi/kebutuhan-layanan/dashboard' }] : [])
       ]
     },
     {
@@ -222,12 +190,15 @@ const SidebarContent = () => {
         { icon: Key, label: 'Ubah Password', path: '/change-password' }
       ]
     }
-  ];
+  ], [showModuleDashboards, user?.role, user?.roles]);
 
   // Sidebar khusus untuk SANTRI (fokus ke profil sendiri)
   const isSantri = user?.role === 'santri';
-  const santriProfileBase = `/santri/profile?santriId=${user?.santriId || ''}&santriName=${encodeURIComponent(user?.name || 'Santri')}`;
-  const santriMenuSections: MenuSection[] = [
+  const santriProfileBase = useMemo(() => 
+    `/santri/profile?santriId=${user?.santriId || ''}&santriName=${encodeURIComponent(user?.name || 'Santri')}`,
+    [user?.santriId, user?.name]
+  );
+  const santriMenuSections: MenuSection[] = useMemo(() => [
     {
       title: 'PROFIL',
       icon: UserIcon,
@@ -264,10 +235,11 @@ const SidebarContent = () => {
         { icon: Key, label: 'Ubah Password', path: '/change-password' }
       ]
     }
-  ];
+  ], [santriProfileBase, user?.santriId]);
 
   // Filter menu sections and items based on user role
-  const filterMenuByRole = (sections: MenuSection[]): MenuSection[] => {
+  // Memoize filter function to prevent recreation
+  const filterMenuByRole = useCallback((sections: MenuSection[]): MenuSection[] => {
     if (!user) return [];
 
     return sections
@@ -281,12 +253,13 @@ const SidebarContent = () => {
         }
 
         // Map section title to module name for permission check
-        // Urutan: Dashboard, Santri, Akademik, Keuangan, Inventaris, Koperasi, Administrasi
+        // Urutan: Dashboard, Santri, Akademik, Keuangan, Donasi, Inventaris, Koperasi, Administrasi
         const sectionModuleMap: Record<string, string> = {
           'DASHBOARD': 'dashboard',
           'SANTRI': 'santri',
           'AKADEMIK': 'monitoring',
           'KEUANGAN': 'keuangan',
+          'DONASI': 'donasi',
           'INVENTARIS': 'inventaris',
           'KOPERASI': 'koperasi',
           'ADMINISTRASI': 'settings'
@@ -317,36 +290,42 @@ const SidebarContent = () => {
         };
       })
       .filter((section): section is MenuSection => section !== null);
-  };
+  }, [user, canAccess]);
 
-  // Use filtered structure based on role
-  const effectiveSections = isSantri ? santriMenuSections : reorganizedMenuSections;
-  const menuSections = filterMenuByRole(effectiveSections);
+  // Use filtered structure based on role - memoize to prevent recalculation
+  const effectiveSections = useMemo(() => 
+    isSantri ? santriMenuSections : reorganizedMenuSections,
+    [isSantri, santriMenuSections, reorganizedMenuSections]
+  );
+  const menuSections = useMemo(() => 
+    filterMenuByRole(effectiveSections),
+    [filterMenuByRole, effectiveSections]
+  );
 
-  const toggleSection = (title: string) => {
+  const toggleSection = useCallback((title: string) => {
     setExpandedSections(prev => 
       prev.includes(title) 
         ? prev.filter(t => t !== title)
         : [...prev, title]
     );
-  };
+  }, []);
 
-  const toggleSubmenu = (path: string) => {
+  const toggleSubmenu = useCallback((path: string) => {
     setExpandedSubmenus(prev => 
       prev.includes(path) 
         ? prev.filter(p => p !== path)
         : [...prev, path]
     );
-  };
+  }, []);
 
-  const isActive = (path: string) => {
+  const isActive = useCallback((path: string) => {
     return location.pathname === path;
-  };
+  }, [location.pathname]);
 
-  const isSubmenuActive = (subItems?: MenuItem[]) => {
+  const isSubmenuActive = useCallback((subItems?: MenuItem[]) => {
     if (!subItems) return false;
     return subItems.some(item => item.path && location.pathname.startsWith(item.path));
-  };
+  }, [location.pathname]);
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { User as SupabaseUser, Session } from "@supabase/supabase-js";
 import { getUserRoles, getUserProfile, getUserPrimaryRole } from "@/services/auth.service";
 import { canAccessModule, canPerformAction, type AppRole } from "@/utils/permissions";
+import { logger } from "@/utils/logger";
 
 export type UserRole = AppRole;
 
@@ -39,11 +40,11 @@ export function useAuth() {
     try {
       const [roles, profile, santriData] = await Promise.all([
         getUserRoles(userId).catch(err => {
-          console.warn("Error fetching roles, using default:", err);
+          logger.warn("Error fetching roles, using default:", err);
           return [];
         }),
         getUserProfile(userId).catch(err => {
-          console.warn("Error fetching profile:", err);
+          logger.warn("Error fetching profile:", err);
           return null;
         }),
         // Fetch santri data if user is santri
@@ -110,7 +111,7 @@ export function useAuth() {
             
             // If RPC function doesn't exist (error 520/523 or CORS), try direct query
             if (err?.code === 'PGRST204' || err?.message?.includes('CORS') || err?.message?.includes('520') || err?.message?.includes('523')) {
-              console.warn('RPC function not available, trying direct query:', err);
+              logger.warn('RPC function not available, trying direct query:', err);
               try {
                 const { data: santriData, error: santriError } = await supabase
                   .from('santri')
@@ -123,10 +124,10 @@ export function useAuth() {
                   return santriData;
                 }
               } catch (fallbackErr) {
-                console.warn('Fallback query also failed:', fallbackErr);
+                logger.warn('Fallback query also failed:', fallbackErr);
               }
             } else {
-              console.warn('Error fetching santri data:', err);
+              logger.warn('Error fetching santri data:', err);
             }
             return null;
           }
@@ -155,7 +156,7 @@ export function useAuth() {
       setUser(userData);
       return userData;
     } catch (error) {
-      console.error("Error fetching user role:", error);
+      logger.error("Error fetching user role:", error);
       // Fallback to default - always set user even if error
       const fallbackUser: User = {
         id: userId,
@@ -176,20 +177,20 @@ export function useAuth() {
 
     const setLoadingFalse = () => {
       if (mounted && !hasSetLoading) {
-        console.log("✅ [useAuth] Setting loading to false");
+        logger.log("✅ [useAuth] Setting loading to false");
         setLoading(false);
         hasSetLoading = true;
         if (timeoutId) clearTimeout(timeoutId);
       }
     };
 
-    console.log("🔐 [useAuth] Initializing auth check...");
+    logger.log("🔐 [useAuth] Initializing auth check...");
 
     // Safety timeout - ALWAYS set loading to false after 2 seconds max (reduced from 3)
     timeoutId = setTimeout(() => {
       if (mounted && !hasSetLoading) {
-        console.warn("⏰ [useAuth] TIMEOUT: Force setting loading to false after 2 seconds");
-        console.warn("⏰ [useAuth] This usually means getSession() is hanging. Check Supabase connection.");
+        logger.warn("⏰ [useAuth] TIMEOUT: Force setting loading to false after 2 seconds");
+        logger.warn("⏰ [useAuth] This usually means getSession() is hanging. Check Supabase connection.");
         setLoading(false);
         hasSetLoading = true;
         // On timeout, assume no session and user needs to login
@@ -206,7 +207,7 @@ export function useAuth() {
     let authStateChangeFired = false;
     const fallbackTimeout = setTimeout(() => {
       if (!authStateChangeFired && mounted && !hasSetLoading) {
-        console.warn("⏰ [useAuth] onAuthStateChange never fired - forcing loading to false");
+        logger.warn("⏰ [useAuth] onAuthStateChange never fired - forcing loading to false");
         setLoadingFalse();
       }
     }, 2500); // Slightly longer than main timeout to allow auth state change to fire
@@ -216,17 +217,17 @@ export function useAuth() {
         authStateChangeFired = true;
         clearTimeout(fallbackTimeout);
         if (!mounted) {
-          console.log("🔐 [useAuth] Component unmounted, skipping auth state change");
+          logger.log("🔐 [useAuth] Component unmounted, skipping auth state change");
           return;
         }
 
-        console.log("🔐 [useAuth] Auth state changed", { event, hasSession: !!session, userId: session?.user?.id });
+        logger.log("🔐 [useAuth] Auth state changed", { event, hasSession: !!session, userId: session?.user?.id });
 
         try {
           setSession(session);
 
           if (session?.user) {
-            console.log("🔐 [useAuth] Fetching role for user", session.user.id);
+            logger.log("🔐 [useAuth] Fetching role for user", session.user.id);
             
             // Add timeout for role fetching to prevent hanging
             // Check localStorage cache first for faster loading
@@ -246,7 +247,7 @@ export function useAuth() {
                     roles: roles,
                     name: session.user.email?.split('@')[0] || 'User'
                   };
-                  console.log("⚡ [useAuth] Using cached role data:", cachedRoleData.role);
+                  logger.log("⚡ [useAuth] Using cached role data:", cachedRoleData.role);
                 }
               } catch (e) {
                 // Invalid cache, continue to fetch
@@ -263,7 +264,7 @@ export function useAuth() {
             const timeoutId = setTimeout(() => {
               if (!cachedRoleData) {
                 roleFetchTimedOut = true;
-                console.warn("⏰ [useAuth] Role fetch timeout - using default role");
+                logger.warn("⏰ [useAuth] Role fetch timeout - using default role");
                 // Set default user if timeout
                 setUser({
                   id: session.user.id,
@@ -282,11 +283,11 @@ export function useAuth() {
               fetchUserRole(session.user.id, session.user)
                 .then(() => {
                   clearTimeout(timeoutId);
-                  console.log("🔐 [useAuth] Role refreshed in background");
+                  logger.log("🔐 [useAuth] Role refreshed in background");
                 })
                 .catch((roleError) => {
                   clearTimeout(timeoutId);
-                  console.warn("⚠️ [useAuth] Background role refresh failed:", roleError);
+                  logger.warn("⚠️ [useAuth] Background role refresh failed:", roleError);
                 });
             } else {
               // No cache, fetch role (may timeout, that's OK)
@@ -294,26 +295,26 @@ export function useAuth() {
                 .then(() => {
                   clearTimeout(timeoutId);
                   if (roleFetchTimedOut) {
-                    console.log("🔐 [useAuth] Role fetched after timeout - updating user");
+                    logger.log("🔐 [useAuth] Role fetched after timeout - updating user");
                   } else {
-                    console.log("🔐 [useAuth] Role fetched successfully");
+                    logger.log("🔐 [useAuth] Role fetched successfully");
                   }
                 })
                 .catch((roleError) => {
                   clearTimeout(timeoutId);
                   if (!roleFetchTimedOut) {
-                    console.error("❌ [useAuth] Error fetching role:", roleError);
+                    logger.error("❌ [useAuth] Error fetching role:", roleError);
                   }
                   // Default role will be set by timeout handler if needed
                 });
             }
           } else {
-            console.log("🔐 [useAuth] No session, setting user to null");
+            logger.log("🔐 [useAuth] No session, setting user to null");
             setUser(null);
             setLoadingFalse();
           }
         } catch (error) {
-          console.error("❌ [useAuth] Error in auth state change:", error);
+          logger.error("❌ [useAuth] Error in auth state change:", error);
           setUser(null);
           setLoadingFalse();
         }
@@ -324,7 +325,7 @@ export function useAuth() {
 
     // Check for existing session - but don't block if it times out
     // onAuthStateChange should fire and handle session detection
-    console.log("🔐 [useAuth] Checking existing session (non-blocking)...");
+    logger.log("🔐 [useAuth] Checking existing session (non-blocking)...");
     
     // Try to get session but don't wait too long - add timeout wrapper
     const sessionPromise = supabase.auth.getSession();
@@ -342,21 +343,21 @@ export function useAuth() {
         const { data: { session }, error } = result;
 
         if (error && error.message !== 'Session check timeout') {
-          console.error("❌ [useAuth] Error getting session:", error);
+          logger.error("❌ [useAuth] Error getting session:", error);
           setLoadingFalse();
           return;
         }
 
         if (error && error.message === 'Session check timeout') {
-          console.warn("⏰ [useAuth] Session check timed out - using auth state change listener");
+          logger.warn("⏰ [useAuth] Session check timed out - using auth state change listener");
           setLoadingFalse();
           return;
         }
 
-        console.log("🔐 [useAuth] Session check result", { hasSession: !!session, userId: session?.user?.id });
+        logger.log("🔐 [useAuth] Session check result", { hasSession: !!session, userId: session?.user?.id });
 
         if (session && !session.user) {
-          console.warn("⚠️ [useAuth] Session exists but no user - clearing");
+          logger.warn("⚠️ [useAuth] Session exists but no user - clearing");
           setSession(null);
           setUser(null);
           setLoadingFalse();
@@ -369,16 +370,16 @@ export function useAuth() {
           setLoadingFalse();
         }
       } catch (error) {
-        console.error("❌ [useAuth] Error processing getSession result:", error);
+        logger.error("❌ [useAuth] Error processing getSession result:", error);
         setLoadingFalse();
       }
     }).catch((error) => {
-      console.error("❌ [useAuth] Error in getSession (non-fatal):", error);
+      logger.error("❌ [useAuth] Error in getSession (non-fatal):", error);
       setLoadingFalse();
     });
 
     return () => {
-      console.log("🔐 [useAuth] Cleanup - unmounting");
+      logger.log("🔐 [useAuth] Cleanup - unmounting");
       mounted = false;
       if (timeoutId) clearTimeout(timeoutId);
       if (fallbackTimeout) clearTimeout(fallbackTimeout);

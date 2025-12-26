@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Plus, TrendingUp, TrendingDown, Minus } from 'lucide-react';
@@ -162,14 +162,13 @@ const KeuanganUnifiedPage: React.FC = () => {
       // Jika filter "all", hitung saldo kumulatif dari semua data
       if (dateFilter === 'all') {
         
-        // Get total pemasukan kumulatif (semua setor cash)
+        // Get total pemasukan kumulatif (SEMUA pemasukan koperasi, termasuk manual input)
         const { data: pemasukanData } = await supabase
           .from('keuangan')
           .select('jumlah')
           .eq('jenis_transaksi', 'Pemasukan')
           .eq('status', 'posted')
           .eq('source_module', 'koperasi')
-          .eq('kategori', 'Setor Cash Kasir')
           .in('akun_kas_id', accountIdsToUse);
         
         const totalPemasukan = (pemasukanData || []).reduce(
@@ -242,14 +241,13 @@ const KeuanganUnifiedPage: React.FC = () => {
         });
       } else {
         // Filter periode: hitung saldo dari pemasukan bulan terakhir - pengeluaran
-        // Get bulan terakhir dengan pemasukan (setor cash)
+        // Get bulan terakhir dengan pemasukan (SEMUA pemasukan koperasi, termasuk manual input)
         const { data: lastIncomeData } = await supabase
           .from('keuangan')
           .select('tanggal, jumlah')
           .eq('jenis_transaksi', 'Pemasukan')
           .eq('status', 'posted')
           .eq('source_module', 'koperasi')
-          .eq('kategori', 'Setor Cash Kasir')
           .in('akun_kas_id', accountIdsToUse)
           .order('tanggal', { ascending: false })
           .limit(1);
@@ -258,14 +256,13 @@ const KeuanganUnifiedPage: React.FC = () => {
           const lastIncomeDate = new Date(lastIncomeData[0].tanggal);
           const lastIncomeMonth = `${lastIncomeDate.getFullYear()}-${String(lastIncomeDate.getMonth() + 1).padStart(2, '0')}`;
           
-          // Get total pemasukan bulan terakhir
+          // Get total pemasukan bulan terakhir (SEMUA pemasukan koperasi, termasuk manual input)
           const { data: pemasukanBulanTerakhir } = await supabase
             .from('keuangan')
             .select('jumlah')
             .eq('jenis_transaksi', 'Pemasukan')
             .eq('status', 'posted')
             .eq('source_module', 'koperasi')
-            .eq('kategori', 'Setor Cash Kasir')
             .in('akun_kas_id', accountIdsToUse)
             .gte('tanggal', `${lastIncomeMonth}-01`)
             .lte('tanggal', `${lastIncomeMonth}-31`);
@@ -367,7 +364,7 @@ const KeuanganUnifiedPage: React.FC = () => {
         ? [selectedAccountFilter]
         : koperasiAccountIds;
       
-      // 1. Get total pemasukan dari riwayat transaksi (keuangan dengan kategori 'Setor Cash Kasir')
+      // 1. Get total pemasukan dari riwayat transaksi (SEMUA pemasukan koperasi, termasuk manual input)
       // Ini memastikan data yang ditampilkan sinkron dengan riwayat transaksi yang sebenarnya
       let pemasukanQuery = supabase
         .from('keuangan')
@@ -375,7 +372,6 @@ const KeuanganUnifiedPage: React.FC = () => {
         .eq('jenis_transaksi', 'Pemasukan')
         .eq('status', 'posted')
         .eq('source_module', 'koperasi')
-        .eq('kategori', 'Setor Cash Kasir')
         .in('akun_kas_id', accountIdsToUse);
       
       // Hanya filter tanggal jika bukan 'all'
@@ -487,42 +483,11 @@ const KeuanganUnifiedPage: React.FC = () => {
     }
   };
 
-  // Load initial data
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  // Reload chart data when transactions or filters change
-  // This ensures chart reflects the same data as shown in transaction history
-  useEffect(() => {
-    if (recentTransactions.length >= 0 && akunKas.length > 0) {
-      loadChartData(selectedAccountFilter);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recentTransactions, selectedAccountFilter, dateFilter, selectedMonth, selectedYear]);
-
-  // Recalculate statistics when date filter changes or when data is loaded
-  useEffect(() => {
-    if (akunKas.length > 0) {
-      recalculateStatistics();
-      calculatePeriodSummary();
-      calculateRealCashBalance();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFilter, selectedMonth, selectedYear, selectedAccountFilter, akunKas.length]);
-  
-  // Calculate period summary and real cash balance on mount
-  useEffect(() => {
-    calculatePeriodSummary();
-    if (akunKas.length > 0) {
-      calculateRealCashBalance();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Chart data loading - uses the same transactions as displayed in riwayat transaksi
   // This ensures chart accurately represents transaction history
-  const loadChartData = async (accountId?: string) => {
+  // Memoize loadChartData dengan useCallback untuk mencegah re-creation setiap render
+  const loadChartData = useCallback(async (accountId?: string) => {
     try {
       // Use recentTransactions which are already filtered correctly
       // This ensures chart data matches what's shown in transaction history
@@ -691,7 +656,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : 'Gagal memuat data chart';
       toast.error(errorMessage);
     }
-  };
+  }, [recentTransactions, selectedAccountFilter]);
 
   // Load chart data for specific date range
   const loadChartDataForDateRange = async (
@@ -1532,7 +1497,8 @@ const KeuanganUnifiedPage: React.FC = () => {
     */ // END DISABLED
   };
 
-  const loadData = async () => {
+  // Memoize loadData dengan useCallback untuk mencegah re-creation setiap render
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -1810,8 +1776,28 @@ const KeuanganUnifiedPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedAccountFilter, dateFilter, selectedMonth, selectedYear]);
 
+  // Load initial data
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Reload chart data when transactions or filters change
+  useEffect(() => {
+    if (recentTransactions.length >= 0 && akunKas.length > 0) {
+      loadChartData(selectedAccountFilter);
+    }
+  }, [recentTransactions, selectedAccountFilter, dateFilter, selectedMonth, selectedYear, akunKas.length, loadChartData]);
+
+  // Recalculate statistics when date filter changes or when data is loaded
+  useEffect(() => {
+    if (akunKas.length > 0) {
+      recalculateStatistics();
+      calculatePeriodSummary();
+      calculateRealCashBalance();
+    }
+  }, [dateFilter, selectedMonth, selectedYear, selectedAccountFilter, akunKas.length]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -1827,9 +1813,12 @@ const KeuanganUnifiedPage: React.FC = () => {
     await loadData();
     await loadChartData(selectedAccountFilter);
     // Also trigger statistics recalculation
+    // Note: akunKas akan ter-update setelah loadData() selesai
+    // useEffect akan otomatis memanggil calculateRealCashBalance dan calculatePeriodSummary
+    // ketika akunKas.length berubah, jadi kita tidak perlu memanggilnya secara eksplisit di sini
+    // Tapi kita tetap memanggil recalculateStatistics untuk memastikan statistik ter-update
     if (akunKas.length > 0) {
       await recalculateStatistics();
-      await calculateKoperasiSummary();
     }
   };
 
@@ -1862,7 +1851,8 @@ const KeuanganUnifiedPage: React.FC = () => {
   };
 
   const handleEditTransaction = (transaction: any) => {
-    if (transaction.auto_posted) {
+    // Izinkan edit untuk auto-posted jika jenis_transaksi === 'Pemasukan'
+    if (transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') {
       const sourceModule = transaction.source_module || 'modul lain';
       toast.error(`Transaksi ini berasal dari ${sourceModule} dan tidak dapat diedit. Edit dari modul sumber terlebih dahulu.`);
       return;
@@ -1882,7 +1872,8 @@ const KeuanganUnifiedPage: React.FC = () => {
   };
 
   const handleDeleteTransaction = async (transaction: any) => {
-    if (transaction.auto_posted) {
+    // Izinkan delete untuk auto-posted jika jenis_transaksi === 'Pemasukan'
+    if (transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') {
       const sourceModule = transaction.source_module || 'modul lain';
       toast.error(`Transaksi ini berasal dari ${sourceModule} dan tidak dapat dihapus. Hapus dari modul sumber terlebih dahulu.`);
       return;
@@ -1898,22 +1889,97 @@ const KeuanganUnifiedPage: React.FC = () => {
     
     if (confirmed) {
       try {
-        const { error } = await supabase.rpc('delete_keuangan_and_recalc', { p_keuangan_id: transaction.id });
+        console.log('Attempting to delete transaction:', {
+          id: transaction.id,
+          jenis_transaksi: transaction.jenis_transaksi,
+          auto_posted: transaction.auto_posted,
+          source_module: transaction.source_module
+        });
+
+        // Untuk transaksi pemasukan auto_posted, coba direct delete dulu (lebih langsung)
+        // Jika direct delete gagal, baru coba RPC
+        let deleteSuccess = false;
         
-        if (error) {
-          if (error.code === '42501' || error.message?.includes('permission denied') || error.message?.includes('policy')) {
-            toast.error('Transaksi ini tidak dapat dihapus karena berasal dari modul lain. Hapus dari modul sumber terlebih dahulu.');
+        if (transaction.jenis_transaksi === 'Pemasukan' && transaction.auto_posted) {
+          // Coba direct delete terlebih dahulu
+          const { error: directDeleteError, data: deleteData } = await supabase
+            .from('keuangan')
+            .delete()
+            .eq('id', transaction.id)
+            .select();
+          
+          if (!directDeleteError) {
+            deleteSuccess = true;
+            console.log('✅ Direct delete berhasil', { deletedId: transaction.id, akun_kas_id: transaction.akun_kas_id });
+            
+            // Update saldo akun kas
+            if (transaction.akun_kas_id) {
+              try {
+                const { error: saldoError } = await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+                  p_akun_id: transaction.akun_kas_id
+                });
+                if (saldoError) {
+                  console.warn('Warning: Gagal update saldo setelah delete:', saldoError);
+                } else {
+                  console.log('✅ Saldo akun kas berhasil di-update');
+                }
+              } catch (saldoError) {
+                console.warn('Warning: Gagal update saldo setelah delete:', saldoError);
+              }
+            }
+          } else {
+            console.error('❌ Direct delete gagal:', {
+              error: directDeleteError,
+              code: directDeleteError.code,
+              message: directDeleteError.message,
+              details: directDeleteError.details,
+              hint: directDeleteError.hint,
+              transactionId: transaction.id,
+              akun_kas_id: transaction.akun_kas_id,
+              source_module: transaction.source_module
+            });
+            
+            // Fallback: Coba dengan RPC jika ada
+            try {
+              const { error: rpcError } = await supabase.rpc('delete_keuangan_and_recalc', { p_keuangan_id: transaction.id });
+              
+              if (!rpcError) {
+                deleteSuccess = true;
+                console.log('✅ RPC delete berhasil (fallback)');
+              } else {
+                console.error('❌ RPC delete juga gagal:', rpcError);
+                // Jika RPC juga gagal, tampilkan error detail
+                toast.error(`Gagal menghapus transaksi: ${directDeleteError.message || 'Tidak memiliki izin untuk menghapus transaksi ini'}. Error: ${directDeleteError.code || 'UNKNOWN'}`);
+                return;
+              }
+            } catch (rpcCallError: any) {
+              // Jika RPC tidak ada atau error, tampilkan error dari direct delete
+              console.error('❌ RPC call error (function mungkin tidak ada):', rpcCallError);
+              toast.error(`Gagal menghapus transaksi: ${directDeleteError.message || 'Tidak memiliki izin untuk menghapus transaksi ini'}. Error code: ${directDeleteError.code || 'UNKNOWN'}`);
+              return;
+            }
+          }
+        } else {
+          // Untuk transaksi non-auto-posted atau pengeluaran, gunakan RPC
+          const { error } = await supabase.rpc('delete_keuangan_and_recalc', { p_keuangan_id: transaction.id });
+          
+          if (error) {
+            console.error('❌ RPC delete gagal:', error);
+            toast.error(`Gagal menghapus transaksi: ${error.message}`);
             return;
           }
-          throw error;
+          deleteSuccess = true;
         }
         
-        toast.success('Transaksi berhasil dihapus');
+        if (deleteSuccess) {
+          toast.success('Transaksi berhasil dihapus');
+          await loadData();
+          await loadChartData(selectedAccountFilter);
+        }
+      } catch (error: any) {
+        console.error('Error deleting transaction:', error);
+        toast.error(`Gagal menghapus transaksi: ${error.message || 'Terjadi kesalahan yang tidak diketahui'}`);
         await loadData();
-        await loadChartData(selectedAccountFilter);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Gagal menghapus transaksi';
-        toast.error(errorMessage);
       }
     }
   };

@@ -131,6 +131,19 @@ export class AkademikSemesterService {
     if (error) throw error;
   }
 
+  /**
+   * Get semester by ID
+   */
+  static async getSemesterById(id: string): Promise<Semester | null> {
+    const { data, error } = await supabase
+      .from('akademik_semester')
+      .select('*, tahun_ajaran:akademik_tahun_ajaran(*)')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data as Semester | null;
+  }
+
   static async setSemesterAktif(id: string): Promise<void> {
     const { error } = await supabase.rpc('fn_set_semester_aktif', { semester_id: id });
     if (error) throw error;

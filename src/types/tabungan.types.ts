@@ -50,6 +50,11 @@ export interface SetorTabunganRequest {
   bukti_file?: string;
   petugas_id?: string;
   petugas_nama?: string;
+  // New fields for enhanced tracking
+  tipe_setoran?: 'tunai' | 'non-kas';
+  sumber_dana?: string;
+  akun_kas_id?: string | null;
+  tanggal?: string;
 }
 
 export interface TarikTabunganRequest {
@@ -60,6 +65,9 @@ export interface TarikTabunganRequest {
   bukti_file?: string;
   petugas_id?: string;
   petugas_nama?: string;
+  // New fields for enhanced tracking
+  akun_kas_id?: string | null;
+  tanggal?: string;
 }
 
 export interface SetorMassalRequest {
@@ -69,6 +77,11 @@ export interface SetorMassalRequest {
   catatan?: string;
   petugas_id?: string;
   petugas_nama?: string;
+  // New fields for enhanced tracking
+  tipe_setoran?: 'tunai' | 'non-kas';
+  sumber_dana?: string;
+  akun_kas_id?: string | null;
+  tanggal?: string;
 }
 
 export interface TarikMassalRequest {

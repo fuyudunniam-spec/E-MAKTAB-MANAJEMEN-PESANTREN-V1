@@ -108,7 +108,7 @@ const RiwayatPembayaran: React.FC<RiwayatPembayaranProps> = ({ tagihanId, santri
       const { data, error } = await supabase
         .from('donations')
         .select('id, donor_name, kategori_donasi, status_setoran')
-        .eq('kategori_donasi', 'Orang Tua Asuh Pendidikan')
+        .eq('kategori_donasi', 'Orang Tua Asuh Santri')
         .eq('status_setoran', 'Sudah disetor')
         .order('donor_name');
 
@@ -202,7 +202,7 @@ const RiwayatPembayaran: React.FC<RiwayatPembayaranProps> = ({ tagihanId, santri
   const getSumberPembayaranLabel = (sumber: string) => {
     const labels: Record<string, string> = {
       'orang_tua': 'Orang Tua',
-      'donatur': 'Orang Tua Asuh Pendidikan',
+      'donatur': 'Orang Tua Asuh Santri',
       'yayasan': 'Yayasan',
     };
     return labels[sumber] || sumber;
@@ -245,7 +245,7 @@ const RiwayatPembayaran: React.FC<RiwayatPembayaranProps> = ({ tagihanId, santri
               <SelectContent>
                 <SelectItem value="all">Semua Sumber</SelectItem>
                 <SelectItem value="orang_tua">Orang Tua</SelectItem>
-                <SelectItem value="donatur">Orang Tua Asuh Pendidikan</SelectItem>
+                <SelectItem value="donatur">Orang Tua Asuh Santri</SelectItem>
                 <SelectItem value="yayasan">Yayasan</SelectItem>
               </SelectContent>
             </Select>
@@ -420,7 +420,7 @@ const RiwayatPembayaran: React.FC<RiwayatPembayaranProps> = ({ tagihanId, santri
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="orang_tua">Orang Tua / Wali</SelectItem>
-                    <SelectItem value="donatur">Orang Tua Asuh Pendidikan</SelectItem>
+                    <SelectItem value="donatur">Orang Tua Asuh Santri</SelectItem>
                     <SelectItem value="yayasan">Yayasan</SelectItem>
                   </SelectContent>
                 </Select>
@@ -433,13 +433,13 @@ const RiwayatPembayaran: React.FC<RiwayatPembayaranProps> = ({ tagihanId, santri
             </div>
             {editForm.sumber_pembayaran === 'donatur' && (
               <div className="space-y-2">
-                <Label>Pilih Orang Tua Asuh Pendidikan *</Label>
+                <Label>Pilih Orang Tua Asuh Santri *</Label>
                 <Select
                   value={editForm.donatur_id}
                   onValueChange={(value) => setEditForm({ ...editForm, donatur_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Pilih orang tua asuh pendidikan" />
+                    <SelectValue placeholder="Pilih orang tua asuh santri" />
                   </SelectTrigger>
                   <SelectContent>
                     {donaturList.map(donatur => (

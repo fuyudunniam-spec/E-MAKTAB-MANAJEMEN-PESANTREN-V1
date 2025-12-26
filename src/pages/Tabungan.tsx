@@ -2,11 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   Wallet, 
@@ -31,7 +28,6 @@ import { FormTarikMassal } from '@/components/TabunganSantri/FormTarikMassal';
 import { FormSetor } from '@/components/TabunganSantri/FormSetor';
 import { FormTarik } from '@/components/TabunganSantri/FormTarik';
 import { RiwayatTabungan } from '@/components/TabunganSantri/RiwayatTabungan';
-import ModuleHeader from '@/components/ModuleHeader';
 
 const formatRupiah = (amount: number) => {
   return new Intl.NumberFormat('id-ID', {
@@ -130,23 +126,19 @@ const Tabungan = () => {
     window.location.href = `/santri/profile?santriId=${santriId}&santriName=${encodeURIComponent(santriName)}&tab=tabungan`;
   };
 
-  const tabs = [
-    { label: 'Dashboard', path: '/keuangan-v3' },
-    { label: 'SPP & Tagihan', path: '/keuangan' },
-    { label: 'Tabungan', path: '/tabungan' },
-    { label: 'Donasi', path: '/donasi' }
-  ];
-
   if (loading) {
     return (
-      <div className="space-y-6">
-        <ModuleHeader title="Tabungan Santri" tabs={tabs} />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="space-y-6 -mx-3 sm:-mx-4 lg:-mx-8 -my-4 sm:-my-6 px-3 sm:px-4 lg:px-8 py-4 sm:py-6 bg-gradient-to-br from-green-50/40 via-white to-blue-50/40">
+        <div className="mb-6">
+          <div className="h-9 w-64 bg-gray-200 rounded animate-pulse mb-2"></div>
+          <div className="h-4 w-96 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <Card key={i}>
+            <Card key={i} className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-10 w-10 bg-gray-200 rounded-full animate-pulse"></div>
               </CardHeader>
               <CardContent>
                 <div className="h-8 w-32 bg-gray-200 rounded animate-pulse mb-2"></div>
@@ -161,155 +153,180 @@ const Tabungan = () => {
 
   return (
     <TooltipProvider>
-      <div className="space-y-6">
-        <ModuleHeader title="Tabungan Santri" tabs={tabs} />
-        
-        {/* Action Buttons */}
-        <div className="flex flex-wrap gap-2 justify-end">
-          <Button
-            onClick={() => window.location.href = '/laporan-tabungan'}
-            variant="outline"
-            className="border-blue-200 text-blue-600 hover:bg-blue-50"
-          >
-            <History className="h-4 w-4 mr-2" />
-            Laporan Lengkap
-          </Button>
-          <Button
-            onClick={() => setShowSetorMassal(true)}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Setor Massal
-          </Button>
-          <Button
-            onClick={() => setShowTarikMassal(true)}
-            variant="outline"
-            className="border-red-200 text-red-600 hover:bg-red-50"
-          >
-            <Minus className="h-4 w-4 mr-2" />
-            Tarik Massal
-          </Button>
+      <div className="space-y-6 -mx-3 sm:-mx-4 lg:-mx-8 -my-4 sm:-my-6 px-3 sm:px-4 lg:px-8 py-4 sm:py-6 bg-gradient-to-br from-green-50/40 via-white to-blue-50/40">
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Tabungan Santri</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Kelola tabungan santri dengan mudah dan efisien
+              </p>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <Button
+                onClick={() => window.location.href = '/laporan-tabungan'}
+                variant="outline"
+                size="sm"
+                className="border-blue-200 text-blue-600 hover:bg-blue-50 whitespace-nowrap text-xs sm:text-sm"
+              >
+                <History className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Laporan Lengkap</span>
+              </Button>
+              <Button
+                onClick={() => setShowSetorMassal(true)}
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white shadow-sm whitespace-nowrap text-xs sm:text-sm"
+              >
+                <Plus className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Setor Massal</span>
+                <span className="sm:hidden">Setor</span>
+              </Button>
+              <Button
+                onClick={() => setShowTarikMassal(true)}
+                variant="outline"
+                size="sm"
+                className="border-red-200 text-red-600 hover:bg-red-50 whitespace-nowrap text-xs sm:text-sm"
+              >
+                <Minus className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Tarik Massal</span>
+                <span className="sm:hidden">Tarik</span>
+              </Button>
+            </div>
+          </div>
         </div>
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-r from-blue-50 to-green-50 border-blue-200 shadow-sm hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Tabungan</CardTitle>
-              <Wallet className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-gray-700">Total Tabungan</CardTitle>
+              <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                <Wallet className="h-5 w-5 text-blue-600" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatRupiah(stats.total_saldo)}</div>
-              <p className="text-xs text-muted-foreground">Semua santri</p>
+              <div className="text-2xl font-semibold text-gray-900">{formatRupiah(stats.total_saldo)}</div>
+              <p className="text-xs text-muted-foreground mt-1">Semua santri</p>
             </CardContent>
           </Card>
           
-          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Setoran Bulan Ini</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium text-gray-700">Setoran Bulan Ini</CardTitle>
+              <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                <TrendingUp className="h-5 w-5 text-green-600" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{formatRupiah(stats.total_setoran_bulan_ini)}</div>
-              <p className="text-xs text-muted-foreground">Bulan berjalan</p>
+              <div className="text-2xl font-semibold text-green-600">{formatRupiah(stats.total_setoran_bulan_ini)}</div>
+              <p className="text-xs text-muted-foreground mt-1">Bulan berjalan</p>
             </CardContent>
           </Card>
           
-          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Penarikan Bulan Ini</CardTitle>
-              <TrendingDown className="h-4 w-4 text-red-600" />
+              <CardTitle className="text-sm font-medium text-gray-700">Penarikan Bulan Ini</CardTitle>
+              <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+                <TrendingDown className="h-5 w-5 text-red-600" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{formatRupiah(stats.total_penarikan_bulan_ini)}</div>
-              <p className="text-xs text-muted-foreground">Bulan berjalan</p>
+              <div className="text-2xl font-semibold text-red-600">{formatRupiah(stats.total_penarikan_bulan_ini)}</div>
+              <p className="text-xs text-muted-foreground mt-1">Bulan berjalan</p>
             </CardContent>
           </Card>
           
-          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Rata-rata Saldo</CardTitle>
-              <Wallet className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-gray-700">Rata-rata Saldo</CardTitle>
+              <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                <Wallet className="h-5 w-5 text-purple-600" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatRupiah(stats.rata_rata_saldo)}</div>
-              <p className="text-xs text-muted-foreground">Per santri</p>
+              <div className="text-2xl font-semibold text-gray-900">{formatRupiah(stats.rata_rata_saldo)}</div>
+              <p className="text-xs text-muted-foreground mt-1">Per santri</p>
             </CardContent>
           </Card>
         </div>
       )}
 
       {/* Filters */}
-      <Card className="border-0 shadow-soft">
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="search">Cari Santri</Label>
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="search"
-                  placeholder="Cari nama, ID Santri, atau kelas..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
+      <div className="mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-gradient-to-r from-gray-50 to-gray-50/50 rounded-xl border border-gray-200/60 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3 flex-1">
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <Filter className="h-4 w-4 text-gray-500" />
+              <span>Filter</span>
             </div>
-            <div>
-              <Label htmlFor="kategori">Kategori Santri</Label>
-              <Select value={filterKategori || "all"} onValueChange={(value) => setFilterKategori(value === "all" ? "" : value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Semua kategori" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua kategori</SelectItem>
-                  <SelectItem value="Binaan Mukim">Binaan Mukim</SelectItem>
-                  <SelectItem value="Binaan Non-Mukim">Binaan Non-Mukim</SelectItem>
-                  <SelectItem value="Reguler">Reguler</SelectItem>
-                  <SelectItem value="Mahasiswa">Mahasiswa</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Cari nama, ID Santri, atau kelas..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 h-9 bg-white border-gray-200"
+              />
             </div>
-            <div className="flex items-end">
-              <Button onClick={handleRefresh} variant="outline" className="w-full">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-            </div>
+            <Select value={filterKategori || "all"} onValueChange={(value) => setFilterKategori(value === "all" ? "" : value)}>
+              <SelectTrigger className="w-[180px] h-9 bg-white border-gray-200">
+                <SelectValue placeholder="Semua kategori" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua kategori</SelectItem>
+                <SelectItem value="Binaan Mukim">Binaan Mukim</SelectItem>
+                <SelectItem value="Binaan Non-Mukim">Binaan Non-Mukim</SelectItem>
+                <SelectItem value="Reguler">Reguler</SelectItem>
+                <SelectItem value="Mahasiswa">Mahasiswa</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button 
+              onClick={handleRefresh} 
+              variant="ghost" 
+              size="sm"
+              className="text-gray-600 hover:text-gray-900 hover:bg-gray-50 flex-shrink-0"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+          <div className="text-sm text-gray-600 font-medium px-2 py-1 bg-white/80 rounded-md border border-gray-200/60">
+            {filteredSantri.length} santri ditemukan
+          </div>
+        </div>
+      </div>
 
       {/* Santri List */}
-      <Card className="border-0 shadow-soft">
-        <CardHeader>
+      <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-sm">
+        <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-foreground flex items-center gap-2">
-                <Users className="h-5 w-5" />
+              <CardTitle className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                <Users className="h-5 w-5 text-gray-600" />
                 Daftar Santri
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                {filteredSantri.length} santri ditemukan
+                Kelola tabungan per santri
               </p>
             </div>
-            <div className="text-sm text-muted-foreground flex items-center gap-4">
+            <div className="text-xs text-muted-foreground flex items-center gap-3">
               <div className="flex items-center gap-1">
-                <ArrowUpCircle className="h-4 w-4 text-green-600" />
+                <ArrowUpCircle className="h-3 w-3 text-green-600" />
                 <span>Setor</span>
               </div>
               <div className="flex items-center gap-1">
-                <ArrowDownCircle className="h-4 w-4 text-red-600" />
+                <ArrowDownCircle className="h-3 w-3 text-red-600" />
                 <span>Tarik</span>
               </div>
               <div className="flex items-center gap-1">
-                <History className="h-4 w-4 text-blue-600" />
+                <History className="h-3 w-3 text-blue-600" />
                 <span>Riwayat</span>
               </div>
               <div className="flex items-center gap-1">
-                <Eye className="h-4 w-4" />
+                <Eye className="h-3 w-3" />
                 <span>Profile</span>
               </div>
             </div>
@@ -317,34 +334,45 @@ const Tabungan = () => {
         </CardHeader>
         <CardContent>
           {filteredSantri.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Tidak ada santri ditemukan
+            <div className="text-center py-12 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p className="text-sm">Tidak ada santri ditemukan</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {filteredSantri.map((santri) => (
-                <div key={santri.santri_id} className="flex items-center justify-between p-4 rounded-lg border border-gray-200 bg-background hover:shadow-md transition-all">
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 bg-primary/10 rounded-lg">
-                      <Wallet className="w-5 h-5 text-primary" />
+                <div 
+                  key={santri.santri_id} 
+                  className="flex items-center justify-between p-4 rounded-lg border border-gray-200 bg-white hover:shadow-md transition-all hover:border-gray-300"
+                >
+                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                    <div className="p-3 bg-gradient-to-br from-blue-50 to-green-50 rounded-lg flex-shrink-0">
+                      <Wallet className="w-5 h-5 text-blue-600" />
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-foreground">{santri.santri.nama_lengkap}</h4>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-gray-900 truncate">{santri.santri.nama_lengkap}</h4>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap mt-1">
                         {santri.santri.id_santri && (
-                          <Badge variant="secondary" className="text-xs font-mono">
+                          <Badge variant="secondary" className="text-xs font-mono bg-gray-100 text-gray-700">
                             {santri.santri.id_santri}
                           </Badge>
                         )}
-                        {santri.santri.kelas && <span>• {santri.santri.kelas}</span>}
-                        {santri.santri.kategori && <span>• {santri.santri.kategori}</span>}
+                        {santri.santri.kelas && <span className="text-xs">• {santri.santri.kelas}</span>}
+                        {santri.santri.kategori && <span className="text-xs">• {santri.santri.kategori}</span>}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 flex-shrink-0">
                     <div className="text-right">
-                      <div className="font-bold text-lg text-foreground">{formatRupiah(santri.saldo)}</div>
-                      <Badge variant={santri.saldo > 0 ? 'default' : 'secondary'} className="mt-1">
+                      <div className="font-bold text-lg text-gray-900">{formatRupiah(santri.saldo)}</div>
+                      <Badge 
+                        variant={santri.saldo > 0 ? 'default' : 'secondary'} 
+                        className={`mt-1 text-xs ${
+                          santri.saldo > 0 
+                            ? 'bg-green-100 text-green-700 hover:bg-green-100' 
+                            : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
                         {santri.saldo > 0 ? 'Aktif' : 'Belum Ada Tabungan'}
                       </Badge>
                     </div>
@@ -356,7 +384,7 @@ const Tabungan = () => {
                             onClick={() => setSelectedSantriSetor({ id: santri.santri_id, name: santri.santri.nama_lengkap })}
                             variant="outline"
                             size="sm"
-                            className="text-green-600 border-green-200 hover:bg-green-50"
+                            className="text-green-600 border-green-200 hover:bg-green-50 hover:border-green-300"
                           >
                             <ArrowUpCircle className="h-4 w-4" />
                           </Button>
@@ -376,7 +404,7 @@ const Tabungan = () => {
                             })}
                             variant="outline"
                             size="sm"
-                            className="text-red-600 border-red-200 hover:bg-red-50"
+                            className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
                             disabled={santri.saldo <= 0}
                           >
                             <ArrowDownCircle className="h-4 w-4" />
@@ -393,7 +421,7 @@ const Tabungan = () => {
                             onClick={() => setSelectedSantriHistory({ id: santri.santri_id, name: santri.santri.nama_lengkap })}
                             variant="outline"
                             size="sm"
-                            className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                            className="text-blue-600 border-blue-200 hover:bg-blue-50 hover:border-blue-300"
                           >
                             <History className="h-4 w-4" />
                           </Button>
@@ -409,6 +437,7 @@ const Tabungan = () => {
                             onClick={() => navigateToProfile(santri.santri_id, santri.santri.nama_lengkap)}
                             variant="outline"
                             size="sm"
+                            className="text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>

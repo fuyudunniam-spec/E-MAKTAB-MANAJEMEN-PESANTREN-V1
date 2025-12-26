@@ -17,7 +17,6 @@ import {
   Tag,
   Store,
   ClipboardList,
-  Building2,
   DollarSign
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -30,8 +29,6 @@ import StockOpnameKoperasi from './components/StockOpnameKoperasi';
 import KategoriManagement from './components/KategoriManagement';
 import SupplierManagement from './components/SupplierManagement';
 import ImportExportData from './components/ImportExportData';
-import PengajuanItemYayasanApproval from './components/PengajuanItemYayasanApproval';
-import AjukanTransferDialog from './components/AjukanTransferDialog';
 import type { KoperasiProduk } from '@/types/koperasi.types';
 
 export default function MasterProdukPage() {
@@ -40,8 +37,6 @@ export default function MasterProdukPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduk, setEditingProduk] = useState<KoperasiProduk | null>(null);
   const [yayasanSearch, setYayasanSearch] = useState('');
-  const [ajukanTransferDialogOpen, setAjukanTransferDialogOpen] = useState(false);
-  const [selectedYayasanItem, setSelectedYayasanItem] = useState<any>(null);
   const queryClient = useQueryClient();
 
   // Fetch total count (for display)
@@ -158,57 +153,64 @@ export default function MasterProdukPage() {
   const { data: yayasanItems = [], isLoading: isLoadingYayasan } = useQuery({
     queryKey: ['koperasi-yayasan-items', yayasanSearch],
     queryFn: async () => {
+      // First, get inventaris items that are komoditas or boleh_dijual_koperasi
       let query = supabase
         .from('inventaris')
-        .select(`
-          *,
-          kop_barang!left(
-            id,
-            kode_barang,
-            stok,
-            harga_beli,
-            harga_jual_ecer,
-            harga_jual_grosir,
-            owner_type
-          )
-        `)
-        .or('is_komoditas.eq.true,boleh_dijual_koperasi.eq.true')
+        .select('*')
+        .or('tipe_item.eq.Komoditas,boleh_dijual_koperasi.eq.true')
         .order('nama_barang');
 
+      const { data: inventarisData, error: inventarisError } = await query;
+      if (inventarisError) throw inventarisError;
+
+      if (!inventarisData || inventarisData.length === 0) {
+        return [];
+      }
+
+      // Apply search filter client-side if provided
+      let filteredData = inventarisData;
       if (yayasanSearch) {
-        query = query.or(`nama_barang.ilike.%${yayasanSearch}%,kode_inventaris.ilike.%${yayasanSearch}%`);
+        const searchLower = yayasanSearch.toLowerCase();
+        filteredData = inventarisData.filter((item: any) => {
+          const namaBarang = (item.nama_barang || '').toLowerCase();
+          const kodeInventaris = (item.kode_inventaris || '').toLowerCase();
+          return namaBarang.includes(searchLower) || kodeInventaris.includes(searchLower);
+        });
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      // Get kop_barang data separately for items that have inventaris_id
+      const inventarisIds = filteredData.map((item: any) => item.id);
+      let kopBarangData = [];
+      if (inventarisIds.length > 0) {
+        const { data: kopBarang, error: kopBarangError } = await supabase
+          .from('kop_barang')
+          .select('id, kode_barang, stok, harga_beli, harga_jual_ecer, harga_jual_grosir, owner_type, inventaris_id')
+          .in('inventaris_id', inventarisIds);
 
-      // Get latest pengajuan status for each item
-      const itemIds = (data || []).map((item: any) => item.id);
-      if (itemIds.length > 0) {
-        const { data: pengajuanData } = await supabase
-          .from('pengajuan_item_yayasan')
-          .select('inventaris_item_id, status, created_at')
-          .in('inventaris_item_id', itemIds)
-          .order('created_at', { ascending: false });
-
-        // Create map of latest status per item
-        const statusMap = new Map<string, string>();
-        if (pengajuanData) {
-          pengajuanData.forEach((p: any) => {
-            if (!statusMap.has(p.inventaris_item_id)) {
-              statusMap.set(p.inventaris_item_id, p.status);
-            }
-          });
+        if (kopBarangError) {
+          console.error('Error fetching kop_barang:', kopBarangError);
+          // Continue without kop_barang data
+        } else {
+          kopBarangData = kopBarang || [];
         }
-
-        // Add status to each item
-        return (data || []).map((item: any) => ({
-          ...item,
-          pengajuan_status: statusMap.get(item.id) || null,
-        }));
       }
 
-      return data || [];
+      // Create a map of inventaris_id to kop_barang
+      const kopBarangMap = new Map();
+      kopBarangData.forEach((kb: any) => {
+        if (kb.inventaris_id) {
+          kopBarangMap.set(kb.inventaris_id, kb);
+        }
+      });
+
+      // Combine inventaris data with kop_barang data
+      return filteredData.map((item: any) => {
+        const kopBarang = kopBarangMap.get(item.id);
+        return {
+          ...item,
+          kop_barang: kopBarang ? [kopBarang] : [],
+        };
+      });
     },
     enabled: activeTab === 'yayasan-items',
   });
@@ -254,17 +256,6 @@ export default function MasterProdukPage() {
     return ((hargaJual - hargaBeli) / hargaBeli * 100).toFixed(1);
   };
 
-  // Handle ajukan transfer ke koperasi
-  const handleAjukanTransfer = (item: any) => {
-    setSelectedYayasanItem({
-      id: item.id,
-      nama_barang: item.nama_barang,
-      jumlah: item.jumlah || 0,
-      satuan: item.satuan || '',
-      harga_perolehan: item.harga_perolehan || null,
-    });
-    setAjukanTransferDialogOpen(true);
-  };
 
 
   return (
@@ -281,14 +272,10 @@ export default function MasterProdukPage() {
       </div>
 
       <Tabs defaultValue="products" value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-8 lg:w-auto">
+        <TabsList className="grid w-full grid-cols-7 lg:w-auto">
           <TabsTrigger key="products" value="products" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Produk</span>
-          </TabsTrigger>
-          <TabsTrigger key="approval" value="approval" className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Approval</span>
           </TabsTrigger>
           <TabsTrigger key="yayasan-items" value="yayasan-items" className="flex items-center gap-2">
             <Store className="h-4 w-4" />
@@ -468,11 +455,6 @@ export default function MasterProdukPage() {
           </Card>
         </TabsContent>
 
-        {/* Tab: Item Yayasan (Approval) */}
-        <TabsContent value="approval" className="mt-6">
-          <PengajuanItemYayasanApproval />
-        </TabsContent>
-
         {/* Tab: Item Yayasan (Komoditas) */}
         <TabsContent value="yayasan-items" className="mt-6">
           <Card>
@@ -492,10 +474,14 @@ export default function MasterProdukPage() {
             <CardContent>
               {isLoadingYayasan ? (
                 <div className="text-center py-8">Loading...</div>
-              ) : yayasanItems.length === 0 ? (
+              ) : yayasanItems.filter((item: any) => item.boleh_dijual_koperasi === true).length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
-                  <Building2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>Belum ada item yayasan yang bisa dijual koperasi.</p>
+                  <Store className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Belum ada item yayasan yang terlihat di koperasi.</p>
+                  <p className="text-sm mt-2">Aktifkan visibilitas item di modul Inventaris (icon toko) untuk menampilkannya di sini.</p>
+                  <p className="text-xs mt-2 text-muted-foreground">
+                    Catatan: Tabel ini hanya menampilkan item yang ditandai sebagai "Terlihat di Koperasi" untuk referensi admin koperasi.
+                  </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -506,69 +492,54 @@ export default function MasterProdukPage() {
                         <th className="text-left p-3">Nama Barang</th>
                         <th className="text-left p-3">Kategori</th>
                         <th className="text-right p-3">Stok Yayasan</th>
-                        <th className="text-center p-3">Aksi</th>
+                        <th className="text-left p-3">Lokasi</th>
+                        <th className="text-center p-3">Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {yayasanItems.map((item: any) => {
-                        const kopBarang = item.kop_barang?.[0];
-                        const stokKoperasi = kopBarang?.stok || 0;
-                        const pengajuanStatus = item.pengajuan_status;
+                      {yayasanItems
+                        .filter((item: any) => item.boleh_dijual_koperasi === true)
+                        .map((item: any) => {
+                          const kopBarang = item.kop_barang?.[0];
+                          const stokKoperasi = kopBarang?.stok || 0;
 
-                        // Determine status badge
-                        let statusBadge = null;
-                        if (!pengajuanStatus) {
-                          statusBadge = <Badge variant="outline">Belum diajukan</Badge>;
-                        } else if (pengajuanStatus === 'pending_koperasi') {
-                          statusBadge = <Badge variant="default" className="bg-yellow-500">Menunggu approval</Badge>;
-                        } else if (pengajuanStatus === 'disetujui' || pengajuanStatus === 'selesai') {
-                          statusBadge = <Badge variant="default" className="bg-green-500">Disetujui</Badge>;
-                        } else if (pengajuanStatus === 'ditolak') {
-                          statusBadge = <Badge variant="destructive">Ditolak</Badge>;
-                        }
-
-                        return (
-                          <tr key={item.id} className="border-b hover:bg-muted/50">
-                            <td className="p-3 font-mono text-sm">{item.kode_inventaris || '-'}</td>
-                            <td className="p-3">{item.nama_barang}</td>
-                            <td className="p-3">
-                              <Badge variant="outline">{item.kategori || '-'}</Badge>
-                            </td>
-                            <td className="p-3 text-right">
-                              <div className="flex flex-col items-end gap-1">
-                                <span className={`font-semibold ${
-                                  (item.jumlah || 0) === 0 ? 'text-red-600' :
-                                  (item.jumlah || 0) <= (item.min_stock || 10) ? 'text-orange-600' :
-                                  'text-green-600'
-                                }`}>
-                                  {Number(item.jumlah || 0).toLocaleString('id-ID')} {item.satuan || ''}
-                                </span>
-                                {stokKoperasi > 0 && (
-                                  <span className="text-xs text-muted-foreground">
-                                    (Stok Koperasi: {Number(stokKoperasi).toLocaleString('id-ID')})
+                          return (
+                            <tr key={item.id} className="border-b hover:bg-muted/50">
+                              <td className="p-3 font-mono text-sm">{item.kode_inventaris || '-'}</td>
+                              <td className="p-3">{item.nama_barang}</td>
+                              <td className="p-3">
+                                <Badge variant="outline">{item.kategori || '-'}</Badge>
+                              </td>
+                              <td className="p-3 text-right">
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className={`font-semibold ${
+                                    (item.jumlah || 0) === 0 ? 'text-red-600' :
+                                    (item.jumlah || 0) <= (item.min_stock || 10) ? 'text-orange-600' :
+                                    'text-green-600'
+                                  }`}>
+                                    {Number(item.jumlah || 0).toLocaleString('id-ID')} {item.satuan || ''}
                                   </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-3">
-                              {statusBadge}
-                            </td>
-                            <td className="p-3">
-                              <div className="flex justify-center">
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleAjukanTransfer(item)}
-                                  disabled={(item.jumlah || 0) === 0 || pengajuanStatus === 'pending_koperasi'}
-                                  variant={pengajuanStatus === 'pending_koperasi' ? 'outline' : 'default'}
-                                >
-                                  <Plus className="w-4 h-4 mr-1" />
-                                  {pengajuanStatus === 'pending_koperasi' ? 'Sudah diajukan' : 'Ajukan ke Koperasi'}
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                                  {stokKoperasi > 0 && (
+                                    <span className="text-xs text-muted-foreground">
+                                      (Stok Koperasi: {Number(stokKoperasi).toLocaleString('id-ID')})
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <div className="text-sm">
+                                  <div className="font-medium">{item.zona || '-'}</div>
+                                  {item.lokasi && (
+                                    <div className="text-xs text-muted-foreground">{item.lokasi}</div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3 text-center">
+                                <Badge variant="default" className="bg-green-500">Boleh Dijual</Badge>
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
@@ -680,15 +651,6 @@ export default function MasterProdukPage() {
         produk={editingProduk}
       />
 
-      {/* Dialog untuk ajukan transfer ke koperasi */}
-      <AjukanTransferDialog
-        open={ajukanTransferDialogOpen}
-        onClose={() => {
-          setAjukanTransferDialogOpen(false);
-          setSelectedYayasanItem(null);
-        }}
-        item={selectedYayasanItem}
-      />
     </div>
   );
 }

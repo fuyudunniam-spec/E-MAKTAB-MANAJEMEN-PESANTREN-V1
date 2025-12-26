@@ -104,7 +104,7 @@ const CollectivePaymentTool: React.FC = () => {
       const { data, error } = await supabase
         .from('donations')
         .select('id, donor_name, kategori_donasi, status_setoran')
-        .eq('kategori_donasi', 'Orang Tua Asuh Pendidikan')
+        .eq('kategori_donasi', 'Orang Tua Asuh Santri')
         .eq('status_setoran', 'Sudah disetor')
         .order('donor_name');
 
@@ -308,7 +308,7 @@ const CollectivePaymentTool: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="orang_tua">Orang Tua / Wali</SelectItem>
-                  <SelectItem value="donatur">Donatur (Orang Tua Asuh Pendidikan)</SelectItem>
+                  <SelectItem value="donatur">Donatur (Orang Tua Asuh Santri)</SelectItem>
                   <SelectItem value="yayasan">Yayasan / Subsidi Internal</SelectItem>
                 </SelectContent>
               </Select>

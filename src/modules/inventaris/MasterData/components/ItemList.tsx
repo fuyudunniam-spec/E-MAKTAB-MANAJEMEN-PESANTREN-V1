@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useDebounce } from '@/hooks/use-debounce';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +24,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { InventoryItem, Pagination, Sort } from '@/types/inventaris.types';
-import { updateInventoryItem } from '@/services/inventaris.service';
+import { updateInventoryItem, InventoryFilters } from '@/services/inventaris.service';
 import { useToast } from '@/hooks/use-toast';
 import ItemForm from './ItemForm';
 import KeluarItemDialog from './KeluarItemDialog';
@@ -35,7 +36,10 @@ interface ItemListProps {
   onDelete?: (item: InventoryItem) => void;
   onAdd?: () => void;
   pagination?: Pagination;
+  totalItems?: number;
   onPaginationChange?: (pagination: Pagination) => void;
+  filters?: InventoryFilters;
+  onFiltersChange?: (filters: InventoryFilters) => void;
   sort?: Sort;
   onSortChange?: (sort: Sort) => void;
 }
@@ -47,7 +51,10 @@ const ItemList: React.FC<ItemListProps> = ({
   onDelete,
   onAdd,
   pagination = { page: 1, pageSize: 10 },
+  totalItems = 0,
   onPaginationChange = () => {},
+  filters = {},
+  onFiltersChange = () => {},
   sort = { column: 'nama_barang', direction: 'asc' },
   onSortChange = () => {},
 }) => {
@@ -59,13 +66,49 @@ const ItemList: React.FC<ItemListProps> = ({
   const [showFilters, setShowFilters] = useState(false);
   const [showKeluarDialog, setShowKeluarDialog] = useState(false);
   const [itemToKeluar, setItemToKeluar] = useState<InventoryItem | undefined>(undefined);
-  const [filters, setFilters] = useState({
-    search: '',
-    kategori: 'all',
-    tipe: 'all',
-    kondisi: 'all',
-    status: 'all'
+  
+  // Local filter state for UI (will be synced to parent)
+  const [localFilters, setLocalFilters] = useState({
+    search: filters.search || '',
+    kategori: filters.kategori || 'all',
+    tipe: filters.tipe_item || 'all',
+    kondisi: filters.kondisi || 'all',
+    status: 'all' // Status filter is client-side only (based on jumlah)
   });
+
+  // Debounce search input (500ms delay)
+  const debouncedSearch = useDebounce(localFilters.search, 500);
+
+  // Sync local filters with parent filters (except search which is debounced)
+  useEffect(() => {
+    setLocalFilters(prev => ({
+      ...prev,
+      kategori: filters.kategori || 'all',
+      tipe: filters.tipe_item || 'all',
+      kondisi: filters.kondisi || 'all',
+    }));
+  }, [filters.kategori, filters.tipe_item, filters.kondisi]);
+
+  // Store onFiltersChange in ref to avoid dependency issues
+  const onFiltersChangeRef = useRef(onFiltersChange);
+  useEffect(() => {
+    onFiltersChangeRef.current = onFiltersChange;
+  }, [onFiltersChange]);
+
+  // Memoize server filters to prevent unnecessary updates
+  const serverFilters = useMemo(() => {
+    return {
+      search: debouncedSearch || null,
+      kategori: localFilters.kategori !== 'all' ? localFilters.kategori : null,
+      tipe_item: localFilters.tipe !== 'all' ? localFilters.tipe : null,
+      kondisi: localFilters.kondisi !== 'all' ? localFilters.kondisi : null,
+    } as InventoryFilters;
+  }, [debouncedSearch, localFilters.kategori, localFilters.tipe, localFilters.kondisi]);
+
+  // Update parent filters - debounced for search, immediate for dropdowns
+  useEffect(() => {
+    onFiltersChangeRef.current(serverFilters);
+  }, [serverFilters]);
   const formatRupiah = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -86,7 +129,7 @@ const ItemList: React.FC<ItemListProps> = ({
     if (item.tipe_item !== 'Komoditas') {
       toast({
         title: 'Tidak bisa diizinkan',
-        description: 'Hanya item bertipe Komoditas yang bisa dijual di koperasi.',
+        description: 'Hanya item bertipe Komoditas yang bisa dilihat di koperasi.',
         variant: 'destructive',
       });
       return;
@@ -99,10 +142,10 @@ const ItemList: React.FC<ItemListProps> = ({
       await updateInventoryItem(item.id, { boleh_dijual_koperasi: next });
 
       toast({
-        title: next ? 'Pengajuan dibuat' : 'Dihapus dari kasir',
+        title: next ? 'Visibilitas diaktifkan' : 'Visibilitas dinonaktifkan',
         description: next
-          ? 'Item akan masuk ke pengajuan. Setelah disetujui admin koperasi, item akan muncul di Master Produk Koperasi.'
-          : 'Item tidak akan muncul lagi di kasir koperasi.',
+          ? 'Item ini sekarang terlihat di modul koperasi (tab Item Yayasan). Koperasi dapat melihat dan mengelola item ini.'
+          : 'Item tidak akan terlihat lagi di modul koperasi.',
       });
 
       // Minta parent refresh data (InventarisMasterPage memetakan onAdd ke fetchInventoryData)
@@ -110,7 +153,7 @@ const ItemList: React.FC<ItemListProps> = ({
     } catch (error) {
       console.error('Error toggling boleh_dijual_koperasi:', error);
       toast({
-        title: 'Gagal mengubah status jual',
+        title: 'Gagal mengubah visibilitas',
         description: 'Silakan coba lagi.',
         variant: 'destructive',
       });
@@ -119,52 +162,51 @@ const ItemList: React.FC<ItemListProps> = ({
     }
   };
 
-  // Get unique values for filters
+  // Get unique values for filters (from all data, not just current page)
+  // Note: This requires fetching all unique values separately, but for now we'll use current data
   const uniqueKategori = Array.from(new Set(data.map(item => item.kategori).filter(Boolean)));
   const uniqueTipe = Array.from(new Set(data.map(item => item.tipe_item).filter(Boolean)));
   const uniqueKondisi = ['Baik', 'Perlu perbaikan', 'Rusak'];
 
-  // Apply filters
+  // Apply client-side status filter only (other filters are server-side)
   const filteredData = data.filter(item => {
-    // Search filter
-    if (filters.search && !item.nama_barang.toLowerCase().includes(filters.search.toLowerCase())) {
-      return false;
-    }
-    // Kategori filter
-    if (filters.kategori !== 'all' && item.kategori !== filters.kategori) {
-      return false;
-    }
-    // Tipe filter
-    if (filters.tipe !== 'all' && item.tipe_item !== filters.tipe) {
-      return false;
-    }
-    // Kondisi filter
-    if (filters.kondisi !== 'all' && item.kondisi !== filters.kondisi) {
-      return false;
-    }
-    // Status filter
-    if (filters.status !== 'all') {
+    // Status filter (client-side only, based on jumlah)
+    if (localFilters.status !== 'all') {
       const jumlah = item.jumlah || 0;
       const minStock = item.min_stock || 10;
-      if (filters.status === 'habis' && jumlah !== 0) return false;
-      if (filters.status === 'rendah' && (jumlah === 0 || jumlah > minStock)) return false;
-      if (filters.status === 'normal' && jumlah <= minStock) return false;
+      if (localFilters.status === 'habis' && jumlah !== 0) return false;
+      if (localFilters.status === 'rendah' && (jumlah === 0 || jumlah > minStock)) return false;
+      if (localFilters.status === 'normal' && jumlah <= minStock) return false;
     }
     return true;
   });
 
+  // Update search filter (will be debounced)
+  const updateSearchFilter = (searchValue: string) => {
+    setLocalFilters(prev => ({ ...prev, search: searchValue }));
+    // Don't call onFiltersChange here - it will be called by debounced effect
+  };
+
+  // Update dropdown filters (immediate update)
+  const updateDropdownFilter = (key: 'kategori' | 'tipe' | 'kondisi', value: string) => {
+    setLocalFilters(prev => ({ ...prev, [key]: value }));
+    // This will trigger the useEffect that immediately updates parent
+  };
+
   const clearFilters = () => {
-    setFilters({
+    const clearedFilters = {
       search: '',
       kategori: 'all',
       tipe: 'all',
       kondisi: 'all',
       status: 'all'
-    });
+    };
+    setLocalFilters(clearedFilters);
+    // The useEffect will handle updating parent filters
   };
 
-  const hasActiveFilters = filters.search || filters.kategori !== 'all' || 
-    filters.tipe !== 'all' || filters.kondisi !== 'all' || filters.status !== 'all';
+  const hasActiveFilters = localFilters.search || localFilters.kategori !== 'all' || 
+    localFilters.tipe !== 'all' || localFilters.kondisi !== 'all' || localFilters.status !== 'all';
 
   const getKondisiBadge = (kondisi: string) => {
     const variants = {
@@ -206,6 +248,15 @@ const ItemList: React.FC<ItemListProps> = ({
   const handlePageChange = (newPage: number) => {
     onPaginationChange({ ...pagination, page: newPage });
   };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    onPaginationChange({ page: 1, pageSize: newPageSize });
+  };
+
+  // Calculate pagination info
+  const totalPages = Math.ceil(totalItems / pagination.pageSize);
+  const startIndex = (pagination.page - 1) * pagination.pageSize;
+  const endIndex = Math.min(startIndex + pagination.pageSize, totalItems);
 
   if (isLoading) {
     return (
@@ -285,9 +336,14 @@ const ItemList: React.FC<ItemListProps> = ({
               <Package className="h-5 w-5 text-gray-600" />
               <span className="hidden sm:inline">Daftar Items</span>
               <span className="sm:hidden">Items</span>
-              <Badge variant="secondary" className="ml-1">{filteredData.length}</Badge>
-              {hasActiveFilters && data.length !== filteredData.length && (
-                <span className="text-xs text-gray-500">dari {data.length}</span>
+              <Badge variant="secondary" className="ml-1">
+                {localFilters.status !== 'all' ? filteredData.length : totalItems}
+              </Badge>
+              {hasActiveFilters && localFilters.status === 'all' && (
+                <span className="text-xs text-gray-500">item</span>
+              )}
+              {localFilters.status !== 'all' && (
+                <span className="text-xs text-gray-500">dari {totalItems}</span>
               )}
             </CardTitle>
             <div className="flex gap-2">
@@ -327,14 +383,14 @@ const ItemList: React.FC<ItemListProps> = ({
                 <div className="lg:col-span-3">
                   <Input
                     placeholder="Cari nama barang..."
-                    value={filters.search}
-                    onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                    value={localFilters.search}
+                    onChange={(e) => updateSearchFilter(e.target.value)}
                     className="h-9"
                   />
                 </div>
 
                 {/* Kategori */}
-                <Select value={filters.kategori} onValueChange={(value) => setFilters({ ...filters, kategori: value })}>
+                <Select value={localFilters.kategori} onValueChange={(value) => updateDropdownFilter('kategori', value)}>
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Semua Kategori" />
                   </SelectTrigger>
@@ -347,7 +403,7 @@ const ItemList: React.FC<ItemListProps> = ({
                 </Select>
 
                 {/* Tipe */}
-                <Select value={filters.tipe} onValueChange={(value) => setFilters({ ...filters, tipe: value })}>
+                <Select value={localFilters.tipe} onValueChange={(value) => updateDropdownFilter('tipe', value)}>
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Semua Tipe" />
                   </SelectTrigger>
@@ -360,7 +416,7 @@ const ItemList: React.FC<ItemListProps> = ({
                 </Select>
 
                 {/* Kondisi */}
-                <Select value={filters.kondisi} onValueChange={(value) => setFilters({ ...filters, kondisi: value })}>
+                <Select value={localFilters.kondisi} onValueChange={(value) => updateDropdownFilter('kondisi', value)}>
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Semua Kondisi" />
                   </SelectTrigger>
@@ -373,7 +429,7 @@ const ItemList: React.FC<ItemListProps> = ({
                 </Select>
 
                 {/* Status Stok */}
-                <Select value={filters.status} onValueChange={(value) => setFilters({ ...filters, status: value })}>
+                <Select value={localFilters.status} onValueChange={(value) => setLocalFilters({ ...localFilters, status: value })}>
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Semua Status" />
                   </SelectTrigger>
@@ -460,8 +516,8 @@ const ItemList: React.FC<ItemListProps> = ({
                             className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-full border border-transparent hover:border-emerald-200 hover:bg-emerald-50/60 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                             title={
                               item.boleh_dijual_koperasi
-                                ? 'Klik untuk menonaktifkan penjualan di koperasi'
-                                : 'Klik untuk mengizinkan penjualan di koperasi'
+                                ? 'Klik untuk menyembunyikan dari modul koperasi'
+                                : 'Klik untuk menampilkan di modul koperasi (tab Item Yayasan)'
                             }
                           >
                             <Store
@@ -472,7 +528,7 @@ const ItemList: React.FC<ItemListProps> = ({
                               }
                             />
                             <span className="hidden sm:inline">
-                              {item.boleh_dijual_koperasi ? 'Dijual' : 'Tidak dijual'}
+                              {item.boleh_dijual_koperasi ? 'Boleh Dijual' : 'Tidak boleh dijual'}
                             </span>
                           </button>
                         )}
@@ -781,39 +837,56 @@ const ItemList: React.FC<ItemListProps> = ({
           </div>
         )}
 
-        {/* Pagination */}
-        {filteredData.length > 0 && (
-          <div className="flex items-center justify-between mt-4">
-            <div className="text-sm text-muted-foreground">
-              Menampilkan {((pagination.page - 1) * pagination.pageSize) + 1} - {Math.min(pagination.page * pagination.pageSize, filteredData.length)} dari {filteredData.length} item
-              {hasActiveFilters && data.length !== filteredData.length && (
-                <span className="text-gray-400"> (difilter dari {data.length})</span>
-              )}
+        {/* Pagination and Items Per Page */}
+        {(filteredData.length > 0 || totalItems > 0) && (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mt-4 pt-4 border-t">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:space-x-4">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                {localFilters.status !== 'all' ? (
+                  <>Menampilkan {filteredData.length} dari {data.length} item (filter status diterapkan)</>
+                ) : (
+                  <>Menampilkan {startIndex + 1}-{endIndex} dari {totalItems} item</>
+                )}
+              </span>
+              <Select value={pagination.pageSize.toString()} onValueChange={(value) => handlePageSizeChange(Number(value))}>
+                <SelectTrigger className="w-full sm:w-[100px] h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(pagination.page - 1)}
-              disabled={pagination.page <= 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Sebelumnya
-            </Button>
-            <span className="text-sm">
-              Halaman {pagination.page}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(pagination.page + 1)}
-              disabled={filteredData.length < pagination.pageSize}
-            >
-              Selanjutnya
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+            
+            <div className="flex items-center justify-center sm:justify-end space-x-2 flex-wrap gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handlePageChange(pagination.page - 1)}
+                disabled={pagination.page <= 1}
+                className="flex-shrink-0"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Sebelumnya
+              </Button>
+              <span className="flex items-center px-3 text-sm whitespace-nowrap">
+                Halaman {pagination.page} dari {totalPages}
+              </span>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => handlePageChange(pagination.page + 1)}
+                disabled={pagination.page >= totalPages}
+                className="flex-shrink-0"
+              >
+                Selanjutnya
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-        </div>
         )}
       </CardContent>
     </Card>

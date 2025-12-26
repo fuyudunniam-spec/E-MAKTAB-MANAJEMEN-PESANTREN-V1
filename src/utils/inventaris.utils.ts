@@ -175,6 +175,52 @@ export const ZONA_OPTIONS = [
   { value: "Area luar", label: "Area luar" }
 ];
 
+// Lokasi options berdasarkan zona
+export const LOKASI_OPTIONS: Record<string, string[]> = {
+  "Gedung Putri": [
+    "Lt. 1 Garasi",
+    "Lt. 1 Aula",
+    "Lt. 1 Kamar Pengurus",
+    "Lt. 1 Dapur",
+    "Lt. 1 Area Belakang",
+    "Lt. 2 Aula",
+    "Lt. 2 Kamar 1",
+    "Lt. 2 Kamar 2",
+    "Lt. 2 Kamar 3",
+    "Lt. 2 Area Belakang",
+    "Lt. 3"
+  ],
+  "Gedung Putra": [
+    "Lt. 1 Garasi",
+    "Lt. 1 Aula",
+    "Lt. 1 Kamar Pengurus",
+    "Lt. 1 Dapur",
+    "Lt. 1 Area Belakang",
+    "Lt. 2 Aula",
+    "Lt. 2 Kamar 1",
+    "Lt. 2 Kamar 2",
+    "Lt. 2 Kamar 3",
+    "Lt. 2 Area Belakang",
+    "Lt. 3"
+  ],
+  "Area luar": [
+    "Parkir",
+    "Taman",
+    "Gudang",
+    "Kantin",
+    "Masjid",
+    "Lapangan",
+    "Kebun",
+    "Area Parkir Motor",
+    "Area Parkir Mobil"
+  ]
+};
+
+// Get lokasi options berdasarkan zona
+export const getLokasiOptions = (zona: string): string[] => {
+  return LOKASI_OPTIONS[zona] || [];
+};
+
 // Get categories based on item type
 export const getKategoriOptions = (tipeItem: string): string[] => {
   return tipeItem === "Aset" ? KATEGORI_ASET : KATEGORI_KOMODITAS;

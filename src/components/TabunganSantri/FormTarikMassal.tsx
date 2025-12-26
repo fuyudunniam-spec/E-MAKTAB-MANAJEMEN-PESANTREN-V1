@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Loader2, 
   Users, 
@@ -18,11 +19,15 @@ import {
   Search,
   User,
   AlertTriangle,
-  XCircle
+  XCircle,
+  Calendar,
+  Wallet
 } from 'lucide-react';
 import { TabunganSantriService } from '@/services/tabunganSantri.service';
+import { AkunKasService, AkunKas } from '@/services/akunKas.service';
 import { SaldoTabunganSantri, TarikMassalResult } from '@/types/tabungan.types';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface FormTarikMassalProps {
   onSuccess: () => void;
@@ -35,11 +40,15 @@ export const FormTarikMassal: React.FC<FormTarikMassalProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [loadingSantri, setLoadingSantri] = useState(true);
+  const [loadingAkunKas, setLoadingAkunKas] = useState(false);
+  const [akunKasOptions, setAkunKasOptions] = useState<AkunKas[]>([]);
   const [santriList, setSantriList] = useState<SaldoTabunganSantri[]>([]);
   const [selectedSantri, setSelectedSantri] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
+    tanggal: new Date().toISOString().split('T')[0],
     nominal: '',
+    akunKasId: null as string | null,
     deskripsi: '',
     catatan: ''
   });
@@ -72,8 +81,39 @@ export const FormTarikMassal: React.FC<FormTarikMassalProps> = ({
 
   useEffect(() => {
     loadSantriList();
+    loadAkunKas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const loadAkunKas = async () => {
+    try {
+      setLoadingAkunKas(true);
+      const accounts = await AkunKasService.getAll();
+      // Filter hanya akun kas operasional (bukan tabungan)
+      const operasionalAccounts = accounts.filter(acc => 
+        acc.status === 'aktif' && 
+        acc.managed_by !== 'tabungan'
+      );
+      setAkunKasOptions(operasionalAccounts);
+      
+      // Set default
+      const defaultAccount = operasionalAccounts.find(acc => acc.is_default);
+      if (defaultAccount) {
+        setFormData(prev => ({ ...prev, akunKasId: defaultAccount.id }));
+      } else if (operasionalAccounts.length > 0) {
+        setFormData(prev => ({ ...prev, akunKasId: operasionalAccounts[0].id }));
+      }
+    } catch (error) {
+      console.error('Error loading akun kas:', error);
+      toast({
+        title: 'Error',
+        description: 'Gagal memuat akun kas',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoadingAkunKas(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +127,9 @@ export const FormTarikMassal: React.FC<FormTarikMassalProps> = ({
       return;
     }
 
-    if (!formData.nominal || parseFloat(formData.nominal) <= 0) {
+    const nominal = parseFloat(formData.nominal.replace(/[^\d]/g, ''));
+    
+    if (!formData.nominal || nominal <= 0) {
       toast({
         title: 'Error',
         description: 'Nominal harus lebih dari 0',
@@ -96,10 +138,19 @@ export const FormTarikMassal: React.FC<FormTarikMassalProps> = ({
       return;
     }
 
+    if (!formData.akunKasId) {
+      toast({
+        title: 'Error',
+        description: 'Pilih akun kas untuk penarikan',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     // Validasi saldo sebelum submit
     const insufficientSaldo = selectedSantri.filter(santriId => {
       const santri = santriList.find(s => s.santri_id === santriId);
-      return santri && santri.saldo < parseFloat(formData.nominal);
+      return santri && santri.saldo < nominal;
     });
 
     if (insufficientSaldo.length > 0) {
@@ -113,12 +164,56 @@ export const FormTarikMassal: React.FC<FormTarikMassalProps> = ({
 
     try {
       setLoading(true);
-      const result: TarikMassalResult = await TabunganSantriService.tarikMassal({
-        santri_ids: selectedSantri,
-        nominal: parseFloat(formData.nominal),
-        deskripsi: formData.deskripsi || undefined,
-        catatan: formData.catatan || undefined
-      });
+      
+      // 1. Create transaksi tabungan untuk setiap santri
+      const tabunganIds: string[] = [];
+      for (const santriId of selectedSantri) {
+        const tabunganId = await TabunganSantriService.tarikTabungan({
+          santri_id: santriId,
+          nominal: nominal,
+          deskripsi: formData.deskripsi || `Penarikan massal dari ${santriList.find(s => s.santri_id === santriId)?.santri.nama_lengkap || 'Santri'}`,
+          catatan: formData.catatan || undefined,
+          akun_kas_id: formData.akunKasId,
+          tanggal: formData.tanggal
+        });
+        tabunganIds.push(tabunganId);
+      }
+
+      // 2. Create entry di keuangan untuk tracking (penarikan selalu mengurangi kas)
+      const totalNominal = nominal * selectedSantri.length;
+      await supabase
+        .from('keuangan')
+        .insert({
+          tanggal: formData.tanggal,
+          jenis_transaksi: 'Pengeluaran',
+          kategori: 'Tabungan Santri',
+          sub_kategori: 'Penarikan Massal Tunai',
+          jumlah: totalNominal,
+          deskripsi: `Penarikan massal tabungan untuk ${selectedSantri.length} santri`,
+          penerima_pembayar: `Massal (${selectedSantri.length} santri)`,
+          akun_kas_id: formData.akunKasId,
+          source_module: 'tabungan',
+          source_id: tabunganIds[0], // Reference first tabungan ID
+          status: 'posted',
+          auto_posted: false
+        });
+
+      // Update saldo akun kas
+      try {
+        await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+          p_akun_id: formData.akunKasId
+        });
+      } catch (saldoError) {
+        // Silent fail - saldo will be recalculated
+        console.warn('Warning ensuring saldo correct:', saldoError);
+      }
+
+      const result: TarikMassalResult = {
+        success: tabunganIds,
+        failed: [],
+        success_count: tabunganIds.length,
+        failed_count: 0
+      };
       
       onSuccess();
       
@@ -181,8 +276,8 @@ export const FormTarikMassal: React.FC<FormTarikMassalProps> = ({
     );
   }, []);
 
-  const totalNominal = parseFloat(formData.nominal) * selectedSantri.length;
-  const nominal = parseFloat(formData.nominal) || 0;
+  const nominal = parseFloat(formData.nominal.replace(/[^\d]/g, '')) || 0;
+  const totalNominal = nominal * selectedSantri.length;
 
   // Check which selected santri have insufficient saldo
   const insufficientSaldo = selectedSantri.filter(santriId => {
@@ -206,35 +301,78 @@ export const FormTarikMassal: React.FC<FormTarikMassalProps> = ({
         <form onSubmit={handleSubmit} className="flex-1 overflow-hidden flex flex-col space-y-4">
           {/* Form Fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+            <div className="space-y-2">
+              <Label htmlFor="tanggal">Tanggal *</Label>
+              <div className="relative">
+                <Calendar className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="tanggal"
+                  type="date"
+                  value={formData.tanggal}
+                  onChange={(e) => setFormData(prev => ({ ...prev, tanggal: e.target.value }))}
+                  className="pl-8"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="nominal">Nominal per Santri *</Label>
               <Input
                 id="nominal"
-                type="number"
-                placeholder="Masukkan nominal penarikan"
-                value={formData.nominal}
-                onChange={(e) => setFormData(prev => ({ ...prev, nominal: e.target.value }))}
+                type="text"
+                placeholder="0"
+                value={formData.nominal.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^\d]/g, '');
+                  setFormData(prev => ({ ...prev, nominal: value }));
+                }}
                 required
-                min="1"
-                step="any"
               />
               {formData.nominal && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  {formatCurrency(parseFloat(formData.nominal) || 0)} per santri
+                <p className="text-sm text-muted-foreground">
+                  {formatCurrency(nominal)} per santri
                 </p>
               )}
             </div>
 
-            <div>
-              <Label htmlFor="deskripsi">Deskripsi</Label>
-              <Textarea
-                id="deskripsi"
-                placeholder="Contoh: Penarikan untuk kebutuhan pribadi, dll"
-                value={formData.deskripsi}
-                onChange={(e) => setFormData(prev => ({ ...prev, deskripsi: e.target.value }))}
-                rows={2}
-              />
+            <div className="space-y-2">
+              <Label htmlFor="akun_kas_id">Akun Kas *</Label>
+              <Select 
+                value={formData.akunKasId || ''} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, akunKasId: value }))}
+                required
+                disabled={loadingAkunKas}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingAkunKas ? "Memuat..." : "Pilih akun kas"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {akunKasOptions.map(akun => (
+                    <SelectItem key={akun.id} value={akun.id}>
+                      <div className="flex items-center gap-2">
+                        <Wallet className="h-4 w-4" />
+                        {akun.nama}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Uang akan keluar dari akun kas ini
+              </p>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="deskripsi">Deskripsi</Label>
+            <Textarea
+              id="deskripsi"
+              placeholder="Contoh: Penarikan untuk kebutuhan pribadi, dll"
+              value={formData.deskripsi}
+              onChange={(e) => setFormData(prev => ({ ...prev, deskripsi: e.target.value }))}
+              rows={2}
+            />
           </div>
 
           <div>
@@ -413,7 +551,7 @@ export const FormTarikMassal: React.FC<FormTarikMassalProps> = ({
             <Button
               type="submit"
               className="flex-1"
-              disabled={loading || !formData.nominal || selectedSantri.length === 0}
+              disabled={loading || !formData.nominal || selectedSantri.length === 0 || !formData.akunKasId || insufficientSaldo.length > 0}
             >
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               <DollarSign className="h-4 w-4 mr-2" />
