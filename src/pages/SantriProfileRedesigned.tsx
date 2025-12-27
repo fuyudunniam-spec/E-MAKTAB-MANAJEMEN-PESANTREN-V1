@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +41,11 @@ import {
   ArrowDownCircle,
   Home,
   Settings,
-  Key
+  Key,
+  Camera,
+  UserCircle,
+  FolderOpen,
+  Lock
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDate, formatRupiah } from "@/utils/inventaris.utils";
@@ -50,6 +55,7 @@ import { toast } from 'sonner';
 import { TagihanService, TagihanSantri, PembayaranSantri } from '@/services/tagihan.service';
 import { SetoranHarianService } from '@/services/setoranHarian.service';
 import { TabunganSantriService } from '@/services/tabunganSantri.service';
+import { AkademikSemesterService } from '@/services/akademikSemester.service';
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
@@ -145,9 +151,14 @@ interface PaymentHistory {
 const SantriProfileRedesigned = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   const santriId = searchParams.get("santriId") || undefined;
   const santriName = searchParams.get("santriName") || undefined;
+  
+  // Check if current user is santri viewing their own profile
+  const isCurrentUserSantri = user?.role === 'santri';
+  const isViewingOwnProfile = isCurrentUserSantri && user?.santriId === santriId;
 
   const [activeTab, setActiveTab] = useState("ringkasan");
   const [loading, setLoading] = useState(true);
@@ -186,6 +197,13 @@ const SantriProfileRedesigned = () => {
 
   // Settings panel state (mobile app style)
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  
+  // Photo upload state
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  
+  // Active semester state
+  const [activeSemester, setActiveSemester] = useState<any>(null);
 
   // Check profile completion and redirect to onboarding if needed
   useEffect(() => {
@@ -265,7 +283,11 @@ const SantriProfileRedesigned = () => {
           }
         }
 
-        // Load program aktif (kelas_anggota)
+        // Load active semester first
+        const semester = await AkademikSemesterService.getSemesterAktif();
+        setActiveSemester(semester);
+
+        // Load program aktif (kelas_anggota) - filter by active semester
         const { data: kelasAnggota, error: kelasError } = await supabase
           .from('kelas_anggota')
           .select(`
@@ -278,14 +300,20 @@ const SantriProfileRedesigned = () => {
               rombel,
               tingkat,
               tahun_ajaran,
-              semester
+              semester,
+              semester_id
             )
           `)
           .eq('santri_id', santriId)
           .eq('status', 'Aktif');
 
         if (!kelasError && kelasAnggota) {
-          const programs = kelasAnggota.map((ka: any) => ({
+          // Filter by active semester if available
+          const filteredKelas = semester 
+            ? kelasAnggota.filter((ka: any) => ka.kelas?.semester_id === semester.id)
+            : kelasAnggota;
+          
+          const programs = filteredKelas.map((ka: any) => ({
             id: ka.id,
             nama_kelas: ka.kelas?.nama_kelas || '-',
             program: ka.kelas?.program || '-',
@@ -379,30 +407,73 @@ const SantriProfileRedesigned = () => {
 
   const loadKehadiranData = async (id: string) => {
     try {
-      const now = new Date();
-      const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      // Load active semester first
+      const semester = await AkademikSemesterService.getSemesterAktif();
+      if (!semester) {
+        console.warn('No active semester found');
+        setKehadiranProgress({ persentase: 0, hadir: 0, total: 0 });
+        return;
+      }
 
-      // Get kehadiran dari setoran_harian (status Hadir atau Sudah Setor)
-      const { data: setoranData } = await supabase
-        .from('setoran_harian')
-        .select('status, tanggal_setor')
+      // Get kehadiran dari presensi kelas berdasarkan semester aktif
+      // First, get kelas where santri is enrolled in active semester
+      const { data: kelasAnggota } = await supabase
+        .from('kelas_anggota')
+        .select(`
+          kelas_id,
+          kelas:kelas_id(id, semester_id)
+        `)
         .eq('santri_id', id)
-        .gte('tanggal_setor', firstDayThisMonth.toISOString().split('T')[0])
-        .lte('tanggal_setor', now.toISOString().split('T')[0]);
+        .eq('status', 'Aktif');
 
-      const hadir = setoranData?.filter(s => 
-        s.status === 'Hadir' || s.status === 'Sudah Setor'
-      ).length || 0;
-      const total = setoranData?.length || 0;
-      const persentase = total > 0 ? (hadir / total) * 100 : 0;
+      if (!kelasAnggota || kelasAnggota.length === 0) {
+        setKehadiranProgress({ persentase: 0, hadir: 0, total: 0 });
+        return;
+      }
 
-      setKehadiranProgress({
-        persentase: Math.round(persentase),
-        hadir,
-        total
-      });
+      // Filter kelas yang sesuai dengan semester aktif
+      const kelasIds = kelasAnggota
+        .filter(ka => ka.kelas?.semester_id === semester.id)
+        .map(ka => ka.kelas_id);
+
+      if (kelasIds.length === 0) {
+        setKehadiranProgress({ persentase: 0, hadir: 0, total: 0 });
+        return;
+      }
+
+      // Get pertemuan dari semester aktif
+      const { data: pertemuanData } = await supabase
+        .from('kelas_pertemuan')
+        .select('id, tanggal')
+        .in('kelas_id', kelasIds)
+        .eq('status', 'Selesai')
+        .gte('tanggal', semester.tanggal_mulai)
+        .lte('tanggal', semester.tanggal_selesai);
+
+      // Get absensi untuk pertemuan tersebut
+      if (pertemuanData && pertemuanData.length > 0) {
+        const pertemuanIds = pertemuanData.map(p => p.id);
+        const { data: absensiData } = await supabase
+          .from('absensi_madin')
+          .select('status')
+          .eq('santri_id', id)
+          .in('pertemuan_id', pertemuanIds);
+
+        const hadir = absensiData?.filter(a => a.status === 'Hadir').length || 0;
+        const total = pertemuanData.length;
+        const persentase = total > 0 ? (hadir / total) * 100 : 0;
+
+        setKehadiranProgress({
+          persentase: Math.round(persentase),
+          hadir,
+          total
+        });
+      } else {
+        setKehadiranProgress({ persentase: 0, hadir: 0, total: 0 });
+      }
     } catch (error) {
       console.error('Error loading kehadiran data:', error);
+      setKehadiranProgress({ persentase: 0, hadir: 0, total: 0 });
     }
   };
 
@@ -484,7 +555,7 @@ const SantriProfileRedesigned = () => {
         const donaturSet = new Set<{ id: string; nama: string }>();
         let totalAsramaKonsumsi = 0;
         let totalBantuanYayasan = 0;
-        let detailAlokasi: AlokasiDetail[] = [];
+        const detailAlokasi: AlokasiDetail[] = [];
 
         // Load alokasi dari alokasi_pengeluaran_santri
         try {
@@ -579,7 +650,7 @@ const SantriProfileRedesigned = () => {
                 };
                 
                 // Coba parse format "Bulan Tahun" (e.g., "Desember 2024")
-                let match = periodeDisplay.match(/(\w+)\s+(\d{4})/i);
+                const match = periodeDisplay.match(/(\w+)\s+(\d{4})/i);
                 if (match) {
                   const bulanNama = match[1].toLowerCase();
                   const tahun = match[2];
@@ -880,6 +951,91 @@ const SantriProfileRedesigned = () => {
 
   // Get wali utama
   const waliUtama = waliData.find(w => w.is_utama) || waliData[0];
+
+  // Handle photo upload
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !santriId) return;
+
+    // Validate file
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      toast.error('File terlalu besar. Maksimal 5MB.');
+      return;
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Tipe file tidak didukung. Gunakan JPG atau PNG.');
+      return;
+    }
+
+    try {
+      setUploadingPhoto(true);
+
+      // Preview foto
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setPhotoPreview(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      // Upload ke storage
+      const fileExt = file.name.split('.').pop();
+      const timestamp = Date.now();
+      const fileName = `${timestamp}.${fileExt}`;
+      const filePath = `${santriId}/${fileName}`;
+
+      // Delete old photo if exists
+      if (santri?.foto_profil && !santri.foto_profil.startsWith('http')) {
+        try {
+          const oldPath = santri.foto_profil.includes('/') 
+            ? santri.foto_profil 
+            : `${santriId}/${santri.foto_profil}`;
+          await supabase.storage
+            .from('santri-photos')
+            .remove([oldPath]);
+        } catch (err) {
+          console.warn('Gagal menghapus foto lama:', err);
+        }
+      }
+
+      // Upload new photo
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('santri-photos')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('santri-photos')
+        .getPublicUrl(filePath);
+
+      // Update database
+      const { error: updateError } = await supabase
+        .from('santri')
+        .update({ foto_profil: filePath })
+        .eq('id', santriId);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      setSantri({ ...santri, foto_profil: filePath });
+      toast.success('Foto profil berhasil diupdate');
+      setPhotoPreview(null);
+    } catch (error: any) {
+      console.error('Error uploading photo:', error);
+      toast.error('Gagal mengupload foto: ' + (error.message || 'Terjadi kesalahan'));
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   // Group detail alokasi by kategori (alokasi_ke) and jenis_bantuan
   const getRincianItemByPeriode = (periode: string) => {
@@ -1198,6 +1354,14 @@ const SantriProfileRedesigned = () => {
     return items;
   }, [hafalanProgress, kehadiranProgress, financialSummary, programAktif, santri, saldoTabungan]);
 
+  // Redirect santri if trying to access other santri's profile
+  useEffect(() => {
+    if (isCurrentUserSantri && santriId && user?.santriId !== santriId) {
+      console.warn('⚠️ [SantriProfile] Santri trying to access other profile, redirecting to own profile');
+      navigate(`/santri/profile?santriId=${user.santriId}&santriName=${encodeURIComponent(user.name || 'Santri')}`, { replace: true });
+    }
+  }, [isCurrentUserSantri, santriId, user?.santriId, user?.name, navigate]);
+
   if (!santriId) {
     return (
       <div className="p-4 lg:p-6">
@@ -1205,10 +1369,12 @@ const SantriProfileRedesigned = () => {
           <CardContent className="p-6">
             <div className="text-center space-y-4">
               <div className="text-xl font-bold text-red-600">ID Santri Tidak Ditemukan</div>
-              <Button onClick={() => navigate('/santri')}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Kembali ke Data Santri
-              </Button>
+              {!isViewingOwnProfile && (
+                <Button onClick={() => navigate('/santri')}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Kembali ke Data Santri
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1229,20 +1395,42 @@ const SantriProfileRedesigned = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 via-white to-background overflow-x-hidden max-w-full">
-      {/* Sticky Header - Minimal & Elegant */}
+      {/* Sticky Header - Minimal & Elegant with Editable Photo */}
       <div className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-primary/10 shadow-sm">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <Avatar className="w-12 h-12 lg:w-14 lg:h-14 border-2 border-primary/20 shadow-sm">
-                <AvatarImage 
-                  src={getSafeAvatarUrl(santri?.foto_profil)} 
-                  alt={santri?.nama_lengkap || santriName || "Santri"} 
+              <div className="relative group">
+                <Avatar className="w-12 h-12 lg:w-16 lg:h-16 border-2 border-primary/20 shadow-sm">
+                  <AvatarImage 
+                    src={photoPreview || getSafeAvatarUrl(santri?.foto_profil)} 
+                    alt={santri?.nama_lengkap || santriName || "Santri"} 
+                  />
+                  <AvatarFallback className="text-base lg:text-lg font-semibold">
+                    {(santri?.nama_lengkap || santriName || 'S').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0,2)}
+                  </AvatarFallback>
+                </Avatar>
+                <Button
+                  size="icon"
+                  variant="default"
+                  className="absolute -bottom-1 -right-1 w-6 h-6 lg:w-7 lg:h-7 rounded-full bg-primary hover:bg-primary/90 border-2 border-white shadow-md p-0"
+                  onClick={() => document.getElementById('photo-upload-input')?.click()}
+                  disabled={uploadingPhoto}
+                >
+                  {uploadingPhoto ? (
+                    <Loader2 className="w-3 h-3 lg:w-4 lg:h-4 text-white animate-spin" />
+                  ) : (
+                    <Camera className="w-3 h-3 lg:w-4 lg:h-4 text-white" />
+                  )}
+                </Button>
+                <input
+                  id="photo-upload-input"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoUpload}
                 />
-                <AvatarFallback className="text-base lg:text-lg font-semibold">
-                  {(santri?.nama_lengkap || santriName || 'S').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0,2)}
-                </AvatarFallback>
-              </Avatar>
+              </div>
               <div className="flex-1 min-w-0">
                 <h1 className="text-lg lg:text-xl font-bold truncate">
                   {santri?.nama_lengkap || santriName || 'Memuat...'}
@@ -1256,41 +1444,34 @@ const SantriProfileRedesigned = () => {
                   <Badge className={cn("text-[10px] px-1.5 py-0", getStatusColor(santri?.status_santri))}>
                     {santri?.status_santri || 'Tidak Diketahui'}
                   </Badge>
+                  {activeSemester && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                      {activeSemester.nama} {activeSemester.tahun_ajaran?.nama}
+                    </Badge>
+                  )}
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => navigate('/santri')} className="hidden sm:flex">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Kembali
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => navigate('/santri')} className="sm:hidden">
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => setShowSettingsPanel(true)}
-                className="sm:hidden"
-              >
-                <Settings className="w-4 h-4" />
-              </Button>
+              {/* Hide back button for santri viewing own profile */}
+              {!isViewingOwnProfile && (
+                <>
+                  <Button variant="ghost" size="sm" onClick={() => navigate('/santri')} className="hidden sm:flex">
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Kembali
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => navigate('/santri')} className="sm:hidden">
+                    <ArrowLeft className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
               <Button 
                 variant="default" 
-                size="sm" 
-                onClick={() => {
-                  setActiveTab('informasi');
-                  setTimeout(() => {
-                    const tabContent = document.querySelector('[data-value="informasi"]');
-                    if (tabContent) {
-                      tabContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                  }, 100);
-                }}
-                className="hidden sm:flex"
+                size="icon" 
+                onClick={() => setShowSettingsPanel(true)}
+                className="bg-primary hover:bg-primary/90"
               >
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
+                <Settings className="w-4 h-4" />
               </Button>
             </div>
           </div>
@@ -1411,21 +1592,40 @@ const SantriProfileRedesigned = () => {
               {/* 2. Kehadiran */}
               <Card className="border border-primary/10 bg-white shadow-sm hover:shadow-md transition-all duration-300">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <div className="p-1.5 bg-primary rounded-lg text-white">
-                      <CheckCircle className="w-4 h-4" />
-                    </div>
-                    Kehadiran
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+                      <div className="p-1.5 bg-primary rounded-lg text-white">
+                        <CheckCircle className="w-4 h-4" />
+                      </div>
+                      Kehadiran
+                    </CardTitle>
+                    {activeSemester && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {activeSemester.nama}
+                      </Badge>
+                    )}
+                  </div>
+                  {activeSemester && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Data dari semester aktif: {activeSemester.nama} {activeSemester.tahun_ajaran?.nama}
+                    </p>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    {kehadiranProgress.total > 0 ? (
+                    {!activeSemester ? (
+                      <div className="text-center py-6">
+                        <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-primary/30" />
+                        <p className="text-sm text-muted-foreground">
+                          Belum ada semester aktif
+                        </p>
+                      </div>
+                    ) : kehadiranProgress.total > 0 ? (
                       <>
                         <div className="flex items-baseline gap-2">
                           <div className="text-4xl font-bold text-foreground">
                             {kehadiranProgress.persentase}%
                           </div>
-                          <div className="text-sm text-muted-foreground">bulan ini</div>
+                          <div className="text-sm text-muted-foreground">semester ini</div>
                         </div>
                         <Progress 
                           value={kehadiranProgress.persentase} 
@@ -1458,8 +1658,13 @@ const SantriProfileRedesigned = () => {
                       <div className="text-center py-6">
                         <CheckCircle className="w-8 h-8 mx-auto mb-2 text-primary/30" />
                         <p className="text-sm text-muted-foreground">
-                          Belum ada data kehadiran bulan ini
+                          Belum ada data kehadiran untuk semester ini
                         </p>
+                        {activeSemester && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Semester: {activeSemester.nama} {activeSemester.tahun_ajaran?.nama}
+                          </p>
+                        )}
                       </div>
                     )}
                   </CardContent>
@@ -1705,10 +1910,10 @@ const SantriProfileRedesigned = () => {
 
               {/* Dokumen Upload & Verifikasi Section */}
               {santriId && santri && (
-                <Card className="mt-8">
+                <Card className="mt-8" data-dokumen-section>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <FileText className="w-5 h-5" />
+                      <FolderOpen className="w-5 h-5" />
                       Dokumen & Verifikasi
                     </CardTitle>
                   </CardHeader>
@@ -1733,16 +1938,35 @@ const SantriProfileRedesigned = () => {
           <TabsContent value="akademik" className="space-y-6 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <GraduationCap className="w-5 h-5" />
-                  Program Pendidikan Aktif
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <GraduationCap className="w-5 h-5" />
+                    Program Pendidikan Aktif
+                  </CardTitle>
+                  {activeSemester && (
+                    <Badge variant="outline" className="text-xs">
+                      Semester: {activeSemester.nama} {activeSemester.tahun_ajaran?.nama}
+                    </Badge>
+                  )}
+                </div>
+                {activeSemester && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Menampilkan program dari semester aktif: {activeSemester.nama} {activeSemester.tahun_ajaran?.nama}
+                  </p>
+                )}
               </CardHeader>
               <CardContent>
-                {programAktif.length === 0 ? (
+                {!activeSemester ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <AlertTriangle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>Belum ada semester aktif</p>
+                    <p className="text-xs mt-2">Silakan hubungi administrator untuk mengatur semester aktif</p>
+                  </div>
+                ) : programAktif.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Belum ada program aktif</p>
+                    <p>Belum ada program aktif untuk semester ini</p>
+                    <p className="text-xs mt-2">Semester: {activeSemester.nama} {activeSemester.tahun_ajaran?.nama}</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -1754,20 +1978,29 @@ const SantriProfileRedesigned = () => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {programAktif.map((program) => (
-                        <div key={program.id} className="p-4 border rounded-lg">
+                        <div key={program.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
                           <div className="flex items-start justify-between mb-2">
                             <h4 className="font-semibold">{program.nama_kelas}</h4>
                             <Badge variant="outline">{program.program}</Badge>
                           </div>
                           <div className="space-y-1 text-sm text-muted-foreground">
                             {program.rombel && (
-                              <div>Rombel: {program.rombel}</div>
+                              <div className="flex items-center gap-2">
+                                <Users className="w-3 h-3" />
+                                Rombel: {program.rombel}
+                              </div>
                             )}
                             {program.tahun_ajaran && (
-                              <div>Tahun Ajaran: {program.tahun_ajaran}</div>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-3 h-3" />
+                                Tahun Ajaran: {program.tahun_ajaran}
+                              </div>
                             )}
                             {program.semester && (
-                              <div>Semester: {program.semester}</div>
+                              <div className="flex items-center gap-2">
+                                <BookOpen className="w-3 h-3" />
+                                Semester: {program.semester}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -2357,24 +2590,62 @@ const SantriProfileRedesigned = () => {
         </div>
       </div>
 
-      {/* Settings Panel - Mobile App Style */}
+      {/* Settings Panel - Superapp Style */}
       <Dialog open={showSettingsPanel} onOpenChange={setShowSettingsPanel}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-0">
           <div className="sticky top-0 bg-white border-b border-primary/10 px-6 py-4 z-10">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Settings className="w-5 h-5 text-primary" />
-                Pengaturan
+                Menu
               </DialogTitle>
             </DialogHeader>
           </div>
           
-          <div className="px-6 py-4 space-y-1">
-            {/* Profile Actions */}
-            <div className="space-y-1 mb-4">
+          <div className="px-6 py-4 space-y-4">
+            {/* Profile Photo Section */}
+            <div className="flex flex-col items-center py-4 border-b border-primary/10">
+              <div className="relative mb-3">
+                <Avatar className="w-20 h-20 border-2 border-primary/20 shadow-md">
+                  <AvatarImage 
+                    src={photoPreview || getSafeAvatarUrl(santri?.foto_profil)} 
+                    alt={santri?.nama_lengkap || "Santri"} 
+                  />
+                  <AvatarFallback className="text-lg font-semibold">
+                    {(santri?.nama_lengkap || 'S').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0,2)}
+                  </AvatarFallback>
+                </Avatar>
+                <Button
+                  size="icon"
+                  variant="default"
+                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary hover:bg-primary/90 border-2 border-white shadow-md p-0"
+                  onClick={() => document.getElementById('photo-upload-settings')?.click()}
+                  disabled={uploadingPhoto}
+                >
+                  {uploadingPhoto ? (
+                    <Loader2 className="w-4 h-4 text-white animate-spin" />
+                  ) : (
+                    <Camera className="w-4 h-4 text-white" />
+                  )}
+                </Button>
+                <input
+                  id="photo-upload-settings"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoUpload}
+                />
+              </div>
+              <h3 className="font-semibold text-lg">{santri?.nama_lengkap || 'Santri'}</h3>
+              <p className="text-sm text-muted-foreground">{santri?.kategori || 'Kategori'}</p>
+            </div>
+
+            {/* Main Menu Items - Superapp Style */}
+            <div className="space-y-2">
+              {/* Atur Profil Santri */}
               <Button
                 variant="ghost"
-                className="w-full justify-start h-auto py-3 px-4"
+                className="w-full justify-start h-auto py-4 px-4 hover:bg-primary/5"
                 onClick={() => {
                   setActiveTab('informasi');
                   setShowSettingsPanel(false);
@@ -2386,68 +2657,97 @@ const SantriProfileRedesigned = () => {
                   }, 100);
                 }}
               >
-                <Edit className="w-4 h-4 mr-3 text-muted-foreground" />
-                <div className="flex-1 text-left">
-                  <div className="font-medium">Edit Profil</div>
-                  <div className="text-xs text-muted-foreground">Ubah data pribadi</div>
+                <div className="p-2 bg-primary/10 rounded-lg mr-3">
+                  <UserCircle className="w-5 h-5 text-primary" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                <div className="flex-1 text-left">
+                  <div className="font-semibold">Atur Profil Santri</div>
+                  <div className="text-xs text-muted-foreground">Kelola data pribadi dan informasi santri</div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-muted-foreground" />
               </Button>
 
+              {/* Dokumen */}
               <Button
                 variant="ghost"
-                className="w-full justify-start h-auto py-3 px-4"
+                className="w-full justify-start h-auto py-4 px-4 hover:bg-primary/5"
+                onClick={() => {
+                  setActiveTab('informasi');
+                  setShowSettingsPanel(false);
+                  setTimeout(() => {
+                    // Scroll to dokumen section
+                    const dokumenSection = document.querySelector('[data-dokumen-section]');
+                    if (dokumenSection) {
+                      dokumenSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }, 100);
+                }}
+              >
+                <div className="p-2 bg-primary/10 rounded-lg mr-3">
+                  <FolderOpen className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="font-semibold">Dokumen</div>
+                  <div className="text-xs text-muted-foreground">Kelola dokumen dan verifikasi</div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-muted-foreground" />
+              </Button>
+
+              {/* Kelola Akun */}
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-auto py-4 px-4 hover:bg-primary/5"
                 onClick={() => {
                   navigate('/change-password');
                   setShowSettingsPanel(false);
                 }}
               >
-                <Key className="w-4 h-4 mr-3 text-muted-foreground" />
-                <div className="flex-1 text-left">
-                  <div className="font-medium">Ubah Password</div>
-                  <div className="text-xs text-muted-foreground">Ganti kata sandi akun</div>
+                <div className="p-2 bg-primary/10 rounded-lg mr-3">
+                  <Lock className="w-5 h-5 text-primary" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                <div className="flex-1 text-left">
+                  <div className="font-semibold">Kelola Akun</div>
+                  <div className="text-xs text-muted-foreground">Ubah password dan pengaturan akun</div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-muted-foreground" />
               </Button>
             </div>
 
             {/* Quick Navigation */}
             <div className="pt-4 border-t border-primary/10">
-              <div className="text-xs font-semibold text-muted-foreground uppercase mb-2 px-4">Navigasi Cepat</div>
-              {menuItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                return (
-                  <Button
-                    key={item.id}
-                    variant="ghost"
-                    className={cn(
-                      "w-full justify-start h-auto py-3 px-4",
-                      isActive && "bg-primary/5"
-                    )}
-                    onClick={() => {
-                      setActiveTab(item.id);
-                      setShowSettingsPanel(false);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                  >
-                    <Icon className={cn(
-                      "w-4 h-4 mr-3",
-                      isActive ? "text-primary" : "text-muted-foreground"
-                    )} />
-                    <div className="flex-1 text-left">
-                      <div className={cn(
-                        "font-medium",
+              <div className="text-xs font-semibold text-muted-foreground uppercase mb-3">Navigasi Cepat</div>
+              <div className="grid grid-cols-2 gap-2">
+                {menuItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <Button
+                      key={item.id}
+                      variant="ghost"
+                      className={cn(
+                        "flex flex-col items-center justify-center h-auto py-3 px-2",
+                        isActive && "bg-primary/5"
+                      )}
+                      onClick={() => {
+                        setActiveTab(item.id);
+                        setShowSettingsPanel(false);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    >
+                      <Icon className={cn(
+                        "w-5 h-5 mb-1",
+                        isActive ? "text-primary" : "text-muted-foreground"
+                      )} />
+                      <span className={cn(
+                        "text-xs font-medium",
                         isActive && "text-primary"
                       )}>
                         {item.label}
-                      </div>
-                      <div className="text-xs text-muted-foreground">{item.description}</div>
-                    </div>
-                    {isActive && <CheckCircle className="w-4 h-4 text-primary" />}
-                  </Button>
-                );
-              })}
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Account Info */}
@@ -2469,6 +2769,12 @@ const SantriProfileRedesigned = () => {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">ID Santri:</span>
                       <span className="font-medium font-mono text-xs">{santri.id_santri}</span>
+                    </div>
+                  )}
+                  {activeSemester && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Semester Aktif:</span>
+                      <span className="font-medium text-xs">{activeSemester.nama} {activeSemester.tahun_ajaran?.nama}</span>
                     </div>
                   )}
                 </div>

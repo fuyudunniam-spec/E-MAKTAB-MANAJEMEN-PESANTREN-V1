@@ -52,7 +52,7 @@ export default function TransferAkunKasDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('akun_kas')
-        .select('id, nama, saldo_saat_ini, status')
+        .select('id, nama, saldo_saat_ini, saldo_awal, status, managed_by')
         .eq('status', 'aktif')
         .order('nama');
 
@@ -62,9 +62,108 @@ export default function TransferAkunKasDialog({
     enabled: open,
   });
 
+  // Calculate real saldo for koperasi accounts (only from koperasi transactions)
+  // Menggunakan logika yang sama dengan KeuanganUnifiedPage: Total Pemasukan - Total Pengeluaran
+  const { data: koperasiSaldoMap = {} } = useQuery({
+    queryKey: ['koperasi-saldo-map', akunKasList.length > 0 ? akunKasList.map(a => a.id).sort().join(',') : ''],
+    queryFn: async () => {
+      const koperasiAccountIds = akunKasList
+        .filter(akun => akun.managed_by === 'koperasi' || akun.nama?.toLowerCase().includes('koperasi'))
+        .map(akun => akun.id);
+
+      if (koperasiAccountIds.length === 0) return {};
+
+      const saldoMap: Record<string, number> = {};
+
+      // Initialize saldo map to 0
+      for (const akunId of koperasiAccountIds) {
+        saldoMap[akunId] = 0;
+      }
+
+      // Get total pemasukan kumulatif (SEMUA pemasukan koperasi dari keuangan dengan source_module = 'koperasi')
+      const { data: pemasukanData } = await supabase
+        .from('keuangan')
+        .select('akun_kas_id, jumlah')
+        .eq('jenis_transaksi', 'Pemasukan')
+        .eq('status', 'posted')
+        .eq('source_module', 'koperasi')
+        .in('akun_kas_id', koperasiAccountIds);
+
+      // Add pemasukan
+      (pemasukanData || []).forEach(tx => {
+        if (!saldoMap[tx.akun_kas_id]) saldoMap[tx.akun_kas_id] = 0;
+        saldoMap[tx.akun_kas_id] += parseFloat(tx.jumlah || 0);
+      });
+
+      // Get total pengeluaran kumulatif (semua pengeluaran, exclude kewajiban/hutang)
+      const [pengeluaranKeuangan, pengeluaranKoperasi] = await Promise.all([
+        supabase
+          .from('keuangan')
+          .select('akun_kas_id, jumlah, kategori, sub_kategori, deskripsi')
+          .eq('jenis_transaksi', 'Pengeluaran')
+          .eq('status', 'posted')
+          .eq('source_module', 'koperasi')
+          .in('akun_kas_id', koperasiAccountIds),
+        supabase
+          .from('keuangan_koperasi')
+          .select('akun_kas_id, jumlah, kategori, sub_kategori, deskripsi')
+          .eq('jenis_transaksi', 'Pengeluaran')
+          .eq('status', 'posted')
+          .in('akun_kas_id', koperasiAccountIds)
+      ]);
+
+      // Combine dan filter biaya operasional (exclude kewajiban/hutang)
+      const allPengeluaranData = [
+        ...(pengeluaranKeuangan.data || []),
+        ...(pengeluaranKoperasi.data || [])
+      ];
+
+      // Filter biaya operasional (exclude kewajiban/hutang, TAPI INCLUDE transfer ke yayasan)
+      const biayaOperasional = allPengeluaranData.filter(item => {
+        const kategori = (item.kategori || '').toLowerCase();
+        const subKategori = (item.sub_kategori || '').toLowerCase();
+        const deskripsi = (item.deskripsi || '').toLowerCase();
+        
+        // INCLUDE transfer ke yayasan sebagai pengeluaran
+        if (kategori === 'transfer ke yayasan' || 
+            subKategori === 'transfer ke yayasan' ||
+            deskripsi.includes('transfer ke yayasan') ||
+            deskripsi.includes('transfer laba/rugi')) {
+          return true;
+        }
+        
+        // Exclude hanya kewajiban/hutang
+        const isKewajiban = 
+          kategori === 'kewajiban' ||
+          kategori === 'hutang ke yayasan' ||
+          kategori.includes('kewajiban') ||
+          kategori.includes('hutang') ||
+          subKategori === 'kewajiban penjualan inventaris yayasan' ||
+          subKategori.includes('kewajiban') ||
+          subKategori.includes('hutang') ||
+          deskripsi.includes('kewajiban penjualan') ||
+          deskripsi.includes('hutang ke yayasan');
+        
+        return !isKewajiban;
+      });
+
+      // Subtract pengeluaran
+      biayaOperasional.forEach(tx => {
+        if (!saldoMap[tx.akun_kas_id]) saldoMap[tx.akun_kas_id] = 0;
+        saldoMap[tx.akun_kas_id] -= parseFloat(tx.jumlah || 0);
+      });
+
+      return saldoMap;
+    },
+    enabled: open && akunKasList.length > 0,
+  });
+
   // Get saldo dari akun yang dipilih
   const dariAkun = akunKasList.find(akun => akun.id === dariAkunId);
-  const saldoDariAkun = dariAkun?.saldo_saat_ini || 0;
+  const isKoperasiAccount = dariAkun?.managed_by === 'koperasi' || dariAkun?.nama?.toLowerCase().includes('koperasi');
+  const saldoDariAkun = isKoperasiAccount && dariAkunId 
+    ? (koperasiSaldoMap[dariAkunId] ?? dariAkun?.saldo_saat_ini ?? 0)
+    : (dariAkun?.saldo_saat_ini || 0);
 
   // Transfer mutation
   const transferMutation = useMutation({
@@ -161,11 +260,17 @@ export default function TransferAkunKasDialog({
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {akunKasList.map((akun) => (
-                  <SelectItem key={akun.id} value={akun.id}>
-                    {akun.nama} (Saldo: Rp {(akun.saldo_saat_ini || 0).toLocaleString('id-ID')})
-                  </SelectItem>
-                ))}
+                {akunKasList.map((akun) => {
+                  const isKoperasiAcc = akun.managed_by === 'koperasi' || akun.nama?.toLowerCase().includes('koperasi');
+                  const saldoDisplay = isKoperasiAcc && koperasiSaldoMap[akun.id] !== undefined
+                    ? koperasiSaldoMap[akun.id]
+                    : (akun.saldo_saat_ini || 0);
+                  return (
+                    <SelectItem key={akun.id} value={akun.id}>
+                      {akun.nama} (Saldo: Rp {saldoDisplay.toLocaleString('id-ID')})
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             {dariAkun && (
@@ -185,11 +290,17 @@ export default function TransferAkunKasDialog({
               <SelectContent>
                 {akunKasList
                   .filter((akun) => akun.id !== dariAkunId)
-                  .map((akun) => (
-                    <SelectItem key={akun.id} value={akun.id}>
-                      {akun.nama} (Saldo: Rp {(akun.saldo_saat_ini || 0).toLocaleString('id-ID')})
-                    </SelectItem>
-                  ))}
+                  .map((akun) => {
+                    const isKoperasiAcc = akun.managed_by === 'koperasi' || akun.nama?.toLowerCase().includes('koperasi');
+                    const saldoDisplay = isKoperasiAcc && koperasiSaldoMap[akun.id] !== undefined
+                      ? koperasiSaldoMap[akun.id]
+                      : (akun.saldo_saat_ini || 0);
+                    return (
+                      <SelectItem key={akun.id} value={akun.id}>
+                        {akun.nama} (Saldo: Rp {saldoDisplay.toLocaleString('id-ID')})
+                      </SelectItem>
+                    );
+                  })}
               </SelectContent>
             </Select>
           </div>

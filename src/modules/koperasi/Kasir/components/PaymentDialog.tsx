@@ -232,7 +232,7 @@ export default function PaymentDialog({
         // Continue with normal flow if receipt fetch fails
         // Log only in development
         if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
+           
           console.warn('Error fetching receipt data (non-critical):', error);
         }
       }

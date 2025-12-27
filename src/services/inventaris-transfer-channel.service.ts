@@ -67,7 +67,7 @@ export async function getTransferSummaryByChannel(
 
   // Fetch harga_perolehan dari inventaris secara terpisah untuk menghindari error join
   const itemIds = [...new Set((data || []).map((t: any) => t.item_id).filter(Boolean))];
-  let inventarisMap = new Map();
+  const inventarisMap = new Map();
   
   if (itemIds.length > 0) {
     const { data: inventarisData } = await supabase

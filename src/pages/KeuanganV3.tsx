@@ -333,7 +333,7 @@ const KeuanganV3: React.FC = () => {
         const jumlah = inventoryTx?.jumlah || null;
         
         // Normalize keuangan deskripsi format first
-        let normalizedDeskripsi = normalizeKeuanganDeskripsi(keuanganDeskripsi);
+        const normalizedDeskripsi = normalizeKeuanganDeskripsi(keuanganDeskripsi);
         
         // Check if keuangan.deskripsi is complete (has item name)
         const deskripsiIsComplete = isDeskripsiComplete(normalizedDeskripsi);

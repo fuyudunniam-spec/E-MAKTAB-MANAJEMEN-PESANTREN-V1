@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,8 +68,18 @@ interface SantriData {
 
 const Santri = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [santriData, setSantriData] = useState<SantriData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Redirect santri to their own profile - they cannot access master data
+  useEffect(() => {
+    if (user && user.role === 'santri' && user.santriId) {
+      console.log('🔐 [Santri] Santri detected, redirecting to own profile...');
+      navigate(`/santri/profile?santriId=${user.santriId}&santriName=${encodeURIComponent(user.name || 'Santri')}`, { replace: true });
+      return;
+    }
+  }, [user, navigate]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterKategori, setFilterKategori] = useState('');
   const [filterStatus, setFilterStatus] = useState('');

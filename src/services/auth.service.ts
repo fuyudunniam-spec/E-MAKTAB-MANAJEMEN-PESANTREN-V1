@@ -84,7 +84,7 @@ export async function getUserRoles(userId: string): Promise<string[]> {
       setTimeout(() => resolve({ data: null, error: { message: 'Query timeout' } }), 2000);
     });
 
-    let result: any = await Promise.race([directQueryPromise, timeoutPromise]);
+    const result: any = await Promise.race([directQueryPromise, timeoutPromise]);
     const { data, error } = result;
 
     if (error || !data) {

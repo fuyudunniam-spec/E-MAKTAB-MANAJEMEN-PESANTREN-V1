@@ -507,7 +507,7 @@ const InventarisRefactored = () => {
     try {
       setTxSaving(true);
       
-      let updateData: any = {
+      const updateData: any = {
         penerima: txEditRecipient || null,
         jumlah: txEditJumlah
       };

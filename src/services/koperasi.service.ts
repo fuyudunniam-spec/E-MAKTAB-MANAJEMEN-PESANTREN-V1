@@ -1717,7 +1717,7 @@ export const koperasiService = {
     const penjualanIds = penjualanData.map((p: any) => p.id);
     
     // Get kop_penjualan detail untuk penjualan yang sudah difilter
-    let kopQuery = supabase
+    const kopQuery = supabase
       .from('kop_penjualan_detail')
       .select(`
         hpp_snapshot,
@@ -1849,7 +1849,7 @@ export const koperasiService = {
       if (error) throw error;
       
       // Parse items_summary untuk mendapatkan nama barang jika produk sudah dihapus
-      let itemsSummaryMap: Map<string, string> = new Map();
+      const itemsSummaryMap: Map<string, string> = new Map();
       if (data.items_summary) {
         try {
           // items_summary format: "Beras Acik 25 Kg (3), Beras Bintang Lele 5Kg (1)"
@@ -2462,9 +2462,91 @@ export const koperasiService = {
       }
       
       // Validasi saldo cukup
-      if ((dariAkun.saldo_saat_ini || 0) < data.jumlah) {
+      // Untuk akun kas koperasi, hitung saldo dari transaksi koperasi saja
+      // Menggunakan logika yang sama dengan KeuanganUnifiedPage: Total Pemasukan - Total Pengeluaran
+      const isKoperasiAccount = dariAkun.managed_by === 'koperasi' || 
+                                 dariAkun.nama?.toLowerCase().includes('koperasi');
+      
+      let saldoAktual = dariAkun.saldo_saat_ini || 0;
+      
+      if (isKoperasiAccount) {
+        saldoAktual = 0;
+        
+        // Get total pemasukan kumulatif (SEMUA pemasukan koperasi dari keuangan dengan source_module = 'koperasi')
+        const { data: pemasukanData } = await supabase
+          .from('keuangan')
+          .select('jumlah')
+          .eq('jenis_transaksi', 'Pemasukan')
+          .eq('status', 'posted')
+          .eq('source_module', 'koperasi')
+          .eq('akun_kas_id', data.dari_akun_kas_id);
+        
+        const totalPemasukan = (pemasukanData || []).reduce(
+          (sum, item) => sum + parseFloat(item.jumlah || 0), 0
+        );
+        
+        // Get total pengeluaran kumulatif (semua pengeluaran, exclude kewajiban/hutang)
+        const [pengeluaranKeuangan, pengeluaranKoperasi] = await Promise.all([
+          supabase
+            .from('keuangan')
+            .select('jumlah, kategori, sub_kategori, deskripsi')
+            .eq('jenis_transaksi', 'Pengeluaran')
+            .eq('status', 'posted')
+            .eq('source_module', 'koperasi')
+            .eq('akun_kas_id', data.dari_akun_kas_id),
+          supabase
+            .from('keuangan_koperasi')
+            .select('jumlah, kategori, sub_kategori, deskripsi')
+            .eq('jenis_transaksi', 'Pengeluaran')
+            .eq('status', 'posted')
+            .eq('akun_kas_id', data.dari_akun_kas_id)
+        ]);
+        
+        // Combine dan filter biaya operasional (exclude kewajiban/hutang)
+        const allPengeluaranData = [
+          ...(pengeluaranKeuangan.data || []),
+          ...(pengeluaranKoperasi.data || [])
+        ];
+        
+        // Filter biaya operasional (exclude kewajiban/hutang, TAPI INCLUDE transfer ke yayasan)
+        const biayaOperasional = allPengeluaranData.filter(item => {
+          const kategori = (item.kategori || '').toLowerCase();
+          const subKategori = (item.sub_kategori || '').toLowerCase();
+          const deskripsi = (item.deskripsi || '').toLowerCase();
+          
+          // INCLUDE transfer ke yayasan sebagai pengeluaran
+          if (kategori === 'transfer ke yayasan' || 
+              subKategori === 'transfer ke yayasan' ||
+              deskripsi.includes('transfer ke yayasan') ||
+              deskripsi.includes('transfer laba/rugi')) {
+            return true;
+          }
+          
+          // Exclude hanya kewajiban/hutang
+          const isKewajiban = 
+            kategori === 'kewajiban' ||
+            kategori === 'hutang ke yayasan' ||
+            kategori.includes('kewajiban') ||
+            kategori.includes('hutang') ||
+            subKategori === 'kewajiban penjualan inventaris yayasan' ||
+            subKategori.includes('kewajiban') ||
+            subKategori.includes('hutang') ||
+            deskripsi.includes('kewajiban penjualan') ||
+            deskripsi.includes('hutang ke yayasan');
+          
+          return !isKewajiban;
+        });
+        
+        const totalPengeluaran = biayaOperasional.reduce(
+          (sum, item) => sum + parseFloat(item.jumlah || 0), 0
+        );
+        
+        saldoAktual = totalPemasukan - totalPengeluaran;
+      }
+      
+      if (saldoAktual < data.jumlah) {
         throw new Error(
-          `Saldo tidak cukup! Saldo tersedia: Rp ${(dariAkun.saldo_saat_ini || 0).toLocaleString('id-ID')}, ` +
+          `Saldo tidak cukup! Saldo tersedia: Rp ${saldoAktual.toLocaleString('id-ID')}, ` +
           `Jumlah transfer: Rp ${data.jumlah.toLocaleString('id-ID')}`
         );
       }
@@ -2602,7 +2684,7 @@ export const setoranCashKasirService = {
   async getTotalCashSalesForKasir(kasirId: string, shiftId?: string) {
     // Get all cash sales for this kasir
     // PENTING: Hanya ambil penjualan yang benar-benar sudah lunas (tidak ada sisa hutang)
-    let query = supabase
+    const query = supabase
       .from('kop_penjualan')
       .select('id, total_transaksi, metode_pembayaran, tanggal, status_pembayaran, sisa_hutang')
       .eq('kasir_id', kasirId)
@@ -2684,7 +2766,7 @@ export const setoranCashKasirService = {
 
   // Get total setoran kasir
   async getTotalSetoranKasir(kasirId: string, shiftId?: string) {
-    let query = supabase
+    const query = supabase
       .from('kop_setoran_cash_kasir')
       .select('jumlah_setor')
       .eq('kasir_id', kasirId)
@@ -2808,7 +2890,7 @@ export const setoranCashKasirService = {
     startDate?: string;
     endDate?: string;
   }) {
-    let query = supabase
+    const query = supabase
       .from('kop_setoran_cash_kasir')
       .select(`
         *,
@@ -2920,7 +3002,7 @@ export const setoranCashKasirService = {
     // Get all setoran cash yang aktif (posted)
     // Untuk setor cash, kita perlu cek semua setoran yang overlap dengan periode
     // Tidak perlu filter berdasarkan kasir karena setor cash bisa untuk seluruh penjualan periode
-    let setoranQuery = supabase
+    const setoranQuery = supabase
       .from('kop_setoran_cash_kasir')
       .select('periode_start, periode_end, kasir_id')
       .eq('status', 'posted');

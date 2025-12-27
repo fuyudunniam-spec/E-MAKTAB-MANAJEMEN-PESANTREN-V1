@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +67,7 @@ interface SantriData {
 
 const SantriEnhanced = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [santriData, setSantriData] = useState<SantriData[]>([]);
   const [pendingSantri, setPendingSantri] = useState<SantriData[]>([]);
   const [unplacedSantri, setUnplacedSantri] = useState<SantriData[]>([]);
@@ -75,6 +77,15 @@ const SantriEnhanced = () => {
   const [filterKategori, setFilterKategori] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingSantri, setEditingSantri] = useState<string | null>(null);
+
+  // Redirect santri to their own profile - they cannot access master data
+  useEffect(() => {
+    if (user && user.role === 'santri' && user.santriId) {
+      console.log('🔐 [SantriEnhanced] Santri detected, redirecting to own profile...');
+      navigate(`/santri/profile?santriId=${user.santriId}&santriName=${encodeURIComponent(user.name || 'Santri')}`, { replace: true });
+      return;
+    }
+  }, [user, navigate]);
 
   // Load all santri data with optimized approach
   const loadSantriData = async (retryCount = 0) => {

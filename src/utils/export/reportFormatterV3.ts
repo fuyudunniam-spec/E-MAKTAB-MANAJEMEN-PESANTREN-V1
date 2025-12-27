@@ -138,7 +138,7 @@ export class ReportFormatterV3 {
     // Format baru dari trigger: "Donasi tunai dari [nama] (Hajat: ...)"
     if (deskripsi.includes('Donasi tunai dari') || deskripsi.includes('Donasi dari')) {
       // Hapus hajat terlebih dahulu
-      let cleaned = deskripsi.replace(/\s*\(Hajat:.*?\)/gi, '').replace(/\s*\(Doa:.*?\)/gi, '');
+      const cleaned = deskripsi.replace(/\s*\(Hajat:.*?\)/gi, '').replace(/\s*\(Doa:.*?\)/gi, '');
       const match = cleaned.match(/(?:Donasi tunai dari|Donasi dari)\s+(.+?)(?:\s|$)/i);
       if (match) {
         return match[1].trim();

@@ -47,7 +47,7 @@ export default function EditStatusPembayaranDialog({
   const updateStatusMutation = useMutation({
     mutationFn: async () => {
       const total = penjualan.total_transaksi || 0;
-      let updateData: any = {
+      const updateData: any = {
         status_pembayaran: statusPembayaran,
         metode_pembayaran: metodeBayar,
         updated_at: new Date().toISOString(),

@@ -154,7 +154,7 @@ export default function MasterProdukPage() {
     queryKey: ['koperasi-yayasan-items', yayasanSearch],
     queryFn: async () => {
       // First, get inventaris items that are komoditas or boleh_dijual_koperasi
-      let query = supabase
+      const query = supabase
         .from('inventaris')
         .select('*')
         .or('tipe_item.eq.Komoditas,boleh_dijual_koperasi.eq.true')

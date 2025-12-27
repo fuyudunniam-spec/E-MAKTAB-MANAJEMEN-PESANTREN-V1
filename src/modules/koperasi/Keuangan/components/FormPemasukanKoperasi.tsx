@@ -98,7 +98,7 @@ const FormPemasukanKoperasi: React.FC<FormPemasukanKoperasiProps> = ({ isOpen, o
         // Silent fail - saldo will be recalculated on next transaction
         // Log only in development
         if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
+           
           console.warn('Warning ensuring saldo correct:', saldoError);
         }
       }

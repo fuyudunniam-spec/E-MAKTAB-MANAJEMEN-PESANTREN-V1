@@ -130,7 +130,7 @@ class LocalPDFExporter {
     const jumlah = inventoryTx?.jumlah || null;
     
     // Normalize keuangan deskripsi format first
-    let normalizedDeskripsi = LocalPDFExporter.normalizeKeuanganDeskripsi(keuanganDeskripsi);
+    const normalizedDeskripsi = LocalPDFExporter.normalizeKeuanganDeskripsi(keuanganDeskripsi);
     
     // Check if keuangan.deskripsi is complete (has item name)
     const deskripsiIsComplete = LocalPDFExporter.isDeskripsiComplete(normalizedDeskripsi);
@@ -211,7 +211,7 @@ class LocalPDFExporter {
     // Pattern 1: "Beras X (25 Kg) (3 unit)" -> "Beras X 25 Kg (3 unit)"
     // Mencari pola: nama item (berat dengan spasi) (jumlah unit)
     const pattern1 = /^(.+?)\s*\((\d+)\s+(kg|Kg|g|gram|G|GRAM)\s*\)\s*\((\d+)\s+(unit|Unit|UNIT)\)\s*$/i;
-    let match1 = cleaned.match(pattern1);
+    const match1 = cleaned.match(pattern1);
     if (match1) {
       const [, nama, berat, satuanBerat, jumlah, satuanJumlah] = match1;
       return `${nama.trim()} ${berat} ${satuanBerat} (${jumlah} ${satuanJumlah})`;
@@ -219,7 +219,7 @@ class LocalPDFExporter {
     
     // Pattern 2: "Beras X (25Kg) (3 unit)" atau "Beras X (5Kg) (8 unit)" -> "Beras X 25Kg (3 unit)"
     const pattern2 = /^(.+?)\s*\((\d+)(kg|Kg|g|gram|G|GRAM)\s*\)\s*\((\d+)\s+(unit|Unit|UNIT)\)\s*$/i;
-    let match2 = cleaned.match(pattern2);
+    const match2 = cleaned.match(pattern2);
     if (match2) {
       const [, nama, berat, satuanBerat, jumlah, satuanJumlah] = match2;
       return `${nama.trim()} ${berat}${satuanBerat} (${jumlah} ${satuanJumlah})`;
@@ -331,7 +331,7 @@ class LocalPDFExporter {
     
     // Try to load logo, but don't fail if it doesn't work
     let logoLoaded = false;
-    let logoSize = 120; // Same size as watermark
+    const logoSize = 120; // Same size as watermark
     let logoY = 30; // Fixed position from top
     
     try {

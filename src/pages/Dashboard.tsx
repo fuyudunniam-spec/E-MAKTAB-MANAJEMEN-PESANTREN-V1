@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, TrendingUp, TrendingDown, Heart, Package, Wallet, Activity, CheckCircle, Trash2, Bell, MessageSquare, Share2, RefreshCw, Clock, Search, DollarSign, PiggyBank, BarChart3, Filter } from "lucide-react";
+import { TrendingUp, TrendingDown, Heart, Activity, Bell, Share2, Search, DollarSign, PiggyBank, BarChart3, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line, CartesianGrid, Area, AreaChart } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, Line, CartesianGrid, Area, AreaChart } from "recharts";
 
 interface DashboardStats {
   totalSantri: number;
@@ -24,6 +24,29 @@ interface DashboardStats {
   expiredItems: number;
 }
 
+interface Activity {
+  type: 'transaksi' | 'donasi';
+  message: string;
+  time: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+interface TrendData {
+  month: string;
+  donasi: number;
+  pemasukan: number;
+  total: number;
+}
+
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    name: string;
+    value: number;
+    color: string;
+  }>;
+}
+
 const formatRupiah = (amount: number) => {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -32,6 +55,20 @@ const formatRupiah = (amount: number) => {
     maximumFractionDigits: 0
   }).format(amount);
 };
+
+// Constants for hardcoded percentages and values
+const FINANCE_SCORE_PERCENTAGE = 92;
+const KAS_UTAMA_PERCENTAGE = 0.3;
+const KAS_OPERASIONAL_PERCENTAGE = 0.4;
+const EMERGENCY_FUND_PERCENTAGE = 0.45;
+const EMERGENCY_FUND_TARGET_MULTIPLIER = 2;
+const EMERGENCY_FUND_PROGRESS_PERCENTAGE = 45;
+const OPERATIONAL_FUND_PERCENTAGE = 0.25;
+const OPERATIONAL_FUND_TARGET_MULTIPLIER = 4;
+const OPERATIONAL_FUND_PROGRESS_PERCENTAGE = 25;
+const DEVELOPMENT_FUND_PERCENTAGE = 0.5;
+const DEVELOPMENT_FUND_TARGET_MULTIPLIER = 1;
+const DEVELOPMENT_FUND_PROGRESS_PERCENTAGE = 50;
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -53,19 +90,13 @@ const Dashboard = () => {
     expiredItems: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
   const [deletedActivities, setDeletedActivities] = useState<Set<number>>(new Set());
-  const [timeFilter, setTimeFilter] = useState<'daily' | 'weekly' | 'monthly' | 'annually'>('monthly');
-  const [monthlyTrendData, setMonthlyTrendData] = useState<any[]>([]);
+  const [monthlyTrendData, setMonthlyTrendData] = useState<TrendData[]>([]);
 
   // Redirect santri to their profile page
   useEffect(() => {
     if (user && user.role === 'santri' && user.santriId) {
-      console.log('🔐 [Dashboard] Santri detected, redirecting to profile...', {
-        santriId: user.santriId,
-        idSantri: user.idSantri,
-        name: user.name
-      });
       navigate(`/santri/profile?santriId=${user.santriId}&santriName=${encodeURIComponent(user.name || 'Santri')}`, { replace: true });
       return;
     }
@@ -74,11 +105,6 @@ const Dashboard = () => {
   // Redirect pengajar to their dashboard
   useEffect(() => {
     if (user && (user.role === 'pengajar' || user.roles?.includes('pengajar'))) {
-      console.log('🔐 [Dashboard] Pengajar detected, redirecting to pengajar dashboard...', {
-        userId: user.id,
-        role: user.role,
-        roles: user.roles
-      });
       navigate('/akademik/pengajar', { replace: true });
       return;
     }
@@ -88,11 +114,6 @@ const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
-  const handleDeleteActivity = (index: number) => {
-    if (window.confirm('Apakah Anda yakin ingin menghapus aktivitas ini?')) {
-      setDeletedActivities(prev => new Set([...prev, index]));
-    }
-  };
 
   const fetchDashboardData = async () => {
     try {
@@ -150,10 +171,6 @@ const Dashboard = () => {
       
       // TODO: Add back when perishable/expiry fields are added
       const expiredItems = 0;
-      // const expiredItems = inventarisResult.data?.filter(item => {
-      //   if (!item.perishable || !item.tanggal_kedaluwarsa) return false;
-      //   return new Date(item.tanggal_kedaluwarsa) < new Date();
-      // }).length || 0;
 
       // Keuangan stats
       const pemasukanBulanIni = keuanganResult.data?.filter(item => {
@@ -181,15 +198,15 @@ const Dashboard = () => {
       const saldoKas = akunKasData?.reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0) || 0;
 
       // Recent activities
-      const activities = [
+      const activities: Activity[] = [
         ...(transaksiResult.data?.map(t => ({
-          type: 'transaksi',
+          type: 'transaksi' as const,
           message: `Transaksi ${t.tipe.toLowerCase()} ${t.jumlah} unit`,
           time: t.created_at,
           icon: Activity
         })) || []),
         ...(donasiResult.data?.slice(0, 3).map(d => ({
-          type: 'donasi',
+          type: 'donasi' as const,
           message: `Donasi ${d.jenis_donasi.toLowerCase()} dari ${d.nama_donatur}`,
           time: d.created_at,
           icon: Heart
@@ -266,8 +283,8 @@ const Dashboard = () => {
     { name: 'Saldo', value: stats.saldoKas, percentage: '100', color: '#3B82F6' }
   ];
 
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
+  const CustomTooltip = ({ active, payload }: TooltipProps) => {
+    if (active && payload && payload.length && payload[0]) {
       return (
         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
           <p className="font-medium text-sm mb-2">{payload[0].name}</p>
@@ -288,10 +305,19 @@ const Dashboard = () => {
     return { percentage: Math.abs(percentage), isPositive: diff >= 0, difference: diff };
   };
 
-  const pemasukanTrend = calculateTrend(stats.pemasukanBulanIni, stats.pemasukanBulanIni * 0.95);
-  const pengeluaranTrend = calculateTrend(stats.pengeluaranBulanIni, stats.pengeluaranBulanIni * 1.02);
-  const saldoTrend = calculateTrend(stats.saldoKas, stats.saldoKas * 0.98);
-  const donasiTrend = calculateTrend(stats.donasiBulanIni, stats.donasiBulanIni * 0.96);
+  // Calculate trends (using estimated previous values based on typical variance)
+  // In a real implementation, these should compare against actual previous period data
+  const TREND_VARIANCE_FACTOR = {
+    pemasukan: 0.95,
+    pengeluaran: 1.02,
+    saldo: 0.98,
+    donasi: 0.96,
+  };
+
+  const pemasukanTrend = calculateTrend(stats.pemasukanBulanIni, stats.pemasukanBulanIni * TREND_VARIANCE_FACTOR.pemasukan);
+  const pengeluaranTrend = calculateTrend(stats.pengeluaranBulanIni, stats.pengeluaranBulanIni * TREND_VARIANCE_FACTOR.pengeluaran);
+  const saldoTrend = calculateTrend(stats.saldoKas, stats.saldoKas * TREND_VARIANCE_FACTOR.saldo);
+  const donasiTrend = calculateTrend(stats.donasiBulanIni, stats.donasiBulanIni * TREND_VARIANCE_FACTOR.donasi);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -544,9 +570,9 @@ const Dashboard = () => {
                   <span className="text-sm font-semibold text-emerald-600">Excellent</span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2.5">
-                  <div className="bg-emerald-600 h-2.5 rounded-full transition-all duration-500" style={{ width: '92%' }}></div>
+                  <div className="bg-emerald-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${FINANCE_SCORE_PERCENTAGE}%` }}></div>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">92%</p>
+                <p className="text-xs text-gray-500 mt-1">{FINANCE_SCORE_PERCENTAGE}%</p>
               </div>
               <div className="pt-4 border-t border-gray-200">
                 <p className="text-sm text-gray-600 mb-2">Total Balance</p>
@@ -558,7 +584,7 @@ const Dashboard = () => {
                     <span className="text-xs font-medium text-gray-700">Kas Utama</span>
                     <button className="text-xs text-emerald-600 hover:text-emerald-700">Copy</button>
                   </div>
-                  <p className="text-lg font-bold text-gray-900">{formatRupiah(stats.saldoKas * 0.3)}</p>
+                  <p className="text-lg font-bold text-gray-900">{formatRupiah(stats.saldoKas * KAS_UTAMA_PERCENTAGE)}</p>
                   <p className="text-xs text-gray-500 mt-1">**** **** **** 1234</p>
                 </div>
                 <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100">
@@ -566,7 +592,7 @@ const Dashboard = () => {
                     <span className="text-xs font-medium text-gray-700">Kas Operasional</span>
                     <button className="text-xs text-emerald-600 hover:text-emerald-700">Copy</button>
                   </div>
-                  <p className="text-lg font-bold text-gray-900">{formatRupiah(stats.saldoKas * 0.4)}</p>
+                  <p className="text-lg font-bold text-gray-900">{formatRupiah(stats.saldoKas * KAS_OPERASIONAL_PERCENTAGE)}</p>
                   <p className="text-xs text-gray-500 mt-1">**** **** **** 5678</p>
                 </div>
               </div>
@@ -644,7 +670,7 @@ const Dashboard = () => {
                             </td>
                             <td className="py-4 px-4 text-right">
                               <span className={`text-sm font-semibold ${isPositive ? 'text-emerald-600' : 'text-gray-900'}`}>
-                                {isPositive ? '+' : ''}{formatRupiah(Math.random() * 1000000)}
+                                {isPositive ? '+' : '-'}{formatRupiah(0)}
                               </span>
                             </td>
                             <td className="py-4 px-4 text-center">
@@ -683,32 +709,32 @@ const Dashboard = () => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-900">Emergency Fund</span>
-                    <span className="text-sm text-gray-600">{formatRupiah(stats.saldoKas * 0.45)} / {formatRupiah(stats.saldoKas * 2)}</span>
+                    <span className="text-sm text-gray-600">{formatRupiah(stats.saldoKas * EMERGENCY_FUND_PERCENTAGE)} / {formatRupiah(stats.saldoKas * EMERGENCY_FUND_TARGET_MULTIPLIER)}</span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-2">
-                    <div className="bg-emerald-600 h-2 rounded-full" style={{ width: '45%' }}></div>
+                    <div className="bg-emerald-600 h-2 rounded-full" style={{ width: `${EMERGENCY_FUND_PROGRESS_PERCENTAGE}%` }}></div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">45%</p>
+                  <p className="text-xs text-gray-500 mt-1">{EMERGENCY_FUND_PROGRESS_PERCENTAGE}%</p>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-900">Operational Fund</span>
-                    <span className="text-sm text-gray-600">{formatRupiah(stats.saldoKas * 0.25)} / {formatRupiah(stats.saldoKas * 4)}</span>
+                    <span className="text-sm text-gray-600">{formatRupiah(stats.saldoKas * OPERATIONAL_FUND_PERCENTAGE)} / {formatRupiah(stats.saldoKas * OPERATIONAL_FUND_TARGET_MULTIPLIER)}</span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-2">
-                    <div className="bg-emerald-600 h-2 rounded-full" style={{ width: '25%' }}></div>
+                    <div className="bg-emerald-600 h-2 rounded-full" style={{ width: `${OPERATIONAL_FUND_PROGRESS_PERCENTAGE}%` }}></div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">25%</p>
+                  <p className="text-xs text-gray-500 mt-1">{OPERATIONAL_FUND_PROGRESS_PERCENTAGE}%</p>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-900">Development Fund</span>
-                    <span className="text-sm text-gray-600">{formatRupiah(stats.saldoKas * 0.5)} / {formatRupiah(stats.saldoKas * 1)}</span>
+                    <span className="text-sm text-gray-600">{formatRupiah(stats.saldoKas * DEVELOPMENT_FUND_PERCENTAGE)} / {formatRupiah(stats.saldoKas * DEVELOPMENT_FUND_TARGET_MULTIPLIER)}</span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-2">
-                    <div className="bg-emerald-600 h-2 rounded-full" style={{ width: '50%' }}></div>
+                    <div className="bg-emerald-600 h-2 rounded-full" style={{ width: `${DEVELOPMENT_FUND_PROGRESS_PERCENTAGE}%` }}></div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">50%</p>
+                  <p className="text-xs text-gray-500 mt-1">{DEVELOPMENT_FUND_PROGRESS_PERCENTAGE}%</p>
                 </div>
               </div>
             </CardContent>

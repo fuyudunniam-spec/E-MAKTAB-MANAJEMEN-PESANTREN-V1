@@ -523,7 +523,7 @@ export class SetoranHarianService {
     
     if (allSetoran && allSetoran.length > 0) {
       const setoranDates = new Set((allSetoran || []).map(s => s.tanggal_setor));
-      let checkDate = new Date(today);
+      const checkDate = new Date(today);
       
       // Mulai dari hari ini atau kemarin (jika hari ini belum setor)
       const todayStr = today.toISOString().split('T')[0];

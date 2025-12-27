@@ -103,7 +103,7 @@ export class SantriDataAggregator {
         }
       }
 
-      let statusPembayaran: 'lunas' | 'sebagian' | 'belum_bayar' = 'belum_bayar';
+      const statusPembayaran: 'lunas' | 'sebagian' | 'belum_bayar' = 'belum_bayar';
 
       const hutangBulanan = totalTagihan - totalPembayaran;
 

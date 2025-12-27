@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { UserManagementService, UserWithRoles, AppRole, CreateUserInput } from '@/services/userManagement.service';
@@ -68,6 +68,12 @@ const UserManagementPage: React.FC = () => {
   const [users, setUsers] = useState<UserWithRoles[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const searchTermRef = useRef<string>('');
+  
+  // Sync searchTerm with ref
+  useEffect(() => {
+    searchTermRef.current = searchTerm;
+  }, [searchTerm]);
   const [filterRole, setFilterRole] = useState<AppRole | 'all'>('all');
   const [viewMode, setViewMode] = useState<'dashboard' | 'table'>('dashboard');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
@@ -83,7 +89,15 @@ const UserManagementPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<'Aktif' | 'Non-Aktif' | 'Alumni'>('Aktif');
   const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null);
+  const selectedUserRef = useRef<UserWithRoles | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const filterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Sync selectedUser with ref
+  useEffect(() => {
+    selectedUserRef.current = selectedUser;
+  }, [selectedUser]);
   const [generateMassalDialogOpen, setGenerateMassalDialogOpen] = useState(false);
   const [isGeneratingMassal, setIsGeneratingMassal] = useState(false);
   const [generateMassalResults, setGenerateMassalResults] = useState<{
@@ -140,9 +154,10 @@ const UserManagementPage: React.FC = () => {
         
         // Convert UserComplete to UserWithRoles format for compatibility
         const convertedUsers: UserWithRoles[] = data.map(u => {
-          // Debug: log if user has santri role but no santri data
-          if (u.roles.includes('santri' as AppRole) && !u.santri) {
-            console.warn('[UserManagementPage] User has santri role but no santri data:', {
+          // Note: User can have santri role without santri data if they're staff/admin with santri role
+          // This is not necessarily an error, so we'll only log in debug mode
+          if (process.env.NODE_ENV === 'development' && u.roles.includes('santri' as AppRole) && !u.santri) {
+            console.debug('[UserManagementPage] User has santri role but no santri data (may be intentional):', {
               id: u.id,
               email: u.email,
               roles: u.roles,
@@ -235,6 +250,27 @@ const UserManagementPage: React.FC = () => {
       loadAgenda(selectedKelasId);
     }
   }, [selectedKelasId, loadAgenda]);
+  
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      if (filterTimeoutRef.current) {
+        clearTimeout(filterTimeoutRef.current);
+      }
+    };
+  }, []);
+  
+  // Reset newPassword when password dialog opens
+  useEffect(() => {
+    if (passwordDialogOpen) {
+      // Always reset password field when dialog opens
+      setNewPassword('');
+      setShowPassword(false);
+    }
+  }, [passwordDialogOpen]);
 
   const handleCreateUser = async () => {
     if (!formData.email || !formData.password || !formData.full_name || formData.roles.length === 0) {
@@ -292,7 +328,10 @@ const UserManagementPage: React.FC = () => {
   };
 
   const handleUpdatePassword = async () => {
-    if (!selectedUser || !newPassword) {
+    // Use ref to ensure we have the correct user even if state hasn't updated
+    const userToUpdate = selectedUserRef.current || selectedUser;
+    
+    if (!userToUpdate || !newPassword) {
       toast.error('Password baru wajib diisi');
       return;
     }
@@ -303,14 +342,24 @@ const UserManagementPage: React.FC = () => {
     }
 
     try {
-      await UserManagementService.updateUser(selectedUser.id, {
+      // Log untuk debugging
+      console.log('[UserManagementPage] Updating password for user:', {
+        id: userToUpdate.id,
+        email: userToUpdate.email,
+        full_name: userToUpdate.full_name,
+      });
+      
+      await UserManagementService.updateUser(userToUpdate.id, {
         password: newPassword,
       });
-      toast.success('Password berhasil diubah');
+      toast.success(`Password berhasil diubah untuk ${userToUpdate.full_name || userToUpdate.email}`);
       setPasswordDialogOpen(false);
       setSelectedUser(null);
+      selectedUserRef.current = null;
       setNewPassword('');
+      setShowPassword(false);
     } catch (error: any) {
+      console.error('[UserManagementPage] Error updating password:', error);
       toast.error(error.message || 'Gagal mengubah password');
     }
   };
@@ -1013,15 +1062,30 @@ const UserManagementPage: React.FC = () => {
                 placeholder="Cari user berdasarkan email, nama, ID santri, atau kode pengajar..."
                 value={searchTerm}
                 onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  // Trigger reload when search changes
-                  setTimeout(() => loadUsers(), 300);
+                  const newValue = e.target.value;
+                  setSearchTerm(newValue);
+                  // Debounce search - clear previous timeout
+                  if (searchTimeoutRef.current) {
+                    clearTimeout(searchTimeoutRef.current);
+                  }
+                  // Trigger reload when search changes (after 500ms delay)
+                  searchTimeoutRef.current = setTimeout(() => {
+                    loadUsers();
+                  }, 500);
                 }}
+                autoComplete="off"
                 className="flex-1 max-w-md"
               />
               <Select value={filterRole} onValueChange={(value) => {
                 setFilterRole(value as AppRole | 'all');
-                setTimeout(() => loadUsers(), 100);
+                // Debounce filter - clear previous timeout
+                if (filterTimeoutRef.current) {
+                  clearTimeout(filterTimeoutRef.current);
+                }
+                // Trigger reload when filter changes (after 200ms delay)
+                filterTimeoutRef.current = setTimeout(() => {
+                  loadUsers();
+                }, 200);
               }}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Filter berdasarkan role" />
@@ -1236,11 +1300,31 @@ const UserManagementPage: React.FC = () => {
                                 </React.Fragment>
                               )}
                               <DropdownMenuItem
-                                onClick={() => {
-                                  setSelectedUser(u);
+                                onClick={(e) => {
+                                  // Prevent event bubbling
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  
+                                  // Store current searchTerm to prevent it from changing
+                                  const currentSearchTerm = searchTermRef.current;
+                                  
+                                  // Reset all password-related state first
                                   setNewPassword('');
                                   setShowPassword(false);
-                                setPasswordDialogOpen(true);
+                                  
+                                  // Set selectedUser
+                                  setSelectedUser(u);
+                                  selectedUserRef.current = u;
+                                  
+                                  // Open dialog immediately - no setTimeout needed
+                                  setPasswordDialogOpen(true);
+                                  
+                                  // Restore searchTerm if it was changed (after a brief delay)
+                                  setTimeout(() => {
+                                    if (searchTermRef.current !== currentSearchTerm) {
+                                      setSearchTerm(currentSearchTerm);
+                                    }
+                                  }, 10);
                                 }}
                               >
                                 <Key className="w-4 h-4 mr-2" />
@@ -1451,12 +1535,30 @@ const UserManagementPage: React.FC = () => {
       </Dialog>
 
       {/* Update Password Dialog */}
-      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+      <Dialog 
+        open={passwordDialogOpen} 
+        onOpenChange={(open) => {
+          // Only close dialog, don't allow opening from here (use button click instead)
+          if (!open) {
+            setPasswordDialogOpen(false);
+            setNewPassword('');
+            setSelectedUser(null);
+            selectedUserRef.current = null;
+            setShowPassword(false);
+          }
+        }}
+        key={`password-dialog-${selectedUser?.id || 'new'}`}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Ubah Password</DialogTitle>
             <DialogDescription>
-              Ubah password untuk user: {selectedUser?.full_name || selectedUser?.email}
+              Ubah password untuk user: <strong>{selectedUser?.full_name || selectedUser?.email}</strong>
+              {selectedUser?.email && selectedUser?.full_name && (
+                <span className="block text-xs text-muted-foreground mt-1">
+                  Email: {selectedUser.email}
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1469,6 +1571,9 @@ const UserManagementPage: React.FC = () => {
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Minimal 6 karakter"
                   className="pr-10"
+                  autoComplete="new-password"
+                  autoFocus={false}
+                  key={`password-input-${selectedUser?.id || 'new'}`}
                 />
                 <Button
                   type="button"
@@ -1490,11 +1595,15 @@ const UserManagementPage: React.FC = () => {
               setPasswordDialogOpen(false);
               setNewPassword('');
               setSelectedUser(null);
+              selectedUserRef.current = null;
               setShowPassword(false);
             }}>
               Batal
             </Button>
-            <Button onClick={handleUpdatePassword} disabled={!newPassword || newPassword.length < 6}>
+            <Button 
+              onClick={handleUpdatePassword} 
+              disabled={!newPassword || newPassword.length < 6 || !selectedUser}
+            >
               <Key className="w-4 h-4 mr-2" />
               Ubah Password
             </Button>

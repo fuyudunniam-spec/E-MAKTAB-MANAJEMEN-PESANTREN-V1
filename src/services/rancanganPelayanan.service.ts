@@ -241,7 +241,7 @@ export class RancanganPelayananService {
             }
           });
 
-          let tahunAjaranMap = new Map<string, string>();
+          const tahunAjaranMap = new Map<string, string>();
           if (tahunAjaranIds.size > 0) {
             const { data: tahunAjaranData } = await supabase
               .from('akademik_tahun_ajaran')

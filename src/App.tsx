@@ -32,7 +32,6 @@ import Koperasi from "./pages/Koperasi";
 import Keuangan from "./pages/Keuangan";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
-import Settings from "./pages/Settings";
 import SantriProfile from "./pages/SantriProfile";
 import SantriProfileRedesigned from "./pages/SantriProfileRedesigned";
 import SantriOnboarding from "./pages/SantriOnboarding";
@@ -60,7 +59,6 @@ const DashboardPengajar = lazy(() => import('./modules/akademik/DashboardPengaja
 const ProfilPengajarPage = lazy(() => import('./modules/akademik/ProfilPengajarPage'));
 const InputNilaiPage = lazy(() => import('./modules/akademik/InputNilaiPage'));
 const RapotPage = lazy(() => import('./modules/akademik/RapotPage'));
-const DashboardAdmin = lazy(() => import('./modules/admin/DashboardAdmin'));
 // Temporarily use direct import instead of lazy loading to fix Vite bundling issue
 import UserManagementPage from './modules/admin/UserManagementPage';
 
@@ -389,16 +387,12 @@ const App = () => (
                 </Suspense>
               </Layout>
             } />
-            <Route path="/administrasi" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <DashboardAdmin />
-                </Suspense>
-              </Layout>
-            } />
+            <Route path="/administrasi" element={<Navigate to="/admin/users" replace />} />
             <Route path="/santri" element={
               <Layout>
-                <SantriEnhanced />
+                <Suspense fallback={<div>Loading...</div>}>
+                  <SantriEnhanced />
+                </Suspense>
               </Layout>
             } />
             <Route path="/santri/add" element={<SantriProfileFull mode="add" />} />
@@ -527,11 +521,6 @@ const App = () => (
             <Route path="/tagihan-santri" element={
               <Layout>
                 <TagihanSantri />
-              </Layout>
-            } />
-            <Route path="/settings" element={
-              <Layout>
-                <Settings />
               </Layout>
             } />
             <Route path="/admin/santri-accounts" element={

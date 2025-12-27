@@ -32,7 +32,7 @@ export class AkademikKelasService {
     if (!pengajarId) return [];
 
     // Ambil kelas dari agenda yang di-assign ke pengajar ini
-    let agendaQuery = supabase
+    const agendaQuery = supabase
       .from('kelas_agenda')
       .select('kelas_id, kelas:kelas_id(*)')
       .eq('pengajar_id', pengajarId)

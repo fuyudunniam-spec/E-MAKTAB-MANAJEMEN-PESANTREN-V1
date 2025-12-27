@@ -46,7 +46,7 @@ export function AkunKasFilter({ value, onChange, label = "Akun Kas", showBalance
       // Silent fail - accounts filter is optional
       // Log only in development
       if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
+         
         console.warn('Error loading accounts (non-critical):', error);
       }
     } finally {

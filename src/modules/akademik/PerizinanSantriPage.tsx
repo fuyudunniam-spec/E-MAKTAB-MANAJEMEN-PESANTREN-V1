@@ -66,7 +66,7 @@ const PerizinanSantriPage: React.FC = () => {
   const loadPerizinan = async () => {
     try {
       setLoading(true);
-      let filters: any = {};
+      const filters: any = {};
       
       if (activeTab === 'pending') {
         filters.status = 'pending';

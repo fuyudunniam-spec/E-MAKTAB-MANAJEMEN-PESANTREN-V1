@@ -80,7 +80,8 @@ const MODULE_PATH_MAP: Record<string, ModuleName> = {
   '/akademik/jurnal': 'monitoring',
   '/akademik/pengajar': 'monitoring',
   '/akademik/setoran': 'monitoring',
-  '/settings': 'settings',
+  '/admin/users': 'settings', // Admin only - user management
+  '/admin/data-master': 'settings', // Admin only - user management (alias)
   '/admin/santri-accounts': 'settings', // Admin only - managed via page-level check
   '/change-password': 'settings', // All authenticated users can access
 };

@@ -83,7 +83,7 @@ export class GoogleCalendarService {
     // This is a placeholder structure
     
     let created = 0;
-    let updated = 0;
+    const updated = 0;
     let errors = 0;
 
     for (const pertemuan of pertemuanList) {

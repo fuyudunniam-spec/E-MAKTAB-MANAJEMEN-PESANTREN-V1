@@ -167,7 +167,7 @@ const KelasDetailDialog: React.FC<KelasDetailDialogProps> = ({ open, kelasId, ke
       });
     });
 
-    let totalPertemuanSet = new Set<string>();
+    const totalPertemuanSet = new Set<string>();
     let totalHadir = 0;
     let totalAlfa = 0;
     const pertemuanMap = new Map<

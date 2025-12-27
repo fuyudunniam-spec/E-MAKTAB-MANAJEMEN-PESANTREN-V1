@@ -34,7 +34,7 @@ export default function ProductSelector({ produkList, onSelectProduk }: ProductS
   }, [produkList]);
 
   const filteredProduk = useMemo(() => {
-    let filtered = produkList
+    const filtered = produkList
       // Hanya tampilkan produk yang punya minimal satu harga jual terisi
       .filter((p) => (p.harga_jual_ecer || 0) > 0 || (p.harga_jual_grosir || 0) > 0)
       // Hanya tampilkan produk yang memiliki stok > 0 (validasi ketat)

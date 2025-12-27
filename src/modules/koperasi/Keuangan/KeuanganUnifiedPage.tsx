@@ -880,7 +880,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       // Silent fail for chart data - return empty arrays
       // Log only in development
       if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
+         
         console.warn('Error loading chart data for date range:', error);
       }
       return { monthlyData: [], categoryDataPemasukan: [], categoryDataPengeluaran: [] };
@@ -950,7 +950,7 @@ const KeuanganUnifiedPage: React.FC = () => {
         }
       });
 
-      let allTransactions = Array.from(transactionMap.values());
+      const allTransactions = Array.from(transactionMap.values());
 
       // Apply date filter (sama dengan tabel riwayat)
       const filteredByDate = allTransactions.filter(tx => {
@@ -984,7 +984,7 @@ const KeuanganUnifiedPage: React.FC = () => {
         .filter(tx => tx.source_module === 'kop_penjualan' && tx.source_id)
         .map(tx => tx.source_id);
       
-      let yayasanPenjualanIds = new Set<string>();
+      const yayasanPenjualanIds = new Set<string>();
       if (kopPenjualanIds.length > 0) {
         const { data: kopPenjualanDetails } = await supabase
           .from('kop_penjualan_detail')
@@ -1209,7 +1209,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       // Silent fail for statistics recalculation
       // Log only in development
       if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
+         
         console.warn('Error recalculating statistics:', error);
       }
     }
@@ -1632,7 +1632,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       // Apply date filter to get filtered transactions for display
       // IMPORTANT: Gunakan filter yang sama dengan summary cards untuk konsistensi
       const { startDate, endDate } = getDateRange();
-      let filteredTransactions = allTransactions.filter(tx => {
+      const filteredTransactions = allTransactions.filter(tx => {
         const txDate = new Date(tx.tanggal);
         // For 'all' filter, include all transactions
         if (dateFilter === 'all') {
@@ -1706,7 +1706,7 @@ const KeuanganUnifiedPage: React.FC = () => {
         .filter(tx => tx.source_module === 'kop_penjualan' && tx.source_id)
         .map(tx => tx.source_id);
       
-      let yayasanPenjualanIds = new Set<string>();
+      const yayasanPenjualanIds = new Set<string>();
       if (kopPenjualanIds.length > 0) {
         const { data: kopPenjualanDetails } = await supabase
           .from('kop_penjualan_detail')

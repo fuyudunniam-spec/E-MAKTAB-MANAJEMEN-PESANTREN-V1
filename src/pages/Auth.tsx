@@ -53,7 +53,7 @@ export default function Auth() {
     setSuccess(null);
 
     try {
-      let loginIdentifier = loginEmail.trim().toUpperCase();
+      const loginIdentifier = loginEmail.trim().toUpperCase();
       
       // Check if input is id_santri format (8 chars alphanumeric)
       const isIdSantri = /^[A-Z0-9]{8}$/.test(loginIdentifier);

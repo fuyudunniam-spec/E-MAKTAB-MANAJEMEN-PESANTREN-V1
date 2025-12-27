@@ -259,7 +259,7 @@ export class AkademikPertemuanService {
       const dates: string[] = [];
       
       // Cari hari pertama yang sesuai dengan jadwal
-      let currentDate = new Date(startDate);
+      const currentDate = new Date(startDate);
       const startDayOfWeek = currentDate.getDay();
       
       // Hitung selisih hari untuk mencapai hari target

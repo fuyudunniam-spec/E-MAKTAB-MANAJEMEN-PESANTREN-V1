@@ -60,7 +60,7 @@ export default function KasirPage() {
         // Silent fail for cleanup operation - stock will be corrected on next transaction
         // Log only in development
         if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
+           
           console.warn('Error reversing stock during edit cancel (non-critical):', error);
         }
       }

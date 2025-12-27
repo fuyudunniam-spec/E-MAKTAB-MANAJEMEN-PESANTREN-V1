@@ -570,7 +570,7 @@ const DonationFormDialog: React.FC<DonationFormDialogProps> = ({
 
     try {
       // Auto-set akun_kas_id berdasarkan kategori_donasi jika belum di-set
-      let finalDonationForm = { ...donationForm };
+      const finalDonationForm = { ...donationForm };
       
       if ((finalDonationForm.donation_type === 'cash' || finalDonationForm.donation_type === 'mixed') &&
           !finalDonationForm.akun_kas_id && 

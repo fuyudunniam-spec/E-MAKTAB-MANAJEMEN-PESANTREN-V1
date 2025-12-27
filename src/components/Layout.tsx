@@ -12,7 +12,6 @@ import {
   Package, 
   ShoppingCart, 
   DollarSign,
-  Settings,
   LogOut,
   X,
   User as UserIcon,
@@ -71,7 +70,7 @@ const SidebarContent = () => {
   const showModuleDashboards = getFeature('MODULE_DASHBOARD_ALPHA');
 
   // Reorganized menu structure with modules and sub-modules
-  // Urutan: Dashboard, Santri, Akademik, Keuangan, Inventaris, Koperasi, Administrasi
+  // Urutan: Dashboard, Santri, Akademik, Keuangan, Inventaris, Koperasi, Kelola User
   // Memoize menu sections to prevent recreation on every render
   const reorganizedMenuSections: MenuSection[] = useMemo(() => [
     {
@@ -181,13 +180,10 @@ const SidebarContent = () => {
       ]
     },
     {
-      title: 'ADMINISTRASI',
-      icon: Settings,
+      title: 'KELOLA USER',
+      icon: Users,
       items: [
-        ...(showModuleDashboards ? [{ icon: LayoutDashboard, label: 'Dashboard Admin', path: '/administrasi' }] : []),
-        { icon: Users, label: 'Kelola User', path: '/admin/users' },
-        { icon: Settings, label: 'Settings', path: '/settings' },
-        { icon: Key, label: 'Ubah Password', path: '/change-password' }
+        { icon: Users, label: 'Daftar User', path: '/admin/users' }
       ]
     }
   ], [showModuleDashboards, user?.role, user?.roles]);
@@ -244,8 +240,8 @@ const SidebarContent = () => {
 
     return sections
       .map((section) => {
-        // ADMINISTRASI hanya untuk admin
-        if (section.title === 'ADMINISTRASI') {
+        // KELOLA USER hanya untuk admin
+        if (section.title === 'KELOLA USER') {
           const isAdmin = user?.role === 'admin' || user?.roles?.includes('admin');
           if (!isAdmin) {
             return null;
@@ -253,7 +249,7 @@ const SidebarContent = () => {
         }
 
         // Map section title to module name for permission check
-        // Urutan: Dashboard, Santri, Akademik, Keuangan, Donasi, Inventaris, Koperasi, Administrasi
+        // Urutan: Dashboard, Santri, Akademik, Keuangan, Donasi, Inventaris, Koperasi, Kelola User
         const sectionModuleMap: Record<string, string> = {
           'DASHBOARD': 'dashboard',
           'SANTRI': 'santri',
@@ -262,7 +258,7 @@ const SidebarContent = () => {
           'DONASI': 'donasi',
           'INVENTARIS': 'inventaris',
           'KOPERASI': 'koperasi',
-          'ADMINISTRASI': 'settings'
+          'KELOLA USER': 'settings'
         };
 
         const moduleName = sectionModuleMap[section.title];
@@ -581,10 +577,13 @@ const Layout = ({ children }: LayoutProps) => {
     );
   }
 
+  // Check if user is santri - hide sidebar for santri
+  const isSantri = authUser?.role === 'santri';
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
+      {/* Mobile sidebar overlay - Hidden for santri */}
+      {!isSantri && sidebarOpen && (
         <div className="fixed inset-0 z-[100] lg:hidden">
           <div 
             className="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity" 
@@ -606,12 +605,14 @@ const Layout = ({ children }: LayoutProps) => {
         </div>
       )}
 
-      {/* Desktop sidebar - collapsible */}
-      <div className={`hidden lg:flex lg:flex-shrink-0 transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0'}`}>
-        <div className={`flex flex-col w-64 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-64'}`}>
-          <SidebarContent />
+      {/* Desktop sidebar - collapsible - Hidden for santri */}
+      {!isSantri && (
+        <div className={`hidden lg:flex lg:flex-shrink-0 transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0'}`}>
+          <div className={`flex flex-col w-64 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-64'}`}>
+            <SidebarContent />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -620,16 +621,27 @@ const Layout = ({ children }: LayoutProps) => {
           <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-14 sm:h-16">
               <div className="flex items-center gap-2 sm:gap-3">
-                <button
-                  onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="p-1 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
-                >
+                {/* Hide menu button for santri */}
+                {!isSantri && (
+                  <button
+                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                    className="p-1 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+                  >
+                    <img 
+                      src="/kop-albisri.png" 
+                      alt="Menu" 
+                      className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
+                    />
+                  </button>
+                )}
+                {/* Show logo without button for santri */}
+                {isSantri && (
                   <img 
                     src="/kop-albisri.png" 
-                    alt="Menu" 
+                    alt="Logo" 
                     className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
                   />
-                </button>
+                )}
                 <h1 className="text-sm sm:text-base font-bold text-gray-900">
                   Pesantren Anak Yatim Al-Bisri
                 </h1>

@@ -122,7 +122,7 @@ export const testInventoryModule = async () => {
   ];
 
   let passed = 0;
-  let total = tests.length;
+  const total = tests.length;
 
   for (const test of tests) {
     try {
