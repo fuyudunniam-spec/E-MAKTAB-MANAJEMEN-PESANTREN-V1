@@ -114,9 +114,16 @@ const Dashboard = () => {
   const [monthlyTrendData, setMonthlyTrendData] = useState<ChartDataPoint[]>([]);
 
   // Redirect santri to their profile page
+  // If santri has no santriId, redirect to auth (account not properly linked)
   useEffect(() => {
-    if (user && user.role === 'santri' && user.santriId) {
-      navigate(`/santri/profile?santriId=${user.santriId}&santriName=${encodeURIComponent(user.name || 'Santri')}`, { replace: true });
+    if (user && user.role === 'santri') {
+      if (user.santriId) {
+        navigate(`/santri/profile?santriId=${user.santriId}&santriName=${encodeURIComponent(user.name || 'Santri')}`, { replace: true });
+      } else {
+        // Santri account exists but not linked to santri data - redirect to auth
+        console.warn('⚠️ Santri account not linked to santri data, redirecting to auth');
+        navigate('/auth', { replace: true });
+      }
       return;
     }
   }, [user, navigate]);

@@ -272,9 +272,31 @@ export default function Auth() {
     }
   };
 
+  // Handle logout if user is stuck
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      window.location.href = '/auth';
+    } catch (err) {
+      console.error('Error logging out:', err);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-6">
+        {/* Clear Session Button - for users who are stuck */}
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Clear Session
+          </Button>
+        </div>
+        
         {/* Logo and Header Section */}
         <div className="text-center space-y-4">
           {/* Logo - Large on desktop, proportional on mobile */}

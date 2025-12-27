@@ -65,7 +65,11 @@ export async function getSantriLite(santriIds: string[]): Promise<SantriLite[]> 
  * Get santri lite by ID
  * Menggunakan id_santri (bukan nisn) sebagai identifier
  */
-export async function getSantriLiteById(santriId: string): Promise<SantriLite | null> {
+export async function getSantriLiteById(santriId: string | null | undefined): Promise<SantriLite | null> {
+  if (!santriId) {
+    return null;
+  }
+  
   const { data, error } = await supabase
     .from('santri')
     .select('id, nama_lengkap, id_santri, kategori')
