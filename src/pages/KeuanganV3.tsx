@@ -95,9 +95,12 @@ const KeuanganV3: React.FC = () => {
       const filterAccountId = accountId !== undefined ? accountId : selectedAccountFilter;
       
       // Load chart data menggunakan service layer
+      // BUG B FIX: getCategoryData returns pengeluaran data (already filtered by jenis_transaksi='Pengeluaran')
       const { monthlyData, categoryData } = await loadChartDataService(filterAccountId);
       
       setMonthlyData(monthlyData);
+      // BUG B FIX: categoryData from getCategoryData is already pengeluaran data
+      // Set it as categoryData for backward compatibility, but ChartsSection will use it as pengeluaran
       setCategoryData(categoryData);
     } catch (error) {
       console.error('Error loading chart data:', error);
@@ -131,9 +134,33 @@ const KeuanganV3: React.FC = () => {
       // This ensures we always get fresh data from database
       const queryTimestamp = Date.now();
       
+      // FIX: Explicitly select all required fields for transaction list
+      // Ensure id, source_module, source_id, kategori, sub_kategori are always included
       let query = supabase
         .from('keuangan')
         .select(`
+          id,
+          tanggal,
+          jenis_transaksi,
+          kategori,
+          sub_kategori,
+          jumlah,
+          deskripsi,
+          referensi,
+          status,
+          akun_kas_id,
+          source_module,
+          source_id,
+          auto_posted,
+          created_at,
+          updated_at,
+          created_by,
+          updated_by,
+          penerima_pembayar,
+          santri_id,
+          bukti_file,
+          jenis_alokasi,
+          is_pengeluaran_riil,
           *,
           akun_kas:akun_kas_id(nama, managed_by)
         `)
@@ -448,11 +475,9 @@ const KeuanganV3: React.FC = () => {
         // Clean description (remove "Sumbangan: Rp 0" and hajat from donasi)
         const cleanedDeskripsi = cleanDescription(finalDeskripsi, transaction.kategori);
         
-        // Special handling for Pendidikan Pesantren (tracking nominal, not real expense)
-        let displayCategory = transaction.kategori || 'Lainnya';
-        if (transaction.kategori === 'Pendidikan Pesantren' && transaction.is_pengeluaran_riil === false) {
-          displayCategory = 'Beasiswa Pendidikan Pesantren';
-        }
+        // REVISI v2: Dashboard hanya menampilkan transaksi uang nyata
+        // Tidak ada special handling untuk tracking nominal - semua transaksi di tabel keuangan adalah uang nyata
+        const displayCategory = transaction.kategori || 'Lainnya';
         
         return {
           ...transaction,
@@ -469,6 +494,41 @@ const KeuanganV3: React.FC = () => {
       // FIXED: Get accurate statistics using new getAkunKasStats function
       const akunKasStats = await getAkunKasStats(selectedAccountFilter);
       
+      // Count jumlah transaksi pemasukan dan pengeluaran
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth();
+      const startOfCurrentMonth = new Date(currentYear, currentMonth, 1);
+      const endOfCurrentMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+      
+      const currentMonthTransactions = transformedTransactions.filter(tx => {
+        if (!tx.tanggal) return false;
+        const txDate = new Date(tx.tanggal);
+        return txDate >= startOfCurrentMonth && txDate <= endOfCurrentMonth;
+      });
+      
+      const jumlahTransaksiPemasukan = currentMonthTransactions.filter(tx => tx.jenis_transaksi === 'Pemasukan').length;
+      const jumlahTransaksiPengeluaran = currentMonthTransactions.filter(tx => tx.jenis_transaksi === 'Pengeluaran').length;
+      
+      // Calculate dana terikat vs tidak terikat
+      // Fallback: jika fund_type belum ada di akun_kas, semua dianggap tidak_terikat
+      let danaTerikat = 0;
+      let danaTidakTerikat = akunKasStats.totalSaldo;
+      
+      // TODO: Jika fund_type sudah ada di akun_kas, gunakan untuk split
+      // const { data: akunKasWithFundType } = await supabase
+      //   .from('akun_kas')
+      //   .select('saldo_saat_ini, fund_type')
+      //   .eq('status', 'aktif');
+      // if (akunKasWithFundType) {
+      //   danaTerikat = akunKasWithFundType
+      //     .filter(akun => akun.fund_type === 'terikat')
+      //     .reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
+      //   danaTidakTerikat = akunKasWithFundType
+      //     .filter(akun => akun.fund_type === 'tidak_terikat')
+      //     .reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
+      // }
+      
       // Create statistics object with accurate data
       const stats = {
         saldo_bersih: akunKasStats.totalSaldo,
@@ -476,7 +536,11 @@ const KeuanganV3: React.FC = () => {
         pengeluaran_bulan_ini: akunKasStats.pengeluaranBulanIni,
         transaksi_bulan_ini: akunKasStats.totalTransaksi,
         pemasukan_trend: akunKasStats.pemasukanTrend,
-        pengeluaran_trend: akunKasStats.pengeluaranTrend
+        pengeluaran_trend: akunKasStats.pengeluaranTrend,
+        jumlahTransaksiPemasukan,
+        jumlahTransaksiPengeluaran,
+        danaTerikat,
+        danaTidakTerikat
       };
       
       setStatistics(stats);
@@ -967,7 +1031,9 @@ const KeuanganV3: React.FC = () => {
           id: transaction.id,
           jenis_transaksi: transaction.jenis_transaksi,
           auto_posted: transaction.auto_posted,
-          source_module: transaction.source_module
+          source_module: transaction.source_module,
+          referensi: transaction.referensi,
+          kategori: transaction.kategori
         });
 
         // Untuk transaksi pemasukan auto_posted, coba direct delete dulu (lebih langsung)
@@ -975,6 +1041,78 @@ const KeuanganV3: React.FC = () => {
         let deleteSuccess = false;
         
         if (transaction.jenis_transaksi === 'Pemasukan' && transaction.auto_posted) {
+          // BUG A FIX: Untuk transaksi Donasi, set skip_finance_sync=true di source record
+          // untuk mencegah regenerasi setelah delete
+          // GUNAKAN source_module + source_id (link stabil, tidak perlu parsing referensi)
+          const isDonasiTransaction = 
+            transaction.source_module === 'donasi' ||
+            transaction.kategori === 'Donasi' || 
+            transaction.kategori === 'Donasi Tunai' ||
+            transaction.kategori === 'Donasi Pendidikan' ||
+            transaction.kategori === 'Donasi Pembangunan' ||
+            transaction.kategori === 'Donasi Umum';
+          
+          // GUNAKAN source_id langsung jika tersedia (link stabil)
+          // Fallback ke parsing referensi hanya jika source_id tidak ada (backward compatibility)
+          let donationId: string | null = null;
+          
+          if (isDonasiTransaction) {
+            if (transaction.source_id) {
+              // PREFERRED: Gunakan source_id langsung (link stabil, tidak perlu parsing)
+              donationId = transaction.source_id;
+              console.log('🔍 Detected donasi transaction via source_id:', donationId);
+            } else if (transaction.referensi) {
+              // FALLBACK: Parse referensi untuk backward compatibility dengan data lama
+              const donationIdMatch = transaction.referensi.match(/^(?:donation|donasi):(.+)$/);
+              if (donationIdMatch && donationIdMatch[1]) {
+                donationId = donationIdMatch[1].trim();
+                console.log('🔍 Detected donasi transaction via referensi (fallback):', donationId);
+              }
+            }
+            
+            if (donationId) {
+              // Set skip_finance_sync=true untuk mencegah trigger membuat ulang transaksi
+              // Handle gracefully jika kolom belum ada (migration belum dijalankan)
+              try {
+                const { error: skipError } = await supabase
+                  .from('donations')
+                  .update({ skip_finance_sync: true })
+                  .eq('id', donationId);
+                
+                if (skipError) {
+                  // Check if error is because column doesn't exist (PGRST204)
+                  if (skipError.code === 'PGRST204' || skipError.message?.includes('skip_finance_sync')) {
+                    console.warn('⚠️ Warning: skip_finance_sync column not found. Migration may not be applied yet.');
+                    console.warn('💡 Please run migration: 20250130000000_fix_donasi_delete_anti_regenerate.sql');
+                    // Fallback: Clear posted_to_finance_at to prevent regeneration (old method)
+                    try {
+                      const { error: clearError } = await supabase
+                        .from('donations')
+                        .update({ posted_to_finance_at: null })
+                        .eq('id', donationId);
+                      
+                      if (!clearError) {
+                        console.log('✅ Cleared posted_to_finance_at (fallback method) for donation:', donationId);
+                      }
+                    } catch (clearError: any) {
+                      console.warn('⚠️ Warning: Failed to clear posted_to_finance_at:', clearError);
+                    }
+                  } else {
+                    console.warn('⚠️ Warning: Failed to set skip_finance_sync:', skipError);
+                  }
+                  // Continue with delete anyway - the transaction deletion should still work
+                } else {
+                  console.log('✅ Set skip_finance_sync=true for donation:', donationId);
+                }
+              } catch (skipError: any) {
+                console.warn('⚠️ Warning: Exception setting skip_finance_sync:', skipError);
+                // Continue with delete anyway
+              }
+            } else {
+              console.warn('⚠️ Warning: Donasi transaction detected but cannot find donation ID');
+            }
+          }
+          
           // Coba direct delete terlebih dahulu
           const { error: directDeleteError, data: deleteData } = await supabase
             .from('keuangan')
@@ -1256,7 +1394,7 @@ const KeuanganV3: React.FC = () => {
         </div>
       </div>
 
-      {/* Section 2: Summary Cards */}
+      {/* Section 2: Summary Cards - 4 KPI Cards */}
       {statistics && (
         <SummaryCards 
           stats={{
@@ -1266,6 +1404,10 @@ const KeuanganV3: React.FC = () => {
             totalTransaksi: statistics.transaksi_bulan_ini,
             pemasukanTrend: statistics.pemasukan_trend || 0,
             pengeluaranTrend: statistics.pengeluaran_trend || 0,
+            jumlahTransaksiPemasukan: statistics.jumlahTransaksiPemasukan || 0,
+            jumlahTransaksiPengeluaran: statistics.jumlahTransaksiPengeluaran || 0,
+            danaTerikat: statistics.danaTerikat || 0,
+            danaTidakTerikat: statistics.danaTidakTerikat || totals.totalBalance,
           }}
           selectedAccountName={selectedAccountName}
         />
@@ -1275,6 +1417,7 @@ const KeuanganV3: React.FC = () => {
       <ChartsSection 
         monthlyData={monthlyData}
         categoryData={categoryData}
+        categoryDataPengeluaran={categoryData} // BUG B FIX: categoryData is pengeluaran data from getCategoryData
         selectedAccountId={selectedAccountFilter}
         selectedAccountName={selectedAccountName}
       />

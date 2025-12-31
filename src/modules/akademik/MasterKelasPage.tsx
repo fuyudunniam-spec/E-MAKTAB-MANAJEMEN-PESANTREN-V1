@@ -1,450 +1,97 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { AkademikKelasService, KelasMasterInput } from '@/services/akademikKelas.service';
-import { AkademikAgendaService, AgendaFrekuensi, AgendaJenis, AgendaHari, AgendaPertemuanSummary } from '@/services/akademikAgenda.service';
+import { AkademikAgendaService, AgendaHari } from '@/services/akademikAgenda.service';
 import { AkademikSemesterService, Semester } from '@/services/akademikSemester.service';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit, Settings, Calendar } from 'lucide-react';
-import {
-  AGENDA_FREKUENSI_OPTIONS,
-  AGENDA_JENIS_OPTIONS,
-  AGENDA_HARI_OPTIONS,
-} from '@/constants/akademik.constants';
-import { format } from 'date-fns';
-import { id as localeID } from 'date-fns/locale';
-import KelasDetailDialog from './KelasDetailDialog';
-
-const formatDate = (dateStr: string) => {
-  try {
-    return format(new Date(dateStr), 'd MMMM yyyy', { locale: localeID });
-  } catch {
-    return dateStr;
-  }
-};
+import { Plus, Trash2, Edit, Search, X, Check, ChevronsUpDown, Archive, ArchiveRestore } from 'lucide-react';
+import { AGENDA_HARI_OPTIONS } from '@/constants/akademik.constants';
+import { cn } from '@/lib/utils';
 
 interface AgendaFormItem {
   id: string;
   sourceId?: string;
-  nama_agenda: string;
-  jenis: AgendaJenis;
-  frekuensi: AgendaFrekuensi;
+  mapel_id?: string | null;
+  pengajar_id?: string | null;
   hari: AgendaHari;
-  jam_mulai?: string;
-  jam_selesai?: string;
+  jam_mulai: string;
+  jam_selesai: string;
   lokasi?: string;
   catatan?: string;
-  pengajar_id?: string | null;
-  mapel_id?: string | null;
-  pengajar_nama?: string;
-  mapel_nama?: string;
-  kitab?: string;
-  is_setoran: boolean;
   isNew?: boolean;
-  tanggal_mulai: string;
-  tanggal_selesai: string;
+  aktif?: boolean;
 }
-
-type AgendaSetter = React.Dispatch<React.SetStateAction<AgendaFormItem[]>>;
-
-const generateAgendaTempId = () =>
-  typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `agenda-${Date.now()}-${Math.random()}`;
-
-const normalizeTimeValue = (value?: string | null) => {
-  if (!value) return '';
-  return value.length >= 5 ? value.slice(0, 5) : value;
-};
-
-const todayDateString = () => new Date().toISOString().split('T')[0];
-
-const createEmptyAgendaItem = (): AgendaFormItem => ({
-  id: generateAgendaTempId(),
-  nama_agenda: '',
-  jenis: 'Absensi',
-  frekuensi: 'Mingguan',
-  hari: 'Senin',
-  jam_mulai: '',
-  jam_selesai: '',
-  lokasi: '',
-  catatan: '',
-  pengajar_id: null,
-  mapel_id: null,
-  pengajar_nama: '',
-  mapel_nama: '',
-  kitab: '',
-  is_setoran: false,
-  isNew: true,
-  tanggal_mulai: todayDateString(),
-  tanggal_selesai: todayDateString(),
-});
-
-const validateAgendaItems = (items: AgendaFormItem[]): string[] => {
-  const messages = items.map(item => {
-    if (!item.nama_agenda.trim()) return 'Nama agenda wajib diisi';
-    if (!item.hari) return 'Hari wajib dipilih';
-    if (!item.jam_mulai || !item.jam_selesai) return 'Jam mulai dan selesai wajib diisi';
-    if (item.jam_selesai && item.jam_mulai && item.jam_mulai > item.jam_selesai) {
-      return 'Jam selesai harus sesudah jam mulai';
-    }
-    if (!item.tanggal_mulai || !item.tanggal_selesai) return 'Tanggal agenda wajib diisi';
-    if (item.tanggal_mulai > item.tanggal_selesai) return 'Tanggal selesai harus setelah tanggal mulai';
-    return null;
-  });
-  return messages.filter(Boolean) as string[];
-};
-
-const applyAgendaChange = <K extends keyof AgendaFormItem>(
-  setter: AgendaSetter,
-  id: string,
-  key: K,
-  value: AgendaFormItem[K],
-) => {
-  setter(prev =>
-    prev.map(item =>
-      item.id === id
-        ? {
-            ...item,
-            [key]: value,
-            ...(key === 'tanggal_mulai' && typeof value === 'string' && item.tanggal_selesai < value
-              ? { tanggal_selesai: value }
-              : {}),
-            ...(key === 'jenis'
-              ? { is_setoran: value !== 'Absensi' }
-              : {}),
-          }
-        : item,
-    ),
-  );
-};
-
-interface AgendaItemsListProps {
-  items: AgendaFormItem[];
-  onRemove: (id: string) => void;
-  onChange: <K extends keyof AgendaFormItem>(id: string, key: K, value: AgendaFormItem[K]) => void;
-}
-
-const AgendaItemsList: React.FC<AgendaItemsListProps> = ({
-  items,
-  onRemove,
-  onChange,
-}) => (
-  <>
-    {items.map((item, index) => (
-      <div key={item.id} className="rounded-lg border p-4 space-y-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="font-semibold">Agenda #{index + 1}</p>
-            <p className="text-xs text-muted-foreground">
-              Lengkapi informasi berikut untuk jadwal pertemuan.
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onRemove(item.id)}
-            className="text-muted-foreground hover:text-red-600"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Label>Nama Agenda *</Label>
-            <Input
-              value={item.nama_agenda}
-              onChange={(e) => onChange(item.id, 'nama_agenda', e.target.value)}
-              placeholder="Contoh: Madin Senin Malam"
-            />
-          </div>
-          <div>
-            <Label>Jenis *</Label>
-            <Select
-              value={item.jenis}
-              onValueChange={(value) => onChange(item.id, 'jenis', value as AgendaJenis)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih jenis agenda" />
-              </SelectTrigger>
-              <SelectContent>
-                {AGENDA_JENIS_OPTIONS.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Frekuensi *</Label>
-            <Select
-              value={item.frekuensi}
-              onValueChange={(value) => onChange(item.id, 'frekuensi', value as AgendaFrekuensi)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih frekuensi" />
-              </SelectTrigger>
-              <SelectContent>
-                {AGENDA_FREKUENSI_OPTIONS.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Hari *</Label>
-            <Select
-              value={item.hari}
-              onValueChange={(value) => onChange(item.id, 'hari', value as AgendaHari)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih hari" />
-              </SelectTrigger>
-              <SelectContent>
-                {AGENDA_HARI_OPTIONS.map(opt => (
-                  <SelectItem key={opt} value={opt}>
-                    {opt}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <Label>Jam Mulai *</Label>
-            <Input
-              type="time"
-              value={item.jam_mulai || ''}
-              onChange={(e) => onChange(item.id, 'jam_mulai', e.target.value)}
-            />
-          </div>
-          <div>
-            <Label>Jam Selesai *</Label>
-            <Input
-              type="time"
-              value={item.jam_selesai || ''}
-              onChange={(e) => onChange(item.id, 'jam_selesai', e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <Label>Tanggal Mulai *</Label>
-            <Input
-              type="date"
-              value={item.tanggal_mulai}
-              onChange={(e) => onChange(item.id, 'tanggal_mulai', e.target.value)}
-            />
-          </div>
-          <div>
-            <Label>Tanggal Selesai *</Label>
-            <Input
-              type="date"
-              value={item.tanggal_selesai}
-              min={item.tanggal_mulai}
-              onChange={(e) => onChange(item.id, 'tanggal_selesai', e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <Label>Nama Pengajar</Label>
-            <Input
-              value={item.pengajar_nama || ''}
-              onChange={(e) => onChange(item.id, 'pengajar_nama', e.target.value)}
-              placeholder="Contoh: Ust. Ahmad"
-            />
-          </div>
-          <div>
-            <Label>Nama Mapel</Label>
-            <Input
-              value={item.mapel_nama || ''}
-              onChange={(e) => onChange(item.id, 'mapel_nama', e.target.value)}
-              placeholder="Contoh: Fiqih"
-            />
-          </div>
-        </div>
-
-        <div>
-          <Label>Kitab / Materi (opsional)</Label>
-          <Input
-            value={item.kitab || ''}
-            onChange={(e) => onChange(item.id, 'kitab', e.target.value)}
-            placeholder="Contoh: Fathul Mu'in"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={`is-setoran-${item.id}`}
-            checked={item.is_setoran}
-            onCheckedChange={(checked) => onChange(item.id, 'is_setoran', Boolean(checked))}
-          />
-          <Label htmlFor={`is-setoran-${item.id}`} className="text-sm cursor-pointer">
-            Tandai sebagai agenda setoran
-          </Label>
-        </div>
-
-        <div>
-          <Label>Catatan</Label>
-          <Textarea
-            value={item.catatan || ''}
-            onChange={(e) => onChange(item.id, 'catatan', e.target.value)}
-            rows={2}
-          />
-        </div>
-      </div>
-    ))}
-  </>
-);
 
 const MasterKelasPage: React.FC = () => {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [kelas, setKelas] = useState<Array<any>>([]);
-  const [form, setForm] = useState<KelasMasterInput>({
-    nama_kelas: '',
-    program: '',
-    rombel: '',
-    tingkat: '',
-    tahun_ajaran: '',
-    semester: '',
-    status: 'Aktif',
-    tahun_ajaran_id: undefined,
-    semester_id: undefined,
-  });
-  const [rombelMassal, setRombelMassal] = useState<string>('');
-  const [autoGenerateName, setAutoGenerateName] = useState<boolean>(true);
-  const [agendaItems, setAgendaItems] = useState<AgendaFormItem[]>([]);
-  const [manageDialogOpen, setManageDialogOpen] = useState(false);
-  const [selectedKelas, setSelectedKelas] = useState<any | null>(null);
-  const [manageAgendaItems, setManageAgendaItems] = useState<AgendaFormItem[]>([]);
-  const [manageAgendaLoading, setManageAgendaLoading] = useState(false);
-  const [savingManageAgenda, setSavingManageAgenda] = useState(false);
-  const [manageOriginalIds, setManageOriginalIds] = useState<string[]>([]);
-  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
-  const [detailKelas, setDetailKelas] = useState<any | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editingKelas, setEditingKelas] = useState<any | null>(null);
-  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
-  const [templateTarget, setTemplateTarget] = useState<'create' | 'manage'>('create');
-  const [templateForm, setTemplateForm] = useState<{
-    nama_agenda: string;
-    jenis: AgendaJenis;
-    frekuensi: AgendaFrekuensi;
-    days: AgendaHari[];
-    jam_mulai: string;
-    jam_selesai: string;
-    lokasi: string;
-    catatan: string;
-    pengajar_nama: string;
-    mapel_nama: string;
-    kitab: string;
-    is_setoran: boolean;
-  tanggal_mulai: string;
-  tanggal_selesai: string;
-  }>({
-    nama_agenda: '',
-    jenis: 'Absensi',
-    frekuensi: 'Mingguan',
-    days: [],
-    jam_mulai: '',
-    jam_selesai: '',
-    lokasi: '',
-    catatan: '',
-    pengajar_nama: '',
-    mapel_nama: '',
-    kitab: '',
-  is_setoran: false,
-  tanggal_mulai: todayDateString(),
-  tanggal_selesai: todayDateString(),
-  });
-  const [templateErrors, setTemplateErrors] = useState<string[]>([]);
-  const [agendaSummaryMap, setAgendaSummaryMap] = useState<Record<string, AgendaPertemuanSummary[]>>({});
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [activeSemester, setActiveSemester] = useState<Semester | null>(null);
-  const [semesterLoading, setSemesterLoading] = useState(false);
-  const [allSemesters, setAllSemesters] = useState<Semester[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [semesters, setSemesters] = useState<Semester[]>([]);
   const [selectedSemesterId, setSelectedSemesterId] = useState<string | null>(null);
-  const [semesterDialogOpen, setSemesterDialogOpen] = useState(false);
-  const [settingSemesterActive, setSettingSemesterActive] = useState(false);
-  const [createSemesterDialogOpen, setCreateSemesterDialogOpen] = useState(false);
-  const [creatingSemester, setCreatingSemester] = useState(false);
-  const [tahunAjaranList, setTahunAjaranList] = useState<Array<{ id: string; nama: string }>>([]);
-  const [semesterForm, setSemesterForm] = useState<{
-    tahun_ajaran_id: string;
-    nama: 'Ganjil' | 'Genap' | 'Pendek' | 'Khusus';
-    tanggal_mulai: string;
-    tanggal_selesai: string;
-    is_aktif: boolean;
-  }>({
-    tahun_ajaran_id: '',
-    nama: 'Ganjil',
-    tanggal_mulai: '',
-    tanggal_selesai: '',
-    is_aktif: false,
+  const [activeSemester, setActiveSemester] = useState<Semester | null>(null);
+
+  // Form state
+  const [kelasSheetOpen, setKelasSheetOpen] = useState(false);
+  const [editingKelas, setEditingKelas] = useState<any | null>(null);
+  const [kelasForm, setKelasForm] = useState({
+    nama_kelas: '',
+    tingkat: '',
+    rombel: '',
+    catatan: '',
   });
 
-  const buildAutoName = (p: string, tingkat: string, rombel?: string) => {
-    if (!p || !tingkat) return '';
-    const parts = [p, tingkat];
-    if (rombel) parts.push(rombel);
-    return parts.join(' ').trim();
-  };
+  // Agenda state
+  const [agendaSheetOpen, setAgendaSheetOpen] = useState(false);
+  const [selectedKelasForAgenda, setSelectedKelasForAgenda] = useState<any | null>(null);
+  const [agendaItems, setAgendaItems] = useState<AgendaFormItem[]>([]);
+  const [pengajarList, setPengajarList] = useState<Array<{ id: string; nama_lengkap: string }>>([]);
+  const [mapelList, setMapelList] = useState<Array<{ id: string; nama_mapel: string }>>([]);
+  const [savingAgenda, setSavingAgenda] = useState(false);
+  const [agendaError, setAgendaError] = useState<string>('');
+  const [showArchivedAgenda, setShowArchivedAgenda] = useState(false);
 
-  const handleFormChange = (field: keyof KelasMasterInput, value: string) => {
-    const newForm = { ...form, [field]: value };
-    
-    // Auto-generate nama kelas jika auto-generate aktif
-    if (autoGenerateName && (field === 'program' || field === 'tingkat' || field === 'rombel')) {
-      const autoName = buildAutoName(
-        newForm.program || '',
-        newForm.tingkat || '',
-        newForm.rombel || undefined
-      );
-      if (autoName) {
-        newForm.nama_kelas = autoName;
-      }
-    }
-    
-    setForm(newForm);
-  };
+  // Quick add states
+  const [quickAddMapelOpen, setQuickAddMapelOpen] = useState(false);
+  const [quickAddPengajarOpen, setQuickAddPengajarOpen] = useState(false);
+  const [quickAddMapelInput, setQuickAddMapelInput] = useState('');
+  const [quickAddPengajarInput, setQuickAddPengajarInput] = useState('');
+  const [quickAddContext, setQuickAddContext] = useState<{ itemId: string; type: 'mapel' | 'pengajar' } | null>(null);
+  const [creatingMapel, setCreatingMapel] = useState(false);
+  const [creatingPengajar, setCreatingPengajar] = useState(false);
+  
+  // State untuk searchable dropdown per item
+  const [mapelSearchStates, setMapelSearchStates] = useState<Record<string, string>>({});
+  const [pengajarSearchStates, setPengajarSearchStates] = useState<Record<string, string>>({});
+  const [mapelOpenStates, setMapelOpenStates] = useState<Record<string, boolean>>({});
+  const [pengajarOpenStates, setPengajarOpenStates] = useState<Record<string, boolean>>({});
 
-  const loadAgendaSummaries = useCallback(async () => {
+  const loadSemesters = useCallback(async () => {
     try {
-      setSummaryLoading(true);
-      const summaries = await AkademikAgendaService.listAgendaSummary();
-      const map: Record<string, AgendaPertemuanSummary[]> = {};
-      summaries.forEach(summary => {
-        if (!summary.kelas_id) return;
-        if (!map[summary.kelas_id]) {
-          map[summary.kelas_id] = [];
-        }
-        map[summary.kelas_id].push(summary);
-      });
-      setAgendaSummaryMap(map);
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e.message || 'Gagal memuat rekap agenda');
-    } finally {
-      setSummaryLoading(false);
+      const list = await AkademikSemesterService.listSemester();
+      list.sort((a, b) => new Date(b.tanggal_mulai).getTime() - new Date(a.tanggal_mulai).getTime());
+      setSemesters(list);
+      
+      const aktif = await AkademikSemesterService.getSemesterAktif().catch(() => null);
+      setActiveSemester(aktif);
+      if (aktif) {
+        setSelectedSemesterId(aktif.id);
+      } else if (list.length > 0) {
+        setSelectedSemesterId(list[0].id);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal memuat semester');
     }
   }, []);
 
@@ -452,307 +99,280 @@ const MasterKelasPage: React.FC = () => {
     try {
       setLoading(true);
       const rows = await AkademikKelasService.listKelas();
-      
-      // Filter kelas berdasarkan semester aktif
-      // Hanya tampilkan kelas dari semester aktif
-      const filteredRows = activeSemester 
-        ? rows.filter(k => k.semester_id === activeSemester.id)
+      const filtered = selectedSemesterId 
+        ? rows.filter(k => k.semester_id === selectedSemesterId)
         : rows;
-      
-      setKelas(filteredRows);
-      await loadAgendaSummaries();
+      setKelas(filtered);
     } catch (e: any) {
       toast.error(e.message || 'Gagal memuat data kelas');
     } finally {
       setLoading(false);
     }
-  }, [loadAgendaSummaries, activeSemester]);
+  }, [selectedSemesterId]);
 
-  const loadActiveSemester = useCallback(async () => {
+  const loadPengajarAndMapel = useCallback(async () => {
     try {
-      setSemesterLoading(true);
-      const semester = await AkademikSemesterService.getSemesterAktif();
-      setActiveSemester(semester);
-      // Jangan set selectedSemesterId default, biarkan null (semua semester)
-      // User bisa pilih filter sendiri
+      const [pengajar, mapel] = await Promise.all([
+        AkademikAgendaService.listPengajar('Aktif'),
+        AkademikAgendaService.listMapel({ program: 'Madin', status: 'Aktif' }),
+      ]);
+      setPengajarList(pengajar);
+      setMapelList(mapel);
     } catch (error: any) {
-      toast.error(error.message || 'Gagal memuat semester aktif');
-    } finally {
-      setSemesterLoading(false);
+      console.error('Error loading pengajar/mapel:', error);
     }
   }, []);
 
-  const loadAllSemesters = useCallback(async () => {
-    try {
-      // Load semua semester sekaligus tanpa filter tahun ajaran untuk menghindari multiple queries
-      const tahunList = await AkademikSemesterService.listTahunAjaran();
-      if (tahunList.length === 0) {
-        setAllSemesters([]);
-        setTahunAjaranList([]);
-        return;
-      }
-      
-      // Set tahun ajaran list untuk dropdown
-      setTahunAjaranList(tahunList.map(ta => ({ id: ta.id, nama: ta.nama })));
-      
-      // Load semua semester tanpa filter tahun_ajaran_id untuk menghindari multiple POST requests
-      const allSemestersList = await AkademikSemesterService.listSemester();
-      
-      // Sort by tanggal_mulai descending (terbaru di atas)
-      allSemestersList.sort((a, b) => 
-        new Date(b.tanggal_mulai).getTime() - new Date(a.tanggal_mulai).getTime()
-      );
-      setAllSemesters(allSemestersList);
-    } catch (error: any) {
-      console.error('Gagal memuat semua semester:', error);
-      // Jangan tampilkan toast error karena ini opsional untuk filter
-      // Hanya set empty array jika error
-      setAllSemesters([]);
-      setTahunAjaranList([]);
+  // Reload pengajar and mapel when dialog closes (in case master data was updated)
+  useEffect(() => {
+    if (!quickAddMapelOpen && !quickAddPengajarOpen) {
+      loadPengajarAndMapel();
     }
-  }, []);
+  }, [quickAddMapelOpen, quickAddPengajarOpen, loadPengajarAndMapel]);
 
   useEffect(() => { 
-    loadActiveSemester(); 
-    loadAllSemesters(); 
-  }, [loadActiveSemester, loadAllSemesters]);
+    loadSemesters();
+    loadPengajarAndMapel();
+  }, [loadSemesters, loadPengajarAndMapel]);
 
-  // Load kelas setelah activeSemester sudah di-load
   useEffect(() => {
-    // Tunggu sampai semesterLoading selesai untuk memastikan activeSemester sudah di-load
-    if (!semesterLoading) {
       loadKelas();
-    }
-  }, [loadKelas, semesterLoading, activeSemester?.id]);
+  }, [loadKelas]);
 
-  useEffect(() => {
-    if (activeSemester) {
-      setForm(prev => ({
-        ...prev,
-        tahun_ajaran: activeSemester.tahun_ajaran?.nama || prev.tahun_ajaran || '',
-        semester: activeSemester.nama,
-        tahun_ajaran_id: activeSemester.tahun_ajaran_id,
-        semester_id: activeSemester.id,
-      }));
-    }
-  }, [activeSemester]);
+  const filteredKelas = useMemo(() => {
+    if (!searchTerm) return kelas;
+    const term = searchTerm.toLowerCase();
+    return kelas.filter(k => 
+      k.nama_kelas?.toLowerCase().includes(term) ||
+      k.tingkat?.toLowerCase().includes(term) ||
+      k.rombel?.toLowerCase().includes(term)
+    );
+  }, [kelas, searchTerm]);
 
-  const handleSetSemesterAktif = async (semesterId: string) => {
-    try {
-      setSettingSemesterActive(true);
-      await AkademikSemesterService.setSemesterAktif(semesterId);
-      toast.success('Semester aktif berhasil diubah');
-      setSemesterDialogOpen(false);
-      // Reload semester aktif dan kelas
-      await loadActiveSemester();
-      await loadKelas();
-    } catch (error: any) {
-      toast.error(error.message || 'Gagal mengatur semester aktif');
-    } finally {
-      setSettingSemesterActive(false);
+  const handleOpenKelasForm = (kelasRow?: any) => {
+    if (kelasRow) {
+      setEditingKelas(kelasRow);
+      setKelasForm({
+        nama_kelas: kelasRow.nama_kelas || '',
+        tingkat: kelasRow.tingkat || '',
+        rombel: kelasRow.rombel || '',
+        catatan: '',
+      });
+    } else {
+      setEditingKelas(null);
+      setKelasForm({
+        nama_kelas: '',
+        tingkat: '',
+        rombel: '',
+        catatan: '',
+      });
     }
+    setKelasSheetOpen(true);
   };
 
-  const handleCreateSemester = async () => {
-    if (!semesterForm.tahun_ajaran_id) {
-      toast.error('Tahun ajaran wajib dipilih');
+  const handleSaveKelas = async () => {
+    if (!selectedSemesterId) {
+      toast.error('Pilih semester terlebih dahulu');
       return;
     }
-    if (!semesterForm.tanggal_mulai || !semesterForm.tanggal_selesai) {
-      toast.error('Tanggal mulai dan selesai wajib diisi');
-      return;
-    }
-    if (semesterForm.tanggal_mulai > semesterForm.tanggal_selesai) {
-      toast.error('Tanggal selesai harus setelah tanggal mulai');
+    if (!kelasForm.nama_kelas.trim()) {
+      toast.error('Nama kelas wajib diisi');
       return;
     }
 
     try {
-      setCreatingSemester(true);
-      const newSemester = await AkademikSemesterService.createSemester({
-        tahun_ajaran_id: semesterForm.tahun_ajaran_id,
-        nama: semesterForm.nama,
-        tanggal_mulai: semesterForm.tanggal_mulai,
-        tanggal_selesai: semesterForm.tanggal_selesai,
-        is_aktif: semesterForm.is_aktif,
-        status: 'Aktif',
-      });
+      const selectedSem = semesters.find(s => s.id === selectedSemesterId);
+      if (!selectedSem) {
+        toast.error('Semester tidak valid');
+      return;
+    }
 
-      // Jika is_aktif true, set sebagai semester aktif
-      if (semesterForm.is_aktif) {
-        await AkademikSemesterService.setSemesterAktif(newSemester.id);
+      const payload: KelasMasterInput = {
+        nama_kelas: kelasForm.nama_kelas.trim(),
+        program: 'Madin', // Fixed untuk Madin saja sesuai spec
+        tingkat: kelasForm.tingkat.trim() || undefined,
+        rombel: kelasForm.rombel.trim() || undefined,
+        semester_id: selectedSem.id,
+        tahun_ajaran_id: selectedSem.tahun_ajaran_id,
+        tahun_ajaran: selectedSem.tahun_ajaran?.nama || '',
+        semester: selectedSem.nama,
+        status: 'Aktif',
+      };
+
+      if (editingKelas) {
+        await AkademikKelasService.updateKelas(editingKelas.id, payload);
+        toast.success('Kelas berhasil diperbarui');
+      } else {
+        await AkademikKelasService.createKelas(payload);
+        toast.success('Kelas berhasil dibuat');
       }
 
-      toast.success('Semester berhasil dibuat');
-      setCreateSemesterDialogOpen(false);
-      setSemesterForm({
-        tahun_ajaran_id: '',
-        nama: 'Ganjil',
-        tanggal_mulai: '',
-        tanggal_selesai: '',
-        is_aktif: false,
-      });
-
-      // Reload data
-      await loadAllSemesters();
-      await loadActiveSemester();
-      await loadKelas();
-    } catch (error: any) {
-      toast.error(error.message || 'Gagal membuat semester');
-    } finally {
-      setCreatingSemester(false);
+      setKelasSheetOpen(false);
+      loadKelas();
+    } catch (e: any) {
+      toast.error(e.message || 'Gagal menyimpan kelas');
     }
   };
 
-  const handleAddAgenda = () => {
-    setAgendaItems(prev => [...prev, createEmptyAgendaItem()]);
-  };
-
-  const handleRemoveAgenda = (id: string) => {
-    setAgendaItems(prev => prev.filter(item => item.id !== id));
-  };
-
-  const handleAgendaChange = <K extends keyof AgendaFormItem>(id: string, key: K, value: AgendaFormItem[K]) => {
-    applyAgendaChange(setAgendaItems, id, key, value);
-  };
-
-  const agendaValidationErrors = useMemo(() => validateAgendaItems(agendaItems), [agendaItems]);
-
-  const handleAddManageAgenda = () => {
-    setManageAgendaItems(prev => [...prev, createEmptyAgendaItem()]);
-  };
-
-  const handleRemoveManageAgenda = (id: string) => {
-    setManageAgendaItems(prev => prev.filter(item => item.id !== id));
-  };
-
-  const handleManageAgendaChange = <K extends keyof AgendaFormItem>(id: string, key: K, value: AgendaFormItem[K]) => {
-    applyAgendaChange(setManageAgendaItems, id, key, value);
-  };
-
-  const manageValidationErrors = useMemo(
-    () => validateAgendaItems(manageAgendaItems),
-    [manageAgendaItems],
-  );
-
-  const resetManageDialog = () => {
-    setManageDialogOpen(false);
-    setSelectedKelas(null);
-    setManageAgendaItems([]);
-    setManageOriginalIds([]);
-    setManageAgendaLoading(false);
-    setSavingManageAgenda(false);
-  };
-
-  const openManageAgenda = async (kelasRow: any) => {
-    setSelectedKelas(kelasRow);
-    setManageDialogOpen(true);
-    setManageAgendaLoading(true);
+  const handleDeleteKelas = async (id: string) => {
+    if (!confirm('Hapus kelas ini? Kelas dan keanggotaan akan ikut terhapus.')) return;
     try {
-      const agendas = await AkademikAgendaService.listAgendaByKelas(kelasRow.id, { aktifOnly: false });
-      setManageAgendaItems(
-        agendas.map(agenda => ({
-          id: generateAgendaTempId(),
+      await AkademikKelasService.deleteKelas(id);
+      toast.success('Kelas dihapus');
+      loadKelas();
+    } catch (e: any) {
+      toast.error(e.message || 'Gagal menghapus kelas');
+    }
+  };
+
+  const handleOpenAgendaForm = async (kelasRow: any, forceShowArchived?: boolean) => {
+    setSelectedKelasForAgenda(kelasRow);
+    if (forceShowArchived !== undefined) {
+      setShowArchivedAgenda(forceShowArchived);
+    }
+    try {
+      // Get semester_id from kelas
+      const kelasDetail = await AkademikKelasService.getKelasById(kelasRow.id);
+      const semesterId = kelasDetail?.semester_id;
+      
+      const agendas = await AkademikAgendaService.listAgendaByKelas(kelasRow.id, { 
+        aktifOnly: false,
+        semesterId: semesterId || undefined
+      });
+      
+      // Filter by aktif status based on toggle
+      const currentShowArchived = forceShowArchived !== undefined ? forceShowArchived : showArchivedAgenda;
+      const filteredAgendas = currentShowArchived 
+        ? agendas 
+        : agendas.filter(a => a.aktif);
+      
+      setAgendaItems(
+        filteredAgendas.map(agenda => ({
+          id: `agenda-${Date.now()}-${Math.random()}`,
           sourceId: agenda.id,
-          nama_agenda: agenda.nama_agenda,
-          jenis: agenda.jenis,
-          frekuensi: agenda.frekuensi,
+          mapel_id: agenda.mapel_id || null,
+          pengajar_id: agenda.pengajar_id || null,
           hari: (agenda.hari as AgendaHari) || 'Senin',
-          jam_mulai: normalizeTimeValue(agenda.jam_mulai),
-          jam_selesai: normalizeTimeValue(agenda.jam_selesai),
+          jam_mulai: agenda.jam_mulai?.slice(0, 5) || '',
+          jam_selesai: agenda.jam_selesai?.slice(0, 5) || '',
           lokasi: agenda.lokasi || '',
           catatan: agenda.catatan || '',
-          pengajar_id: agenda.pengajar_id || null,
-          mapel_id: agenda.mapel_id || null,
-          pengajar_nama: agenda.pengajar_nama || agenda.pengajar?.nama_lengkap || '',
-          mapel_nama: agenda.mapel_nama || agenda.mapel?.nama_mapel || '',
-          kitab: agenda.kitab || '',
-          is_setoran: agenda.is_setoran ?? agenda.jenis !== 'Absensi',
           isNew: false,
-          tanggal_mulai: agenda.tanggal_mulai || todayDateString(),
-          tanggal_selesai: agenda.tanggal_selesai || agenda.tanggal_mulai || todayDateString(),
-        })),
+          aktif: agenda.aktif,
+        }))
       );
-      setManageOriginalIds(agendas.map(agenda => agenda.id));
+      setAgendaSheetOpen(true);
     } catch (e: any) {
-      toast.error(e.message || 'Gagal memuat agenda kelas');
-    } finally {
-      setManageAgendaLoading(false);
+      toast.error(e.message || 'Gagal memuat agenda');
     }
   };
 
-  const openDetailDialog = (kelasRow: any) => {
-    setDetailKelas(kelasRow);
-    setDetailDialogOpen(true);
-  };
-
-  const resetTemplateForm = () => {
-    setTemplateForm({
-      nama_agenda: '',
-      jenis: 'Absensi',
-      frekuensi: 'Mingguan',
-      days: [],
+  const handleAddAgendaItem = () => {
+    setAgendaItems(prev => [...prev, {
+      id: `agenda-${Date.now()}-${Math.random()}`,
+      hari: 'Senin',
       jam_mulai: '',
       jam_selesai: '',
       lokasi: '',
       catatan: '',
-      pengajar_nama: '',
-      mapel_nama: '',
-      kitab: '',
-    is_setoran: false,
-    tanggal_mulai: todayDateString(),
-    tanggal_selesai: todayDateString(),
-    });
-    setTemplateErrors([]);
+      isNew: true,
+    }]);
   };
 
-  const openTemplateDialog = (target: 'create' | 'manage', defaults?: Partial<typeof templateForm>) => {
-    setTemplateTarget(target);
-    setTemplateForm(prev => ({
-      ...prev,
-      ...defaults,
-      days: defaults?.days || [],
-    }));
-    setTemplateErrors([]);
-    setTemplateDialogOpen(true);
+  const handleRemoveAgendaItem = (id: string) => {
+    setAgendaItems(prev => prev.filter(item => item.id !== id));
   };
 
-  const handleSaveManageAgenda = async () => {
-    if (!selectedKelas) return;
+  const handleUpdateAgendaItem = (id: string, field: keyof AgendaFormItem, value: any) => {
+    setAgendaItems(prev => prev.map(item => 
+      item.id === id ? { ...item, [field]: value } : item
+    ));
+  };
 
-    if (manageAgendaItems.length > 0 && manageValidationErrors.length > 0) {
-      toast.error(manageValidationErrors[0]);
-      return;
+  const generateAgendaName = (item: AgendaFormItem): string => {
+    const mapel = mapelList.find(m => m.id === item.mapel_id);
+    const pengajar = pengajarList.find(p => p.id === item.pengajar_id);
+    const parts: string[] = [];
+    if (mapel) parts.push(mapel.nama_mapel);
+    if (item.hari) parts.push(item.hari);
+    if (item.jam_mulai) parts.push(item.jam_mulai);
+    return parts.join(' ') || 'Agenda';
+  };
+
+  const handleSaveAgenda = async () => {
+    if (!selectedKelasForAgenda) return;
+    setAgendaError('');
+
+    // Get semester_id from kelas
+    const kelasDetail = await AkademikKelasService.getKelasById(selectedKelasForAgenda.id);
+    const semesterId = kelasDetail?.semester_id;
+
+    // Validate
+    for (const item of agendaItems) {
+      if (!item.mapel_id || !item.hari || !item.jam_mulai || !item.jam_selesai) {
+        setAgendaError('Mapel, Hari, Jam mulai, dan Jam selesai wajib diisi untuk semua jadwal');
+        return;
+      }
+      if (item.jam_mulai >= item.jam_selesai) {
+        setAgendaError('Jam selesai harus setelah jam mulai');
+        return;
+      }
     }
 
-    setSavingManageAgenda(true);
+    // Check for duplicates (only for new items)
+    if (semesterId) {
+      const existingAgendas = await AkademikAgendaService.listAgendaByKelas(selectedKelasForAgenda.id, { 
+        aktifOnly: false,
+        semesterId 
+      });
+      
+      for (const item of agendaItems) {
+        if (!item.sourceId) { // Only check new items
+          const duplicate = existingAgendas.find(a => 
+            a.mapel_id === item.mapel_id &&
+            a.hari === item.hari &&
+            a.jam_mulai === item.jam_mulai &&
+            a.jam_selesai === item.jam_selesai
+          );
+          if (duplicate) {
+            setAgendaError(`Jadwal sudah ada: ${generateAgendaName(item)}`);
+            return;
+          }
+        }
+      }
+    }
+
+    setSavingAgenda(true);
     try {
-      const kelasId = selectedKelas.id;
-      const currentIds = manageAgendaItems
+      const kelasId = selectedKelasForAgenda.id;
+      const currentIds = agendaItems
         .map(item => item.sourceId)
         .filter((id): id is string => Boolean(id));
-      const toDelete = manageOriginalIds.filter(id => !currentIds.includes(id));
+      
+      // Get existing agenda IDs to determine which to delete (only from same semester)
+      const existingAgendas = await AkademikAgendaService.listAgendaByKelas(kelasId, { 
+        aktifOnly: false,
+        semesterId: semesterId || undefined
+      });
+      const existingIds = existingAgendas.map(a => a.id);
+      const toDelete = existingIds.filter(id => !currentIds.includes(id));
 
+      // Save/update agenda items
       await Promise.all([
-        ...manageAgendaItems.map(item => {
+        ...agendaItems.map(item => {
+          const nama_agenda = generateAgendaName(item);
           const payload = {
-            nama_agenda: item.nama_agenda.trim(),
-            jenis: item.jenis,
-            frekuensi: item.frekuensi,
+            nama_agenda,
+            mapel_id: item.mapel_id,
+            pengajar_id: item.pengajar_id,
             hari: item.hari,
             jam_mulai: item.jam_mulai || null,
             jam_selesai: item.jam_selesai || null,
             lokasi: item.lokasi || null,
             catatan: item.catatan || null,
-            pengajar_id: item.pengajar_id || null,
-            mapel_id: item.mapel_id || null,
-            pengajar_nama: item.pengajar_nama ? item.pengajar_nama.trim() : null,
-            mapel_nama: item.mapel_nama ? item.mapel_nama.trim() : null,
-            kitab: item.kitab ? item.kitab.trim() : null,
-            is_setoran: item.is_setoran,
-            aktif: true,
-            tanggal_mulai: item.tanggal_mulai,
-            tanggal_selesai: item.tanggal_selesai,
+            jenis: 'Absensi' as const,
+            frekuensi: 'Mingguan' as const,
+            aktif: item.aktif !== undefined ? item.aktif : true,
           };
           if (item.sourceId) {
             return AkademikAgendaService.updateAgenda(item.sourceId, payload);
@@ -765,434 +385,110 @@ const MasterKelasPage: React.FC = () => {
         ...toDelete.map(id => AkademikAgendaService.deleteAgenda(id)),
       ]);
 
-      toast.success('Agenda kelas berhasil diperbarui');
-      resetManageDialog();
+      toast.success('Jadwal berhasil disimpan');
+      // Reload agenda list
+      await handleOpenAgendaForm(selectedKelasForAgenda, showArchivedAgenda);
       loadKelas();
     } catch (e: any) {
-      toast.error(e.message || 'Gagal menyimpan agenda');
+      setAgendaError(e.message || 'Gagal menyimpan jadwal');
     } finally {
-      setSavingManageAgenda(false);
+      setSavingAgenda(false);
     }
   };
 
-  const handleTemplateSubmit = () => {
-    const errors: string[] = [];
-    if (!templateForm.nama_agenda.trim()) errors.push('Nama agenda wajib diisi');
-    if (templateForm.days.length === 0) errors.push('Pilih minimal satu hari');
-    if (!templateForm.jam_mulai || !templateForm.jam_selesai) errors.push('Jam mulai dan selesai wajib diisi');
-    if (
-      templateForm.jam_mulai &&
-      templateForm.jam_selesai &&
-      templateForm.jam_mulai > templateForm.jam_selesai
-    ) {
-      errors.push('Jam selesai harus setelah jam mulai');
-    }
-  if (!templateForm.tanggal_mulai || !templateForm.tanggal_selesai) {
-    errors.push('Tanggal mulai dan selesai agenda wajib diisi');
-  } else if (templateForm.tanggal_mulai > templateForm.tanggal_selesai) {
-    errors.push('Tanggal selesai agenda harus setelah tanggal mulai');
-  }
-
-    if (errors.length > 0) {
-      setTemplateErrors(errors);
+  const handleQuickAddMapel = async () => {
+    if (!quickAddMapelInput.trim()) {
+      toast.error('Nama mapel wajib diisi');
       return;
     }
 
-    const newItems = templateForm.days.map(day => ({
-      id: generateAgendaTempId(),
-      nama_agenda: templateForm.nama_agenda,
-      jenis: templateForm.jenis,
-      frekuensi: templateForm.frekuensi,
-      hari: day,
-      jam_mulai: templateForm.jam_mulai,
-      jam_selesai: templateForm.jam_selesai,
-      lokasi: templateForm.lokasi,
-      catatan: templateForm.catatan,
-      pengajar_id: null,
-      mapel_id: null,
-      pengajar_nama: templateForm.pengajar_nama,
-      mapel_nama: templateForm.mapel_nama,
-      kitab: templateForm.kitab,
-      is_setoran: templateForm.is_setoran,
-      isNew: true,
-    tanggal_mulai: templateForm.tanggal_mulai,
-    tanggal_selesai: templateForm.tanggal_selesai,
-    }));
-
-    if (templateTarget === 'create') {
-      setAgendaItems(prev => [...prev, ...newItems]);
-    } else {
-      setManageAgendaItems(prev => [...prev, ...newItems]);
-    }
-
-    setTemplateDialogOpen(false);
-    resetTemplateForm();
-  };
-
-  const toggleTemplateDay = (value: AgendaHari) => {
-    setTemplateForm(prev => {
-      const exists = prev.days.includes(value);
-      return {
-        ...prev,
-        days: exists ? prev.days.filter(day => day !== value) : [...prev.days, value],
-      };
-    });
-  };
-
-  const handleCreate = async () => {
+    setCreatingMapel(true);
     try {
-      // Validasi
-      if (!form.nama_kelas?.trim()) {
-        toast.error('Nama kelas wajib diisi');
-        return;
-      }
-      if (!form.program?.trim()) {
-        toast.error('Program wajib diisi');
-        return;
-      }
-      if (!form.semester_id) {
-        toast.error('Semester wajib dipilih');
-        return;
-      }
-
-      const selectedSem = allSemesters.find(s => s.id === form.semester_id);
-      if (!selectedSem) {
-        toast.error('Semester tidak valid');
-        return;
-      }
-
-      const payload: KelasMasterInput = {
-        ...form,
-        tahun_ajaran: selectedSem.tahun_ajaran?.nama || '',
-        semester: selectedSem.nama,
-        tahun_ajaran_id: selectedSem.tahun_ajaran_id,
-        semester_id: selectedSem.id,
-      };
+      await AkademikAgendaService.createMapel({
+        nama_mapel: quickAddMapelInput.trim(),
+        program: 'Madin',
+        status: 'Aktif',
+      });
       
-      await AkademikKelasService.createKelas(payload);
-      toast.success('Kelas berhasil dibuat. Tambahkan agenda melalui tombol "Kelola Agenda".');
-
-      // Reset form
-      const resetForm: KelasMasterInput = {
-        nama_kelas: '',
-        program: '',
-        rombel: '',
-        tingkat: '',
-        tahun_ajaran: '',
-        semester: '',
-        tahun_ajaran_id: undefined,
-        semester_id: activeSemester?.id,
-        status: 'Aktif'
-      };
-      setForm(resetForm);
-      loadKelas();
-    } catch (e: any) {
-      toast.error(e.message || 'Gagal membuat kelas');
-    }
-  };
-
-  const handleEdit = (kelas: any) => {
-    setEditingKelas(kelas);
-    const selectedSem = allSemesters.find(s => s.id === kelas.semester_id);
-    setForm({
-      nama_kelas: kelas.nama_kelas || '',
-      program: kelas.program || '',
-      rombel: kelas.rombel || '',
-      tingkat: kelas.tingkat || '',
-      tahun_ajaran: kelas.tahun_ajaran || '',
-      semester: kelas.semester || '',
-      tahun_ajaran_id: kelas.tahun_ajaran_id,
-      semester_id: kelas.semester_id,
-      status: kelas.status || 'Aktif',
-      tanggal_mulai: kelas.tanggal_mulai || selectedSem?.tanggal_mulai || '',
-      tanggal_selesai: kelas.tanggal_selesai || selectedSem?.tanggal_selesai || '',
-    });
-    setEditDialogOpen(true);
-  };
-
-  const handleUpdate = async () => {
-    if (!editingKelas) return;
-    
-    try {
-      if (!form.nama_kelas?.trim()) {
-        toast.error('Nama kelas wajib diisi');
-        return;
-      }
-      if (!form.program?.trim()) {
-        toast.error('Program wajib diisi');
-        return;
-      }
-      if (!form.semester_id) {
-        toast.error('Semester wajib dipilih');
-        return;
-      }
-
-      const selectedSem = allSemesters.find(s => s.id === form.semester_id);
-      if (!selectedSem) {
-        toast.error('Semester tidak valid');
-        return;
-      }
-
-      const payload: KelasMasterInput = {
-        ...form,
-        tahun_ajaran: selectedSem.tahun_ajaran?.nama || '',
-        semester: selectedSem.nama,
-        tahun_ajaran_id: selectedSem.tahun_ajaran_id,
-        semester_id: selectedSem.id,
-      };
+      // Reload mapel list
+      const updatedMapel = await AkademikAgendaService.listMapel({ program: 'Madin', status: 'Aktif' });
+      setMapelList(updatedMapel);
       
-      await AkademikKelasService.updateKelas(editingKelas.id, payload);
-      toast.success('Kelas berhasil diperbarui');
-      setEditDialogOpen(false);
-      setEditingKelas(null);
-      loadKelas();
+      // Auto-select newly created mapel
+      if (quickAddContext && quickAddContext.type === 'mapel') {
+        const newMapel = updatedMapel.find(m => m.nama_mapel === quickAddMapelInput.trim());
+        if (newMapel) {
+          handleUpdateAgendaItem(quickAddContext.itemId, 'mapel_id', newMapel.id);
+        }
+      }
+      
+      setQuickAddMapelOpen(false);
+      setQuickAddMapelInput('');
+      setQuickAddContext(null);
+      toast.success('Mapel berhasil ditambahkan');
     } catch (e: any) {
-      toast.error(e.message || 'Gagal memperbarui kelas');
+      toast.error(e.message || 'Gagal menambahkan mapel');
+    } finally {
+      setCreatingMapel(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Hapus kelas ini? Kelas dan keanggotaan akan ikut terhapus.')) return;
+  const handleQuickAddPengajar = async () => {
+    if (!quickAddPengajarInput.trim()) {
+      toast.error('Nama pengajar wajib diisi');
+      return;
+    }
+
+    setCreatingPengajar(true);
     try {
-      await AkademikKelasService.deleteKelas(id);
-      toast.success('Kelas dihapus');
-      loadKelas();
+      await AkademikAgendaService.createPengajar({
+        nama_lengkap: quickAddPengajarInput.trim(),
+        status: 'Aktif',
+      });
+      
+      // Reload pengajar list
+      const updatedPengajar = await AkademikAgendaService.listPengajar('Aktif');
+      setPengajarList(updatedPengajar);
+      
+      // Auto-select newly created pengajar
+      if (quickAddContext && quickAddContext.type === 'pengajar') {
+        const newPengajar = updatedPengajar.find(p => p.nama_lengkap === quickAddPengajarInput.trim());
+        if (newPengajar) {
+          handleUpdateAgendaItem(quickAddContext.itemId, 'pengajar_id', newPengajar.id);
+        }
+      }
+      
+      setQuickAddPengajarOpen(false);
+      setQuickAddPengajarInput('');
+      setQuickAddContext(null);
+      toast.success('Pengajar berhasil ditambahkan');
     } catch (e: any) {
-      toast.error(e.message || 'Gagal menghapus kelas');
+      toast.error(e.message || 'Gagal menambahkan pengajar');
+    } finally {
+      setCreatingPengajar(false);
     }
   };
+
+  const selectedSemester = semesters.find(s => s.id === selectedSemesterId);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Master Kelas</h1>
-          <p className="text-muted-foreground">Buat kelas (mis. Madin I’dad) dan kelola daftar kelas.</p>
-        </div>
-      </div>
-
-      {semesterLoading ? (
-        <Card>
-          <CardContent className="py-6 text-sm text-muted-foreground">
-            Memuat informasi semester aktif...
-          </CardContent>
-        </Card>
-      ) : activeSemester ? (
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div className="flex-1">
-              <p className="text-sm text-muted-foreground">Semester Aktif</p>
-              <h3 className="text-lg font-semibold text-green-800">
-                {activeSemester.nama} • {activeSemester.tahun_ajaran?.nama || 'Tahun Ajaran'}
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                {formatDate(activeSemester.tanggal_mulai)} — {formatDate(activeSemester.tanggal_selesai)}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-sm text-muted-foreground hidden md:block">
-                Kelas baru akan otomatis menggunakan semester ini.
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCreateSemesterDialogOpen(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Buat Semester
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSemesterDialogOpen(true)}
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Ubah Semester Aktif
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/akademik/semester')}
-              >
-                <Calendar className="w-4 h-4 mr-2" />
-                Kelola Semester
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="border-yellow-300 bg-yellow-50">
-          <CardContent className="py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div className="text-sm text-yellow-800">
-              Belum ada semester aktif. Silakan buat atau atur semester aktif sebelum membuat kelas baru.
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCreateSemesterDialogOpen(true)}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Buat Semester
-              </Button>
-              {allSemesters.length > 0 && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSemesterDialogOpen(true)}
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    Atur Semester Aktif
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate('/akademik/semester')}
-                  >
-                    <Calendar className="w-4 h-4 mr-2" />
-                    Kelola Semester
-                  </Button>
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Buat Kelas</CardTitle>
-          <CardDescription>Isi data kelas lalu klik Buat. Agenda bisa ditambahkan setelah kelas dibuat.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <Label>Semester *</Label>
-              <Select
-                value={form.semester_id || undefined}
-                onValueChange={(value) => {
-                  const selectedSem = allSemesters.find(s => s.id === value);
-                  if (selectedSem) {
-                    setForm({
-                      ...form,
-                      semester_id: selectedSem.id,
-                      semester: selectedSem.nama,
-                      tahun_ajaran_id: selectedSem.tahun_ajaran_id,
-                      tahun_ajaran: selectedSem.tahun_ajaran?.nama || '',
-                    });
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih semester" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allSemesters.map(sem => (
-                    <SelectItem key={sem.id} value={sem.id}>
-                      {sem.nama} • {sem.tahun_ajaran?.nama || '-'}
-                      {sem.is_aktif && ' (Aktif)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Tahun ajaran akan terisi otomatis
-              </p>
-            </div>
-            <div>
-              <Label>Program *</Label>
-              <Input
-                value={form.program}
-                onChange={(e) => handleFormChange('program', e.target.value)}
-                placeholder="Contoh: Madin, TPQ, Tahfid"
-              />
-            </div>
-            <div>
-              <Label>Tingkat</Label>
-              <Input
-                value={form.tingkat}
-                onChange={(e) => handleFormChange('tingkat', e.target.value)}
-                placeholder="Contoh: I'dad, Wustho, Iqra 1"
-              />
-            </div>
-            <div>
-              <Label>Rombel</Label>
-              <Input
-                value={form.rombel}
-                onChange={(e) => handleFormChange('rombel', e.target.value)}
-                placeholder="Contoh: A, B, C"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-2 mb-2">
-                <Checkbox
-                  id="auto-generate"
-                  checked={autoGenerateName}
-                  onCheckedChange={(checked) => {
-                    const isChecked = Boolean(checked);
-                    setAutoGenerateName(isChecked);
-                    if (isChecked) {
-                      const autoName = buildAutoName(
-                        form.program || '',
-                        form.tingkat || '',
-                        form.rombel || undefined,
-                      );
-                      if (autoName) {
-                        setForm({ ...form, nama_kelas: autoName });
-                      }
-                    }
-                  }}
-                />
-                <Label htmlFor="auto-generate" className="cursor-pointer text-sm">
-                  Auto-generate nama dari Program + Tingkat + Rombel
-                </Label>
-              </div>
-              <Label>Nama Kelas *</Label>
-              <Input
-                value={form.nama_kelas}
-                onChange={(e) => setForm({ ...form, nama_kelas: e.target.value })}
-                placeholder="Contoh: Madin I'dad A"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-2">
-            <Button onClick={handleCreate} className="gap-2" disabled={!form.semester_id || !form.program || !form.nama_kelas}>
-              <Plus className="w-4 h-4" />
-              Buat Kelas
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground text-center">
-            Agenda kelas bisa ditambahkan setelah kelas dibuat melalui tombol "Kelola Agenda"
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Daftar Kelas</CardTitle>
-              <CardDescription>
-                {loading ? 'Memuat...' : `${kelas.filter(k => !selectedSemesterId || k.semester_id === selectedSemesterId).length} kelas ditemukan`}
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="semester-filter" className="text-sm">Filter Semester:</Label>
+    <div className="space-y-4">
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-10 bg-background border-b pb-4 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1 flex items-center gap-4">
+            <div className="w-[250px]">
+              <Label>Term</Label>
               <Select
                 value={selectedSemesterId || 'all'}
                 onValueChange={(value) => setSelectedSemesterId(value === 'all' ? null : value)}
               >
-                <SelectTrigger id="semester-filter" className="w-[250px]">
-                  <SelectValue placeholder="Semua Semester" />
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih term" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">
-                    Semua Semester
-                    {activeSemester && ` (Aktif: ${activeSemester.nama})`}
-                  </SelectItem>
-                  {allSemesters.map(sem => (
+                  <SelectItem value="all">Semua Term</SelectItem>
+                  {semesters.map(sem => (
                     <SelectItem key={sem.id} value={sem.id}>
                       {sem.nama} • {sem.tahun_ajaran?.nama || '-'}
                       {sem.is_aktif && ' (Aktif)'}
@@ -1201,716 +497,587 @@ const MasterKelasPage: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex-1 max-w-md">
+              <Label>Search</Label>
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Cari kelas..."
+                  className="pl-8"
+                />
+                {searchTerm && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1 h-7 w-7 p-0"
+                    onClick={() => setSearchTerm('')}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+            </div>
+            </div>
+            </div>
+          <div className="pt-6">
+            <Button onClick={() => handleOpenKelasForm()} disabled={!selectedSemesterId}>
+              <Plus className="w-4 h-4 mr-2" />
+              Buat Kelas
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
+            </div>
+            </div>
+
+      {/* Table */}
+      <div className="border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nama Kelas</TableHead>
-                  <TableHead>Program</TableHead>
-                  <TableHead>Semester</TableHead>
+              <TableHead>Tingkat</TableHead>
+              <TableHead>Rombel</TableHead>
                   <TableHead>Anggota</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {kelas
-                  .filter(row => !selectedSemesterId || row.semester_id === selectedSemesterId)
-                  .map((row) => {
-                  const summaries = agendaSummaryMap[row.id] || [];
-                  const totalTarget = summaries.reduce((sum, item) => sum + (item.total_pertemuan || 0), 0);
-                  const totalSelesai = summaries.reduce((sum, item) => sum + (item.total_selesai || 0), 0);
-                  const totalBerjalan = summaries.reduce((sum, item) => sum + (item.total_berjalan || 0), 0);
-                  const totalBatal = summaries.reduce((sum, item) => sum + (item.total_batal || 0), 0);
-                  const totalOutstanding = Math.max(0, totalTarget - totalSelesai - totalBatal);
-
-                  return (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium">
-                      <div className="font-semibold">{row.nama_kelas}</div>
-                      <div className="flex items-center gap-2 mt-1">
-                        {row.rombel && (
-                          <Badge variant="outline" className="text-xs">Rombel: {row.rombel}</Badge>
-                        )}
-                        {row.tingkat && (
-                          <Badge variant="outline" className="text-xs">Tingkat: {row.tingkat}</Badge>
-                        )}
-                      </div>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  Memuat...
                     </TableCell>
-                    <TableCell>
-                      <div className="font-medium">{row.program}</div>
+              </TableRow>
+            ) : filteredKelas.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  {searchTerm ? 'Tidak ada kelas yang cocok' : 'Belum ada kelas'}
                     </TableCell>
-                    <TableCell>
-                      <div className="font-medium text-sm">{row.semester}</div>
-                      <div className="text-xs text-muted-foreground">{row.tahun_ajaran}</div>
-                      {row.semester_id === activeSemester?.id && (
-                        <Badge className="mt-1 text-xs bg-green-100 text-green-800">Aktif</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium">{row.jumlah_anggota || 0}</div>
-                      <div className="text-xs text-muted-foreground">santri</div>
-                    </TableCell>
+              </TableRow>
+            ) : (
+              filteredKelas.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="font-medium">{row.nama_kelas}</TableCell>
+                  <TableCell>{row.tingkat || '-'}</TableCell>
+                  <TableCell>{row.rombel || '-'}</TableCell>
+                  <TableCell>{row.jumlah_anggota || 0}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => openManageAgenda(row)}
+                        onClick={() => handleOpenAgendaForm(row)}
                         >
-                          Kelola Agenda
+                        Jadwal
                         </Button>
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          onClick={() => handleEdit(row)}
-                          title="Edit kelas"
+                        onClick={() => handleOpenKelasForm(row)}
                         >
-                          <Edit className="w-4 h-4 text-blue-600" />
+                        <Edit className="w-4 h-4" />
                         </Button>
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          onClick={() => handleDelete(row.id)}
-                          title="Hapus kelas"
+                        onClick={() => handleDeleteKelas(row.id)}
                         >
                           <Trash2 className="w-4 h-4 text-red-600" />
                         </Button>
                       </div>
                     </TableCell>
                   </TableRow>
-                );})}
+              ))
+            )}
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
 
-      <Dialog
-        open={manageDialogOpen}
-        onOpenChange={(open) => {
-          if (open) {
-            setManageDialogOpen(true);
-          } else {
-            resetManageDialog();
-          }
-        }}
-      >
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Kelola Agenda Kelas</DialogTitle>
-            <DialogDescription>
-              {selectedKelas
-                ? `${selectedKelas.nama_kelas} • ${selectedKelas.program}`
-                : 'Atur agenda kelas'}
-            </DialogDescription>
-          </DialogHeader>
-
-          {manageAgendaLoading ? (
-            <p className="text-sm text-muted-foreground">Memuat agenda kelas...</p>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
+      {/* Kelas Form Sheet */}
+      <Sheet open={kelasSheetOpen} onOpenChange={setKelasSheetOpen}>
+        <SheetContent className="sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>{editingKelas ? 'Edit Kelas' : 'Buat Kelas Baru'}</SheetTitle>
+            <SheetDescription>
+              {editingKelas ? 'Perbarui informasi kelas' : 'Buat kelas Madin baru untuk term yang dipilih'}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 py-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">
-                    Tambahkan, ubah, atau hapus agenda yang terhubung ke kelas ini.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={handleAddManageAgenda}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Agenda Tunggal
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      resetTemplateForm();
-                      openTemplateDialog('manage');
-                    }}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Agenda Multi Hari
-                  </Button>
-                </div>
-              </div>
-
-              {manageAgendaItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Belum ada agenda terdaftar. Tambahkan agenda baru untuk kelas ini.
-                </p>
-              ) : (
-                <AgendaItemsList
-                  items={manageAgendaItems}
-                  onRemove={handleRemoveManageAgenda}
-                  onChange={handleManageAgendaChange}
-                />
-              )}
-
-              {manageAgendaItems.length > 0 && manageValidationErrors.length > 0 && (
-                <p className="text-xs text-red-500">{manageValidationErrors[0]}</p>
-              )}
+              <Label>Term *</Label>
+              <Input
+                value={selectedSemester ? `${selectedSemester.nama} • ${selectedSemester.tahun_ajaran?.nama || '-'}` : ''}
+                disabled
+                className="bg-muted"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Term ditentukan dari filter</p>
             </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={resetManageDialog} disabled={savingManageAgenda}>
-              Batal
-            </Button>
-            <Button
-              onClick={handleSaveManageAgenda}
-              disabled={savingManageAgenda || manageAgendaLoading}
-            >
-              {savingManageAgenda ? 'Menyimpan...' : 'Simpan Perubahan'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog Edit Kelas */}
-      <Dialog open={editDialogOpen} onOpenChange={(open) => {
-        setEditDialogOpen(open);
-        if (!open) {
-          setEditingKelas(null);
-          // Reset form ke default
-          const resetForm: KelasMasterInput = {
-            nama_kelas: '',
-            program: '',
-            rombel: '',
-            tingkat: '',
-            tahun_ajaran: '',
-            semester: '',
-            tahun_ajaran_id: undefined,
-            semester_id: activeSemester?.id,
-            status: 'Aktif'
-          };
-          setForm(resetForm);
-        }
-      }}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Edit Kelas</DialogTitle>
-            <DialogDescription>
-              Perbarui informasi kelas. Agenda tidak akan terpengaruh.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <Label>Semester *</Label>
-                <Select
-                  value={form.semester_id || undefined}
-                  onValueChange={(value) => {
-                    const selectedSem = allSemesters.find(s => s.id === value);
-                    if (selectedSem) {
-                      setForm({
-                        ...form,
-                        semester_id: selectedSem.id,
-                        semester: selectedSem.nama,
-                        tahun_ajaran_id: selectedSem.tahun_ajaran_id,
-                        tahun_ajaran: selectedSem.tahun_ajaran?.nama || '',
-                      });
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih semester" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allSemesters.map(sem => (
-                      <SelectItem key={sem.id} value={sem.id}>
-                        {sem.nama} • {sem.tahun_ajaran?.nama || '-'}
-                        {sem.is_aktif && ' (Aktif)'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Program *</Label>
+              <Label>Nama Kelas *</Label>
                 <Input
-                  value={form.program}
-                  onChange={(e) => handleFormChange('program', e.target.value)}
-                  placeholder="Contoh: Madin, TPQ, Tahfid"
+                value={kelasForm.nama_kelas}
+                onChange={(e) => setKelasForm(prev => ({ ...prev, nama_kelas: e.target.value }))}
+                placeholder="Contoh: Madin I'dad A"
                 />
               </div>
               <div>
-                <Label>Tingkat</Label>
+              <Label>Tingkat/Level</Label>
                 <Input
-                  value={form.tingkat}
-                  onChange={(e) => handleFormChange('tingkat', e.target.value)}
-                  placeholder="Contoh: I'dad, Wustho, Iqra 1"
+                value={kelasForm.tingkat}
+                onChange={(e) => setKelasForm(prev => ({ ...prev, tingkat: e.target.value }))}
+                placeholder="Contoh: I'dad, Wustho"
                 />
               </div>
               <div>
-                <Label>Rombel</Label>
+              <Label>Rombel/Kode</Label>
                 <Input
-                  value={form.rombel}
-                  onChange={(e) => handleFormChange('rombel', e.target.value)}
+                value={kelasForm.rombel}
+                onChange={(e) => setKelasForm(prev => ({ ...prev, rombel: e.target.value }))}
                   placeholder="Contoh: A, B, C"
                 />
               </div>
-              <div className="md:col-span-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <Checkbox
-                    id="edit-auto-generate"
-                    checked={autoGenerateName}
-                    onCheckedChange={(checked) => {
-                      const isChecked = Boolean(checked);
-                      setAutoGenerateName(isChecked);
-                      if (isChecked) {
-                        const autoName = buildAutoName(
-                          form.program || '',
-                          form.tingkat || '',
-                          form.rombel || undefined,
-                        );
-                        if (autoName) {
-                          setForm({ ...form, nama_kelas: autoName });
-                        }
-                      }
-                    }}
-                  />
-                  <Label htmlFor="edit-auto-generate" className="cursor-pointer text-sm">
-                    Auto-generate nama dari Program + Tingkat + Rombel
-                  </Label>
-                </div>
-                <Label>Nama Kelas *</Label>
-                <Input
-                  value={form.nama_kelas}
-                  onChange={(e) => setForm({ ...form, nama_kelas: e.target.value })}
-                  placeholder="Contoh: Madin I'dad A"
-                />
-              </div>
               <div>
-                <Label>Tanggal Mulai Periode</Label>
-                <Input
-                  type="date"
-                  value={form.tanggal_mulai || ''}
-                  onChange={(e) => setForm({ ...form, tanggal_mulai: e.target.value || undefined })}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Periode aktif kelas (opsional, default mengikuti semester)
-                </p>
-              </div>
-              <div>
-                <Label>Tanggal Selesai Periode</Label>
-                <Input
-                  type="date"
-                  value={form.tanggal_selesai || ''}
-                  onChange={(e) => setForm({ ...form, tanggal_selesai: e.target.value || undefined })}
-                  min={form.tanggal_mulai || undefined}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Periode aktif kelas (opsional, default mengikuti semester)
-                </p>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-              Batal
-            </Button>
-            <Button onClick={handleUpdate} disabled={!form.semester_id || !form.program || !form.nama_kelas}>
-              Simpan Perubahan
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <KelasDetailDialog
-        open={detailDialogOpen}
-        kelasId={detailKelas?.id}
-        kelasName={detailKelas?.nama_kelas}
-        onClose={() => {
-          setDetailDialogOpen(false);
-          setDetailKelas(null);
-        }}
-      />
-
-      <Dialog
-        open={templateDialogOpen}
-        onOpenChange={(open) => {
-          if (open) {
-            setTemplateDialogOpen(true);
-          } else {
-            setTemplateDialogOpen(false);
-            resetTemplateForm();
-          }
-        }}
-      >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Buat Agenda Multi Hari</DialogTitle>
-            <DialogDescription>
-              Buat beberapa agenda sekaligus dengan pengaturan yang sama.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {templateErrors.length > 0 && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {templateErrors.map((err, idx) => (
-                  <p key={idx}>{err}</p>
-                ))}
-              </div>
-            )}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="md:col-span-2">
-                <Label>Nama Agenda *</Label>
-                <Input
-                  value={templateForm.nama_agenda}
-                  onChange={(e) => setTemplateForm(prev => ({ ...prev, nama_agenda: e.target.value }))}
-                  placeholder="Contoh: Setoran Subuh Mukim"
-                />
-              </div>
-              <div>
-                <Label>Jenis *</Label>
-                <Select
-                  value={templateForm.jenis}
-                  onValueChange={(value) =>
-                    setTemplateForm(prev => ({
-                      ...prev,
-                      jenis: value as AgendaJenis,
-                      is_setoran: value !== 'Absensi' ? true : prev.is_setoran,
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih jenis" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {AGENDA_JENIS_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Frekuensi *</Label>
-                <Select
-                  value={templateForm.frekuensi}
-                  onValueChange={(value) =>
-                    setTemplateForm(prev => ({ ...prev, frekuensi: value as AgendaFrekuensi }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih frekuensi" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {AGENDA_FREKUENSI_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label>Hari Agenda *</Label>
-              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {AGENDA_HARI_OPTIONS.map(day => (
-                  <label
-                    key={day}
-                    className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm cursor-pointer hover:bg-accent"
-                  >
-                    <Checkbox
-                      checked={templateForm.days.includes(day as AgendaHari)}
-                      onCheckedChange={() => toggleTemplateDay(day as AgendaHari)}
-                    />
-                    {day}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Jam Mulai *</Label>
-                <Input
-                  type="time"
-                  value={templateForm.jam_mulai}
-                  onChange={(e) => setTemplateForm(prev => ({ ...prev, jam_mulai: e.target.value }))}
-                />
-              </div>
-              <div>
-                <Label>Jam Selesai *</Label>
-                <Input
-                  type="time"
-                  value={templateForm.jam_selesai}
-                  onChange={(e) => setTemplateForm(prev => ({ ...prev, jam_selesai: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <Label>Nama Pengajar</Label>
-                <Input
-                  value={templateForm.pengajar_nama}
-                  onChange={(e) => setTemplateForm(prev => ({ ...prev, pengajar_nama: e.target.value }))}
-                  placeholder="Contoh: Ust. Ahmad"
-                />
-              </div>
-              <div>
-                <Label>Nama Mapel</Label>
-                <Input
-                  value={templateForm.mapel_nama}
-                  onChange={(e) => setTemplateForm(prev => ({ ...prev, mapel_nama: e.target.value }))}
-                  placeholder="Contoh: Fiqih"
-                />
-              </div>
-            </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <Label>Tanggal Mulai *</Label>
-                <Input
-                  type="date"
-                  value={templateForm.tanggal_mulai}
-                  onChange={(e) =>
-                    setTemplateForm(prev => ({
-                      ...prev,
-                      tanggal_mulai: e.target.value,
-                      tanggal_selesai:
-                        prev.tanggal_selesai < e.target.value ? e.target.value : prev.tanggal_selesai,
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <Label>Tanggal Selesai *</Label>
-                <Input
-                  type="date"
-                  value={templateForm.tanggal_selesai}
-                  min={templateForm.tanggal_mulai}
-                  onChange={(e) => setTemplateForm(prev => ({ ...prev, tanggal_selesai: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div>
-              <Label>Kitab / Materi</Label>
-              <Input
-                value={templateForm.kitab}
-                onChange={(e) => setTemplateForm(prev => ({ ...prev, kitab: e.target.value }))}
-                placeholder="Contoh: Fathul Mu'in"
-              />
-            </div>
-            <div>
-              <Label>Lokasi</Label>
-              <Input
-                value={templateForm.lokasi}
-                onChange={(e) => setTemplateForm(prev => ({ ...prev, lokasi: e.target.value }))}
-                placeholder="Contoh: Masjid Besar"
-              />
-            </div>
-            <div>
               <Label>Catatan</Label>
               <Textarea
-                value={templateForm.catatan}
-                onChange={(e) => setTemplateForm(prev => ({ ...prev, catatan: e.target.value }))}
-                rows={2}
+                value={kelasForm.catatan}
+                onChange={(e) => setKelasForm(prev => ({ ...prev, catatan: e.target.value }))}
+                rows={3}
+                placeholder="Catatan opsional"
               />
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="template-is-setoran"
-                checked={templateForm.is_setoran}
-                onCheckedChange={(checked) =>
-                  setTemplateForm(prev => ({ ...prev, is_setoran: Boolean(checked) }))
-                }
-              />
-              <Label htmlFor="template-is-setoran" className="text-sm cursor-pointer">
-                Tandai agenda ini sebagai setoran
-              </Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setTemplateDialogOpen(false); resetTemplateForm(); }}>
+              </div>
+              </div>
+          <SheetFooter>
+            <Button variant="outline" onClick={() => setKelasSheetOpen(false)}>
               Batal
             </Button>
-            <Button onClick={handleTemplateSubmit}>
-              Tambahkan {templateForm.days.length ? `(${templateForm.days.length})` : ''}
+            <Button onClick={handleSaveKelas}>
+              Simpan
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      {/* Dialog Buat Semester Baru */}
-      <Dialog 
-        open={createSemesterDialogOpen} 
-        onOpenChange={(open) => {
-          setCreateSemesterDialogOpen(open);
-          if (!open) {
-            // Reset form saat dialog ditutup
-            setSemesterForm({
-              tahun_ajaran_id: '',
-              nama: 'Ganjil',
-              tanggal_mulai: '',
-              tanggal_selesai: '',
-              is_aktif: false,
-            });
-          }
-        }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Buat Semester Baru</DialogTitle>
-            <DialogDescription>
-              Buat semester baru untuk tahun ajaran tertentu. Anda bisa langsung mengatur sebagai semester aktif.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Tahun Ajaran *</Label>
-              <Select
-                value={semesterForm.tahun_ajaran_id}
-                onValueChange={(value) => setSemesterForm(prev => ({ ...prev, tahun_ajaran_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih tahun ajaran" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tahunAjaranList.map(ta => (
-                    <SelectItem key={ta.id} value={ta.id}>
-                      {ta.nama}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {tahunAjaranList.length === 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Belum ada tahun ajaran. Silakan buat tahun ajaran terlebih dahulu melalui menu Tahun & Semester.
-                </p>
-              )}
-            </div>
-            <div>
-              <Label>Nama Semester *</Label>
-              <Select
-                value={semesterForm.nama}
-                onValueChange={(value) => setSemesterForm(prev => ({ ...prev, nama: value as typeof semesterForm.nama }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Ganjil">Ganjil</SelectItem>
-                  <SelectItem value="Genap">Genap</SelectItem>
-                  <SelectItem value="Pendek">Pendek</SelectItem>
-                  <SelectItem value="Khusus">Khusus</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+      {/* Agenda Form Sheet */}
+      <Sheet open={agendaSheetOpen} onOpenChange={setAgendaSheetOpen}>
+        <SheetContent className="sm:max-w-2xl overflow-y-auto">
+          <SheetHeader>
+            <div className="flex items-center justify-between">
               <div>
-                <Label>Tanggal Mulai *</Label>
-                <Input
-                  type="date"
-                  value={semesterForm.tanggal_mulai}
-                  onChange={(e) => setSemesterForm(prev => ({ ...prev, tanggal_mulai: e.target.value }))}
-                />
+                <SheetTitle>Kelola Jadwal</SheetTitle>
+                <SheetDescription>
+                  {selectedKelasForAgenda?.nama_kelas || 'Kelas'}
+                </SheetDescription>
               </div>
-              <div>
-                <Label>Tanggal Selesai *</Label>
-                <Input
-                  type="date"
-                  value={semesterForm.tanggal_selesai}
-                  min={semesterForm.tanggal_mulai}
-                  onChange={(e) => setSemesterForm(prev => ({ ...prev, tanggal_selesai: e.target.value }))}
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={showArchivedAgenda}
+                  onCheckedChange={async (checked) => {
+                    if (selectedKelasForAgenda) {
+                      await handleOpenAgendaForm(selectedKelasForAgenda, checked);
+                    } else {
+                      setShowArchivedAgenda(checked);
+                    }
+                  }}
+                  id="show-archived"
                 />
+                <Label htmlFor="show-archived" className="text-sm cursor-pointer">
+                  Tampilkan arsip
+                </Label>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="semester-is-aktif"
-                checked={semesterForm.is_aktif}
-                onCheckedChange={(checked) => setSemesterForm(prev => ({ ...prev, is_aktif: Boolean(checked) }))}
-              />
-              <Label htmlFor="semester-is-aktif" className="text-sm cursor-pointer">
-                Set sebagai semester aktif
-              </Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateSemesterDialogOpen(false)} disabled={creatingSemester}>
-              Batal
-            </Button>
-            <Button onClick={handleCreateSemester} disabled={creatingSemester || !semesterForm.tahun_ajaran_id || !semesterForm.tanggal_mulai || !semesterForm.tanggal_selesai}>
-              {creatingSemester ? 'Membuat...' : 'Buat Semester'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog Atur Semester Aktif */}
-      <Dialog open={semesterDialogOpen} onOpenChange={setSemesterDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Atur Semester Aktif</DialogTitle>
-            <DialogDescription>
-              Pilih semester yang akan digunakan sebagai semester aktif. Hanya kelas dari semester aktif yang akan ditampilkan di daftar kelas.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {allSemesters.length === 0 ? (
-              <div className="text-center py-4 text-sm text-muted-foreground">
-                Belum ada semester. Klik tombol "Buat Semester" untuk membuat semester baru.
-              </div>
+          </SheetHeader>
+          <div className="space-y-4 py-4">
+            {agendaError && (
+              <Alert variant="destructive">
+                <AlertDescription>{agendaError}</AlertDescription>
+              </Alert>
+            )}
+            {agendaItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Belum ada jadwal. Tambahkan jadwal baru.</p>
             ) : (
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {allSemesters.map(semester => (
-                  <div
-                    key={semester.id}
-                    className={`p-3 rounded-lg border transition-colors ${
-                      activeSemester?.id === semester.id
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-border hover:bg-accent'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div 
-                        className="flex-1 cursor-pointer"
-                        onClick={() => handleSetSemesterAktif(semester.id)}
-                      >
-                        <div className="font-semibold">
-                          {semester.nama} • {semester.tahun_ajaran?.nama || 'Tahun Ajaran'}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {formatDate(semester.tanggal_mulai)} — {formatDate(semester.tanggal_selesai)}
-                        </div>
-                      </div>
+              agendaItems.map((item, index) => {
+                const selectedMapel = mapelList.find(m => m.id === item.mapel_id);
+                const selectedPengajar = pengajarList.find(p => p.id === item.pengajar_id);
+                const mapelOpen = mapelOpenStates[item.id] || false;
+                const pengajarOpen = pengajarOpenStates[item.id] || false;
+                const mapelSearch = mapelSearchStates[item.id] || '';
+                const pengajarSearch = pengajarSearchStates[item.id] || '';
+
+                // Filter tanpa useMemo (dihitung langsung)
+                const filteredMapel = mapelSearch
+                  ? mapelList.filter(m => m.nama_mapel.toLowerCase().includes(mapelSearch.toLowerCase()))
+                  : mapelList;
+
+                const filteredPengajar = pengajarSearch
+                  ? pengajarList.filter(p => p.nama_lengkap.toLowerCase().includes(pengajarSearch.toLowerCase()))
+                  : pengajarList;
+
+                const mapelNotFound = mapelSearch && !filteredMapel.some(m => m.nama_mapel.toLowerCase() === mapelSearch.toLowerCase());
+                const pengajarNotFound = pengajarSearch && !filteredPengajar.some(p => p.nama_lengkap.toLowerCase() === pengajarSearch.toLowerCase());
+
+                return (
+                  <div key={item.id} className={`border rounded-lg p-4 space-y-4 ${item.aktif === false ? 'opacity-60 bg-muted/30' : ''}`}>
+                    <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2">
-                        {activeSemester?.id === semester.id && (
-                          <Badge className="bg-green-600">Aktif</Badge>
+                        <div className="font-medium">Jadwal #{index + 1}</div>
+                        {item.aktif === false && (
+                          <Badge variant="secondary" className="text-xs">
+                            Arsip
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        {item.sourceId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                await AkademikAgendaService.updateAgenda(item.sourceId!, {
+                                  aktif: !item.aktif
+                                });
+                                toast.success(`Jadwal ${item.aktif ? 'dinonaktifkan' : 'diaktifkan'}`);
+                                if (selectedKelasForAgenda) {
+                                  await handleOpenAgendaForm(selectedKelasForAgenda, showArchivedAgenda);
+                                }
+                              } catch (e: any) {
+                                toast.error(e.message || 'Gagal mengubah status');
+                              }
+                            }}
+                            title={item.aktif ? 'Nonaktifkan' : 'Aktifkan'}
+                          >
+                            {item.aktif ? (
+                              <Archive className="w-4 h-4" />
+                            ) : (
+                              <ArchiveRestore className="w-4 h-4" />
+                            )}
+                          </Button>
                         )}
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/akademik/semester?edit=${semester.id}`);
-                          }}
-                          className="h-8 w-8 p-0"
+                          onClick={() => handleRemoveAgendaItem(item.id)}
                         >
-                          <Edit className="h-4 w-4" />
+                          <X className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <Label>Mapel *</Label>
+                        <Popover 
+                          open={mapelOpen} 
+                          onOpenChange={(open) => setMapelOpenStates(prev => ({ ...prev, [item.id]: open }))}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={mapelOpen}
+                              className="w-full justify-between"
+                            >
+                              {selectedMapel ? selectedMapel.nama_mapel : 'Pilih mapel...'}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0">
+                            <Command>
+                              <CommandInput 
+                                placeholder="Cari mapel..." 
+                                value={mapelSearch}
+                                onValueChange={(value) => setMapelSearchStates(prev => ({ ...prev, [item.id]: value }))}
+                              />
+                              <CommandList>
+                                <CommandEmpty>
+                                  {mapelNotFound ? (
+                                    <div className="p-2">
+                                      <Button
+                                        variant="ghost"
+                                        className="w-full justify-start"
+                                        onClick={() => {
+                                          setQuickAddContext({ itemId: item.id, type: 'mapel' });
+                                          setQuickAddMapelInput(mapelSearch);
+                                          setQuickAddMapelOpen(true);
+                                          setMapelOpenStates(prev => ({ ...prev, [item.id]: false }));
+                                        }}
+                                      >
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Tambah Mapel: {mapelSearch}
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    'Tidak ada mapel ditemukan'
+                                  )}
+                                </CommandEmpty>
+                                <CommandGroup>
+                                  {filteredMapel.map(mapel => (
+                                    <CommandItem
+                                      key={mapel.id}
+                                      value={mapel.nama_mapel}
+                                      onSelect={() => {
+                                        handleUpdateAgendaItem(item.id, 'mapel_id', mapel.id);
+                                        setMapelOpenStates(prev => ({ ...prev, [item.id]: false }));
+                                        setMapelSearchStates(prev => ({ ...prev, [item.id]: '' }));
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          item.mapel_id === mapel.id ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {mapel.nama_mapel}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
               </div>
+              <div>
+                        <Label>Pengajar</Label>
+                        <Popover 
+                          open={pengajarOpen} 
+                          onOpenChange={(open) => setPengajarOpenStates(prev => ({ ...prev, [item.id]: open }))}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={pengajarOpen}
+                              className="w-full justify-between"
+                            >
+                              {item.pengajar_id === null ? 'Belum ditugaskan (TBA)' : selectedPengajar ? selectedPengajar.nama_lengkap : 'Pilih pengajar...'}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0">
+                            <Command>
+                              <CommandInput 
+                                placeholder="Cari pengajar..." 
+                                value={pengajarSearch}
+                                onValueChange={(value) => setPengajarSearchStates(prev => ({ ...prev, [item.id]: value }))}
+                              />
+                              <CommandList>
+                                <CommandEmpty>
+                                  {pengajarNotFound ? (
+                                    <div className="p-2">
+                                      <Button
+                                        variant="ghost"
+                                        className="w-full justify-start"
+                                        onClick={() => {
+                                          setQuickAddContext({ itemId: item.id, type: 'pengajar' });
+                                          setQuickAddPengajarInput(pengajarSearch);
+                                          setQuickAddPengajarOpen(true);
+                                          setPengajarOpenStates(prev => ({ ...prev, [item.id]: false }));
+                                        }}
+                                      >
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Tambah Pengajar: {pengajarSearch}
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    'Tidak ada pengajar ditemukan'
+                                  )}
+                                </CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    value="tba"
+                                    onSelect={() => {
+                                      handleUpdateAgendaItem(item.id, 'pengajar_id', null);
+                                      setPengajarOpenStates(prev => ({ ...prev, [item.id]: false }));
+                                      setPengajarSearchStates(prev => ({ ...prev, [item.id]: '' }));
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        item.pengajar_id === null ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    Belum ditugaskan (TBA)
+                                  </CommandItem>
+                                  {filteredPengajar.map(pengajar => (
+                                    <CommandItem
+                                      key={pengajar.id}
+                                      value={pengajar.nama_lengkap}
+                                      onSelect={() => {
+                                        handleUpdateAgendaItem(item.id, 'pengajar_id', pengajar.id);
+                                        setPengajarOpenStates(prev => ({ ...prev, [item.id]: false }));
+                                        setPengajarSearchStates(prev => ({ ...prev, [item.id]: '' }));
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          item.pengajar_id === pengajar.id ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {pengajar.nama_lengkap}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        {item.pengajar_id === null && (
+                          <p className="text-xs text-muted-foreground mt-1">Jadwal dapat disimpan tanpa pengajar</p>
+                        )}
+                      </div>
+                      <div>
+                        <Label>Hari *</Label>
+                        <Select
+                          value={item.hari}
+                          onValueChange={(value) => handleUpdateAgendaItem(item.id, 'hari', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {AGENDA_HARI_OPTIONS.map(hari => (
+                              <SelectItem key={hari} value={hari}>
+                                {hari}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Lokasi</Label>
+                        <Input
+                          value={item.lokasi}
+                          onChange={(e) => handleUpdateAgendaItem(item.id, 'lokasi', e.target.value)}
+                          placeholder="Contoh: Masjid Besar"
+                        />
+                      </div>
+                      <div>
+                        <Label>Jam Mulai *</Label>
+                        <Input
+                          type="time"
+                          value={item.jam_mulai}
+                          onChange={(e) => handleUpdateAgendaItem(item.id, 'jam_mulai', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label>Jam Selesai *</Label>
+                        <Input
+                          type="time"
+                          value={item.jam_selesai}
+                          onChange={(e) => handleUpdateAgendaItem(item.id, 'jam_selesai', e.target.value)}
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label>Catatan</Label>
+                        <Textarea
+                          value={item.catatan}
+                          onChange={(e) => handleUpdateAgendaItem(item.id, 'catatan', e.target.value)}
+                          rows={2}
+                          placeholder="Catatan opsional"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
             )}
+            <Button variant="outline" onClick={handleAddAgendaItem} className="w-full">
+              <Plus className="w-4 h-4 mr-2" />
+              Tambah Jadwal
+            </Button>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSemesterDialogOpen(false)} disabled={settingSemesterActive}>
+          <SheetFooter>
+            <Button variant="outline" onClick={() => {
+              setAgendaSheetOpen(false);
+              setAgendaError('');
+            }} disabled={savingAgenda}>
               Batal
             </Button>
-            {allSemesters.length === 0 && (
-              <Button onClick={() => { setSemesterDialogOpen(false); setCreateSemesterDialogOpen(true); }}>
-                <Plus className="w-4 h-4 mr-2" />
-                Buat Semester
-              </Button>
-            )}
+            <Button onClick={handleSaveAgenda} disabled={savingAgenda}>
+              {savingAgenda ? 'Menyimpan...' : 'Simpan'}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      {/* Quick Add Mapel Dialog */}
+      <Dialog open={quickAddMapelOpen} onOpenChange={setQuickAddMapelOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tambah Mapel Baru</DialogTitle>
+            <DialogDescription>
+              Tambahkan mapel baru ke master data
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Nama Mapel *</Label>
+              <Input
+                value={quickAddMapelInput}
+                onChange={(e) => setQuickAddMapelInput(e.target.value)}
+                placeholder="Contoh: Fiqih"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && quickAddMapelInput.trim()) {
+                    handleQuickAddMapel();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setQuickAddMapelOpen(false);
+              setQuickAddMapelInput('');
+              setQuickAddContext(null);
+            }} disabled={creatingMapel}>
+              Batal
+            </Button>
+            <Button onClick={handleQuickAddMapel} disabled={creatingMapel || !quickAddMapelInput.trim()}>
+              {creatingMapel ? 'Menambahkan...' : 'Tambah'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Add Pengajar Dialog */}
+      <Dialog open={quickAddPengajarOpen} onOpenChange={setQuickAddPengajarOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tambah Pengajar Baru</DialogTitle>
+            <DialogDescription>
+              Tambahkan pengajar baru ke master data
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Nama Pengajar *</Label>
+              <Input
+                value={quickAddPengajarInput}
+                onChange={(e) => setQuickAddPengajarInput(e.target.value)}
+                placeholder="Contoh: Ust. Ahmad"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && quickAddPengajarInput.trim()) {
+                    handleQuickAddPengajar();
+                  }
+                }}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Pengajar dapat ditambahkan tanpa akun login. Linking akun dapat dilakukan nanti.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setQuickAddPengajarOpen(false);
+              setQuickAddPengajarInput('');
+              setQuickAddContext(null);
+            }} disabled={creatingPengajar}>
+              Batal
+            </Button>
+            <Button onClick={handleQuickAddPengajar} disabled={creatingPengajar || !quickAddPengajarInput.trim()}>
+              {creatingPengajar ? 'Menambahkan...' : 'Tambah'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1919,5 +1086,4 @@ const MasterKelasPage: React.FC = () => {
 };
 
 export default MasterKelasPage;
-
 

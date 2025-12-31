@@ -1,12 +1,13 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Lock, Unlock } from 'lucide-react';
 
 interface StatCard {
   title: string;
   value: string;
-  trend: {
+  subtitle?: string;
+  trend?: {
     value: string;
     isPositive: boolean;
   };
@@ -22,8 +23,10 @@ interface SummaryCardsProps {
     totalTransaksi: number;
     pemasukanTrend: number;
     pengeluaranTrend: number;
-    labaBersih?: number; // Laba bersih = pemasukan - pengeluaran
-    labaBersihTrend?: number; // Trend laba bersih
+    jumlahTransaksiPemasukan?: number;
+    jumlahTransaksiPengeluaran?: number;
+    danaTerikat?: number;
+    danaTidakTerikat?: number;
   };
   selectedAccountName?: string;
   periodLabel?: string; // Label untuk periode yang dipilih (e.g., "Bulan Ini", "Bulan Lalu", "3 Bulan Terakhir")
@@ -53,56 +56,49 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({
     return `${sign}${roundedTrend.toFixed(2)}% dari ${previousPeriodLabel}`;
   };
 
-  // Calculate laba bersih if not provided
-  const labaBersih = stats.labaBersih !== undefined 
-    ? stats.labaBersih 
-    : stats.pemasukanBulanIni - stats.pengeluaranBulanIni;
-  
-  // Calculate laba bersih trend if not provided
-  const labaBersihTrend = stats.labaBersihTrend !== undefined
-    ? stats.labaBersihTrend
-    : 0; // Will be calculated if previous period data available
+  // Calculate dana terikat vs tidak terikat
+  // Fallback: jika fund_type belum ada, semua dianggap tidak_terikat
+  const danaTerikat = stats.danaTerikat ?? 0;
+  const danaTidakTerikat = stats.danaTidakTerikat ?? stats.totalSaldo;
+  const totalDana = danaTerikat + danaTidakTerikat;
 
   const cards: StatCard[] = [
     {
       title: 'Total Saldo',
       value: formatCurrency(stats.totalSaldo),
-      trend: {
-        value: formatTrend(5), // Mock trend for now
-        isPositive: true,
-      },
       icon: <DollarSign className="h-5 w-5" />,
       color: 'text-blue-600',
     },
     {
       title: `Pemasukan ${periodLabel}`,
       value: formatCurrency(stats.pemasukanBulanIni),
-      trend: {
+      subtitle: `${stats.jumlahTransaksiPemasukan || 0} transaksi`,
+      trend: stats.pemasukanTrend !== 0 ? {
         value: formatTrend(stats.pemasukanTrend),
         isPositive: stats.pemasukanTrend >= 0,
-      },
+      } : undefined,
       icon: <TrendingUp className="h-5 w-5" />,
       color: 'text-green-600',
     },
     {
       title: `Pengeluaran ${periodLabel}`,
       value: formatCurrency(stats.pengeluaranBulanIni),
-      trend: {
+      subtitle: `${stats.jumlahTransaksiPengeluaran || 0} transaksi`,
+      trend: stats.pengeluaranTrend !== 0 ? {
         value: formatTrend(stats.pengeluaranTrend),
         isPositive: stats.pengeluaranTrend >= 0,
-      },
+      } : undefined,
       icon: <TrendingDown className="h-5 w-5" />,
       color: 'text-red-600',
     },
     {
-      title: `Laba Bersih ${periodLabel}`,
-      value: formatCurrency(labaBersih),
-      trend: {
-        value: labaBersihTrend !== 0 ? formatTrend(labaBersihTrend) : 'Tidak ada data sebelumnya',
-        isPositive: labaBersih >= 0,
-      },
-      icon: labaBersih >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />,
-      color: labaBersih >= 0 ? 'text-green-600' : 'text-red-600',
+      title: 'Dana Terikat vs Tidak Terikat',
+      value: `${formatCurrency(danaTerikat)} / ${formatCurrency(danaTidakTerikat)}`,
+      subtitle: totalDana > 0 
+        ? `Terikat: ${((danaTerikat / totalDana) * 100).toFixed(1)}% • Tidak Terikat: ${((danaTidakTerikat / totalDana) * 100).toFixed(1)}%`
+        : 'Belum ada data',
+      icon: danaTerikat > 0 ? <Lock className="h-5 w-5" /> : <Unlock className="h-5 w-5" />,
+      color: 'text-purple-600',
     },
   ];
 
@@ -117,11 +113,11 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({
         </div>
       )}
 
-      {/* Summary Cards */}
+      {/* Summary Cards - 4 KPI Cards untuk Dashboard Keuangan */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card, index) => (
-          <Card key={index} className="hover:shadow-md transition-shadow duration-200 rounded-lg border border-gray-200 bg-white">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 pt-4 px-4">
+          <Card key={index} className="hover:shadow-md transition-shadow duration-200 rounded-lg border border-gray-200 bg-white" style={{ minHeight: '140px' }}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 pt-5 px-5">
               <CardTitle className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                 {card.title}
               </CardTitle>
@@ -129,18 +125,23 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({
                 {card.icon}
               </div>
             </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <div className="text-xl font-semibold text-gray-900 mb-1.5 tracking-tight">{card.value}</div>
-              <div className={`flex items-center text-xs ${
-                card.trend.isPositive ? 'text-emerald-600' : 'text-rose-600'
-              }`}>
-                {card.trend.isPositive ? (
-                  <ArrowUpRight className="h-3 w-3 mr-1" />
-                ) : (
-                  <ArrowDownRight className="h-3 w-3 mr-1" />
-                )}
-                <span>{card.trend.value}</span>
-              </div>
+            <CardContent className="px-5 pb-5">
+              <div className="text-xl font-semibold text-gray-900 mb-1.5 tracking-tight leading-tight">{card.value}</div>
+              {card.subtitle && (
+                <div className="text-xs text-gray-500 mb-2">{card.subtitle}</div>
+              )}
+              {card.trend && (
+                <div className={`flex items-center text-xs ${
+                  card.trend.isPositive ? 'text-emerald-600' : 'text-rose-600'
+                }`}>
+                  {card.trend.isPositive ? (
+                    <ArrowUpRight className="h-3 w-3 mr-1" />
+                  ) : (
+                    <ArrowDownRight className="h-3 w-3 mr-1" />
+                  )}
+                  <span>{card.trend.value}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}

@@ -6,6 +6,7 @@ export interface UserProfile {
   full_name: string | null;
   created_at: string;
   updated_at: string;
+  allowed_modules?: string[] | null; // Module access list for admin users
 }
 
 // Flag untuk mencegah spam error CORS di console
@@ -206,9 +207,10 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     console.log('👤 auth.service: Fetching profile for user', userId);
     
     // Add timeout to prevent hanging on CORS/523 errors
+    // Explicitly select allowed_modules to ensure it's included
     const queryPromise = supabase
       .from('profiles')
-      .select('*')
+      .select('id, email, full_name, created_at, updated_at, allowed_modules')
       .eq('id', userId)
       .single();
     

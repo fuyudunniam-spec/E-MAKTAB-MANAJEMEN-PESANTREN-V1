@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { AkademikSemesterService } from './akademikSemester.service';
 
 export interface NilaiInput {
   santri_id: string;
@@ -22,6 +23,11 @@ export interface Nilai extends NilaiInput {
   persentase_kehadiran: number;
   status_kelulusan: 'Belum Dinilai' | 'Lulus' | 'Tidak Lulus';
   alasan_tidak_lulus?: string | null;
+  status_nilai?: 'Draft' | 'Locked' | 'Published';
+  locked_at?: string | null;
+  locked_by?: string | null;
+  published_at?: string | null;
+  published_by?: string | null;
   created_at: string;
   updated_at: string;
   created_by?: string | null;
@@ -143,7 +149,10 @@ export class AkademikNilaiService {
         throw error;
       }
 
-      return (data || []) as Nilai[];
+      return (data || []).map((n: any) => ({
+        ...n,
+        status_nilai: n.status_nilai || 'Draft', // Default to Draft if not set
+      })) as Nilai[];
     } catch (error: any) {
       console.error('[AkademikNilaiService] Error in listNilai:', {
         kelasId,
@@ -183,7 +192,11 @@ export class AkademikNilaiService {
         throw error;
       }
 
-      return data as Nilai | null;
+      if (!data) return null;
+      return {
+        ...data,
+        status_nilai: data.status_nilai || 'Draft', // Default to Draft if not set
+      } as Nilai;
     } catch (error: any) {
       console.error('[AkademikNilaiService] Error in getNilaiById:', {
         nilaiId,
@@ -195,7 +208,7 @@ export class AkademikNilaiService {
 
   /**
    * Input atau update nilai dengan validasi kehadiran
-   * Jika kehadiran < 60%, tidak bisa input nilai dan otomatis tidak lulus
+   * P0: Jika kehadiran < 75%, tidak bisa input nilai dan otomatis tidak lulus (diubah dari 60% menjadi 75%)
    */
   static async inputNilai(input: NilaiInput): Promise<Nilai> {
     try {
@@ -213,10 +226,10 @@ export class AkademikNilaiService {
         input.semester_id
       );
 
-      // Validasi: jika kehadiran < 60%, tidak bisa input nilai
-      if (kehadiran.persentase_kehadiran < 60) {
+      // P0: Validasi: jika kehadiran < 75%, tidak bisa input nilai (diubah dari 60% menjadi 75%)
+      if (kehadiran.persentase_kehadiran < 75) {
         throw new Error(
-          `Tidak dapat input nilai karena kehadiran kurang dari 60%. Kehadiran saat ini: ${kehadiran.persentase_kehadiran.toFixed(2)}%`
+          `Tidak dapat input nilai karena kehadiran kurang dari 75%. Kehadiran saat ini: ${kehadiran.persentase_kehadiran.toFixed(2)}%`
         );
       }
 
@@ -326,6 +339,20 @@ export class AkademikNilaiService {
    */
   static async deleteNilai(nilaiId: string): Promise<void> {
     try {
+      // P0: Validasi lock semester
+      const { data: nilai } = await supabase
+        .from('akademik_nilai')
+        .select('semester_id')
+        .eq('id', nilaiId)
+        .single();
+      
+      if (nilai?.semester_id) {
+        const isLocked = await AkademikSemesterService.isSemesterLocked(nilai.semester_id);
+        if (isLocked) {
+          throw new Error('Semester terkunci, tidak dapat menghapus nilai. Silakan unlock semester terlebih dahulu jika perlu koreksi.');
+        }
+      }
+      
       const { error } = await supabase.from('akademik_nilai').delete().eq('id', nilaiId);
 
       if (error) {
@@ -335,6 +362,435 @@ export class AkademikNilaiService {
     } catch (error: any) {
       console.error('[AkademikNilaiService] Error in deleteNilai:', {
         nilaiId,
+        error: error.message || error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Lock nilai untuk kelas+term+jadwal (dengan auto-fill D/60)
+   */
+  static async lockNilai(
+    kelasId: string,
+    semesterId: string,
+    agendaId: string,
+    lockedBy?: string
+  ): Promise<void> {
+    try {
+      // Ambil semua nilai untuk agenda ini
+      const allNilai = await this.listNilai(kelasId, semesterId, { agendaId });
+
+      if (allNilai.length === 0) {
+        throw new Error('Tidak ada nilai untuk dikunci');
+      }
+
+      // Ambil semua santri di kelas
+      const { data: anggotaData } = await supabase
+        .from('kelas_anggota')
+        .select('santri_id')
+        .eq('kelas_id', kelasId)
+        .eq('status', 'Aktif');
+
+      const santriIds = (anggotaData || []).map(a => a.santri_id);
+
+      // Untuk setiap santri, cek apakah sudah ada nilai
+      // Jika belum ada atau kehadiran < 75%, auto-fill D/60
+      const now = new Date().toISOString();
+      const updates: Array<{ id: string; nilai_angka: number; nilai_huruf: string; nilai_deskripsi: string }> = [];
+      const inserts: Array<any> = [];
+
+      for (const santriId of santriIds) {
+        const nilaiLama = allNilai.find(n => n.santri_id === santriId);
+        
+        // Hitung kehadiran
+        const kehadiran = await this.hitungPersentaseKehadiran(santriId, kelasId, semesterId);
+        
+        // Jika belum ada nilai atau kehadiran < 75%, auto-fill D/60
+        if (!nilaiLama || kehadiran.persentase_kehadiran < 75) {
+          const nilaiAngka = 60;
+          const nilaiHuruf = 'D';
+          const nilaiDeskripsi = 'Kurang';
+
+          if (nilaiLama) {
+            // Update existing
+            updates.push({
+              id: nilaiLama.id,
+              nilai_angka: nilaiAngka,
+              nilai_huruf: nilaiHuruf,
+              nilai_deskripsi: nilaiDeskripsi,
+            });
+          } else {
+            // Insert new
+            inserts.push({
+              santri_id: santriId,
+              kelas_id: kelasId,
+              semester_id: semesterId,
+              agenda_id: agendaId,
+              nilai_angka: nilaiAngka,
+              nilai_huruf: nilaiHuruf,
+              nilai_deskripsi: nilaiDeskripsi,
+              total_pertemuan: kehadiran.total_pertemuan,
+              total_hadir: kehadiran.total_hadir,
+              total_izin: kehadiran.total_izin,
+              total_sakit: kehadiran.total_sakit,
+              total_alfa: kehadiran.total_alfa,
+              persentase_kehadiran: kehadiran.persentase_kehadiran,
+              status_kelulusan: 'Lulus',
+            });
+          }
+        }
+      }
+
+      // Execute updates
+      if (updates.length > 0) {
+        for (const update of updates) {
+          await supabase
+            .from('akademik_nilai')
+            .update({
+              nilai_angka: update.nilai_angka,
+              nilai_huruf: update.nilai_huruf,
+              nilai_deskripsi: update.nilai_deskripsi,
+            })
+            .eq('id', update.id);
+        }
+      }
+
+      // Execute inserts
+      if (inserts.length > 0) {
+        await supabase.from('akademik_nilai').insert(inserts);
+      }
+
+      // Update semua nilai menjadi Locked
+      const nilaiIds = allNilai.map(n => n.id);
+      if (inserts.length > 0) {
+        // Get IDs of newly inserted nilai
+        const { data: newNilai } = await supabase
+          .from('akademik_nilai')
+          .select('id')
+          .eq('kelas_id', kelasId)
+          .eq('semester_id', semesterId)
+          .eq('agenda_id', agendaId)
+          .in('santri_id', santriIds)
+          .is('status_nilai', null);
+        
+        if (newNilai) {
+          nilaiIds.push(...newNilai.map(n => n.id));
+        }
+      }
+
+      if (nilaiIds.length > 0) {
+        const { error } = await supabase
+          .from('akademik_nilai')
+          .update({
+            status_nilai: 'Locked',
+            locked_at: now,
+            locked_by: lockedBy || null,
+          })
+          .in('id', nilaiIds);
+
+        if (error) {
+          console.error('[AkademikNilaiService] Error locking nilai:', error);
+          throw error;
+        }
+      }
+    } catch (error: any) {
+      console.error('[AkademikNilaiService] Error in lockNilai:', {
+        kelasId,
+        semesterId,
+        agendaId,
+        error: error.message || error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Publish nilai untuk kelas+term+jadwal (legacy, untuk backward compatibility)
+   */
+  static async publishNilai(
+    kelasId: string,
+    semesterId: string,
+    agendaId: string,
+    publishedBy?: string
+  ): Promise<void> {
+    try {
+      // Ambil semua nilai untuk agenda ini
+      const allNilai = await this.listNilai(kelasId, semesterId, { agendaId });
+
+      // Filter hanya nilai yang statusnya Locked
+      const nilaiToPublish = allNilai.filter(
+        n => n.status_nilai === 'Locked' || (!n.status_nilai && (n as any).locked_at)
+      );
+
+      if (nilaiToPublish.length === 0) {
+        throw new Error('Tidak ada nilai yang perlu dipublish (semua harus sudah dikunci)');
+      }
+
+      // Update semua nilai menjadi Published
+      const now = new Date().toISOString();
+      const nilaiIds = nilaiToPublish.map(n => n.id);
+
+      const { error } = await supabase
+        .from('akademik_nilai')
+        .update({
+          status_nilai: 'Published',
+          published_at: now,
+          published_by: publishedBy || null,
+        })
+        .in('id', nilaiIds);
+
+      if (error) {
+        console.error('[AkademikNilaiService] Error publishing nilai:', error);
+        throw error;
+      }
+    } catch (error: any) {
+      console.error('[AkademikNilaiService] Error in publishNilai:', {
+        kelasId,
+        semesterId,
+        agendaId,
+        error: error.message || error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get status nilai untuk kelas+term (bulk)
+   * Returns: 'Draft' | 'Locked' | 'Published' | 'Partial'
+   */
+  static async getStatusNilaiKelasTerm(
+    kelasId: string,
+    semesterId: string
+  ): Promise<'Draft' | 'Locked' | 'Published' | 'Partial'> {
+    try {
+      // Ambil semua jadwal untuk kelas+term
+      const { AkademikAgendaService } = await import('./akademikAgenda.service');
+      const agendas = await AkademikAgendaService.listAgenda({
+        kelasId,
+        semesterId,
+        aktifOnly: false, // Include all untuk cek status
+      });
+
+      if (agendas.length === 0) {
+        return 'Draft';
+      }
+
+      // Ambil semua nilai untuk kelas+term
+      const allNilai = await this.listNilai(kelasId, semesterId);
+
+      // Group nilai by agenda
+      const nilaiByAgenda = new Map<string, Nilai[]>();
+      for (const nilai of allNilai) {
+        const agendaId = nilai.agenda_id;
+        if (!nilaiByAgenda.has(agendaId)) {
+          nilaiByAgenda.set(agendaId, []);
+        }
+        nilaiByAgenda.get(agendaId)!.push(nilai);
+      }
+
+      // Check status per agenda
+      let hasDraft = false;
+      let hasLocked = false;
+      let hasPublished = false;
+      const agendaStatuses: string[] = [];
+
+      for (const agenda of agendas) {
+        const nilaiAgenda = nilaiByAgenda.get(agenda.id) || [];
+        
+        if (nilaiAgenda.length === 0) {
+          hasDraft = true;
+          agendaStatuses.push(`${agenda.mapel_nama || agenda.nama_agenda || 'Unknown'}: Draft (belum ada nilai)`);
+          continue;
+        }
+
+        const allPublished = nilaiAgenda.every(n => n.status_nilai === 'Published');
+        const allLocked = nilaiAgenda.every(n => n.status_nilai === 'Locked');
+        const hasDraftAgenda = nilaiAgenda.some(n => n.status_nilai === 'Draft' || !n.status_nilai);
+
+        if (allPublished) {
+          hasPublished = true;
+        } else if (allLocked && !hasDraftAgenda) {
+          hasLocked = true;
+        } else {
+          hasDraft = true;
+          agendaStatuses.push(`${agenda.mapel_nama || agenda.nama_agenda || 'Unknown'}: Draft`);
+        }
+      }
+
+      // Determine overall status
+      if (hasDraft && (hasLocked || hasPublished)) {
+        return 'Partial';
+      } else if (hasDraft) {
+        return 'Draft';
+      } else if (hasLocked && !hasPublished) {
+        return 'Locked';
+      } else if (hasPublished && !hasDraft && !hasLocked) {
+        return 'Published';
+      } else {
+        return 'Partial';
+      }
+    } catch (error: any) {
+      console.error('[AkademikNilaiService] Error in getStatusNilaiKelasTerm:', {
+        kelasId,
+        semesterId,
+        error: error.message || error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Publish semua nilai untuk kelas+term (bulk publish)
+   * Hanya bisa publish jika semua jadwal sudah LOCKED
+   */
+  static async publishNilaiKelasTerm(
+    kelasId: string,
+    semesterId: string,
+    publishedBy?: string
+  ): Promise<void> {
+    try {
+      // Validasi: semua jadwal harus sudah LOCKED
+      const status = await this.getStatusNilaiKelasTerm(kelasId, semesterId);
+      
+      if (status === 'Draft' || status === 'Partial') {
+        // Ambil detail jadwal yang belum locked untuk error message
+        const { AkademikAgendaService } = await import('./akademikAgenda.service');
+        const agendas = await AkademikAgendaService.listAgenda({
+          kelasId,
+          semesterId,
+          aktifOnly: false,
+        });
+
+        const allNilai = await this.listNilai(kelasId, semesterId);
+        const nilaiByAgenda = new Map<string, Nilai[]>();
+        for (const nilai of allNilai) {
+          const agendaId = nilai.agenda_id;
+          if (!nilaiByAgenda.has(agendaId)) {
+            nilaiByAgenda.set(agendaId, []);
+          }
+          nilaiByAgenda.get(agendaId)!.push(nilai);
+        }
+
+        const belumLocked: string[] = [];
+        for (const agenda of agendas) {
+          const nilaiAgenda = nilaiByAgenda.get(agenda.id) || [];
+          if (nilaiAgenda.length === 0) {
+            belumLocked.push(agenda.mapel_nama || agenda.nama_agenda || 'Unknown');
+          } else {
+            const hasDraft = nilaiAgenda.some(n => n.status_nilai === 'Draft' || !n.status_nilai);
+            if (hasDraft) {
+              belumLocked.push(agenda.mapel_nama || agenda.nama_agenda || 'Unknown');
+            }
+          }
+        }
+
+        throw new Error(
+          `Tidak dapat publish karena masih ada mapel yang belum dikunci: ${belumLocked.join(', ')}`
+        );
+      }
+
+      if (status === 'Published') {
+        throw new Error('Nilai untuk kelas ini sudah dipublish');
+      }
+
+      // Ambil semua nilai untuk kelas+term
+      const allNilai = await this.listNilai(kelasId, semesterId);
+
+      // Filter hanya nilai yang statusnya Locked (belum Published)
+      const nilaiToPublish = allNilai.filter(
+        n => n.status_nilai === 'Locked' || (!n.status_nilai && (n as any).locked_at)
+      );
+
+      if (nilaiToPublish.length === 0) {
+        throw new Error('Tidak ada nilai yang perlu dipublish');
+      }
+
+      // Update semua nilai menjadi Published
+      const now = new Date().toISOString();
+      const nilaiIds = nilaiToPublish.map(n => n.id);
+
+      const { error } = await supabase
+        .from('akademik_nilai')
+        .update({
+          status_nilai: 'Published',
+          published_at: now,
+          published_by: publishedBy || null,
+        })
+        .in('id', nilaiIds);
+
+      if (error) {
+        console.error('[AkademikNilaiService] Error publishing nilai:', error);
+        throw error;
+      }
+    } catch (error: any) {
+      console.error('[AkademikNilaiService] Error in publishNilaiKelasTerm:', {
+        kelasId,
+        semesterId,
+        error: error.message || error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * List nilai published untuk santri (untuk profil santri)
+   * Fallback: gunakan published_at jika status_nilai tidak ada
+   */
+  static async listNilaiPublished(
+    santriId: string,
+    semesterId?: string
+  ): Promise<Nilai[]> {
+    try {
+      let query = supabase
+        .from('akademik_nilai')
+        .select(
+          `
+          *,
+          santri:santri_id(id, nama_lengkap, id_santri),
+          kelas:kelas_id(id, nama_kelas, program),
+          agenda:agenda_id(
+            id,
+            nama_agenda,
+            mapel_nama,
+            mapel:mapel_id(id, nama_mapel),
+            pengajar_nama,
+            hari,
+            jam_mulai,
+            jam_selesai
+          )
+        `
+        )
+        .eq('santri_id', santriId)
+        .order('created_at', { ascending: false });
+
+      if (semesterId) {
+        query = query.eq('semester_id', semesterId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('[AkademikNilaiService] Error loading published nilai:', error);
+        throw error;
+      }
+
+      // Filter untuk nilai yang sudah published
+      // Fallback: jika status_nilai tidak ada, gunakan published_at
+      const publishedNilai = (data || []).filter((n: any) => {
+        // Jika ada status_nilai, gunakan itu
+        if (n.status_nilai) {
+          return n.status_nilai === 'Published';
+        }
+        // Fallback: gunakan published_at
+        return n.published_at !== null && n.published_at !== undefined;
+      }) as Nilai[];
+
+      return publishedNilai;
+    } catch (error: any) {
+      console.error('[AkademikNilaiService] Error in listNilaiPublished:', {
+        santriId,
+        semesterId,
         error: error.message || error,
       });
       throw error;

@@ -1,6 +1,12 @@
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, parseISO, eachMonthOfInterval } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
+import { 
+  excludeTabunganTransactions, 
+  applyTabunganExclusionFilter,
+  excludeKoperasiTransactions,
+  applyKoperasiExclusionFilter
+} from '@/utils/keuanganFilters';
 
 export interface UnifiedPenyaluranBantuan {
   id: string;
@@ -48,6 +54,12 @@ export interface MonthlyTrendData {
   total: number;
 }
 
+export interface MonthlyCashflowData {
+  month: string;
+  pemasukan: number;
+  pengeluaran: number;
+}
+
 export interface CategoryDistributionData {
   kategori: string;
   value: number;
@@ -84,104 +96,221 @@ export class PenyaluranBantuanService {
     const results: UnifiedPenyaluranBantuan[] = [];
 
     try {
-      // 1. Get financial allocations (alokasi_pengeluaran_santri)
+      // REVISI v2: Halaman "Laporan Keuangan Yayasan" harus menampilkan transaksi keuangan dari tabel keuangan
+      // TIDAK menampilkan baris per-santri dari alokasi_pengeluaran_santri
+      // Hanya menampilkan transaksi keuangan yang memiliki alokasi ke santri (untuk Bantuan Langsung)
+      // atau transaksi operasional yayasan
       if (!filters.jenis || filters.jenis === 'All' || filters.jenis === 'Finansial') {
-        let finansialQuery = supabase
-          .from('alokasi_pengeluaran_santri')
+        // REVISI v2: Ambil transaksi keuangan langsung, bukan alokasi per-santri
+        // Hanya untuk kategori yang memang dialokasikan ke santri (Bantuan Langsung)
+        let keuanganQuery = supabase
+          .from('keuangan')
           .select(`
             id,
-            nominal_alokasi,
-            jenis_bantuan,
-            periode,
-            keterangan,
-            alokasi_ke,
-            created_at,
+            tanggal,
+            kategori,
+            sub_kategori,
+            deskripsi,
+            jumlah,
+            akun_kas_id,
+            ledger,
+            source_module,
+            jenis_alokasi,
+            santri_id,
             santri:santri_id(
               id,
               nama_lengkap,
               nisn
-            ),
+            )
+          `)
+          .eq('jenis_transaksi', 'Pengeluaran')
+          .eq('status', 'posted')
+          .eq('ledger', 'UMUM') // CRITICAL: Only include transactions from general finance module
+          .order('tanggal', { ascending: false });
+
+        // Apply filters
+        if (filters.startDate) {
+          keuanganQuery = keuanganQuery.gte('tanggal', filters.startDate);
+        }
+        if (filters.endDate) {
+          keuanganQuery = keuanganQuery.lte('tanggal', filters.endDate);
+        }
+        if (filters.santri_id) {
+          keuanganQuery = keuanganQuery.eq('santri_id', filters.santri_id);
+        }
+        if (filters.kategori) {
+          keuanganQuery = keuanganQuery.eq('kategori', filters.kategori);
+        }
+
+        // Exclude tabungan and koperasi transactions
+        keuanganQuery = applyTabunganExclusionFilter(keuanganQuery);
+        keuanganQuery = applyKoperasiExclusionFilter(keuanganQuery);
+
+        const { data: keuanganData, error: keuanganError } = await keuanganQuery;
+
+        if (keuanganError) {
+          console.error('Error fetching keuangan data:', keuanganError);
+        } else {
+          // Filter out tabungan and koperasi transactions client-side (backup filtering)
+          const filteredKeuanganData = excludeKoperasiTransactions(excludeTabunganTransactions(keuanganData || []));
+
+          filteredKeuanganData.forEach((item: any) => {
+            // REVISI v2: Hanya tampilkan transaksi keuangan, bukan alokasi per-santri
+            // Untuk Bantuan Langsung, tampilkan jika ada santri_id langsung di transaksi
+            // Untuk kategori lain, tampilkan sebagai transaksi tanpa detail per-santri
+            
+            const kategori = item.kategori || 'Lain-lain';
+            
+            // Skip jika ini adalah kategori yang tidak relevan untuk laporan penyaluran
+            // (kecuali Bantuan Langsung dan Operasional Yayasan yang sudah ditangani di bagian lain)
+            if (kategori === 'Operasional Yayasan') {
+              // Akan ditangani di bagian operasional yayasan
+              return;
+            }
+
+            // Untuk Bantuan Langsung, tampilkan jika ada santri_id
+            if (kategori === 'Bantuan Langsung Yayasan' && item.santri_id) {
+              results.push({
+                id: item.id,
+                tanggal: item.tanggal,
+                santri_id: item.santri?.id || item.santri_id || '',
+                santri_nama: item.santri?.nama_lengkap || 'Tidak Diketahui',
+                santri_nisn: item.santri?.nisn || '',
+                jenis_bantuan: 'Finansial',
+                kategori: kategori,
+                detail: item.deskripsi || item.sub_kategori || kategori,
+                nominal: item.jumlah || 0,
+                sumber: 'Keuangan',
+                referensi_id: item.id,
+                created_at: item.tanggal,
+                kategori_keuangan: kategori,
+              });
+            } else if (kategori === 'Bantuan Langsung Yayasan' && !item.santri_id) {
+              // REVISI: Jika Bantuan Langsung tidak punya santri_id di keuangan,
+              // ambil dari alokasi_pengeluaran_santri (untuk transaksi lama)
+              // Ini hanya untuk backward compatibility
+              // TODO: Migrate old transactions to have santri_id in keuangan table
+            } else if (kategori !== 'Bantuan Langsung Yayasan' && kategori !== 'Operasional Yayasan') {
+              // Untuk kategori lain (Pendidikan Pesantren, Pendidikan Formal, Operasional dan Konsumsi Santri)
+              // Tampilkan sebagai transaksi tanpa detail per-santri (sesuai spec v2)
+              // TIDAK menampilkan baris per-santri dari alokasi
+              results.push({
+                id: item.id,
+                tanggal: item.tanggal,
+                // Tidak ada santri_id karena ini adalah transaksi keuangan, bukan alokasi per-santri
+                jenis_bantuan: 'Finansial',
+                kategori: kategori,
+                detail: item.deskripsi || item.sub_kategori || kategori,
+                nominal: item.jumlah || 0,
+                sumber: 'Keuangan',
+                referensi_id: item.id,
+                created_at: item.tanggal,
+                kategori_keuangan: kategori,
+              });
+            }
+          });
+        }
+        
+        // REVISI: Ambil Bantuan Langsung Yayasan dari alokasi_pengeluaran_santri
+        // untuk transaksi lama yang belum punya santri_id di tabel keuangan
+        // Hanya untuk kategori "Bantuan Langsung Yayasan"
+        // REVISI: Query alokasi dengan filter keuangan harus dilakukan dengan cara berbeda
+        // karena Supabase tidak support nested order/filter langsung
+        let alokasiQuery = supabase
+          .from('alokasi_pengeluaran_santri')
+          .select(`
+            id,
+            keuangan_id,
+            santri_id,
+            nominal_alokasi,
             keuangan:keuangan_id(
               id,
               tanggal,
               kategori,
-              sub_kategori
+              sub_kategori,
+              deskripsi,
+              jumlah,
+              ledger,
+              status
+            ),
+            santri:santri_id(
+              id,
+              nama_lengkap,
+              nisn
             )
-          `)
-          .order('created_at', { ascending: false });
-
-        // Apply filters - filter by keuangan.tanggal if available, otherwise created_at
-        // Note: We'll filter after fetching since we need to join with keuangan table
+          `);
+        
+        // Apply filters - filter by santri_id first (direct field)
         if (filters.santri_id) {
-          finansialQuery = finansialQuery.eq('santri_id', filters.santri_id);
+          alokasiQuery = alokasiQuery.eq('santri_id', filters.santri_id);
         }
-        // Note: kategori filter will be applied after mapping, since we map alokasi_ke to kategori
-
-        const { data: finansialData, error: finansialError } = await finansialQuery;
-
-        if (finansialError) {
-          console.error('Error fetching financial data:', finansialError);
+        
+        const { data: alokasiData, error: alokasiError } = await alokasiQuery;
+        
+        if (alokasiError) {
+          console.error('Error fetching alokasi data:', alokasiError);
         } else {
-          // Filter by date after fetching (since we need keuangan.tanggal)
-          const filteredFinansialData = (finansialData || []).filter((item: any) => {
-            const tanggal = item.keuangan?.tanggal || item.created_at;
-            if (filters.startDate && tanggal < filters.startDate) return false;
-            if (filters.endDate && tanggal > filters.endDate) return false;
+          // Filter client-side untuk kategori, ledger, status, dan tanggal
+          const filteredAlokasiData = (alokasiData || []).filter((item: any) => {
+            const keuangan = item.keuangan;
+            if (!keuangan) return false;
+            
+            // Filter by kategori
+            if (keuangan.kategori !== 'Bantuan Langsung Yayasan') return false;
+            
+            // Filter by ledger
+            if (keuangan.ledger !== 'UMUM') return false;
+            
+            // Filter by status
+            if (keuangan.status !== 'posted') return false;
+            
+            // Filter by date range
+            if (filters.startDate && keuangan.tanggal < filters.startDate) return false;
+            if (filters.endDate && keuangan.tanggal > filters.endDate) return false;
+            
             return true;
           });
-
-          filteredFinansialData.forEach((item: any) => {
-            // Map alokasi_ke dan kategori keuangan ke kategori yang lebih jelas
-            const kategoriKeuangan = item.keuangan?.kategori || '';
-            const alokasiKe = item.alokasi_ke;
+          
+          // Sort by tanggal descending
+          filteredAlokasiData.sort((a: any, b: any) => {
+            const dateA = new Date(a.keuangan.tanggal).getTime();
+            const dateB = new Date(b.keuangan.tanggal).getTime();
+            return dateB - dateA;
+          });
+          
+          filteredAlokasiData.forEach((item: any) => {
+            const keuangan = item.keuangan;
+            if (!keuangan || !item.santri) return;
             
-            // Tentukan kategori berdasarkan prioritas: kategori keuangan > alokasi_ke
-            let kategori = 'Lain-lain';
-            if (kategoriKeuangan) {
-              if (kategoriKeuangan === 'Pendidikan Pesantren' || kategoriKeuangan === 'Pendidikan Pesantren') {
-                kategori = 'Pendidikan Pesantren';
-              } else if (kategoriKeuangan === 'Pendidikan Formal') {
-                kategori = 'Pendidikan Formal';
-              } else if (kategoriKeuangan === 'Operasional dan Konsumsi Santri') {
-                kategori = 'Operasional dan Konsumsi Santri';
-              } else if (kategoriKeuangan === 'Bantuan Langsung Yayasan') {
-                kategori = 'Bantuan Langsung Yayasan';
-              } else {
-                // Fallback ke alokasi_ke jika kategori keuangan tidak jelas
-                if (alokasiKe === 'pesantren') kategori = 'Pendidikan Pesantren';
-                else if (alokasiKe === 'formal') kategori = 'Pendidikan Formal';
-                else if (alokasiKe === 'asrama_konsumsi') kategori = 'Operasional dan Konsumsi Santri';
-                else if (alokasiKe === 'bantuan_langsung') kategori = 'Bantuan Langsung Yayasan';
-              }
-            } else if (alokasiKe) {
-              // Jika tidak ada kategori keuangan, gunakan alokasi_ke
-              if (alokasiKe === 'pesantren') kategori = 'Pendidikan Pesantren';
-              else if (alokasiKe === 'formal') kategori = 'Pendidikan Formal';
-              else if (alokasiKe === 'asrama_konsumsi') kategori = 'Operasional dan Konsumsi Santri';
-              else if (alokasiKe === 'bantuan_langsung') kategori = 'Bantuan Langsung Yayasan';
+            // Skip if already added from keuangan query (with santri_id)
+            const alreadyAdded = results.some(r => 
+              r.referensi_id === keuangan.id && 
+              r.santri_id === item.santri.id
+            );
+            
+            if (!alreadyAdded) {
+              results.push({
+                id: `${keuangan.id}-${item.santri.id}`,
+                tanggal: keuangan.tanggal,
+                santri_id: item.santri.id || item.santri_id || '',
+                santri_nama: item.santri.nama_lengkap || 'Tidak Diketahui',
+                santri_nisn: item.santri.nisn || '',
+                jenis_bantuan: 'Finansial',
+                kategori: 'Bantuan Langsung Yayasan',
+                detail: keuangan.deskripsi || keuangan.sub_kategori || 'Bantuan Langsung Yayasan',
+                nominal: item.nominal_alokasi || 0,
+                sumber: 'Keuangan',
+                referensi_id: keuangan.id,
+                created_at: keuangan.tanggal,
+                kategori_keuangan: 'Bantuan Langsung Yayasan',
+              });
             }
-            
-            results.push({
-              id: item.id,
-              tanggal: item.keuangan?.tanggal || item.created_at,
-              santri_id: item.santri?.id || '',
-              santri_nama: item.santri?.nama_lengkap || 'Tidak Diketahui',
-              santri_nisn: item.santri?.nisn || '',
-              jenis_bantuan: 'Finansial',
-              kategori: kategori,
-              detail: item.keterangan || item.keuangan?.sub_kategori || item.jenis_bantuan || '',
-              nominal: item.nominal_alokasi || 0,
-              sumber: 'Keuangan',
-              referensi_id: item.keuangan?.id || item.id,
-              created_at: item.created_at,
-              alokasi_ke: alokasiKe,
-              kategori_keuangan: kategoriKeuangan,
-            });
           });
         }
       }
 
       // 2. Get Operasional Yayasan (pengeluaran yang tidak dialokasikan ke santri)
+      // CRITICAL: Filter by ledger='UMUM' to ensure only general finance module transactions are included
       if (!filters.jenis || filters.jenis === 'All' || filters.jenis === 'Finansial') {
         let operasionalQuery = supabase
           .from('keuangan')
@@ -192,11 +321,13 @@ export class PenyaluranBantuanService {
             sub_kategori,
             deskripsi,
             jumlah,
-            akun_kas_id
+            akun_kas_id,
+            ledger
           `)
           .eq('jenis_transaksi', 'Pengeluaran')
           .eq('kategori', 'Operasional Yayasan')
           .eq('status', 'posted')
+          .eq('ledger', 'UMUM') // CRITICAL: Only include transactions from general finance module
           .order('tanggal', { ascending: false });
 
         // Apply filters
@@ -568,6 +699,106 @@ export class PenyaluranBantuanService {
       .slice(0, limit);
 
     return result;
+  }
+
+  /**
+   * Get monthly cashflow data (Pemasukan vs Pengeluaran)
+   * Returns data sorted chronologically by month, filling missing months with 0
+   * Uses data from keuangan table (not assistance data)
+   */
+  static async getMonthlyCashflow(
+    filters: PenyaluranFilters = {}
+  ): Promise<MonthlyCashflowData[]> {
+    try {
+      // Determine date range from filters or use default (last 12 months)
+      let startDate: Date;
+      let endDate: Date;
+
+      if (filters.startDate && filters.endDate) {
+        startDate = parseISO(filters.startDate);
+        endDate = parseISO(filters.endDate);
+      } else {
+        // Default to last 12 months
+        const now = new Date();
+        endDate = endOfMonth(now);
+        startDate = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 11, 1));
+      }
+
+      // Query keuangan table for pemasukan and pengeluaran
+      // CRITICAL: Filter by ledger='UMUM' to ensure only general finance module transactions are included
+      let query = supabase
+        .from('keuangan')
+        .select(`
+          tanggal, 
+          jenis_transaksi, 
+          jumlah, 
+          source_module, 
+          akun_kas_id,
+          ledger,
+          akun_kas:akun_kas_id(nama, managed_by)
+        `)
+        .eq('ledger', 'UMUM') // CRITICAL: Only include transactions from general finance module
+        .gte('tanggal', format(startDate, 'yyyy-MM-dd'))
+        .lte('tanggal', format(endDate, 'yyyy-MM-dd'))
+        .eq('status', 'posted');
+
+      // Exclude tabungan santri transactions
+      query = applyTabunganExclusionFilter(query);
+      // Exclude koperasi transactions
+      query = applyKoperasiExclusionFilter(query);
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Filter out tabungan and koperasi transactions client-side (backup filtering)
+      // This is critical because client-side filtering can check akun_kas.managed_by which server-side filter cannot
+      const filteredData = excludeKoperasiTransactions(excludeTabunganTransactions(data || []));
+
+      // Group by month with chronological sorting
+      const monthlyMap: { [key: string]: { pemasukan: number; pengeluaran: number } } = {};
+
+      // Initialize all months in range with 0
+      const months = eachMonthOfInterval({
+        start: startDate,
+        end: endDate,
+      });
+
+      months.forEach((monthDate) => {
+        const monthKey = format(monthDate, 'yyyy-MM');
+        monthlyMap[monthKey] = { pemasukan: 0, pengeluaran: 0 };
+      });
+
+      // Process transactions
+      filteredData.forEach((transaction) => {
+        const date = parseISO(transaction.tanggal);
+        const monthKey = format(date, 'yyyy-MM');
+
+        if (monthlyMap[monthKey]) {
+          if (transaction.jenis_transaksi === 'Pemasukan') {
+            monthlyMap[monthKey].pemasukan += transaction.jumlah || 0;
+          } else if (transaction.jenis_transaksi === 'Pengeluaran') {
+            monthlyMap[monthKey].pengeluaran += transaction.jumlah || 0;
+          }
+        }
+      });
+
+      // Convert to chart format with chronological sorting
+      const result: MonthlyCashflowData[] = months.map((monthDate) => {
+        const monthKey = format(monthDate, 'yyyy-MM');
+        const monthData = monthlyMap[monthKey] || { pemasukan: 0, pengeluaran: 0 };
+
+        return {
+          month: format(monthDate, 'MMM yyyy', { locale: localeId }),
+          pemasukan: monthData.pemasukan,
+          pengeluaran: monthData.pengeluaran,
+        };
+      });
+
+      return result;
+    } catch (error) {
+      console.error('Error in getMonthlyCashflow:', error);
+      return [];
+    }
   }
 }
 

@@ -3,7 +3,7 @@
  * 
  * HANYA DIGUNAKAN UNTUK MODE "ADD" (Tambah Santri Baru)
  * 
- * Untuk view/edit profil santri, gunakan SantriProfileMinimal.tsx
+ * Untuk view/edit profil santri, gunakan SantriProfileRedesigned.tsx
  * yang sudah terintegrasi dengan modul tabungan dan fitur lainnya.
  * 
  * Route: /santri/add (mode="add")

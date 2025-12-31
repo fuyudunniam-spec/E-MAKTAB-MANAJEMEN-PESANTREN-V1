@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { AkademikSemesterService } from './akademikSemester.service';
 
 export interface AbsensiMadinInput {
   santri_id: string;
@@ -127,12 +128,54 @@ export class AbsensiMadinService {
     return data as AbsensiMadin | null;
   }
 
+  /**
+   * P0: Get absensi by pertemuan_id dan santri_id untuk prevent duplicate
+   */
+  static async getAbsensiByPertemuanSantri(
+    pertemuanId: string,
+    santriId: string
+  ): Promise<AbsensiMadin | null> {
+    if (!pertemuanId) return null;
+    
+    const { data, error } = await supabase
+      .from('absensi_madin')
+      .select('*')
+      .eq('pertemuan_id', pertemuanId)
+      .eq('santri_id', santriId)
+      .maybeSingle();
+    
+    if (error) throw error;
+    return data as AbsensiMadin | null;
+  }
+
   static async createAbsensi(input: AbsensiMadinInput): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
     
     // Validasi input
     if (!input.santri_id || !input.kelas_id || !input.tanggal || !input.status) {
       throw new Error('Data absensi tidak lengkap: santri_id, kelas_id, tanggal, dan status wajib diisi');
+    }
+    
+    // P0: Validasi lock semester
+    const { data: kelas } = await supabase
+      .from('kelas_master')
+      .select('semester_id')
+      .eq('id', input.kelas_id)
+      .single();
+    
+    if (kelas?.semester_id) {
+      const isLocked = await AkademikSemesterService.isSemesterLocked(kelas.semester_id);
+      if (isLocked) {
+        throw new Error('Semester terkunci, tidak dapat membuat presensi baru. Silakan unlock semester terlebih dahulu jika perlu koreksi.');
+      }
+    }
+    
+    // P0: Validasi duplicate berdasarkan pertemuan_id jika ada
+    if (input.pertemuan_id) {
+      const existing = await this.getAbsensiByPertemuanSantri(input.pertemuan_id, input.santri_id);
+      if (existing) {
+        throw new Error('Presensi untuk pertemuan ini sudah ada untuk santri ini');
+      }
     }
     
     // Build payload dengan hanya field yang valid
@@ -148,7 +191,7 @@ export class AbsensiMadinService {
     if (input.pengajar_id || user?.id) payload.pengajar_id = input.pengajar_id || user?.id;
     if (input.agenda_id) payload.agenda_id = input.agenda_id;
     
-    // Link ke jurnal pertemuan untuk sinkronisasi data
+    // Link ke jurnal pertemuan untuk sinkronisasi data (P0: wajib untuk prevent duplicate)
     if (input.pertemuan_id) payload.pertemuan_id = input.pertemuan_id;
     
     const { error } = await supabase
@@ -156,6 +199,10 @@ export class AbsensiMadinService {
       .insert(payload);
     
     if (error) {
+      // P0: Cek jika error karena duplicate constraint
+      if (error.code === '23505' || error.message?.includes('unique') || error.message?.includes('duplicate')) {
+        throw new Error('Presensi untuk pertemuan ini sudah ada untuk santri ini');
+      }
       console.error('[AbsensiMadinService] Error creating absensi:', {
         payload,
         error: error.message,
@@ -166,6 +213,23 @@ export class AbsensiMadinService {
   }
 
   static async updateAbsensi(id: string, input: Partial<AbsensiMadinInput>): Promise<void> {
+    // P0: Validasi lock semester
+    const { data: absensi } = await supabase
+      .from('absensi_madin')
+      .select('kelas_id, kelas:kelas_id(semester_id)')
+      .eq('id', id)
+      .single();
+    
+    if (absensi?.kelas_id) {
+      const semesterId = (absensi.kelas as any)?.semester_id;
+      if (semesterId) {
+        const isLocked = await AkademikSemesterService.isSemesterLocked(semesterId);
+        if (isLocked) {
+          throw new Error('Semester terkunci, tidak dapat mengubah presensi. Silakan unlock semester terlebih dahulu jika perlu koreksi.');
+        }
+      }
+    }
+    
     const payload: any = {};
     
     // Hanya update field yang ada di input dan ada di database schema

@@ -79,7 +79,12 @@ Deno.serve(async (req: Request) => {
     let body;
     try {
       body = await req.json();
-      console.log('[create-user] Request body received:', { email: body.email, full_name: body.full_name });
+      console.log('[create-user] Request body received:', { 
+        email: body.email, 
+        full_name: body.full_name,
+        roles: body.roles,
+        allowed_modules: body.allowed_modules,
+      });
     } catch (parseError) {
       console.error('[create-user] JSON parse error:', parseError);
       return createCorsResponse({ error: 'Invalid JSON in request body', details: String(parseError) }, 400);
@@ -90,6 +95,7 @@ Deno.serve(async (req: Request) => {
       password,
       full_name,
       roles: userRoles,
+      allowed_modules,
       create_pengajar = false,
       pengajar_nama,
       pengajar_kode,
@@ -136,21 +142,55 @@ Deno.serve(async (req: Request) => {
     await new Promise(resolve => setTimeout(resolve, 500));
 
     // Update profile (trigger already created it, but we want to ensure correct data)
-    const { error: profileError } = await supabaseAdmin
+    const profileUpdateData: any = {
+      id: userId,
+      email,
+      full_name,
+    };
+    
+    // Set allowed_modules only for staff (admin always null = full access)
+    if (userRoles.includes('staff')) {
+      // Staff: set allowed_modules if provided (can be null or array)
+      if (allowed_modules !== undefined) {
+        profileUpdateData.allowed_modules = allowed_modules;
+      } else {
+        // If not provided, set to null (should not happen due to validation, but handle gracefully)
+        profileUpdateData.allowed_modules = null;
+      }
+    } else {
+      // Admin, pengajar, santri: always null (admin = full access, others = fixed modules)
+      profileUpdateData.allowed_modules = null;
+    }
+    
+    console.log('[create-user] Setting allowed_modules:', {
+      userRoles,
+      allowed_modules_request: allowed_modules,
+      allowed_modules_set: profileUpdateData.allowed_modules,
+      isStaff: userRoles.includes('staff'),
+    });
+    
+    console.log('[create-user] Profile update data before upsert:', JSON.stringify(profileUpdateData, null, 2));
+    
+    const { error: profileError, data: profileData } = await supabaseAdmin
       .from('profiles')
-      .upsert({
-        id: userId,
-        email,
-        full_name,
-      }, {
-        onConflict: 'id'
-      });
+      .upsert(profileUpdateData, {
+        onConflict: 'id',
+      })
+      .select('id, email, allowed_modules');
 
     if (profileError) {
       console.error('[create-user] Failed to update profile:', profileError);
       await supabaseAdmin.auth.admin.deleteUser(userId);
       return createCorsResponse({ error: `Failed to update profile: ${profileError.message}`, details: profileError }, 400);
     }
+    
+    console.log('[create-user] Profile updated successfully:', {
+      profile_id: profileData?.[0]?.id,
+      email: profileData?.[0]?.email,
+      allowed_modules: profileData?.[0]?.allowed_modules,
+      allowed_modules_type: typeof profileData?.[0]?.allowed_modules,
+      allowed_modules_isArray: Array.isArray(profileData?.[0]?.allowed_modules),
+    });
 
     // Delete default 'santri' role created by trigger (if user doesn't want it)
     // Then insert the actual roles requested

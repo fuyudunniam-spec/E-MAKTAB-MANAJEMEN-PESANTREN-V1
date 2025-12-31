@@ -77,7 +77,8 @@ Deno.serve(async (req: Request) => {
 
     // Parse request body
     const body = await req.json();
-    const { user_id, email, password, full_name, roles: userRoles } = body;
+    console.log('[update-user] Full request body received:', JSON.stringify(body, null, 2));
+    const { user_id, email, password, full_name, roles: userRoles, allowed_modules } = body;
 
     if (!user_id) {
       return createCorsResponse({ error: 'user_id is required' }, 400);
@@ -103,12 +104,58 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Update profile
+    // Update profile - always check allowed_modules if provided, even if other fields are not being updated
+    const profileUpdateData: any = {};
+    
     if (full_name !== undefined) {
-      const { error: profileError } = await supabaseAdmin
+      profileUpdateData.full_name = full_name;
+    }
+    
+    // Handle allowed_modules: ALWAYS process if key exists in body
+    // This is critical - we need to check if the key exists, not just if value is defined
+    // because null is a valid value that should be processed
+    if ('allowed_modules' in body) {
+      // Check if user will be staff (either already is, or roles are being updated)
+      let isOrWillBeStaff = false;
+      
+      if (userRoles !== undefined) {
+        // Roles are being updated - check if staff is in new roles
+        isOrWillBeStaff = userRoles.includes('staff');
+      } else {
+        // Roles not being updated - check current roles
+        const { data: currentRoles } = await supabaseAdmin
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user_id);
+        isOrWillBeStaff = currentRoles?.some(r => r.role === 'staff') || false;
+      }
+      
+      console.log('[update-user] Processing allowed_modules:', {
+        user_id,
+        allowed_modules_request: allowed_modules,
+        allowed_modules_in_body: 'allowed_modules' in body,
+        isOrWillBeStaff,
+        userRoles,
+      });
+      
+      if (isOrWillBeStaff) {
+        // Staff: set allowed_modules (can be array or null)
+        profileUpdateData.allowed_modules = allowed_modules;
+        console.log('[update-user] Setting allowed_modules for staff:', allowed_modules);
+      } else {
+        // Not staff - always null (admin = full access, others = fixed modules)
+        profileUpdateData.allowed_modules = null;
+        console.log('[update-user] Clearing allowed_modules (not staff)');
+      }
+    }
+
+    if (Object.keys(profileUpdateData).length > 0) {
+      console.log('[update-user] Updating profile with data:', JSON.stringify(profileUpdateData, null, 2));
+      const { error: profileError, data: profileData } = await supabaseAdmin
         .from('profiles')
-        .update({ full_name })
-        .eq('id', user_id);
+        .update(profileUpdateData)
+        .eq('id', user_id)
+        .select('id, email, allowed_modules');
 
       if (profileError) {
         console.error('[update-user] Failed to update profile:', profileError);
@@ -117,6 +164,10 @@ Deno.serve(async (req: Request) => {
           details: profileError 
         }, 400);
       }
+      
+      console.log('[update-user] Profile updated successfully:', JSON.stringify(profileData, null, 2));
+    } else {
+      console.log('[update-user] No profile data to update');
     }
 
     // Update roles

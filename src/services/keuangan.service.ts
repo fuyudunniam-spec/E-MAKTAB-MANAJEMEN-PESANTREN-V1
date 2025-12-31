@@ -5,6 +5,7 @@ import {
   excludeTabunganAccounts,
   isTabunganAccount,
   excludeKoperasiTransactions,
+  applyKoperasiExclusionFilter,
   excludeKoperasiAccounts,
   isKoperasiAccount
 } from '@/utils/keuanganFilters';
@@ -683,3 +684,139 @@ export async function getDuplicateKeuanganReport(): Promise<unknown[]> {
     throw error;
   }
 }
+
+/**
+ * Get financial statistics for a specific date range (for Laporan Keuangan Yayasan)
+ */
+export interface FinancialStatsByDateRange {
+  totalSaldo: number;
+  pemasukan: number;
+  pengeluaran: number;
+  totalPemasukanTransaksi: number;
+  totalPengeluaranTransaksi: number;
+  danaTerikat: number;
+  danaTidakTerikat: number;
+  pemasukanTrend: number;
+  pengeluaranTrend: number;
+}
+
+export const getFinancialStatsByDateRange = async (
+  startDate: string,
+  endDate: string
+): Promise<FinancialStatsByDateRange> => {
+  try {
+    // Get total saldo (current, not filtered by date)
+    const { data: allAkun, error: allAkunError } = await supabase
+      .from('akun_kas')
+      .select('saldo_saat_ini, managed_by')
+      .eq('status', 'aktif');
+    
+    if (allAkunError) {
+      console.error('Error fetching all akun kas:', allAkunError);
+      throw allAkunError;
+    }
+    
+    // Filter out koperasi and tabungan accounts
+    const filteredAkun = excludeKoperasiAccounts(excludeTabunganAccounts(allAkun));
+    
+    // Calculate total saldo
+    // Note: fund_type column doesn't exist, so all funds are considered tidak_terikat
+    let totalSaldo = 0;
+    const danaTerikat = 0;
+    let danaTidakTerikat = 0;
+    
+    filteredAkun.forEach(akun => {
+      const saldo = akun.saldo_saat_ini || 0;
+      totalSaldo += saldo;
+      // Since fund_type doesn't exist, all funds are tidak_terikat
+      danaTidakTerikat += saldo;
+    });
+    
+    // Get transactions in date range
+    let query = supabase
+      .from('keuangan')
+      .select('*, akun_kas(managed_by)')
+      .eq('status', 'posted')
+      .eq('ledger', 'UMUM')
+      .gte('tanggal', startDate)
+      .lte('tanggal', endDate);
+    
+    // Exclude tabungan and koperasi
+    query = applyTabunganExclusionFilter(query);
+    query = applyKoperasiExclusionFilter(query);
+    
+    const { data: transactions, error: transactionsError } = await query;
+    
+    if (transactionsError) {
+      console.error('Error fetching transactions:', transactionsError);
+      throw transactionsError;
+    }
+    
+    // Filter client-side (backup)
+    const filteredTransactions = excludeKoperasiTransactions(
+      excludeTabunganTransactions(transactions || [])
+    );
+    
+    // Calculate stats
+    const pemasukanTransactions = filteredTransactions.filter(t => t.jenis_transaksi === 'Pemasukan');
+    const pengeluaranTransactions = filteredTransactions.filter(t => t.jenis_transaksi === 'Pengeluaran');
+    
+    const pemasukan = pemasukanTransactions.reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+    const pengeluaran = pengeluaranTransactions.reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+    
+    // Calculate previous period for trend (same duration before startDate)
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const duration = end.getTime() - start.getTime();
+    const prevStart = new Date(start.getTime() - duration);
+    const prevEnd = new Date(start.getTime() - 1);
+    
+    let prevQuery = supabase
+      .from('keuangan')
+      .select('*, akun_kas(managed_by)')
+      .eq('status', 'posted')
+      .eq('ledger', 'UMUM')
+      .gte('tanggal', prevStart.toISOString().split('T')[0])
+      .lte('tanggal', prevEnd.toISOString().split('T')[0]);
+    
+    prevQuery = applyTabunganExclusionFilter(prevQuery);
+    prevQuery = applyKoperasiExclusionFilter(prevQuery);
+    
+    const { data: prevTransactions, error: prevError } = await prevQuery;
+    
+    let pemasukanTrend = 0;
+    let pengeluaranTrend = 0;
+    
+    if (!prevError && prevTransactions) {
+      const filteredPrevTransactions = excludeKoperasiTransactions(
+        excludeTabunganTransactions(prevTransactions)
+      );
+      
+      const prevPemasukan = filteredPrevTransactions
+        .filter(t => t.jenis_transaksi === 'Pemasukan')
+        .reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+      
+      const prevPengeluaran = filteredPrevTransactions
+        .filter(t => t.jenis_transaksi === 'Pengeluaran')
+        .reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+      
+      pemasukanTrend = calculateTrend(pemasukan, prevPemasukan);
+      pengeluaranTrend = calculateTrend(pengeluaran, prevPengeluaran);
+    }
+    
+    return {
+      totalSaldo,
+      pemasukan,
+      pengeluaran,
+      totalPemasukanTransaksi: pemasukanTransactions.length,
+      totalPengeluaranTransaksi: pengeluaranTransactions.length,
+      danaTerikat,
+      danaTidakTerikat,
+      pemasukanTrend,
+      pengeluaranTrend,
+    };
+  } catch (error) {
+    console.error('Error in getFinancialStatsByDateRange:', error);
+    throw error;
+  }
+};

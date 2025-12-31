@@ -36,6 +36,8 @@ export interface Semester extends SemesterInput {
   id: string;
   created_at: string;
   updated_at: string;
+  is_locked?: boolean;
+  unlocked_until?: string | null;
   tahun_ajaran?: TahunAjaran | null;
 }
 
@@ -168,6 +170,85 @@ export class AkademikSemesterService {
   static async duplicateStructure(params: { source_semester_id: string; target_semester_id: string }): Promise<void> {
     const { error } = await supabase.rpc('fn_duplicate_semester_structure', params);
     if (error) throw error;
+  }
+
+  /**
+   * P0: Lock semester untuk mencegah perubahan jurnal/presensi/nilai
+   */
+  static async lockSemester(semesterId: string): Promise<void> {
+    const { error } = await supabase
+      .from('akademik_semester')
+      .update({
+        is_locked: true,
+        unlocked_until: null, // Clear any temporary unlock
+      })
+      .eq('id', semesterId);
+
+    if (error) {
+      console.error('[AkademikSemesterService] Error locking semester:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * P0: Unlock semester (untuk koreksi)
+   * @param semesterId ID semester
+   * @param unlockedUntil Optional: timestamp sampai kapan unlock (null = permanent unlock)
+   */
+  static async unlockSemester(semesterId: string, unlockedUntil?: Date): Promise<void> {
+    const { error } = await supabase
+      .from('akademik_semester')
+      .update({
+        is_locked: false,
+        unlocked_until: unlockedUntil ? unlockedUntil.toISOString() : null,
+      })
+      .eq('id', semesterId);
+
+    if (error) {
+      console.error('[AkademikSemesterService] Error unlocking semester:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * P0: Check if semester is currently locked
+   * Returns true if locked AND not in temporary unlock period
+   */
+  static async isSemesterLocked(semesterId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('akademik_semester')
+      .select('is_locked, unlocked_until')
+      .eq('id', semesterId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[AkademikSemesterService] Error checking lock status:', error);
+      throw error;
+    }
+
+    if (!data) {
+      return false; // If semester doesn't exist, consider it unlocked
+    }
+
+    // If not locked, return false
+    if (!data.is_locked) {
+      return false;
+    }
+
+    // If locked but has temporary unlock, check if still in unlock period
+    if (data.unlocked_until) {
+      const now = new Date();
+      const unlockedUntil = new Date(data.unlocked_until);
+      // If current time is before unlock_until, then it's unlocked (return false)
+      if (now < unlockedUntil) {
+        return false;
+      }
+      // If unlock_until has passed, it's locked again
+      return true;
+    }
+
+    // Locked without temporary unlock
+    return true;
   }
 }
 

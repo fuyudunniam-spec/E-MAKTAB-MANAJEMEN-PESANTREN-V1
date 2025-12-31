@@ -17,7 +17,8 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { BookOpen, Save, RefreshCw, CheckCircle2, XCircle, AlertCircle, Users, Search, GraduationCap } from 'lucide-react';
+import { BookOpen, Save, RefreshCw, CheckCircle2, XCircle, AlertCircle, Users, Search, GraduationCap, Lock, Unlock, Eye, Alert } from 'lucide-react';
+import { Alert as AlertComponent, AlertDescription } from '@/components/ui/alert';
 
 interface AnggotaKelas {
   id: string;
@@ -65,8 +66,24 @@ const InputNilaiPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [loadingKehadiran, setLoadingKehadiran] = useState(false);
 
+  // Status nilai untuk konteks kelas+term+jadwal
+  const [statusNilai, setStatusNilai] = useState<'Draft' | 'Locked' | 'Published' | null>(null);
+  const [kelasStatusNilai, setKelasStatusNilai] = useState<'Draft' | 'Locked' | 'Published' | 'Partial' | null>(null);
+  const [loadingStatus, setLoadingStatus] = useState(false);
+  const [locking, setLocking] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishingBulk, setPublishingBulk] = useState(false);
+  const [statusError, setStatusError] = useState<string>('');
+
+  // Dialog konfirmasi
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'lock' | 'publish' | 'publishBulk' | null>(null);
+
   const selectedKelas = classes.find(k => k.id === kelasId);
   const selectedAgendaObj = agendas.find(a => a.id === selectedAgendaId);
+  const isAdmin = user?.role === 'admin' || user?.roles?.includes('admin');
+  const isStaff = user?.role === 'staff' || user?.roles?.includes('staff');
+  const isAdminOrStaff = isAdmin || isStaff;
 
   // Load pengajar_id jika user adalah pengajar
   useEffect(() => {
@@ -131,15 +148,20 @@ const InputNilaiPage: React.FC = () => {
     }
   }, [isPengajar, pengajarId, semesters, kelasId]);
 
-  const loadAgendas = useCallback(async (kelasIdParam?: string) => {
+  const loadAgendas = useCallback(async (kelasIdParam?: string, semesterIdParam?: string) => {
     try {
-      if (!kelasIdParam) {
+      if (!kelasIdParam || !semesterIdParam) {
         setAgendas([]);
         return;
       }
 
-      const list = await AkademikAgendaService.listAgenda(kelasIdParam);
-      setAgendas(list.filter(a => a.aktif));
+      // Filter agenda by kelas_id and semester_id
+      const list = await AkademikAgendaService.listAgenda({
+        kelasId: kelasIdParam,
+        semesterId: semesterIdParam,
+        aktifOnly: true
+      });
+      setAgendas(list);
       
       if (list.length > 0 && selectedAgendaId === 'all') {
         // Bisa set default agenda jika diperlukan
@@ -220,6 +242,88 @@ const InputNilaiPage: React.FC = () => {
     }
   }, [kelasId, selectedSemesterId, selectedAgendaId]);
 
+  // Load status nilai untuk kelas+term (bulk) - untuk mode "all"
+  const loadKelasStatusNilai = useCallback(async () => {
+    if (!kelasId || !selectedSemesterId || selectedAgendaId !== 'all') {
+      setKelasStatusNilai(null);
+      return;
+    }
+
+    try {
+      setLoadingStatus(true);
+      setStatusError('');
+      const status = await AkademikNilaiService.getStatusNilaiKelasTerm(kelasId, selectedSemesterId);
+      setKelasStatusNilai(status);
+    } catch (error: any) {
+      console.error('Error loading kelas status nilai:', error);
+      setStatusError('Gagal memuat status nilai kelas');
+      setKelasStatusNilai(null);
+    } finally {
+      setLoadingStatus(false);
+    }
+  }, [kelasId, selectedSemesterId, selectedAgendaId]);
+
+  // Load status nilai untuk konteks kelas+term+jadwal
+  const loadStatusNilai = useCallback(async () => {
+    if (!kelasId || !selectedSemesterId || !selectedAgendaId || selectedAgendaId === 'all') {
+      setStatusNilai(null);
+      return;
+    }
+
+    try {
+      setLoadingStatus(true);
+      setStatusError('');
+      const list = await AkademikNilaiService.listNilai(kelasId, selectedSemesterId, {
+        agendaId: selectedAgendaId,
+      });
+      
+      // Tentukan status dengan fallback yang lebih robust
+      // Jika semua nilai sudah Published, status = Published
+      // Jika semua nilai sudah Locked (atau mix Locked/Published), status = Locked
+      // Jika ada yang Draft atau belum ada nilai, status = Draft
+      if (list.length === 0) {
+        setStatusNilai('Draft');
+      } else {
+        // Check dengan fallback: jika status_nilai tidak ada, cek published_at/locked_at
+        const allPublished = list.every(n => {
+          if (n.status_nilai === 'Published') return true;
+          if (!n.status_nilai && (n as any).published_at) return true;
+          if (!n.status_nilai && (n as any).is_published) return true;
+          return false;
+        });
+        const allLockedOrPublished = list.every(n => {
+          if (n.status_nilai === 'Locked' || n.status_nilai === 'Published') return true;
+          if (!n.status_nilai && ((n as any).locked_at || (n as any).is_locked)) return true;
+          if (!n.status_nilai && ((n as any).published_at || (n as any).is_published)) return true;
+          return false;
+        });
+        const hasDraft = list.some(n => {
+          if (n.status_nilai === 'Draft' || !n.status_nilai) {
+            // Jika tidak ada flag lain, berarti Draft
+            if (!(n as any).published_at && !(n as any).is_published && !(n as any).locked_at && !(n as any).is_locked) {
+              return true;
+            }
+          }
+          return false;
+        });
+        
+        if (allPublished) {
+          setStatusNilai('Published');
+        } else if (allLockedOrPublished && !hasDraft) {
+          setStatusNilai('Locked');
+        } else {
+          setStatusNilai('Draft');
+        }
+      }
+    } catch (error: any) {
+      console.error('Error loading status nilai:', error);
+      setStatusError('Gagal memuat status nilai');
+      setStatusNilai(null);
+    } finally {
+      setLoadingStatus(false);
+    }
+  }, [kelasId, selectedSemesterId, selectedAgendaId]);
+
   // Load data saat filter berubah
   useEffect(() => {
     loadSemesters();
@@ -232,12 +336,16 @@ const InputNilaiPage: React.FC = () => {
   }, [selectedSemesterId, loadClasses]);
 
   useEffect(() => {
-    if (kelasId) {
-      loadAgendas(kelasId);
+    if (kelasId && selectedSemesterId) {
+      loadAgendas(kelasId, selectedSemesterId);
       loadAnggotaKelas(kelasId);
       loadNilai();
     }
-  }, [kelasId, loadAgendas, loadAnggotaKelas, loadNilai]);
+  }, [kelasId, selectedSemesterId, loadAgendas, loadAnggotaKelas, loadNilai]);
+
+  useEffect(() => {
+    loadStatusNilai();
+  }, [loadStatusNilai]);
 
   // Load kehadiran untuk semua santri saat anggota kelas berubah
   useEffect(() => {
@@ -309,10 +417,14 @@ const InputNilaiPage: React.FC = () => {
         return;
       }
 
-      // Validasi: jika kehadiran < 60%, tidak bisa input nilai
-      if (kehadiran.persentase_kehadiran < 60) {
+      // P0: Validasi: jika kehadiran < 75%, tidak bisa input nilai (diubah dari 60% menjadi 75%)
+      // Tapi jika nilai sudah locked/published, tetap bisa lihat (read-only)
+      const nilaiLama = getNilaiForSantri(santri.id, agenda.id);
+      const isLockedOrPublished = nilaiLama?.status_nilai === 'Locked' || nilaiLama?.status_nilai === 'Published';
+      
+      if (kehadiran.persentase_kehadiran < 75 && !isLockedOrPublished) {
         toast.error(
-          `Tidak dapat input nilai karena kehadiran kurang dari 60%. Kehadiran saat ini: ${kehadiran.persentase_kehadiran.toFixed(2)}%`
+          `Tidak dapat input nilai karena kehadiran kurang dari 75%. Kehadiran saat ini: ${kehadiran.persentase_kehadiran.toFixed(2)}%`
         );
         return;
       }
@@ -322,9 +434,6 @@ const InputNilaiPage: React.FC = () => {
         ...prev,
         [santri.id]: kehadiran,
       }));
-
-      // Cek apakah sudah ada nilai
-      const nilaiLama = getNilaiForSantri(santri.id, agenda.id);
       
       setSelectedSantri(santri);
       setSelectedAgenda(agenda);
@@ -379,10 +488,73 @@ const InputNilaiPage: React.FC = () => {
         catatan: '',
       });
       await loadNilai();
+      await loadStatusNilai(); // Refresh status setelah save
     } catch (error: any) {
       toast.error(error.message || 'Gagal menyimpan nilai');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Handle lock nilai
+  const handleLockNilai = async () => {
+    if (!kelasId || !selectedSemesterId || !selectedAgendaId || selectedAgendaId === 'all') {
+      toast.error('Pilih kelas dan jadwal terlebih dahulu');
+      return;
+    }
+
+    setLocking(true);
+    setStatusError('');
+    try {
+      await AkademikNilaiService.lockNilai(kelasId, selectedSemesterId, selectedAgendaId);
+      toast.success('Nilai berhasil dikunci');
+      await loadNilai();
+      await loadStatusNilai();
+      setConfirmDialogOpen(false);
+    } catch (error: any) {
+      setStatusError(error.message || 'Gagal mengunci nilai');
+      toast.error(error.message || 'Gagal mengunci nilai');
+    } finally {
+      setLocking(false);
+    }
+  };
+
+  // Handle publish nilai
+  const handlePublishNilai = async () => {
+    if (!kelasId || !selectedSemesterId || !selectedAgendaId || selectedAgendaId === 'all') {
+      toast.error('Pilih kelas dan jadwal terlebih dahulu');
+      return;
+    }
+
+    setPublishing(true);
+    setStatusError('');
+    try {
+      await AkademikNilaiService.publishNilai(kelasId, selectedSemesterId, selectedAgendaId);
+      toast.success('Nilai berhasil dipublish');
+      await loadNilai();
+      await loadStatusNilai();
+      setConfirmDialogOpen(false);
+    } catch (error: any) {
+      setStatusError(error.message || 'Gagal mempublish nilai');
+      toast.error(error.message || 'Gagal mempublish nilai');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  // Get status badge
+  const getStatusBadge = (status: 'Draft' | 'Locked' | 'Published' | null) => {
+    if (!status) return null;
+    
+    switch (status) {
+      case 'Draft':
+        return <Badge variant="outline" className="bg-gray-50 text-gray-700">Draft</Badge>;
+      case 'Locked':
+        return <Badge className="bg-yellow-100 text-yellow-800">Locked</Badge>;
+      case 'Published':
+        return <Badge className="bg-green-100 text-green-800">Published</Badge>;
+      default:
+        return null;
     }
   };
 
@@ -417,9 +589,9 @@ const InputNilaiPage: React.FC = () => {
     }
   }, [formData.nilai_angka]);
 
-  // Get status badge untuk kehadiran
+  // Get status badge untuk kehadiran (P0: threshold 75%)
   const getKehadiranBadge = (persentase: number) => {
-    if (persentase >= 60) {
+    if (persentase >= 75) {
       return <Badge className="bg-green-100 text-green-800">{persentase.toFixed(2)}%</Badge>;
     } else {
       return <Badge className="bg-red-100 text-red-800">{persentase.toFixed(2)}%</Badge>;
@@ -437,17 +609,60 @@ const InputNilaiPage: React.FC = () => {
     return <Badge className="bg-red-100 text-red-800">Tidak Lulus</Badge>;
   };
 
+  // Computed status untuk display (selalu ada, tidak null)
+  const computedStatus: 'Draft' | 'Locked' | 'Published' | 'Partial' | '—' = 
+    selectedAgendaId === 'all' && kelasId && selectedSemesterId && kelasStatusNilai
+      ? kelasStatusNilai
+      : (selectedAgendaId !== 'all' && kelasId && selectedSemesterId && statusNilai)
+      ? statusNilai
+      : '—';
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <GraduationCap className="w-5 h-5" />
-            Input Nilai
-          </CardTitle>
-          <CardDescription>
-            Input nilai per santri per mata pelajaran dengan validasi kehadiran minimum 60%
-          </CardDescription>
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <CardTitle className="flex items-center gap-2">
+                <GraduationCap className="w-5 h-5" />
+                Input Nilai
+                <Badge variant="outline" className="ml-2 text-xs bg-blue-50 text-blue-700 border-blue-200">
+                  UI: NILAI_WORKFLOW_V2
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Input nilai per santri per mata pelajaran dengan validasi kehadiran minimum 75%
+              </CardDescription>
+            </div>
+            {/* Badge status SELALU tampil */}
+            <div className="flex items-center gap-2">
+              {computedStatus !== '—' ? (
+                computedStatus === 'Partial' ? (
+                  <Badge variant="outline" className="bg-yellow-50 text-yellow-800">Partial (Beberapa Locked)</Badge>
+                ) : (
+                  getStatusBadge(computedStatus as 'Draft' | 'Locked' | 'Published')
+                )
+              ) : (
+                <Badge variant="outline" className="bg-gray-50 text-gray-500">—</Badge>
+              )}
+            </div>
+          </div>
+          {statusError && (
+            <AlertComponent variant="destructive" className="mt-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{statusError}</AlertDescription>
+            </AlertComponent>
+          )}
+          {/* Debug strip sementara */}
+          <div className="mt-2 p-2 bg-gray-50 rounded text-xs font-mono space-y-1">
+            <div><strong>DEBUG:</strong></div>
+            <div>Role: {isPengajar ? 'Pengajar' : isAdminOrStaff ? 'Admin/Staff' : 'Unknown'}</div>
+            <div>selectedSemesterId: {selectedSemesterId || 'null'}</div>
+            <div>kelasId: {kelasId || 'null'}</div>
+            <div>selectedAgendaId: {selectedAgendaId || 'null'}</div>
+            <div>computedStatus: {computedStatus}</div>
+            <div>statusNilai (raw): {statusNilai || 'null'}</div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Filter */}
@@ -518,6 +733,128 @@ const InputNilaiPage: React.FC = () => {
               />
             </div>
           </div>
+
+          {/* Aksi Lock/Publish - SELALU tampil */}
+          <div className="border-t pt-4 mt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                {/* Helper text jika konteks belum lengkap */}
+                {(!selectedSemesterId || !kelasId || selectedAgendaId === 'all') && (
+                  <div className="space-y-1">
+                    <Button variant="outline" disabled className="w-full sm:w-auto">
+                      <Lock className="w-4 h-4 mr-2" />
+                      Kunci Nilai
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      {!selectedSemesterId && !kelasId && selectedAgendaId === 'all'
+                        ? 'Pilih semester, kelas, dan jadwal terlebih dahulu'
+                        : !selectedSemesterId
+                        ? 'Pilih semester terlebih dahulu'
+                        : !kelasId
+                        ? 'Pilih kelas terlebih dahulu'
+                        : 'Pilih jadwal (bukan "Semua Mapel") terlebih dahulu'}
+                    </p>
+                  </div>
+                )}
+
+                {/* UI untuk konteks lengkap */}
+                {selectedSemesterId && kelasId && selectedAgendaId !== 'all' && (
+                  <>
+                    {isPengajar && (
+                      <>
+                        {computedStatus === 'Draft' && (
+                          <div className="space-y-2">
+                            <Button
+                              onClick={() => {
+                                setConfirmAction('lock');
+                                setConfirmDialogOpen(true);
+                              }}
+                              disabled={locking || loadingStatus}
+                              className="w-full sm:w-auto"
+                            >
+                              <Lock className="w-4 h-4 mr-2" />
+                              {locking ? 'Mengunci...' : 'Kunci Nilai'}
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                              Setelah dikunci, nilai tidak dapat diubah oleh pengajar
+                            </p>
+                          </div>
+                        )}
+                        {(computedStatus === 'Locked' || computedStatus === 'Published') && (
+                          <div className="space-y-1">
+                            <Button variant="outline" disabled className="w-full sm:w-auto">
+                              <Lock className="w-4 h-4 mr-2" />
+                              Nilai Sudah Dikunci
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                              {computedStatus === 'Locked' 
+                                ? 'Nilai sudah dikunci. Menunggu admin/staff untuk publish.'
+                                : 'Nilai sudah dipublish dan tampil di profil santri.'}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {isAdminOrStaff && (
+                      <>
+                        {computedStatus === 'Locked' && (
+                          <div className="space-y-2">
+                            <Button
+                              onClick={() => {
+                                setConfirmAction('publish');
+                                setConfirmDialogOpen(true);
+                              }}
+                              disabled={publishing || loadingStatus}
+                              className="w-full sm:w-auto"
+                            >
+                              <Eye className="w-4 h-4 mr-2" />
+                              {publishing ? 'Mempublish...' : 'Publish Nilai'}
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                              Setelah dipublish, nilai akan tampil di profil santri
+                            </p>
+                          </div>
+                        )}
+                        {computedStatus === 'Draft' && (
+                          <div className="space-y-1">
+                            <Button variant="outline" disabled className="w-full sm:w-auto">
+                              <Eye className="w-4 h-4 mr-2" />
+                              Publish Nilai
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                              Menunggu pengajar mengunci nilai terlebih dahulu
+                            </p>
+                          </div>
+                        )}
+                        {computedStatus === 'Published' && (
+                          <div className="space-y-1">
+                            <Badge className="bg-green-100 text-green-800">
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              Sudah dipublish
+                            </Badge>
+                            <p className="text-xs text-muted-foreground">
+                              Nilai sudah tampil di profil santri
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {!isPengajar && !isAdminOrStaff && (
+                      <div className="space-y-1">
+                        <Button variant="outline" disabled className="w-full sm:w-auto">
+                          <Lock className="w-4 h-4 mr-2" />
+                          Kunci/Publish Nilai
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Hanya pengajar dan admin/staff yang dapat mengunci/mempublish nilai
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -535,7 +872,7 @@ const InputNilaiPage: React.FC = () => {
           <CardHeader>
             <CardTitle>Daftar Nilai</CardTitle>
             <CardDescription>
-              Klik pada sel untuk input atau edit nilai. Kehadiran minimum 60% diperlukan untuk input nilai.
+              Klik pada sel untuk input atau edit nilai. Kehadiran minimum 75% diperlukan untuk input nilai.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -599,12 +936,25 @@ const InputNilaiPage: React.FC = () => {
                                     variant="outline"
                                     className="w-full mt-2"
                                     onClick={() => handleOpenInputNilai(santri, agenda)}
-                                    disabled={loadingKehadiran || (kehadiranMap[santri.id] && kehadiranMap[santri.id].persentase_kehadiran < 60)}
-                                    title={kehadiranMap[santri.id] && kehadiranMap[santri.id].persentase_kehadiran < 60 
-                                      ? `Kehadiran kurang dari 60% (${kehadiranMap[santri.id].persentase_kehadiran.toFixed(2)}%)`
-                                      : ''}
+                                    disabled={
+                                      loadingKehadiran || 
+                                      (kehadiranMap[santri.id] && kehadiranMap[santri.id].persentase_kehadiran < 75 && nilai?.status_nilai !== 'Locked' && nilai?.status_nilai !== 'Published') ||
+                                      nilai?.status_nilai === 'Locked' ||
+                                      nilai?.status_nilai === 'Published'
+                                    }
+                                    title={
+                                      nilai?.status_nilai === 'Locked' || nilai?.status_nilai === 'Published'
+                                        ? 'Nilai sudah dikunci/dipublish, tidak dapat diubah'
+                                        : kehadiranMap[santri.id] && kehadiranMap[santri.id].persentase_kehadiran < 75 
+                                        ? `Kehadiran kurang dari 75% (${kehadiranMap[santri.id].persentase_kehadiran.toFixed(2)}%)`
+                                        : ''
+                                    }
                                   >
-                                    {nilai ? 'Edit' : 'Input'}
+                                    {nilai?.status_nilai === 'Locked' || nilai?.status_nilai === 'Published'
+                                      ? 'Lihat'
+                                      : nilai 
+                                      ? 'Edit' 
+                                      : 'Input'}
                                   </Button>
                                 </div>
                               </TableCell>
@@ -654,12 +1004,26 @@ const InputNilaiPage: React.FC = () => {
                               size="sm"
                               variant={nilai ? 'outline' : 'default'}
                               onClick={() => selectedAgendaObj && handleOpenInputNilai(santri, selectedAgendaObj)}
-                              disabled={loadingKehadiran || !selectedAgendaObj || (kehadiran && kehadiran.persentase_kehadiran < 60)}
-                              title={kehadiran && kehadiran.persentase_kehadiran < 60 
-                                ? `Kehadiran kurang dari 60% (${kehadiran.persentase_kehadiran.toFixed(2)}%)`
-                                : ''}
+                              disabled={
+                                loadingKehadiran || 
+                                !selectedAgendaObj || 
+                                (kehadiran && kehadiran.persentase_kehadiran < 75 && nilai?.status_nilai !== 'Locked' && nilai?.status_nilai !== 'Published') ||
+                                nilai?.status_nilai === 'Locked' ||
+                                nilai?.status_nilai === 'Published'
+                              }
+                              title={
+                                nilai?.status_nilai === 'Locked' || nilai?.status_nilai === 'Published'
+                                  ? 'Nilai sudah dikunci/dipublish, tidak dapat diubah'
+                                  : kehadiran && kehadiran.persentase_kehadiran < 75 
+                                  ? `Kehadiran kurang dari 75% (${kehadiran.persentase_kehadiran.toFixed(2)}%)`
+                                  : ''
+                              }
                             >
-                              {nilai ? 'Edit' : 'Input'}
+                              {nilai?.status_nilai === 'Locked' || nilai?.status_nilai === 'Published'
+                                ? 'Lihat'
+                                : nilai 
+                                ? 'Edit' 
+                                : 'Input'}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -677,9 +1041,15 @@ const InputNilaiPage: React.FC = () => {
       <Dialog open={nilaiDialogOpen} onOpenChange={setNilaiDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Input Nilai</DialogTitle>
+            <DialogTitle>
+              {selectedSantri && selectedAgenda && (getNilaiForSantri(selectedSantri.id, selectedAgenda.id)?.status_nilai === 'Locked' || getNilaiForSantri(selectedSantri.id, selectedAgenda.id)?.status_nilai === 'Published')
+                ? 'Lihat Nilai'
+                : 'Input Nilai'}
+            </DialogTitle>
             <DialogDescription>
-              Input nilai untuk {selectedSantri?.nama_lengkap} - {selectedAgenda?.nama_agenda}
+              {selectedSantri && selectedAgenda && (getNilaiForSantri(selectedSantri.id, selectedAgenda.id)?.status_nilai === 'Locked' || getNilaiForSantri(selectedSantri.id, selectedAgenda.id)?.status_nilai === 'Published')
+                ? `Nilai untuk ${selectedSantri?.nama_lengkap || 'santri'} (sudah dikunci/dipublish)`
+                : `Input nilai untuk ${selectedSantri?.nama_lengkap || 'santri'}`}
             </DialogDescription>
           </DialogHeader>
 
@@ -709,7 +1079,7 @@ const InputNilaiPage: React.FC = () => {
                     <div>
                       <Label className="text-muted-foreground">Status</Label>
                       <div className="font-medium">
-                        {kehadiranMap[selectedSantri.id].persentase_kehadiran >= 60 ? (
+                        {kehadiranMap[selectedSantri.id].persentase_kehadiran >= 75 ? (
                           <Badge className="bg-green-100 text-green-800">Bisa Input Nilai</Badge>
                         ) : (
                           <Badge className="bg-red-100 text-red-800">Tidak Bisa Input Nilai</Badge>
@@ -737,6 +1107,7 @@ const InputNilaiPage: React.FC = () => {
                       }))
                     }
                     placeholder="Masukkan nilai (0-100)"
+                    disabled={saving || (selectedSantri && selectedAgenda && (getNilaiForSantri(selectedSantri.id, selectedAgenda.id)?.status_nilai === 'Locked' || getNilaiForSantri(selectedSantri.id, selectedAgenda.id)?.status_nilai === 'Published'))}
                   />
                 </div>
 
@@ -772,6 +1143,7 @@ const InputNilaiPage: React.FC = () => {
                     onChange={(e) => setFormData((prev) => ({ ...prev, catatan: e.target.value }))}
                     placeholder="Catatan tambahan (opsional)"
                     rows={3}
+                    disabled={saving || (selectedSantri && selectedAgenda && (getNilaiForSantri(selectedSantri.id, selectedAgenda.id)?.status_nilai === 'Locked' || getNilaiForSantri(selectedSantri.id, selectedAgenda.id)?.status_nilai === 'Published'))}
                   />
                 </div>
               </div>
@@ -780,11 +1152,85 @@ const InputNilaiPage: React.FC = () => {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setNilaiDialogOpen(false)} disabled={saving}>
+              {selectedSantri && selectedAgenda && (getNilaiForSantri(selectedSantri.id, selectedAgenda.id)?.status_nilai === 'Locked' || getNilaiForSantri(selectedSantri.id, selectedAgenda.id)?.status_nilai === 'Published')
+                ? 'Tutup'
+                : 'Batal'}
+            </Button>
+            {(!selectedSantri || !selectedAgenda || (getNilaiForSantri(selectedSantri.id, selectedAgenda.id)?.status_nilai !== 'Locked' && getNilaiForSantri(selectedSantri.id, selectedAgenda.id)?.status_nilai !== 'Published')) && (
+              <Button onClick={handleSaveNilai} disabled={saving || !formData.nilai_angka}>
+                <Save className="w-4 h-4 mr-2" />
+                {saving ? 'Menyimpan...' : 'Simpan Nilai'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Konfirmasi Lock/Publish */}
+      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {confirmAction === 'lock' 
+                ? 'Kunci Nilai' 
+                : confirmAction === 'publishBulk'
+                ? 'Publish Nilai Kelas'
+                : 'Publish Nilai'}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmAction === 'lock' ? (
+                <>
+                  Apakah Anda yakin ingin mengunci nilai untuk jadwal ini?
+                  <br />
+                  <br />
+                  <strong>Catatan:</strong> Nilai kosong atau kehadiran &lt;75% akan otomatis menjadi D (60).
+                  <br />
+                  Setelah dikunci, nilai tidak dapat diubah oleh pengajar.
+                </>
+              ) : confirmAction === 'publishBulk' ? (
+                <>
+                  Apakah Anda yakin ingin mempublish semua nilai untuk seluruh mapel pada kelas ini?
+                  <br />
+                  <br />
+                  <strong>Catatan:</strong> Semua mapel harus sudah dikunci terlebih dahulu.
+                  <br />
+                  Setelah dipublish, semua nilai akan tampil di profil santri.
+                </>
+              ) : (
+                <>
+                  Apakah Anda yakin ingin mempublish nilai untuk jadwal ini?
+                  <br />
+                  <br />
+                  Setelah dipublish, nilai akan tampil di profil santri dan tidak dapat diubah.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDialogOpen(false)}
+              disabled={locking || publishing || publishingBulk}
+            >
               Batal
             </Button>
-            <Button onClick={handleSaveNilai} disabled={saving || !formData.nilai_angka}>
-              <Save className="w-4 h-4 mr-2" />
-              {saving ? 'Menyimpan...' : 'Simpan Nilai'}
+            <Button
+              onClick={
+                confirmAction === 'lock' 
+                  ? handleLockNilai 
+                  : confirmAction === 'publishBulk'
+                  ? handlePublishNilaiKelasTerm
+                  : handlePublishNilai
+              }
+              disabled={locking || publishing || publishingBulk}
+            >
+              {locking || publishing || publishingBulk 
+                ? 'Memproses...' 
+                : confirmAction === 'lock' 
+                ? 'Kunci' 
+                : confirmAction === 'publishBulk'
+                ? 'Publish Semua'
+                : 'Publish'}
             </Button>
           </DialogFooter>
         </DialogContent>

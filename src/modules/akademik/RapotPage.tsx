@@ -41,6 +41,7 @@ const RapotPage: React.FC = () => {
   const [rapotDialogOpen, setRapotDialogOpen] = useState(false);
   const [selectedRapot, setSelectedRapot] = useState<Rapot | null>(null);
   const [selectedRapotNilai, setSelectedRapotNilai] = useState<Nilai[]>([]);
+  const [publishing, setPublishing] = useState(false);
 
   const selectedKelas = classes.find(k => k.id === kelasId);
 
@@ -238,6 +239,50 @@ const RapotPage: React.FC = () => {
     );
   }, [rapotList, searchTerm]);
 
+  // Handle publish rapot
+  const handlePublishRapot = async () => {
+    if (!selectedRapot) return;
+
+    try {
+      setPublishing(true);
+      const updatedRapot = await AkademikRapotService.publishRapot(selectedRapot.id);
+      toast.success('Raport berhasil dipublish dan akan tampil di profil santri');
+      
+      // Update selected rapot dengan data dari server
+      setSelectedRapot(updatedRapot);
+      
+      // Refresh rapot list
+      await loadRapot();
+    } catch (error: any) {
+      console.error('Error publishing rapot:', error);
+      toast.error(error.message || 'Gagal mempublish rapot');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  // Handle unpublish rapot
+  const handleUnpublishRapot = async () => {
+    if (!selectedRapot) return;
+
+    try {
+      setPublishing(true);
+      const updatedRapot = await AkademikRapotService.unpublishRapot(selectedRapot.id);
+      toast.success('Raport berhasil di-unpublish');
+      
+      // Update selected rapot dengan data dari server
+      setSelectedRapot(updatedRapot);
+      
+      // Refresh rapot list
+      await loadRapot();
+    } catch (error: any) {
+      console.error('Error unpublishing rapot:', error);
+      toast.error(error.message || 'Gagal meng-unpublish rapot');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   // Get status badge untuk kelulusan
   const getKelulusanBadge = (status: string) => {
     switch (status) {
@@ -375,6 +420,7 @@ const RapotPage: React.FC = () => {
                     <TableHead className="text-center">Kehadiran</TableHead>
                     <TableHead className="text-center">Predikat</TableHead>
                     <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-center">Published</TableHead>
                     <TableHead>Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -409,6 +455,13 @@ const RapotPage: React.FC = () => {
                       </TableCell>
                       <TableCell className="text-center">
                         {getKelulusanBadge(rapot.status_kelulusan_semester)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {rapot.is_published ? (
+                          <Badge className="bg-green-100 text-green-800">Published</Badge>
+                        ) : (
+                          <Badge variant="outline">Draft</Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Button
@@ -642,10 +695,32 @@ const RapotPage: React.FC = () => {
             <Button variant="outline" onClick={() => setRapotDialogOpen(false)}>
               Tutup
             </Button>
-            <Button onClick={() => window.print()}>
-              <Printer className="w-4 h-4 mr-2" />
-              Cetak
-            </Button>
+            {selectedRapot && (
+              <>
+                {!selectedRapot.is_published ? (
+                  <Button
+                    onClick={handlePublishRapot}
+                    disabled={publishing}
+                  >
+                    <CheckCircle2 className={`w-4 h-4 mr-2 ${publishing ? 'animate-spin' : ''}`} />
+                    {publishing ? 'Publishing...' : 'Publish Rapot'}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={handleUnpublishRapot}
+                    disabled={publishing}
+                  >
+                    <XCircle className={`w-4 h-4 mr-2 ${publishing ? 'animate-spin' : ''}`} />
+                    {publishing ? 'Unpublishing...' : 'Unpublish'}
+                  </Button>
+                )}
+                <Button onClick={() => window.print()}>
+                  <Printer className="w-4 h-4 mr-2" />
+                  Cetak
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

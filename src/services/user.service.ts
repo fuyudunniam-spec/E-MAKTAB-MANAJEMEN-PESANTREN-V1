@@ -23,6 +23,7 @@ export interface UserComplete {
   updated_at: string;
   roles: AppRole[];
   user_type: 'santri' | 'pengajar' | 'staff';
+  allowed_modules?: string[] | null; // Module access list for staff users
   santri?: {
     id: string;
     id_santri: string;
@@ -71,46 +72,12 @@ export class UserService {
    */
   static async listUsers(filters?: UserFilters): Promise<UserComplete[]> {
     try {
-      // Try to use view first
-      const { data: viewData, error: viewError } = await supabase
-        .from('v_users_complete')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!viewError && viewData) {
-        // Apply filters
-        let filtered = viewData;
-        
-        if (filters?.user_type && filters.user_type !== 'all') {
-          filtered = filtered.filter(u => u.user_type === filters.user_type);
-        }
-        
-        if (filters?.role && filters.role !== 'all') {
-          filtered = filtered.filter(u => 
-            Array.isArray(u.roles) && u.roles.includes(filters.role!)
-          );
-        }
-        
-        if (filters?.search) {
-          const searchLower = filters.search.toLowerCase();
-          filtered = filtered.filter(u => 
-            u.email?.toLowerCase().includes(searchLower) ||
-            u.full_name?.toLowerCase().includes(searchLower) ||
-            (u.santri?.id_santri?.toLowerCase().includes(searchLower)) ||
-            (u.pengajar?.kode_pengajar?.toLowerCase().includes(searchLower))
-          );
-        }
-
-        return filtered as UserComplete[];
-      }
-
-      // Fallback: Manual join (existing logic)
-      console.warn('[UserService] View v_users_complete not found, using manual join');
+      // Always use manual join to ensure allowed_modules is loaded correctly
+      // Note: v_users_complete view doesn't include allowed_modules, so we use manual join
       return await this.listUsersManual(filters);
     } catch (error: any) {
       console.error('[UserService] Error listing users:', error);
-      // Fallback to manual join
-      return await this.listUsersManual(filters);
+      throw error;
     }
   }
 
@@ -118,10 +85,20 @@ export class UserService {
    * Manual join fallback (existing logic from UserManagementService)
    */
   private static async listUsersManual(filters?: UserFilters): Promise<UserComplete[]> {
+    // Explicitly select allowed_modules to ensure it's loaded
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, email, full_name, created_at, updated_at, allowed_modules')
       .order('created_at', { ascending: false });
+    
+    console.log('[UserService.listUsersManual] Profiles loaded:', {
+      count: profiles?.length || 0,
+      sample: profiles?.[0] ? {
+        id: profiles[0].id,
+        email: profiles[0].email,
+        allowed_modules: (profiles[0] as any).allowed_modules,
+      } : null,
+    });
 
     if (profilesError) throw profilesError;
     if (!profiles || profiles.length === 0) return [];
@@ -180,6 +157,7 @@ export class UserService {
         updated_at: profile.updated_at,
         roles: rolesMap[profile.id] || [],
         user_type,
+        allowed_modules: (profile as any).allowed_modules || null, // Include allowed_modules
         santri: santri ? {
           id: santri.id,
           id_santri: santri.id_santri,

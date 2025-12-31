@@ -3,17 +3,12 @@
  * Defines which roles can access which modules
  */
 
+// Simplified role system - only 4 roles
 export type AppRole = 
-  | 'admin' 
-  | 'admin_keuangan' 
-  | 'admin_inventaris' 
-  | 'admin_akademik' 
-  | 'koperasi_admin'
-  | 'koperasi_kasir'
-  | 'koperasi_staff'
-  | 'pengurus' 
-  | 'pengajar'
-  | 'santri';
+  | 'admin'      // Full access to all modules
+  | 'staff'      // Flexible access - admin can configure allowed modules
+  | 'pengajar'   // Access to pengajar profile only
+  | 'santri';    // Access to santri profile only
 
 export type ModuleName = 
   | 'dashboard'
@@ -33,66 +28,122 @@ export type ModuleName =
 /**
  * Permission matrix: Maps roles to accessible modules
  * '*' means access to all modules
+ * Empty array [] means role uses allowedModules field (flexible access configured by admin)
  */
 const PERMISSION_MATRIX: Record<AppRole, string[] | '*' > = {
-  admin: '*', // Full access to all modules
-  admin_keuangan: ['dashboard', 'keuangan', 'pembayaran', 'tabungan', 'donasi', 'settings'],
-  admin_inventaris: ['dashboard', 'inventaris', 'distribusi', 'settings'], // Sales removed - now handled by koperasi
-  admin_akademik: ['dashboard', 'santri', 'monitoring', 'plotting', 'settings'],
-  koperasi_admin: ['dashboard', 'koperasi', 'settings'], // Full access to koperasi
-  koperasi_kasir: ['dashboard', 'koperasi', 'settings'], // Kasir access (limited in UI)
-  koperasi_staff: ['dashboard', 'koperasi', 'settings'], // Staff access (limited in UI)
-  pengurus: ['dashboard', 'santri', 'keuangan', 'donasi', 'inventaris', 'monitoring', 'settings'], // Read-only access
-  pengajar: ['dashboard', 'monitoring', 'settings'], // Access to akademik modules (jurnal, presensi)
-  santri: ['dashboard', 'tabungan', 'settings'], // Limited access
+  admin: '*', // Full access to all modules (always - simplified approach)
+  staff: [], // Flexible access - uses allowedModules field (must have explicit modules configured)
+  pengajar: ['dashboard', 'monitoring', 'settings'], // Access to pengajar profile and monitoring
+  santri: ['dashboard', 'tabungan', 'settings'], // Access to santri profile and tabungan only
 };
 
 /**
  * Module path mapping: Maps route paths to module names
  */
 const MODULE_PATH_MAP: Record<string, ModuleName> = {
+  // Dashboard
   '/': 'dashboard',
+  
+  // Santri - Canonical routes
   '/santri': 'santri',
-  '/santri-dashboard': 'santri',
+  '/santri/profile': 'santri',
+  '/santri/add': 'santri',
+  '/santri/onboarding': 'santri',
+  '/santri/program-management/:santriId': 'santri',
+  // Legacy routes (redirected)
+  '/santri-dashboard': 'santri', // Redirects to /santri
+  '/santri/profile-enhanced': 'santri', // Redirects to /santri/profile
+  '/santri/profile-minimal': 'santri', // Redirects to /santri/profile
+  '/santri/profile-master': 'santri', // Redirects to /santri/profile
+  '/santri/profile-redesigned': 'santri', // Redirects to /santri/profile
+  
+  // Keuangan - Canonical routes
   '/keuangan-v3': 'keuangan',
-  '/keuangan-dashboard': 'keuangan',
+  '/keuangan-v3/penyaluran-bantuan': 'keuangan',
   '/tagihan-santri': 'pembayaran',
   '/tabungan': 'tabungan',
+  '/tabungan-santri': 'tabungan',
+  '/laporan-tabungan': 'tabungan',
+  // Legacy routes (redirected)
+  '/keuangan': 'keuangan', // Redirects to /keuangan-v3
+  '/keuangan-dashboard': 'keuangan', // Redirects to /keuangan-v3
+  
+  // Donasi - Canonical routes
   '/donasi': 'donasi',
-  '/donasi/rancangan-pelayanan': 'donasi',
-  '/donasi/rancangan-pelayanan/dashboard': 'donasi',
+  '/donasi/master-donatur': 'donasi',
+  // Legacy routes (redirected)
+  '/donasi-dashboard': 'donasi', // Redirects to /donasi
+  
+  // Inventaris - Canonical routes
   '/inventaris': 'inventaris',
   '/inventaris/master': 'inventaris',
-  '/inventaris/sales': 'koperasi', // Redirects to koperasi - sales blocked in yayasan
   '/inventaris/distribution': 'distribusi',
-  '/inventaris/transactions': 'inventaris',
+  '/inventaris/distribution/distribusi-paket': 'distribusi',
+  '/inventaris/distribution/master-paket': 'distribusi',
+  '/inventaris/riwayat': 'inventaris',
+  // Legacy routes (redirected)
+  '/inventaris-dashboard': 'inventaris', // Redirects to /inventaris
+  '/inventaris-test': 'inventaris', // Redirects to /inventaris
+  '/inventaris-legacy': 'inventaris', // Redirects to /inventaris
+  '/inventaris-old': 'inventaris', // Redirects to /inventaris
+  '/inventaris/sales': 'koperasi', // Redirects to /koperasi/kasir
+  
+  // Koperasi - Canonical routes
   '/koperasi': 'koperasi',
   '/koperasi/master': 'koperasi',
+  '/koperasi/master/supplier': 'koperasi',
   '/koperasi/kasir': 'koperasi',
   '/koperasi/inventaris': 'koperasi',
+  '/koperasi/transfer': 'koperasi',
   '/koperasi/penjualan': 'koperasi',
+  '/koperasi/pembelian': 'koperasi',
   '/koperasi/keuangan': 'koperasi',
+  '/koperasi/keuangan/dashboard': 'koperasi',
+  '/koperasi/keuangan/pembelian': 'koperasi',
+  '/koperasi/keuangan/operasional': 'koperasi',
+  '/koperasi/keuangan/kelola-hpp': 'koperasi',
   '/koperasi/laporan': 'koperasi',
-  '/monitoring': 'monitoring',
-  '/ploating-kelas': 'plotting',
-  '/akademik/master': 'plotting',
-  '/akademik/presensi': 'monitoring',
-  '/akademik/jurnal': 'monitoring',
-  '/akademik/pengajar': 'monitoring',
+  // Legacy routes (redirected)
+  '/koperasi-old': 'koperasi', // Redirects to /koperasi
+  
+  // Akademik - Canonical routes
+  '/akademik': 'monitoring',
+  '/akademik/kelas': 'plotting',
+  '/akademik/semester': 'monitoring',
+  '/akademik/pertemuan': 'monitoring',
   '/akademik/setoran': 'monitoring',
-  '/admin/users': 'settings', // Admin only - user management
-  '/admin/data-master': 'settings', // Admin only - user management (alias)
-  '/admin/santri-accounts': 'settings', // Admin only - managed via page-level check
-  '/change-password': 'settings', // All authenticated users can access
+  '/akademik/pengajar': 'monitoring',
+  '/akademik/pengajar/profil': 'monitoring',
+  '/akademik/perizinan': 'monitoring',
+  '/akademik/nilai': 'monitoring',
+  '/akademik/rapot': 'monitoring',
+  // Legacy routes (redirected)
+  '/ploating-kelas': 'plotting', // Redirects to /akademik/kelas?tab=plotting
+  '/akademik/master': 'plotting', // Redirects to /akademik/kelas
+  '/akademik/presensi': 'monitoring', // Redirects to /akademik/pertemuan?tab=presensi
+  '/akademik/jurnal': 'monitoring', // Redirects to /akademik/pertemuan?tab=jurnal
+  
+  // Admin - Canonical routes
+  '/admin/users': 'settings',
+  '/admin/data-master': 'settings', // Alias for /admin/users
+  '/admin/santri-accounts': 'settings',
+  '/admin/keuangan-audit': 'settings',
+  // Legacy routes (redirected)
+  '/administrasi': 'settings', // Redirects to /admin/users
+  
+  // Other
+  '/monitoring': 'monitoring',
+  '/change-password': 'settings',
 };
 
 /**
  * Check if a role can access a specific module
  * @param role - User role
  * @param module - Module name to check access for
+ * @param allowedModules - Optional array of allowed modules (for staff users only)
  * @returns true if role can access module, false otherwise
  */
-export function canAccessModule(role: AppRole | string, module: ModuleName | string): boolean {
+export function canAccessModule(role: AppRole | string, module: ModuleName | string, allowedModules?: string[] | null): boolean {
   // Normalize role to AppRole type
   const normalizedRole = role as AppRole;
   
@@ -102,24 +153,49 @@ export function canAccessModule(role: AppRole | string, module: ModuleName | str
     return false;
   }
 
-  const allowedModules = PERMISSION_MATRIX[normalizedRole];
+  // Admin: Always full access (ignore allowedModules - simplified approach)
+  if (normalizedRole === 'admin') {
+    return true;
+  }
 
-  // Admin has access to everything
-  if (allowedModules === '*') {
+  // Staff: Uses allowedModules field (flexible access configured by admin)
+  if (normalizedRole === 'staff') {
+    // Staff must have explicit modules configured
+    if (!allowedModules || allowedModules.length === 0) {
+      return false;
+    }
+    // Check if module is in the allowedModules list
+    return allowedModules.includes(module as string);
+  }
+
+  // Other roles (santri, pengajar): Use permission matrix
+  const roleAllowedModules = PERMISSION_MATRIX[normalizedRole];
+  if (roleAllowedModules === '*') {
     return true;
   }
 
   // Check if module is in allowed list
-  return allowedModules.includes(module as ModuleName);
+  return roleAllowedModules.includes(module as ModuleName);
+}
+
+/**
+ * Check if a user can access a specific module
+ * @param user - User object with role and optional allowedModules
+ * @param module - Module name to check access for
+ * @returns true if user can access module, false otherwise
+ */
+export function canAccessModuleWithUser(user: { role: AppRole | string; allowedModules?: string[] | null }, module: ModuleName | string): boolean {
+  return canAccessModule(user.role, module, user.allowedModules);
 }
 
 /**
  * Check if a role can access a route path
  * @param role - User role
  * @param path - Route path to check
+ * @param allowedModules - Optional array of allowed modules (for admin users with restricted access)
  * @returns true if role can access path, false otherwise
  */
-export function canAccessPath(role: AppRole | string, path: string): boolean {
+export function canAccessPath(role: AppRole | string, path: string, allowedModules?: string[] | null): boolean {
   // Normalize path (remove query params, hash, trailing slash)
   const normalizedPath = path.split('?')[0].split('#')[0].replace(/\/$/, '') || '/';
   
@@ -129,10 +205,20 @@ export function canAccessPath(role: AppRole | string, path: string): boolean {
   if (!module) {
     // If path is not in map, default to dashboard access check
     // This allows access to paths not explicitly defined
-    return canAccessModule(role, 'dashboard');
+    return canAccessModule(role, 'dashboard', allowedModules);
   }
 
-  return canAccessModule(role, module);
+  return canAccessModule(role, module, allowedModules);
+}
+
+/**
+ * Check if a user can access a route path
+ * @param user - User object with role and optional allowedModules
+ * @param path - Route path to check
+ * @returns true if user can access path, false otherwise
+ */
+export function canAccessPathWithUser(user: { role: AppRole | string; allowedModules?: string[] | null }, path: string): boolean {
+  return canAccessPath(user.role, path, user.allowedModules);
 }
 
 /**
@@ -221,5 +307,35 @@ export function getPermissionMatrix(): Record<AppRole, string[]> {
   });
   
   return matrix as Record<AppRole, string[]>;
+}
+
+/**
+ * Get all available module names (unique list)
+ * Used for module checklist in admin user forms
+ */
+export function getAllModuleNames(): ModuleName[] {
+  return Array.from(new Set(Object.values(MODULE_PATH_MAP))) as ModuleName[];
+}
+
+/**
+ * Get module display label for UI
+ */
+export function getModuleLabel(module: ModuleName): string {
+  const labels: Record<ModuleName, string> = {
+    'dashboard': 'Dashboard',
+    'santri': 'Santri',
+    'keuangan': 'Keuangan',
+    'pembayaran': 'Pembayaran',
+    'tabungan': 'Tabungan',
+    'donasi': 'Donasi',
+    'inventaris': 'Inventaris',
+    'distribusi': 'Distribusi',
+    'penjualan': 'Penjualan',
+    'koperasi': 'Koperasi',
+    'monitoring': 'Monitoring',
+    'plotting': 'Plotting',
+    'settings': 'Settings',
+  };
+  return labels[module] || module;
 }
 

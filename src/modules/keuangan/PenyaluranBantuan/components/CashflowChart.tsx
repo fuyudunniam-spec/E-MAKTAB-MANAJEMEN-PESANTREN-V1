@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   AreaChart,
@@ -9,21 +9,61 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  Dot,
 } from 'recharts';
 import { TrendingUp } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatCurrency';
 
-interface TrendChartProps {
+interface CashflowChartProps {
   data: Array<{
     month: string;
-    finansial: number;
-    barang: number;
-    total: number;
+    pemasukan: number;
+    pengeluaran: number;
   }>;
   loading?: boolean;
 }
 
-const TrendChart: React.FC<TrendChartProps> = ({ data, loading = false }) => {
+// Month order reference for chronological sorting (Indonesian locale)
+const MONTH_ORDER = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+const CashflowChart: React.FC<CashflowChartProps> = ({ data, loading = false }) => {
+  // Sort data chronologically by month
+  const sortedData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+
+    // Parse month string to date for proper chronological sorting
+    const parseMonthString = (monthStr: string): Date => {
+      // Format: "MMM yyyy" (e.g., "Jan 2025", "Des 2024")
+      const parts = monthStr.trim().split(' ');
+      const monthName = parts[0];
+      const year = parseInt(parts[1] || new Date().getFullYear().toString());
+      
+      const monthIndex = MONTH_ORDER.indexOf(monthName);
+      if (monthIndex !== -1) {
+        // Return date object for the first day of that month
+        return new Date(year, monthIndex, 1);
+      }
+      
+      // Fallback: try to parse as date string
+      try {
+        const parsed = new Date(monthStr);
+        if (!isNaN(parsed.getTime())) {
+          return parsed;
+        }
+      } catch {
+        // If parsing fails, return current date
+      }
+      
+      return new Date();
+    };
+
+    return [...data].sort((a, b) => {
+      const dateA = parseMonthString(a.month);
+      const dateB = parseMonthString(b.month);
+      return dateA.getTime() - dateB.getTime();
+    });
+  }, [data]);
+
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -45,7 +85,7 @@ const TrendChart: React.FC<TrendChartProps> = ({ data, loading = false }) => {
     return (
       <Card className="border border-gray-200 shadow-sm">
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold">Tren Penyaluran Bantuan</CardTitle>
+          <CardTitle className="text-lg font-semibold">Arus Kas Bulanan</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[350px] flex items-center justify-center">
@@ -56,11 +96,11 @@ const TrendChart: React.FC<TrendChartProps> = ({ data, loading = false }) => {
     );
   }
 
-  if (!data || data.length === 0) {
+  if (!sortedData || sortedData.length === 0) {
     return (
       <Card className="border border-gray-200 shadow-sm">
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold">Tren Penyaluran Bantuan</CardTitle>
+          <CardTitle className="text-lg font-semibold">Arus Kas Bulanan</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[350px] flex flex-col items-center justify-center text-center space-y-4">
@@ -70,7 +110,7 @@ const TrendChart: React.FC<TrendChartProps> = ({ data, loading = false }) => {
             <div>
               <h3 className="text-sm font-medium text-gray-800">Tidak Ada Data</h3>
               <p className="text-xs text-gray-500 mt-1">
-                Belum ada data penyaluran bantuan untuk ditampilkan
+                Belum ada data keuangan untuk ditampilkan
               </p>
             </div>
           </div>
@@ -79,16 +119,26 @@ const TrendChart: React.FC<TrendChartProps> = ({ data, loading = false }) => {
     );
   }
 
+  // Format Y-axis values with proper Rp currency format
+  const formatYAxis = (value: number) => {
+    if (value >= 1000000) {
+      return `Rp ${(value / 1000000).toFixed(1)}M`;
+    } else if (value >= 1000) {
+      return `Rp ${(value / 1000).toFixed(0)}K`;
+    }
+    return `Rp ${value.toLocaleString('id-ID')}`;
+  };
+
   return (
     <Card className="border border-gray-200 shadow-sm">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-lg font-semibold text-gray-900">
-              Tren Penyaluran Bantuan
+              Arus Kas Bulanan
             </CardTitle>
             <p className="text-xs text-gray-500 mt-1">
-              Perkembangan penyaluran bantuan per bulan
+              Perbandingan pemasukan dan pengeluaran per bulan
             </p>
           </div>
         </div>
@@ -96,15 +146,18 @@ const TrendChart: React.FC<TrendChartProps> = ({ data, loading = false }) => {
       <CardContent>
         <div className="h-[350px]">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+            <AreaChart 
+              data={sortedData} 
+              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+            >
               <defs>
-                <linearGradient id="colorFinansial" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
+                <linearGradient id="colorPemasukan" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
                 </linearGradient>
-                <linearGradient id="colorBarang" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1} />
+                <linearGradient id="colorPengeluaran" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8} />
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0.1} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
@@ -114,9 +167,12 @@ const TrendChart: React.FC<TrendChartProps> = ({ data, loading = false }) => {
                 style={{ fontSize: '12px' }}
                 tickLine={false}
                 axisLine={false}
+                angle={-45}
+                textAnchor="end"
+                height={60}
               />
               <YAxis
-                tickFormatter={(value) => `${(value / 1000000).toFixed(1)}jt`}
+                tickFormatter={formatYAxis}
                 stroke="#6b7280"
                 style={{ fontSize: '12px' }}
                 tickLine={false}
@@ -129,19 +185,23 @@ const TrendChart: React.FC<TrendChartProps> = ({ data, loading = false }) => {
               />
               <Area
                 type="monotone"
-                dataKey="finansial"
-                stroke="#3b82f6"
+                dataKey="pemasukan"
+                stroke="#10b981"
                 strokeWidth={2}
-                fill="url(#colorFinansial)"
-                name="Finansial"
+                fill="url(#colorPemasukan)"
+                name="Pemasukan"
+                dot={{ fill: '#10b981', r: 4 }}
+                activeDot={{ r: 6 }}
               />
               <Area
                 type="monotone"
-                dataKey="barang"
-                stroke="#f59e0b"
+                dataKey="pengeluaran"
+                stroke="#ef4444"
                 strokeWidth={2}
-                fill="url(#colorBarang)"
-                name="Barang"
+                fill="url(#colorPengeluaran)"
+                name="Pengeluaran"
+                dot={{ fill: '#ef4444', r: 4 }}
+                activeDot={{ r: 6 }}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -151,12 +211,5 @@ const TrendChart: React.FC<TrendChartProps> = ({ data, loading = false }) => {
   );
 };
 
-export default TrendChart;
-
-
-
-
-
-
-
+export default CashflowChart;
 

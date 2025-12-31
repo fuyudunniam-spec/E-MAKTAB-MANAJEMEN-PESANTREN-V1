@@ -921,9 +921,3 @@ export const assetManagementService = {
     }
   },
 };
-
-};
-
-};
-
-};

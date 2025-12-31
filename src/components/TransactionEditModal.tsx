@@ -135,6 +135,23 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
     }
   }, [transaction, isOpen]);
 
+  // Auto-set kategori Pembangunan ketika akun kas pembangunan dipilih
+  useEffect(() => {
+    if (formData.akun_kas_id) {
+      const selectedAkun = akunKasOptions.find(akun => akun.id === formData.akun_kas_id);
+      if (selectedAkun && selectedAkun.nama.toLowerCase().includes('pembangunan')) {
+        // Auto-set kategori ke Pembangunan
+        if (formData.kategori !== 'Pembangunan') {
+          setFormData(prev => ({ ...prev, kategori: 'Pembangunan' }));
+        }
+        // Auto-set sub_kategori jika belum ada atau tidak valid
+        if (!formData.sub_kategori || (formData.sub_kategori !== 'Material' && formData.sub_kategori !== 'Gaji Karyawan')) {
+          setFormData(prev => ({ ...prev, sub_kategori: 'Material' })); // Default ke Material
+        }
+      }
+    }
+  }, [formData.akun_kas_id, akunKasOptions]);
+
   // Reset sub_kategori when kategori changes
   useEffect(() => {
     if (!formData.kategori) return;
@@ -150,9 +167,14 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
       if (formData.sub_kategori && !validSubKategori.includes(formData.sub_kategori)) {
         setFormData(prev => ({ ...prev, sub_kategori: '' }));
       }
+    } else if (formData.kategori === 'Pembangunan') {
+      // Jika sub_kategori tidak valid untuk Pembangunan, reset ke Material
+      if (formData.sub_kategori && formData.sub_kategori !== 'Material' && formData.sub_kategori !== 'Gaji Karyawan') {
+        setFormData(prev => ({ ...prev, sub_kategori: 'Material' }));
+      }
     } else {
       // Untuk kategori lain, reset sub_kategori jika sebelumnya adalah dropdown value
-      const dropdownValues = ['Konsumsi', 'Operasional', 'Gaji & Honor', 'Utilitas', 'Maintenance', 'Administrasi', 'Lain-lain'];
+      const dropdownValues = ['Konsumsi', 'Operasional', 'Gaji & Honor', 'Utilitas', 'Maintenance', 'Administrasi', 'Lain-lain', 'Material', 'Gaji Karyawan'];
       if (dropdownValues.includes(formData.sub_kategori)) {
         setFormData(prev => ({ ...prev, sub_kategori: '' }));
       }
@@ -484,7 +506,8 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
     'Pendidikan Formal',
     'Operasional dan Konsumsi Santri',
     'Bantuan Langsung Yayasan',
-    'Operasional Yayasan'
+    'Operasional Yayasan',
+    'Pembangunan'
   ];
 
   return (
@@ -568,6 +591,16 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                           <SelectItem value="Maintenance">Maintenance</SelectItem>
                           <SelectItem value="Administrasi">Administrasi</SelectItem>
                           <SelectItem value="Lain-lain">Lain-lain</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : !isPemasukan && formData.kategori === 'Pembangunan' ? (
+                      <Select value={formData.sub_kategori} onValueChange={(value) => handleInputChange('sub_kategori', value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih sub kategori" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Material">Material</SelectItem>
+                          <SelectItem value="Gaji Karyawan">Gaji Karyawan</SelectItem>
                         </SelectContent>
                       </Select>
                     ) : (

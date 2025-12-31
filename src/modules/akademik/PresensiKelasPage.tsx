@@ -197,9 +197,9 @@ const PresensiKelasPage: React.FC = () => {
   }, [kelasId, selectedSemesterId, semesters, isPengajar, pengajarId]);
 
   const handleOpenAbsensiDialog = useCallback(async (pertemuan: KelasPertemuan): Promise<void> => {
-    // Cek apakah pertemuan sudah Berjalan atau Selesai
-    if (pertemuan.status !== 'Berjalan' && pertemuan.status !== 'Selesai') {
-      toast.error('Absensi hanya dapat dilakukan untuk pertemuan yang sudah ditandai sebagai Berjalan atau Selesai');
+    // Cek apakah pertemuan sudah Selesai (P0: hanya status Selesai yang bisa input presensi)
+    if (pertemuan.status !== 'Selesai') {
+      toast.error('Absensi hanya dapat dilakukan untuk pertemuan yang sudah ditandai sebagai Selesai');
       return;
     }
 
@@ -362,6 +362,7 @@ const PresensiKelasPage: React.FC = () => {
     setSaving(false);
   }, [saving]);
 
+
   const handleSaveAbsensi = async () => {
     if (!selectedPertemuan || !kelasId) {
       toast.error('Data pertemuan tidak valid');
@@ -409,7 +410,7 @@ const PresensiKelasPage: React.FC = () => {
             materi: materi.trim() || undefined,
             agenda_id: agendaId || undefined,
             pengajar_id: pengajarId || undefined,
-            pertemuan_id: selectedPertemuan.id || undefined, // Link ke jurnal pertemuan
+            pertemuan_id: selectedPertemuan.id || undefined, // P0: Link ke jurnal pertemuan (wajib untuk prevent duplicate)
           };
 
           // Validasi input
@@ -419,15 +420,21 @@ const PresensiKelasPage: React.FC = () => {
             continue;
           }
 
-          const existing = await AbsensiMadinService.getAbsensiBySantri(
+          // P0: Cek duplicate berdasarkan pertemuan_id dan santri_id (lebih akurat)
+          const existingByPertemuan = selectedPertemuan.id 
+            ? await AbsensiMadinService.getAbsensiByPertemuanSantri(selectedPertemuan.id, santri.id)
+            : null;
+          
+          // Fallback: cek berdasarkan tanggal, kelas, agenda (untuk backward compatibility)
+          const existingByTanggal = existingByPertemuan || await AbsensiMadinService.getAbsensiBySantri(
             santri.id,
             tanggal,
             selectedPertemuan.kelas?.id || kelasId,
             agendaId || undefined
           );
 
-          if (existing) {
-            await AbsensiMadinService.updateAbsensi(existing.id, input);
+          if (existingByTanggal) {
+            await AbsensiMadinService.updateAbsensi(existingByTanggal.id, input);
           } else {
             await AbsensiMadinService.createAbsensi(input);
           }
@@ -558,8 +565,9 @@ const PresensiKelasPage: React.FC = () => {
   }, [selectedSemesterId, semesters]);
 
   // Filter pertemuan berdasarkan search term dan bulan
+  // P0: Hanya tampilkan pertemuan dengan status "Selesai" (bukan "Berjalan")
   const filteredPertemuan = useMemo(() => {
-    let filtered = pertemuanList;
+    let filtered = pertemuanList.filter(p => p.status === 'Selesai'); // Hanya pertemuan yang sudah selesai
     
     // Filter berdasarkan bulan
     if (selectedMonth !== 'all') {
@@ -710,7 +718,8 @@ const PresensiKelasPage: React.FC = () => {
                 </TableHeader>
                 <TableBody>
                   {filteredPertemuan.map((pertemuan, index) => {
-                    const canAbsensi = pertemuan.status === 'Berjalan' || pertemuan.status === 'Selesai';
+                    // P0: Hanya pertemuan dengan status "Selesai" yang bisa input presensi
+                    const canAbsensi = pertemuan.status === 'Selesai';
                     return (
                       <TableRow key={pertemuan.id}>
                         <TableCell>{index + 1}</TableCell>
@@ -775,16 +784,9 @@ const PresensiKelasPage: React.FC = () => {
       <Dialog 
         open={absensiDialogOpen} 
         onOpenChange={(open) => {
-          if (!open) {
-            // Jika dialog ditutup (open = false)
-            if (!saving) {
-              // Hanya tutup jika tidak sedang saving
-              handleCloseDialog();
-            }
-            // Jika sedang saving, jangan tutup (biarkan open tetap true)
-          } else {
-            // Jika dialog dibuka (open = true)
-            setAbsensiDialogOpen(true);
+          // Fix bug: hanya tutup jika tidak sedang saving
+          if (!open && !saving) {
+            handleCloseDialog();
           }
         }}
       >
@@ -887,11 +889,7 @@ const PresensiKelasPage: React.FC = () => {
           <DialogFooter>
             <Button 
               variant="outline" 
-              onClick={() => {
-                if (!saving) {
-                  handleCloseDialog();
-                }
-              }}
+              onClick={handleCloseDialog}
               disabled={saving}
             >
               Batal

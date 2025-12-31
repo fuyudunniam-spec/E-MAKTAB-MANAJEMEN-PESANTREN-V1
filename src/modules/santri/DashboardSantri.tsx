@@ -6,7 +6,7 @@ import ModuleHeader from '@/components/ModuleHeader';
 const DashboardSantri = () => {
   const tabs = [
     { label: 'Data Santri', path: '/santri' },
-    { label: 'Ploating Kelas', path: '/ploating-kelas' },
+    { label: 'Ploating Kelas', path: '/akademik/kelas?tab=plotting' },
     { label: 'Program', path: '/program-santri' },
     { label: 'Approval', path: '/santri/approval' }
   ];

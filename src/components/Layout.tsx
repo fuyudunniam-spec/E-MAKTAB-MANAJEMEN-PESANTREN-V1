@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { canAccessPath } from '@/utils/permissions';
+import { canAccessPath, canAccessPathWithUser, canAccessModuleWithUser } from '@/utils/permissions';
 import { 
   LayoutDashboard, 
   Users, 
@@ -84,7 +84,6 @@ const SidebarContent = () => {
       title: 'SANTRI',
       icon: Users,
       items: [
-        ...(showModuleDashboards ? [{ icon: LayoutDashboard, label: 'Dashboard Santri', path: '/santri-dashboard' }] : []),
         { icon: Users, label: 'Data Santri', path: '/santri' }
       ]
     },
@@ -92,10 +91,12 @@ const SidebarContent = () => {
       title: 'AKADEMIK',
       icon: GraduationCap,
       items: [
+        // Dashboard Akademik - ditampilkan di paling atas
+        { icon: LayoutDashboard, label: 'Dashboard Akademik', path: '/akademik' },
         // Dashboard Pengajar (untuk role pengajar)
         ...(user?.role === 'pengajar' || user?.roles?.includes('pengajar') 
           ? [
-              { icon: LayoutDashboard, label: 'Dashboard Pengajar', path: '/akademik/pengajar' },
+              { icon: LayoutDashboard, label: 'Dashboard Pengajar', path: '/akademik/pengajar', dividerBefore: true },
               { icon: UserIcon, label: 'Profil', path: '/akademik/pengajar/profil' }
             ]
           : []
@@ -112,7 +113,6 @@ const SidebarContent = () => {
         ...(user?.role === 'admin' || user?.roles?.includes('admin') || user?.role === 'pengajar' || user?.roles?.includes('pengajar')
           ? [
               { icon: GraduationCap, label: 'Input Nilai', path: '/akademik/nilai' },
-              { icon: FileText, label: 'Rapot', path: '/akademik/rapot' }
             ]
           : []
         ),
@@ -120,7 +120,7 @@ const SidebarContent = () => {
           ? [{ icon: Coins, label: 'Setoran', path: '/akademik/setoran' }]
           : []
         )
-        // Catatan: Tahun & Semester, Dashboard Akademik, Monitoring, Perizinan bisa diakses langsung via URL
+        // Catatan: Tahun & Semester, Monitoring, Perizinan bisa diakses langsung via URL
         // tetapi tidak ditampilkan di menu utama untuk menjaga menu minimal
       ]
     },
@@ -138,7 +138,6 @@ const SidebarContent = () => {
       title: 'DONASI',
       icon: Heart,
       items: [
-        ...(showModuleDashboards ? [{ icon: LayoutDashboard, label: 'Dashboard Donasi', path: '/donasi-dashboard' }] : []),
         { icon: Heart, label: 'Donasi', path: '/donasi' },
         { icon: UserIcon, label: 'Master Donatur', path: '/donasi/master-donatur' }
         // Modul Kebutuhan Layanan Santri - DINONAKTIFKAN
@@ -264,7 +263,7 @@ const SidebarContent = () => {
         const moduleName = sectionModuleMap[section.title];
         
         // Check if user can access this section
-        const canAccessSection = moduleName ? canAccess(moduleName) : true;
+        const canAccessSection = moduleName && user ? canAccessModuleWithUser(user, moduleName) : true;
 
         if (!canAccessSection) {
           return null;
@@ -272,7 +271,8 @@ const SidebarContent = () => {
 
         // Filter items within section
         const filteredItems = section.items.filter((item) => {
-          return canAccessPath(user.role, item.path);
+          if (!item.path) return false;
+          return canAccessPathWithUser(user, item.path);
         });
 
         // Only return section if it has accessible items
@@ -549,6 +549,21 @@ const Layout = ({ children }: LayoutProps) => {
       setSidebarOpen(false);
     }
   }, [location.pathname]);
+
+  // Route protection: Check if user has permission to access current route
+  useEffect(() => {
+    if (!authUser || authLoading) return;
+    if (location.pathname === '/auth') return; // Skip check for auth page
+    
+    // Check if user can access current path
+    const canAccess = canAccessPathWithUser(authUser, location.pathname);
+    
+    if (!canAccess) {
+      console.warn(`[Layout] User ${authUser.email} (${authUser.role}) does not have permission to access ${location.pathname}, redirecting to dashboard`);
+      // Redirect to dashboard if user doesn't have permission
+      navigate('/', { replace: true });
+    }
+  }, [authUser, location.pathname, authLoading, navigate]);
 
   // All hooks must be called before early returns
   // Show loading only if actually loading (not timeout)

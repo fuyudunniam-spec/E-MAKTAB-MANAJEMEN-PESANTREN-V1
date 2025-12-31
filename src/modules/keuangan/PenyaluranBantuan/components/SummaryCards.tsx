@@ -91,7 +91,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ statistics, loading = false
         return (
           <Card
             key={index}
-            className={`border ${card.borderColor} shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden`}
+            className={`border ${card.borderColor} shadow-sm hover:shadow-md transition-all duration-200`}
           >
             <CardContent className="p-5">
               <div className="flex items-start justify-between gap-3">
@@ -99,7 +99,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ statistics, loading = false
                   <p className="text-xs font-medium text-gray-500 mb-1.5 truncate uppercase tracking-wide">
                     {card.title}
                   </p>
-                  <p className="text-xl font-bold text-gray-900 mb-1.5 truncate leading-tight">
+                  <p className="text-xl font-bold text-gray-900 mb-1.5 break-words leading-tight">
                     {card.value}
                   </p>
                   {card.subtitle && (

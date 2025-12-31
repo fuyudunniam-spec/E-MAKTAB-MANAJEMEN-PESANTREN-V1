@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { AkademikSemesterService } from './akademikSemester.service';
 
 export type PertemuanStatus = 'Terjadwal' | 'Berjalan' | 'Selesai' | 'Batal' | 'Tunda';
 
@@ -104,6 +105,23 @@ export class AkademikPertemuanService {
 
   static async createPertemuan(input: KelasPertemuanInput): Promise<void> {
     if (!input.agenda_id) throw new Error('Agenda wajib dipilih');
+    
+    // P0: Validasi lock semester
+    if (input.kelas_id) {
+      const { data: kelas } = await supabase
+        .from('kelas_master')
+        .select('semester_id')
+        .eq('id', input.kelas_id)
+        .single();
+      
+      if (kelas?.semester_id) {
+        const isLocked = await AkademikSemesterService.isSemesterLocked(kelas.semester_id);
+        if (isLocked) {
+          throw new Error('Semester terkunci, tidak dapat membuat pertemuan baru. Silakan unlock semester terlebih dahulu jika perlu koreksi.');
+        }
+      }
+    }
+    
     const payload = {
       agenda_id: input.agenda_id,
       kelas_id: input.kelas_id || null,
@@ -120,6 +138,24 @@ export class AkademikPertemuanService {
 
   static async updatePertemuan(id: string, input: Partial<KelasPertemuanInput>): Promise<void> {
     if (!id) throw new Error('ID pertemuan wajib ada');
+    
+    // P0: Validasi lock semester
+    const { data: pertemuan } = await supabase
+      .from('kelas_pertemuan')
+      .select('kelas_id, kelas:kelas_id(semester_id)')
+      .eq('id', id)
+      .single();
+    
+    if (pertemuan?.kelas_id) {
+      const semesterId = (pertemuan.kelas as any)?.semester_id;
+      if (semesterId) {
+        const isLocked = await AkademikSemesterService.isSemesterLocked(semesterId);
+        if (isLocked) {
+          throw new Error('Semester terkunci, tidak dapat mengubah pertemuan. Silakan unlock semester terlebih dahulu jika perlu koreksi.');
+        }
+      }
+    }
+    
     const payload: any = { ...input };
     if ('pengajar_id' in input) payload.pengajar_id = input.pengajar_id || null;
     if ('pengajar_nama' in input) payload.pengajar_nama = input.pengajar_nama || null;
@@ -131,6 +167,24 @@ export class AkademikPertemuanService {
 
   static async deletePertemuan(id: string): Promise<void> {
     if (!id) return;
+    
+    // P0: Validasi lock semester
+    const { data: pertemuan } = await supabase
+      .from('kelas_pertemuan')
+      .select('kelas_id, kelas:kelas_id(semester_id)')
+      .eq('id', id)
+      .single();
+    
+    if (pertemuan?.kelas_id) {
+      const semesterId = (pertemuan.kelas as any)?.semester_id;
+      if (semesterId) {
+        const isLocked = await AkademikSemesterService.isSemesterLocked(semesterId);
+        if (isLocked) {
+          throw new Error('Semester terkunci, tidak dapat menghapus pertemuan. Silakan unlock semester terlebih dahulu jika perlu koreksi.');
+        }
+      }
+    }
+    
     const { error } = await supabase.from('kelas_pertemuan').delete().eq('id', id);
     if (error) throw error;
   }

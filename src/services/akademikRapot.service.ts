@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { AkademikNilaiService, Nilai } from './akademikNilai.service';
+import { AkademikAgendaService } from './akademikAgenda.service';
 
 export interface RapotInput {
   santri_id: string;
@@ -22,6 +23,9 @@ export interface Rapot extends RapotInput {
   status_kelulusan_semester: 'Belum Dinilai' | 'Lulus' | 'Tidak Lulus';
   alasan_tidak_lulus_semester?: string | null;
   predikat?: string | null;
+  is_published?: boolean;
+  published_at?: string | null;
+  published_by?: string | null;
   created_at: string;
   updated_at: string;
   created_by?: string | null;
@@ -62,13 +66,24 @@ export class AkademikRapotService {
         santriId: input.santri_id,
       });
 
+      // Filter: hanya ambil nilai dari agenda yang ada di jadwal kelas+term ini
+      // Ambil daftar agenda aktif untuk kelas+term ini
+      const agendasKelasTerm = await AkademikAgendaService.listAgendaByKelas(input.kelas_id, {
+        aktifOnly: true,
+        semesterId: input.semester_id
+      });
+      const agendaIdsKelasTerm = new Set(agendasKelasTerm.map(a => a.id));
+      
+      // Filter nilai hanya dari agenda yang ada di jadwal kelas+term
+      const nilaiTerfilter = semuaNilai.filter(n => n.agenda_id && agendaIdsKelasTerm.has(n.agenda_id));
+
       // Hitung statistik
-      const totalMapel = semuaNilai.length;
-      const totalMapelLulus = semuaNilai.filter((n) => n.status_kelulusan === 'Lulus').length;
-      const totalMapelTidakLulus = semuaNilai.filter((n) => n.status_kelulusan === 'Tidak Lulus').length;
+      const totalMapel = nilaiTerfilter.length;
+      const totalMapelLulus = nilaiTerfilter.filter((n) => n.status_kelulusan === 'Lulus').length;
+      const totalMapelTidakLulus = nilaiTerfilter.filter((n) => n.status_kelulusan === 'Tidak Lulus').length;
 
       // Hitung rata-rata nilai (hanya dari nilai yang sudah dinilai)
-      const nilaiYangSudahDinilai = semuaNilai.filter((n) => n.nilai_angka !== null);
+      const nilaiYangSudahDinilai = nilaiTerfilter.filter((n) => n.nilai_angka !== null);
       const rataRataNilai =
         nilaiYangSudahDinilai.length > 0
           ? nilaiYangSudahDinilai.reduce((sum, n) => sum + (n.nilai_angka || 0), 0) / nilaiYangSudahDinilai.length
@@ -76,11 +91,11 @@ export class AkademikRapotService {
 
       // Hitung kehadiran keseluruhan (ambil dari nilai pertama, karena semua nilai punya data kehadiran yang sama)
       const kehadiranKeseluruhan =
-        semuaNilai.length > 0
+        nilaiTerfilter.length > 0
           ? {
-              total_pertemuan: semuaNilai[0].total_pertemuan,
-              total_hadir: semuaNilai[0].total_hadir,
-              persentase_kehadiran: semuaNilai[0].persentase_kehadiran,
+              total_pertemuan: nilaiTerfilter[0].total_pertemuan,
+              total_hadir: nilaiTerfilter[0].total_hadir,
+              persentase_kehadiran: nilaiTerfilter[0].persentase_kehadiran,
             }
           : { total_pertemuan: 0, total_hadir: 0, persentase_kehadiran: 0 };
 
@@ -119,6 +134,7 @@ export class AkademikRapotService {
       }
 
       // Insert atau update rapot
+      // Catatan: Saat generate ulang, set is_published = false (draft) karena mungkin ada perubahan data
       const { data, error } = await supabase
         .from('akademik_rapot')
         .upsert(
@@ -126,9 +142,9 @@ export class AkademikRapotService {
             santri_id: input.santri_id,
             kelas_id: input.kelas_id,
             semester_id: input.semester_id,
-            total_mapel,
-            total_mapel_lulus,
-            total_mapel_tidak_lulus,
+            total_mapel: totalMapel,
+            total_mapel_lulus: totalMapelLulus,
+            total_mapel_tidak_lulus: totalMapelTidakLulus,
             rata_rata_nilai: Math.round(rataRataNilai * 100) / 100,
             total_pertemuan_keseluruhan: kehadiranKeseluruhan.total_pertemuan,
             total_hadir_keseluruhan: kehadiranKeseluruhan.total_hadir,
@@ -139,6 +155,9 @@ export class AkademikRapotService {
             catatan_wali_kelas: input.catatan_wali_kelas || null,
             catatan_kepala_sekolah: input.catatan_kepala_sekolah || null,
             tanggal_cetak: input.tanggal_cetak || null,
+            is_published: false, // Generate ulang = kembali ke draft, perlu publish lagi
+            published_at: null,
+            published_by: null,
             updated_at: new Date().toISOString(),
             updated_by: user?.id || null,
           },
@@ -292,6 +311,47 @@ export class AkademikRapotService {
   }
 
   /**
+   * P0: List rapot untuk santri tertentu (semua kelas dan semester)
+   * Hanya menampilkan rapot yang sudah published (is_published = true)
+   */
+  static async listRapotBySantri(santriId: string): Promise<Rapot[]> {
+    try {
+      const { data, error } = await supabase
+        .from('akademik_rapot')
+        .select(
+          `
+          *,
+          santri:santri_id(id, nama_lengkap, id_santri),
+          kelas:kelas_id(id, nama_kelas, program),
+          semester:semester_id(
+            id, 
+            nama, 
+            tanggal_mulai, 
+            tanggal_selesai,
+            tahun_ajaran:akademik_tahun_ajaran(*)
+          )
+        `
+        )
+        .eq('santri_id', santriId)
+        .eq('is_published', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('[AkademikRapotService] Error loading rapot by santri:', error);
+        throw error;
+      }
+
+      return (data || []) as Rapot[];
+    } catch (error: any) {
+      console.error('[AkademikRapotService] Error in listRapotBySantri:', {
+        santriId,
+        error: error.message || error,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Update rapot (catatan, tanggal cetak, dll)
    */
   static async updateRapot(rapotId: string, input: Partial<RapotInput>): Promise<Rapot> {
@@ -345,6 +405,90 @@ export class AkademikRapotService {
       }
     } catch (error: any) {
       console.error('[AkademikRapotService] Error in deleteRapot:', {
+        rapotId,
+        error: error.message || error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Publish rapot untuk ditampilkan di profil santri
+   */
+  static async publishRapot(rapotId: string): Promise<Rapot> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { data, error } = await supabase
+        .from('akademik_rapot')
+        .update({
+          is_published: true,
+          published_at: new Date().toISOString(),
+          published_by: user?.id || null,
+          updated_at: new Date().toISOString(),
+          updated_by: user?.id || null,
+        })
+        .eq('id', rapotId)
+        .select(
+          `
+          *,
+          santri:santri_id(id, nama_lengkap, id_santri),
+          kelas:kelas_id(id, nama_kelas, program),
+          semester:semester_id(id, nama, tanggal_mulai, tanggal_selesai)
+        `
+        )
+        .single();
+
+      if (error) {
+        console.error('[AkademikRapotService] Error publishing rapot:', error);
+        throw error;
+      }
+
+      return data as Rapot;
+    } catch (error: any) {
+      console.error('[AkademikRapotService] Error in publishRapot:', {
+        rapotId,
+        error: error.message || error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Unpublish rapot (untuk koreksi)
+   */
+  static async unpublishRapot(rapotId: string): Promise<Rapot> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { data, error } = await supabase
+        .from('akademik_rapot')
+        .update({
+          is_published: false,
+          published_at: null,
+          published_by: null,
+          updated_at: new Date().toISOString(),
+          updated_by: user?.id || null,
+        })
+        .eq('id', rapotId)
+        .select(
+          `
+          *,
+          santri:santri_id(id, nama_lengkap, id_santri),
+          kelas:kelas_id(id, nama_kelas, program),
+          semester:semester_id(id, nama, tanggal_mulai, tanggal_selesai)
+        `
+        )
+        .single();
+
+      if (error) {
+        console.error('[AkademikRapotService] Error unpublishing rapot:', error);
+        throw error;
+      }
+
+      return data as Rapot;
+    } catch (error: any) {
+      console.error('[AkademikRapotService] Error in unpublishRapot:', {
         rapotId,
         error: error.message || error,
       });

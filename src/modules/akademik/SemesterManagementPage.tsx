@@ -26,7 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
-import { CalendarPlus, CheckCircle2, Copy, Loader2, Pencil, Trash2, AlertCircle } from 'lucide-react';
+import { CalendarPlus, CheckCircle2, Copy, Loader2, Pencil, Trash2, AlertCircle, Lock, Unlock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { SemesterSyncService } from '@/services/semesterSync.service';
 
@@ -375,6 +375,32 @@ const SemesterManagementPage: React.FC = () => {
     }
   };
 
+  const handleLockSemester = async (semesterId: string) => {
+    if (!confirm('Apakah Anda yakin ingin mengunci semester ini? Mengunci semester akan mencegah perubahan jurnal, presensi, dan nilai.')) {
+      return;
+    }
+    try {
+      await AkademikSemesterService.lockSemester(semesterId);
+      toast.success('Semester berhasil dikunci');
+      loadData();
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal mengunci semester');
+    }
+  };
+
+  const handleUnlockSemester = async (semesterId: string) => {
+    if (!confirm('Apakah Anda yakin ingin membuka kunci semester ini? Semester akan terbuka untuk koreksi.')) {
+      return;
+    }
+    try {
+      await AkademikSemesterService.unlockSemester(semesterId);
+      toast.success('Semester berhasil dibuka');
+      loadData();
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal membuka kunci semester');
+    }
+  };
+
   const handleDuplicateSemester = async () => {
     if (!duplicateDialog.source) return;
     if (!duplicateTarget.tanggal_mulai || !duplicateTarget.tanggal_selesai || !duplicateTarget.tahun_ajaran_id) {
@@ -514,6 +540,7 @@ const SemesterManagementPage: React.FC = () => {
                           <TableHead>Nama Semester</TableHead>
                           <TableHead>Rentang Tanggal</TableHead>
                           <TableHead>Status</TableHead>
+                          <TableHead>Lock</TableHead>
                           <TableHead className="text-right">Aksi</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -540,6 +567,24 @@ const SemesterManagementPage: React.FC = () => {
                                 {semester.status}
                               </Badge>
                             </TableCell>
+                            <TableCell>
+                              {semester.is_locked ? (
+                                <Badge variant="destructive" className="flex items-center gap-1 w-fit">
+                                  <Lock className="w-3 h-3" />
+                                  Terkunci
+                                  {semester.unlocked_until && (
+                                    <span className="text-xs">
+                                      (Unlock s.d {formatDate(semester.unlocked_until)})
+                                    </span>
+                                  )}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="flex items-center gap-1 w-fit">
+                                  <Unlock className="w-3 h-3" />
+                                  Terbuka
+                                </Badge>
+                              )}
+                            </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
                                 {!semester.is_aktif && (
@@ -558,6 +603,28 @@ const SemesterManagementPage: React.FC = () => {
                                     onClick={() => handleCloseSemester(semester)}
                                   >
                                     Tutup
+                                  </Button>
+                                )}
+                                {isAdmin && (
+                                  <Button
+                                    size="sm"
+                                    variant={semester.is_locked ? "default" : "outline"}
+                                    onClick={() => semester.is_locked 
+                                      ? handleUnlockSemester(semester.id)
+                                      : handleLockSemester(semester.id)
+                                    }
+                                  >
+                                    {semester.is_locked ? (
+                                      <>
+                                        <Unlock className="w-4 h-4 mr-1" />
+                                        Unlock
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Lock className="w-4 h-4 mr-1" />
+                                        Lock
+                                      </>
+                                    )}
                                   </Button>
                                 )}
                                 <Button

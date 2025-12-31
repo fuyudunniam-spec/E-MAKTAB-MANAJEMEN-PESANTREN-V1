@@ -18,7 +18,8 @@ const getSupabaseAnonKey = () => {
   return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3eWVtYXVvamZ0bHl6emd1amdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNjkyMDcsImV4cCI6MjA3NDk0NTIwN30.AYYJ3ikwLY1hnt1njt4S-gCliMTEJ_trUYkMri6MUas';
 };
 
-export type AppRole = 'admin' | 'pengurus' | 'santri' | 'admin_keuangan' | 'admin_inventaris' | 'admin_akademik' | 'pengajar';
+// Simplified role system - only 4 roles (import from permissions.ts for consistency)
+export type AppRole = 'admin' | 'staff' | 'santri' | 'pengajar';
 
 export interface UserProfile {
   id: string;
@@ -32,6 +33,8 @@ export interface UserWithRoles extends UserProfile {
   roles: AppRole[];
   username?: string | null;
   password_plain?: string | null;
+  allowedModules?: string[] | null; // Module access list for staff users (camelCase - preferred)
+  allowed_modules?: string[] | null; // Module access list for staff users (snake_case for backward compatibility)
   pengajar?: {
     id: string;
     nama_lengkap: string;
@@ -53,6 +56,7 @@ export interface CreateUserInput {
   password: string;
   full_name: string;
   roles: AppRole[];
+  allowedModules?: string[] | null; // Module access list for admin users
   createPengajar?: boolean;
   pengajarData?: {
     nama_lengkap: string;
@@ -66,6 +70,7 @@ export interface UpdateUserInput {
   full_name?: string;
   roles?: AppRole[];
   email?: string;
+  allowedModules?: string[] | null; // Module access list for admin users
 }
 
 export interface AssignPengajarToKelasInput {
@@ -88,9 +93,10 @@ export class UserManagementService {
   static async listUsers(): Promise<UserWithRoles[]> {
     try {
       console.log('[UserManagementService] Fetching profiles...');
+      // Explicitly select allowed_modules to ensure it's included
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, email, full_name, created_at, updated_at, allowed_modules')
         .order('created_at', { ascending: false });
 
       if (profilesError) {
@@ -194,6 +200,8 @@ export class UserManagementService {
         updated_at: profile.updated_at,
         username: (profile as any).username || null,
         password_plain: (profile as any).password_plain || null,
+        allowedModules: (profile as any).allowed_modules || null, // Map to camelCase
+        allowed_modules: (profile as any).allowed_modules || null, // Keep for backward compatibility
         roles: rolesMap[profile.id] || [],
         pengajar: pengajarMap[profile.id] ? {
           id: pengajarMap[profile.id].id,
@@ -245,6 +253,7 @@ export class UserManagementService {
       password: input.password,
       full_name: input.full_name.trim(),
       roles: input.roles,
+      allowed_modules: input.allowedModules !== undefined ? input.allowedModules : null,
       create_pengajar: input.createPengajar || false,
       pengajar_nama: input.pengajarData?.nama_lengkap?.trim() || null,
       pengajar_kode: input.pengajarData?.kode_pengajar?.trim() || null,
@@ -256,7 +265,12 @@ export class UserManagementService {
       email: requestBody.email,
       full_name: requestBody.full_name,
       roles: requestBody.roles,
+      allowed_modules: requestBody.allowed_modules,
+      allowed_modules_type: typeof requestBody.allowed_modules,
+      allowed_modules_isArray: Array.isArray(requestBody.allowed_modules),
+      allowed_modules_length: Array.isArray(requestBody.allowed_modules) ? requestBody.allowed_modules.length : 'N/A',
       create_pengajar: requestBody.create_pengajar,
+      full_requestBody: JSON.stringify(requestBody, null, 2),
     });
 
     const response = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
@@ -319,6 +333,35 @@ export class UserManagementService {
     }
 
     const supabaseUrl = getSupabaseUrl();
+    
+    // Build update body - only include defined fields
+    const updateBody: any = {
+      user_id: userId,
+    };
+    
+    // Only include fields that are explicitly provided (not undefined)
+    if (input.email !== undefined) updateBody.email = input.email;
+    if (input.password !== undefined) updateBody.password = input.password;
+    if (input.full_name !== undefined) updateBody.full_name = input.full_name;
+    if (input.roles !== undefined) updateBody.roles = input.roles;
+    
+    // CRITICAL: Always include allowed_modules if it exists in input (even if null)
+    // This allows clearing it (null) or updating it (array)
+    if ('allowedModules' in input) {
+      updateBody.allowed_modules = input.allowedModules;
+    }
+    
+    console.log('[UserManagementService] Updating user with data:', {
+      user_id: userId,
+      input_keys: Object.keys(input),
+      input_allowedModules: input.allowedModules,
+      input_allowedModules_type: typeof input.allowedModules,
+      input_allowedModules_in_input: 'allowedModules' in input,
+      updateBody_keys: Object.keys(updateBody),
+      updateBody_allowed_modules: updateBody.allowed_modules,
+      full_updateBody: JSON.stringify(updateBody, null, 2),
+    });
+
     const response = await fetch(`${supabaseUrl}/functions/v1/update-user`, {
       method: 'POST',
       headers: {
@@ -326,13 +369,7 @@ export class UserManagementService {
         'Authorization': `Bearer ${session.access_token}`,
         'apikey': getSupabaseAnonKey(),
       },
-      body: JSON.stringify({
-        user_id: userId,
-        email: input.email,
-        password: input.password,
-        full_name: input.full_name,
-        roles: input.roles,
-      }),
+      body: JSON.stringify(updateBody),
     });
 
     const responseText = await response.text();

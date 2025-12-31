@@ -156,9 +156,19 @@ export class AkademikAgendaService {
 
   static async listAgendaByKelas(
     kelasId: string,
-    options?: { jenis?: AgendaJenis[]; aktifOnly?: boolean }
+    options?: { jenis?: AgendaJenis[]; aktifOnly?: boolean; semesterId?: string }
   ): Promise<AkademikAgenda[]> {
     if (!kelasId) return [];
+
+    // Get kelas info to get semester_id
+    const { data: kelasData, error: kelasError } = await supabase
+      .from('kelas_master')
+      .select('semester_id')
+      .eq('id', kelasId)
+      .single();
+
+    if (kelasError) throw kelasError;
+    const semesterIdFromKelas = kelasData?.semester_id;
 
     let query = supabase
       .from('kelas_agenda')
@@ -166,11 +176,17 @@ export class AkademikAgendaService {
         *,
         pengajar:pengajar_id(id, nama_lengkap, status),
         mapel:mapel_id(id, nama_mapel, program),
-        kelas:kelas_id(id, nama_kelas, program)
+        kelas:kelas_id(id, nama_kelas, program, semester_id)
       `)
       .eq('kelas_id', kelasId)
       .order('jam_mulai', { ascending: true, nullsLast: true })
       .order('nama_agenda', { ascending: true });
+
+    // Filter by semester_id if provided or from kelas
+    const targetSemesterId = options?.semesterId || semesterIdFromKelas;
+    if (targetSemesterId) {
+      query = query.eq('kelas.semester_id', targetSemesterId);
+    }
 
     if (options?.jenis?.length) {
       query = query.in('jenis', options.jenis);
@@ -188,6 +204,8 @@ export class AkademikAgendaService {
     program?: string;
     jenis?: AgendaJenis[];
     aktifOnly?: boolean;
+    kelasId?: string;
+    semesterId?: string;
   }): Promise<AkademikAgenda[]> {
     let query = supabase
       .from('kelas_agenda')
@@ -195,10 +213,16 @@ export class AkademikAgendaService {
         *,
         pengajar:pengajar_id(id, nama_lengkap, status),
         mapel:mapel_id(id, nama_mapel, program),
-        kelas:kelas_id(id, nama_kelas, program)
+        kelas:kelas_id(id, nama_kelas, program, semester_id)
       `)
       .order('created_at', { ascending: false });
 
+    if (params?.kelasId) {
+      query = query.eq('kelas_id', params.kelasId);
+    }
+    if (params?.semesterId) {
+      query = query.eq('kelas.semester_id', params.semesterId);
+    }
     if (params?.program) {
       query = query.eq('kelas.program', params.program);
     }
@@ -326,6 +350,25 @@ export class AkademikAgendaService {
     if (error) throw error;
   }
 
+  static async updatePengajar(id: string, input: Partial<AkademikPengajarInput>): Promise<void> {
+    const payload: any = {};
+    if (input.nama_lengkap !== undefined) payload.nama_lengkap = input.nama_lengkap;
+    if (input.kode_pengajar !== undefined) payload.kode_pengajar = input.kode_pengajar || null;
+    if (input.status !== undefined) payload.status = input.status;
+    if (input.program_spesialisasi !== undefined) payload.program_spesialisasi = input.program_spesialisasi || null;
+    if (input.kontak !== undefined) payload.kontak = input.kontak || null;
+    if (input.catatan !== undefined) payload.catatan = input.catatan || null;
+    if (input.user_id !== undefined) payload.user_id = input.user_id || null;
+    
+    const { error } = await supabase.from('akademik_pengajar').update(payload).eq('id', id);
+    if (error) throw error;
+  }
+
+  static async deletePengajar(id: string): Promise<void> {
+    const { error } = await supabase.from('akademik_pengajar').delete().eq('id', id);
+    if (error) throw error;
+  }
+
   // --------------------------
   // Mapel
   // --------------------------
@@ -358,6 +401,25 @@ export class AkademikAgendaService {
       catatan: input.catatan || null,
     };
     const { error } = await supabase.from('akademik_mapel').insert(payload);
+    if (error) throw error;
+  }
+
+  static async updateMapel(id: string, input: Partial<AkademikMapelInput>): Promise<void> {
+    const payload: any = {};
+    if (input.nama_mapel !== undefined) payload.nama_mapel = input.nama_mapel;
+    if (input.kode_mapel !== undefined) payload.kode_mapel = input.kode_mapel || null;
+    if (input.program !== undefined) payload.program = input.program;
+    if (input.kategori !== undefined) payload.kategori = input.kategori || null;
+    if (input.tingkat !== undefined) payload.tingkat = input.tingkat || null;
+    if (input.status !== undefined) payload.status = input.status;
+    if (input.catatan !== undefined) payload.catatan = input.catatan || null;
+    
+    const { error } = await supabase.from('akademik_mapel').update(payload).eq('id', id);
+    if (error) throw error;
+  }
+
+  static async deleteMapel(id: string): Promise<void> {
+    const { error } = await supabase.from('akademik_mapel').delete().eq('id', id);
     if (error) throw error;
   }
 }

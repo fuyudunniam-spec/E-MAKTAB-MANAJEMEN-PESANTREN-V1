@@ -172,7 +172,7 @@ const SantriSettingsPanel: React.FC<SantriSettingsPanelProps> = ({
           description: 'Tempatkan atau pindahkan program',
           icon: Edit,
           action: () => {
-            navigate(`/ploating-kelas?santriId=${santriId}`);
+            navigate(`/akademik/kelas?tab=plotting&santriId=${santriId}`);
             onClose();
           }
         },
@@ -209,7 +209,7 @@ const SantriSettingsPanel: React.FC<SantriSettingsPanelProps> = ({
           description: 'Lihat dan kelola tagihan santri',
           icon: Eye,
           action: () => {
-            navigate(`/keuangan?tab=tagihan&santriId=${santriId}`);
+            navigate(`/tagihan-santri?santriId=${santriId}`);
             onClose();
           }
         },
@@ -218,7 +218,7 @@ const SantriSettingsPanel: React.FC<SantriSettingsPanelProps> = ({
           description: 'Lihat riwayat pembayaran',
           icon: Activity,
           action: () => {
-            navigate(`/keuangan?tab=pembayaran&santriId=${santriId}`);
+            navigate(`/tagihan-santri?santriId=${santriId}`);
             onClose();
           }
         },
@@ -255,7 +255,7 @@ const SantriSettingsPanel: React.FC<SantriSettingsPanelProps> = ({
           description: 'Monitor dan evaluasi bantuan',
           icon: Eye,
           action: () => {
-            navigate(`/keuangan?tab=bantuan&santriId=${santriId}`);
+            navigate(`/keuangan-v3/penyaluran-bantuan?santriId=${santriId}`);
             onClose();
           }
         },

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Edit, Trash2, ArrowUpRight, ArrowDownLeft, X, Calendar, CheckSquare, Square, CalendarDays } from 'lucide-react';
+import { Search, Edit, Trash2, ArrowUpRight, ArrowDownLeft, X, Calendar, CheckSquare, Square, CalendarDays, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -98,6 +98,10 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
   
   // Batch selection states
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
+  
+  // State untuk dropdown rincian santri Bantuan Langsung
+  const [expandedBantuanLangsung, setExpandedBantuanLangsung] = useState<Set<string>>(new Set());
+  const [bantuanLangsungAllocations, setBantuanLangsungAllocations] = useState<Record<string, any[]>>({});
   const [showBatchEditDialog, setShowBatchEditDialog] = useState(false);
   const [batchEditData, setBatchEditData] = useState({
     kategori: '',
@@ -911,6 +915,102 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                                 {transaction.penerima_pembayar}
                               </div>
                             )}
+                            {/* Dropdown rincian santri untuk Bantuan Langsung Yayasan */}
+                            {transaction.kategori === 'Bantuan Langsung Yayasan' && (
+                              <div className="mt-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    if (expandedBantuanLangsung.has(transaction.id)) {
+                                      setExpandedBantuanLangsung(prev => {
+                                        const newSet = new Set(prev);
+                                        newSet.delete(transaction.id);
+                                        return newSet;
+                                      });
+                                    } else {
+                                      setExpandedBantuanLangsung(prev => new Set(prev).add(transaction.id));
+                                      // Fetch alokasi santri jika belum ada
+                                      if (!bantuanLangsungAllocations[transaction.id]) {
+                                        try {
+                                          const { data, error } = await supabase
+                                            .from('alokasi_pengeluaran_santri')
+                                            .select(`
+                                              id,
+                                              santri_id,
+                                              nominal_alokasi,
+                                              jenis_bantuan,
+                                              periode,
+                                              keterangan,
+                                              santri:santri_id(
+                                                nama_lengkap,
+                                                id_santri,
+                                                nisn
+                                              )
+                                            `)
+                                            .eq('keuangan_id', transaction.id);
+                                          
+                                          if (!error && data) {
+                                            setBantuanLangsungAllocations(prev => ({
+                                              ...prev,
+                                              [transaction.id]: data
+                                            }));
+                                          }
+                                        } catch (err) {
+                                          console.error('Error loading alokasi santri:', err);
+                                        }
+                                      }
+                                    }
+                                  }}
+                                  className="h-6 text-xs"
+                                >
+                                  <Users className="h-3 w-3 mr-1" />
+                                  {expandedBantuanLangsung.has(transaction.id) ? 'Sembunyikan' : 'Lihat Rincian Santri'}
+                                </Button>
+                                {expandedBantuanLangsung.has(transaction.id) && bantuanLangsungAllocations[transaction.id] && (
+                                  <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                                    <div className="text-xs font-semibold text-blue-900 mb-2">
+                                      Daftar Santri yang Memperoleh Bantuan:
+                                    </div>
+                                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                                      {bantuanLangsungAllocations[transaction.id].length > 0 ? (
+                                        bantuanLangsungAllocations[transaction.id].map((alloc: any, idx: number) => (
+                                          <div key={alloc.id || idx} className="text-xs p-1.5 bg-white rounded border border-blue-100">
+                                            <div className="font-medium text-gray-900">
+                                              {alloc.santri?.nama_lengkap || 'Tidak Diketahui'}
+                                            </div>
+                                            <div className="text-gray-600">
+                                              {alloc.santri?.id_santri || alloc.santri?.nisn || ''} • {alloc.jenis_bantuan || 'Bantuan'}
+                                            </div>
+                                            <div className="text-gray-500 text-[10px]">
+                                              {alloc.periode && `Periode: ${alloc.periode}`}
+                                              {alloc.keterangan && ` • ${alloc.keterangan}`}
+                                            </div>
+                                            <div className="font-semibold text-blue-700 mt-0.5">
+                                              {formatCurrency(alloc.nominal_alokasi || 0)}
+                                            </div>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <div className="text-xs text-gray-500 italic">
+                                          Tidak ada alokasi santri
+                                        </div>
+                                      )}
+                                    </div>
+                                    {bantuanLangsungAllocations[transaction.id].length > 0 && (
+                                      <div className="mt-2 pt-2 border-t border-blue-200 text-xs font-semibold text-blue-900">
+                                        Total: {formatCurrency(
+                                          bantuanLangsungAllocations[transaction.id].reduce(
+                                            (sum: number, alloc: any) => sum + (alloc.nominal_alokasi || 0),
+                                            0
+                                          )
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-right">
                             <div className={`text-sm font-semibold ${
@@ -1048,6 +1148,102 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                         {transaction.penerima_pembayar && (
                           <div className="text-xs text-gray-500 mt-1">
                             {transaction.penerima_pembayar}
+                          </div>
+                        )}
+                        {/* Dropdown rincian santri untuk Bantuan Langsung Yayasan */}
+                        {transaction.kategori === 'Bantuan Langsung Yayasan' && (
+                          <div className="mt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                if (expandedBantuanLangsung.has(transaction.id)) {
+                                  setExpandedBantuanLangsung(prev => {
+                                    const newSet = new Set(prev);
+                                    newSet.delete(transaction.id);
+                                    return newSet;
+                                  });
+                                } else {
+                                  setExpandedBantuanLangsung(prev => new Set(prev).add(transaction.id));
+                                  // Fetch alokasi santri jika belum ada
+                                  if (!bantuanLangsungAllocations[transaction.id]) {
+                                    try {
+                                      const { data, error } = await supabase
+                                        .from('alokasi_pengeluaran_santri')
+                                        .select(`
+                                          id,
+                                          santri_id,
+                                          nominal_alokasi,
+                                          jenis_bantuan,
+                                          periode,
+                                          keterangan,
+                                          santri:santri_id(
+                                            nama_lengkap,
+                                            id_santri,
+                                            nisn
+                                          )
+                                        `)
+                                        .eq('keuangan_id', transaction.id);
+                                      
+                                      if (!error && data) {
+                                        setBantuanLangsungAllocations(prev => ({
+                                          ...prev,
+                                          [transaction.id]: data
+                                        }));
+                                      }
+                                    } catch (err) {
+                                      console.error('Error loading alokasi santri:', err);
+                                    }
+                                  }
+                                }
+                              }}
+                              className="h-6 text-xs w-full"
+                            >
+                              <Users className="h-3 w-3 mr-1" />
+                              {expandedBantuanLangsung.has(transaction.id) ? 'Sembunyikan' : 'Lihat Rincian Santri'}
+                            </Button>
+                            {expandedBantuanLangsung.has(transaction.id) && bantuanLangsungAllocations[transaction.id] && (
+                              <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                                <div className="text-xs font-semibold text-blue-900 mb-2">
+                                  Daftar Santri yang Memperoleh Bantuan:
+                                </div>
+                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                  {bantuanLangsungAllocations[transaction.id].length > 0 ? (
+                                    bantuanLangsungAllocations[transaction.id].map((alloc: any, idx: number) => (
+                                      <div key={alloc.id || idx} className="text-xs p-1.5 bg-white rounded border border-blue-100">
+                                        <div className="font-medium text-gray-900">
+                                          {alloc.santri?.nama_lengkap || 'Tidak Diketahui'}
+                                        </div>
+                                        <div className="text-gray-600">
+                                          {alloc.santri?.id_santri || alloc.santri?.nisn || ''} • {alloc.jenis_bantuan || 'Bantuan'}
+                                        </div>
+                                        <div className="text-gray-500 text-[10px]">
+                                          {alloc.periode && `Periode: ${alloc.periode}`}
+                                          {alloc.keterangan && ` • ${alloc.keterangan}`}
+                                        </div>
+                                        <div className="font-semibold text-blue-700 mt-0.5">
+                                          {formatCurrency(alloc.nominal_alokasi || 0)}
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="text-xs text-gray-500 italic">
+                                      Tidak ada alokasi santri
+                                    </div>
+                                  )}
+                                </div>
+                                {bantuanLangsungAllocations[transaction.id].length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-blue-200 text-xs font-semibold text-blue-900">
+                                    Total: {formatCurrency(
+                                      bantuanLangsungAllocations[transaction.id].reduce(
+                                        (sum: number, alloc: any) => sum + (alloc.nominal_alokasi || 0),
+                                        0
+                                      )
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { UserManagementService, UserWithRoles, AppRole, CreateUserInput } from '@/services/userManagement.service';
+import { UserManagementService, UserWithRoles, AppRole, CreateUserInput, UpdateUserInput } from '@/services/userManagement.service';
+import { getAllModuleNames, getModuleLabel, ModuleName } from '@/utils/permissions';
 import { UserService, UserComplete, UserFilters } from '@/services/user.service';
 import { supabase } from '@/integrations/supabase/client';
 import { AkademikKelasService, KelasMaster } from '@/services/akademikKelas.service';
@@ -35,8 +36,6 @@ import {
   UserX,
   GraduationCap,
   UserCog,
-  BarChart3,
-  ClipboardList,
   ClipboardCheck,
   FileText,
   ExternalLink,
@@ -50,14 +49,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+// Simplified role options - only 4 roles: admin, staff, pengajar, santri
 const ROLE_OPTIONS: { value: AppRole; label: string; description: string }[] = [
-  { value: 'admin', label: 'Admin', description: 'Akses penuh ke semua modul' },
-  { value: 'admin_keuangan', label: 'Admin Keuangan', description: 'Akses ke modul keuangan, pembayaran, tabungan' },
-  { value: 'admin_inventaris', label: 'Admin Inventaris', description: 'Akses ke modul inventaris, distribusi, penjualan' },
-  { value: 'admin_akademik', label: 'Admin Akademik', description: 'Akses ke modul akademik, santri, monitoring' },
-  { value: 'pengurus', label: 'Pengurus', description: 'Akses read-only ke semua modul' },
-  { value: 'pengajar', label: 'Pengajar', description: 'Pengajar yang dapat di-assign ke kelas dan agenda' },
-  { value: 'santri', label: 'Santri', description: 'Akses terbatas ke dashboard dan tabungan' },
+  { value: 'admin', label: 'Admin', description: 'Mengakses seluruh modul dan semua fitur' },
+  { value: 'staff', label: 'Staff', description: 'Akses fleksibel - pilih modul yang diizinkan (yang tidak dipilih tidak ditampilkan)' },
+  { value: 'pengajar', label: 'Pengajar', description: 'Hanya dapat mengakses profil pengajar' },
+  { value: 'santri', label: 'Santri', description: 'Hanya mengakses profil santri' },
 ];
 
 const UserManagementPage: React.FC = () => {
@@ -75,9 +72,7 @@ const UserManagementPage: React.FC = () => {
     searchTermRef.current = searchTerm;
   }, [searchTerm]);
   const [filterRole, setFilterRole] = useState<AppRole | 'all'>('all');
-  const [viewMode, setViewMode] = useState<'dashboard' | 'table'>('dashboard');
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'all' | 'santri' | 'pengajar' | 'staff'>('all');
+  const [activeTab, setActiveTab] = useState<'santri' | 'pengajar' | 'staff'>('santri');
   
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -121,6 +116,7 @@ const UserManagementPage: React.FC = () => {
     password: '',
     full_name: '',
     roles: [],
+    allowedModules: null,
     createPengajar: false,
     pengajarData: {
       nama_lengkap: '',
@@ -145,7 +141,7 @@ const UserManagementPage: React.FC = () => {
       // Try to use new UserService first, fallback to UserManagementService
       try {
         const filters: UserFilters = {
-          user_type: activeTab === 'all' ? 'all' : activeTab,
+          user_type: activeTab,
           role: filterRole === 'all' ? 'all' : filterRole,
           search: searchTerm || undefined,
         };
@@ -174,13 +170,14 @@ const UserManagementPage: React.FC = () => {
             roles: u.roles as AppRole[],
             username: u.santri?.id_santri || undefined,
             password_plain: undefined, // Will be loaded separately if needed
+            allowedModules: u.allowed_modules || null, // Map allowed_modules from UserComplete
+            allowed_modules: u.allowed_modules || null, // Keep for backward compatibility
             santri: u.santri ? {
               id: u.santri.id,
               id_santri: u.santri.id_santri,
               nama_lengkap: u.santri.nama_lengkap,
               status_santri: u.santri.status_santri,
               kategori: u.santri.kategori,
-              jenis_kelamin: u.santri.jenis_kelamin as 'Laki-laki' | 'Perempuan' | null,
             } : undefined,
             pengajar: u.pengajar ? {
               id: u.pengajar.id,
@@ -195,6 +192,17 @@ const UserManagementPage: React.FC = () => {
           total: convertedUsers.length,
           withSantri: convertedUsers.filter(u => u.santri).length,
           withSantriRole: convertedUsers.filter(u => u.roles.includes('santri')).length,
+        });
+        // Debug: Check allowedModules mapping
+        convertedUsers.forEach(u => {
+          if (u.roles.includes('staff')) {
+            console.log('[UserManagementPage] Staff user allowedModules:', {
+              id: u.id,
+              email: u.email,
+              allowedModules: u.allowedModules,
+              allowed_modules: u.allowed_modules,
+            });
+          }
         });
         
         setUsers(convertedUsers);
@@ -272,6 +280,27 @@ const UserManagementPage: React.FC = () => {
     }
   }, [passwordDialogOpen]);
 
+  // Reset formData when create dialog opens
+  useEffect(() => {
+    if (createDialogOpen) {
+      console.log('[UserManagementPage] Create dialog opened - resetting formData');
+      setFormData({
+        email: '',
+        password: '',
+        full_name: '',
+        roles: [],
+        allowedModules: null,
+        createPengajar: false,
+        pengajarData: {
+          nama_lengkap: '',
+          kode_pengajar: '',
+          program_spesialisasi: [],
+          kontak: '',
+        },
+      });
+    }
+  }, [createDialogOpen]);
+
   const handleCreateUser = async () => {
     if (!formData.email || !formData.password || !formData.full_name || formData.roles.length === 0) {
       toast.error('Mohon lengkapi semua field yang wajib');
@@ -279,15 +308,46 @@ const UserManagementPage: React.FC = () => {
     }
 
     // Validasi khusus untuk role pengajar
-    if (formData.roles.includes('pengajar')) {
+    if (formData.roles[0] === 'pengajar') {
       if (!formData.pengajarData?.nama_lengkap || formData.pengajarData.nama_lengkap.trim() === '') {
         toast.error('Jika memilih role Pengajar, nama pengajar wajib diisi');
         return;
       }
     }
 
+    // Validasi khusus untuk role staff - wajib pilih minimal 1 modul (selain dashboard)
+    let finalAllowedModules = formData.allowedModules;
+    if (formData.roles[0] === 'staff') {
+      if (!formData.allowedModules || formData.allowedModules.length === 0) {
+        toast.error('Staff wajib memilih minimal 1 modul yang dapat diakses');
+        return;
+      }
+      // Ensure dashboard is always included for staff (create new array, don't mutate)
+      finalAllowedModules = formData.allowedModules.includes('dashboard')
+        ? [...formData.allowedModules] // Copy array
+        : ['dashboard', ...formData.allowedModules];
+    }
+
+    // Admin: selalu set allowedModules ke null (full access)
+    const submitData = {
+      ...formData,
+      allowedModules: formData.roles[0] === 'admin' ? null : finalAllowedModules,
+    };
+
+    console.log('[UserManagementPage] Creating user - submitData:', {
+      email: submitData.email,
+      roles: submitData.roles,
+      allowedModules: submitData.allowedModules,
+      allowedModules_type: typeof submitData.allowedModules,
+      allowedModules_isArray: Array.isArray(submitData.allowedModules),
+      allowedModules_length: Array.isArray(submitData.allowedModules) ? submitData.allowedModules.length : 'N/A',
+      formData_allowedModules: formData.allowedModules,
+      finalAllowedModules: finalAllowedModules,
+      submitData_full: JSON.stringify(submitData, null, 2),
+    });
+
     try {
-      await UserManagementService.createUser(formData);
+      await UserManagementService.createUser(submitData);
       toast.success('User berhasil dibuat');
       setCreateDialogOpen(false);
       setFormData({
@@ -295,6 +355,7 @@ const UserManagementPage: React.FC = () => {
         password: '',
         full_name: '',
         roles: [],
+        allowedModules: null,
         createPengajar: false,
         pengajarData: {
           nama_lengkap: '',
@@ -312,12 +373,48 @@ const UserManagementPage: React.FC = () => {
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
 
+    // Validasi khusus untuk role staff - wajib pilih minimal 1 modul (selain dashboard)
+    let finalAllowedModules = formData.allowedModules;
+    if (formData.roles[0] === 'staff') {
+      if (!formData.allowedModules || formData.allowedModules.length === 0) {
+        toast.error('Staff wajib memilih minimal 1 modul yang dapat diakses');
+        return;
+      }
+      // Ensure dashboard is always included for staff (create new array, don't mutate)
+      finalAllowedModules = formData.allowedModules.includes('dashboard')
+        ? [...formData.allowedModules] // Copy array
+        : ['dashboard', ...formData.allowedModules];
+    }
+
+    // Admin: selalu set allowedModules ke null (full access)
+    const submitData: UpdateUserInput = {
+      full_name: formData.full_name,
+      roles: formData.roles,
+    };
+    
+    // Only include email if it changed
+    if (formData.email !== selectedUser.email) {
+      submitData.email = formData.email;
+    }
+    
+    // CRITICAL: Always include allowedModules (even if null for admin)
+    // This ensures it's sent to the backend and saved properly
+    submitData.allowedModules = formData.roles[0] === 'admin' ? null : finalAllowedModules;
+
+    console.log('[UserManagementPage] Updating user - submitData:', {
+      userId: selectedUser.id,
+      roles: submitData.roles,
+      allowedModules: submitData.allowedModules,
+      allowedModules_type: typeof submitData.allowedModules,
+      allowedModules_isArray: Array.isArray(submitData.allowedModules),
+      allowedModules_length: Array.isArray(submitData.allowedModules) ? submitData.allowedModules.length : 'N/A',
+      finalAllowedModules: finalAllowedModules,
+      formData_allowedModules: formData.allowedModules,
+      submitData_full: JSON.stringify(submitData, null, 2),
+    });
+
     try {
-      await UserManagementService.updateUser(selectedUser.id, {
-        full_name: formData.full_name,
-        email: formData.email !== selectedUser.email ? formData.email : undefined,
-        roles: formData.roles,
-      });
+      await UserManagementService.updateUser(selectedUser.id, submitData);
       toast.success('User berhasil diperbarui');
       setEditDialogOpen(false);
       setSelectedUser(null);
@@ -450,21 +547,33 @@ const UserManagementPage: React.FC = () => {
       setIsGeneratingMassal(false);
     }
   };
-
-  const toggleRole = (role: AppRole) => {
+  // Single role selection (replaces toggleRole for new simplified role system)
+  const setRole = (role: AppRole) => {
     setFormData(prev => {
-      const newRoles = prev.roles.includes(role)
-        ? prev.roles.filter(r => r !== role)
-        : [...prev.roles, role];
+      const isStaff = role === 'staff';
+      const isPengajar = role === 'pengajar';
       
-      // Jika memilih role 'pengajar', otomatis centang "Buat Data Pengajar"
-      // Jika uncheck role 'pengajar', uncheck juga "Buat Data Pengajar"
-      const shouldCreatePengajar = newRoles.includes('pengajar');
+      // Staff: Set default modules jika belum ada (dashboard + settings)
+      // Admin: tidak perlu allowedModules (selalu null = full access)
+      // Santri & Pengajar: tidak perlu allowedModules (fixed modules)
+      let allowedModules = null;
+      if (isStaff) {
+        // Jika sebelumnya bukan staff, set default
+        if (prev.roles[0] !== 'staff') {
+          allowedModules = ['dashboard', 'settings']; // Default untuk staff baru
+        } else {
+          // Tetap pakai yang sudah ada, atau default jika kosong
+          allowedModules = prev.allowedModules && prev.allowedModules.length > 0 
+            ? prev.allowedModules 
+            : ['dashboard', 'settings'];
+        }
+      }
       
       return {
         ...prev,
-        roles: newRoles,
-        createPengajar: shouldCreatePengajar ? true : (role === 'pengajar' ? false : prev.createPengajar),
+        roles: [role], // Single role only
+        allowedModules,
+        createPengajar: isPengajar ? true : false,
       };
     });
   };
@@ -520,16 +629,15 @@ const UserManagementPage: React.FC = () => {
 
   useEffect(() => {
     if (formData.createPengajar && 
-        formData.roles.includes('pengajar') && 
+        formData.roles[0] === 'pengajar' && 
         formData.pengajarData?.nama_lengkap && 
         !formData.pengajarData?.kode_pengajar) {
       generateKodePengajar();
     }
   }, [formData.createPengajar, formData.roles, formData.pengajarData?.nama_lengkap, formData.pengajarData?.kode_pengajar, generateKodePengajar]);
 
-  // Calculate statistics
+  // Calculate statistics for tab counts only
   const statistics = useMemo(() => {
-    const totalUsers = users.length;
     // Filter santri: check both santri property and 'santri' role
     const santriUsers = users.filter(u => 
       u.santri || u.roles.includes('santri')
@@ -538,43 +646,44 @@ const UserManagementPage: React.FC = () => {
     const pengajarUsers = users.filter(u => 
       u.pengajar || u.roles.includes('pengajar')
     );
-    const adminUsers = users.filter(u => u.roles.includes('admin'));
-    const pengurusUsers = users.filter(u => 
-      ['admin_keuangan', 'admin_inventaris', 'admin_akademik', 'pengurus'].some(r => u.roles.includes(r as AppRole))
-    );
+    const staffUsers = users.filter(u => u.roles.includes('staff'));
 
     return {
-      totalUsers,
       totalSantri: santriUsers.length,
-      santriAktif: santriUsers.filter(u => u.santri?.status_santri === 'Aktif').length,
-      santriNonAktif: santriUsers.filter(u => u.santri?.status_santri === 'Non-Aktif').length,
-      santriAlumni: santriUsers.filter(u => u.santri?.status_santri === 'Alumni').length,
-      santriPutra: santriUsers.filter(u => u.santri?.jenis_kelamin === 'Laki-laki').length,
-      santriPutri: santriUsers.filter(u => u.santri?.jenis_kelamin === 'Perempuan').length,
       totalPengajar: pengajarUsers.length,
-      pengajarAktif: pengajarUsers.filter(u => u.pengajar?.status === 'Aktif').length,
-      pengajarNonAktif: pengajarUsers.filter(u => u.pengajar?.status === 'Non-Aktif').length,
-      totalAdmin: adminUsers.length,
-      totalPengurus: pengurusUsers.length,
+      totalStaff: staffUsers.length,
     };
   }, [users]);
 
-  const filteredUsers = users.filter(u => {
-    // Filter by role
-    if (filterRole !== 'all' && !u.roles.includes(filterRole)) {
-      return false;
+  // Filter users based on active tab
+  const filteredUsers = useMemo(() => {
+    let tabFiltered = users;
+    
+    // Filter by active tab
+    if (activeTab === 'santri') {
+      tabFiltered = users.filter(u => u.santri || u.roles.includes('santri'));
+    } else if (activeTab === 'pengajar') {
+      tabFiltered = users.filter(u => u.pengajar || u.roles.includes('pengajar'));
+    } else if (activeTab === 'staff') {
+      tabFiltered = users.filter(u => u.roles.includes('staff'));
     }
 
+    // Filter by role (if not 'all')
+    const roleFiltered = filterRole !== 'all' 
+      ? tabFiltered.filter(u => u.roles.includes(filterRole))
+      : tabFiltered;
+
     // Filter by search term
-    const matchesSearch = 
+    if (!searchTerm) return roleFiltered;
+    
+    return roleFiltered.filter(u => 
       u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.pengajar?.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.santri?.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.santri?.id_santri.toLowerCase().includes(searchTerm.toLowerCase());
-
-    return matchesSearch;
-  });
+      u.santri?.id_santri.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [users, activeTab, filterRole, searchTerm]);
 
   if (!isAdmin) {
     return (
@@ -594,68 +703,16 @@ const UserManagementPage: React.FC = () => {
     );
   }
 
-  // Filter users berdasarkan activeFilter
-  const getFilteredUsersByCategory = () => {
-    if (!activeFilter) return filteredUsers;
-
-    switch (activeFilter) {
-      case 'santri-aktif':
-        return filteredUsers.filter(u => u.santri?.status_santri === 'Aktif');
-      case 'santri-nonaktif':
-        return filteredUsers.filter(u => u.santri?.status_santri === 'Non-Aktif');
-      case 'santri-alumni':
-        return filteredUsers.filter(u => u.santri?.status_santri === 'Alumni');
-      case 'santri-putra':
-        return filteredUsers.filter(u => u.santri && u.santri.jenis_kelamin === 'Laki-laki');
-      case 'santri-putri':
-        return filteredUsers.filter(u => u.santri && u.santri.jenis_kelamin === 'Perempuan');
-      case 'pengajar':
-        return filteredUsers.filter(u => u.roles.includes('pengajar'));
-      case 'pengajar-aktif':
-        return filteredUsers.filter(u => u.pengajar?.status === 'Aktif');
-      case 'admin':
-        return filteredUsers.filter(u => u.roles.includes('admin'));
-      case 'pengurus':
-        return filteredUsers.filter(u => 
-          ['admin_keuangan', 'admin_inventaris', 'admin_akademik', 'pengurus'].some(r => u.roles.includes(r as AppRole))
-        );
-      default:
-        return filteredUsers;
-    }
-  };
-
-  const displayUsers = activeFilter ? getFilteredUsersByCategory() : filteredUsers;
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Kelola User</h1>
           <p className="text-muted-foreground">
-            Dashboard eksekutif untuk master data akun user, pengajar, dan pengurus. Kelola profil, role, password, dan monitoring.
+            Master data akun user, pengajar, dan staff. Kelola profil, role, password, dan monitoring.
           </p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant={viewMode === 'dashboard' ? 'default' : 'outline'}
-            onClick={() => {
-              setViewMode('dashboard');
-              setActiveFilter(null);
-            }}
-          >
-            <BarChart3 className="w-4 h-4 mr-2" />
-            Dashboard
-          </Button>
-          <Button 
-            variant={viewMode === 'table' ? 'default' : 'outline'}
-            onClick={() => {
-              setViewMode('table');
-              setActiveFilter(null);
-            }}
-          >
-            <ClipboardList className="w-4 h-4 mr-2" />
-            Tabel
-          </Button>
           <Button onClick={() => setCreateDialogOpen(true)}>
             <UserPlus className="w-4 h-4 mr-2" />
             Tambah User
@@ -681,350 +738,24 @@ const UserManagementPage: React.FC = () => {
         </div>
       </div>
 
-      {viewMode === 'dashboard' && (
-        <>
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Total Users */}
-            <Card 
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => {
-                setViewMode('table');
-                setActiveFilter(null);
-              }}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total User</p>
-                    <p className="text-2xl font-bold">{statistics.totalUsers}</p>
-                  </div>
-                  <div className="p-3 bg-primary/10 rounded-lg">
-                    <Users className="w-6 h-6 text-primary" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Total Santri */}
-            <Card 
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => {
-                setViewMode('table');
-                setActiveFilter('santri-aktif');
-                setFilterRole('santri');
-              }}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Santri</p>
-                    <p className="text-2xl font-bold">{statistics.totalSantri}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {statistics.santriAktif} Aktif • {statistics.santriNonAktif} Non-Aktif • {statistics.santriAlumni} Alumni
-                    </p>
-                  </div>
-                  <div className="p-3 bg-blue-500/10 rounded-lg">
-                    <GraduationCap className="w-6 h-6 text-blue-500" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Total Pengajar */}
-            <Card 
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => {
-                setViewMode('table');
-                setActiveFilter('pengajar');
-                setFilterRole('pengajar');
-              }}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Pengajar</p>
-                    <p className="text-2xl font-bold">{statistics.totalPengajar}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {statistics.pengajarAktif} Aktif • {statistics.pengajarNonAktif} Non-Aktif
-                    </p>
-                  </div>
-                  <div className="p-3 bg-green-500/10 rounded-lg">
-                    <BookOpen className="w-6 h-6 text-green-500" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Admin & Pengurus */}
-            <Card 
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => {
-                setViewMode('table');
-                setActiveFilter('admin');
-              }}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Admin & Pengurus</p>
-                    <p className="text-2xl font-bold">{statistics.totalAdmin + statistics.totalPengurus}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {statistics.totalAdmin} Admin • {statistics.totalPengurus} Pengurus
-                    </p>
-                  </div>
-                  <div className="p-3 bg-purple-500/10 rounded-lg">
-                    <UserCog className="w-6 h-6 text-purple-500" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Filter Cards - Santri */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <GraduationCap className="w-5 h-5" />
-                Data Santri
-              </CardTitle>
-              <CardDescription>Klik untuk melihat daftar santri berdasarkan kategori</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                <Card 
-                  className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-primary"
-                  onClick={() => {
-                    setViewMode('table');
-                    setActiveFilter('santri-aktif');
-                    setFilterRole('santri');
-                  }}
-                >
-                  <CardContent className="p-4 text-center">
-                    <UserCheck className="w-8 h-8 mx-auto mb-2 text-green-500" />
-                    <p className="text-sm font-medium">Santri Aktif</p>
-                    <p className="text-2xl font-bold text-green-600">{statistics.santriAktif}</p>
-                  </CardContent>
-                </Card>
-
-                <Card 
-                  className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-red-500"
-                  onClick={() => {
-                    setViewMode('table');
-                    setActiveFilter('santri-nonaktif');
-                    setFilterRole('santri');
-                  }}
-                >
-                  <CardContent className="p-4 text-center">
-                    <UserX className="w-8 h-8 mx-auto mb-2 text-red-500" />
-                    <p className="text-sm font-medium">Santri Non-Aktif</p>
-                    <p className="text-2xl font-bold text-red-600">{statistics.santriNonAktif}</p>
-                  </CardContent>
-                </Card>
-
-                <Card 
-                  className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-blue-500"
-                  onClick={() => {
-                    setViewMode('table');
-                    setActiveFilter('santri-alumni');
-                    setFilterRole('santri');
-                  }}
-                >
-                  <CardContent className="p-4 text-center">
-                    <GraduationCap className="w-8 h-8 mx-auto mb-2 text-blue-500" />
-                    <p className="text-sm font-medium">Alumni</p>
-                    <p className="text-2xl font-bold text-blue-600">{statistics.santriAlumni}</p>
-                  </CardContent>
-                </Card>
-
-                <Card 
-                  className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-indigo-500"
-                  onClick={() => {
-                    setViewMode('table');
-                    setActiveFilter('santri-putra');
-                    setFilterRole('santri');
-                  }}
-                >
-                  <CardContent className="p-4 text-center">
-                    <Users className="w-8 h-8 mx-auto mb-2 text-indigo-500" />
-                    <p className="text-sm font-medium">Santri Putra</p>
-                    <p className="text-2xl font-bold text-indigo-600">{statistics.santriPutra}</p>
-                  </CardContent>
-                </Card>
-
-                <Card 
-                  className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-pink-500"
-                  onClick={() => {
-                    setViewMode('table');
-                    setActiveFilter('santri-putri');
-                    setFilterRole('santri');
-                  }}
-                >
-                  <CardContent className="p-4 text-center">
-                    <Users className="w-8 h-8 mx-auto mb-2 text-pink-500" />
-                    <p className="text-sm font-medium">Santri Putri</p>
-                    <p className="text-2xl font-bold text-pink-600">{statistics.santriPutri}</p>
-                  </CardContent>
-                </Card>
-
-                <Card 
-                  className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-primary"
-                  onClick={() => {
-                    setViewMode('table');
-                    setActiveFilter(null);
-                    setFilterRole('santri');
-                  }}
-                >
-                  <CardContent className="p-4 text-center">
-                    <Users className="w-8 h-8 mx-auto mb-2 text-primary" />
-                    <p className="text-sm font-medium">Semua Santri</p>
-                    <p className="text-2xl font-bold">{statistics.totalSantri}</p>
-                  </CardContent>
-                </Card>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Filter Cards - Pengajar & Admin */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BookOpen className="w-5 h-5" />
-                  Data Pengajar
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-3">
-                  <Card 
-                    className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-green-500"
-                    onClick={() => {
-                      setViewMode('table');
-                      setActiveFilter('pengajar-aktif');
-                      setFilterRole('pengajar');
-                    }}
-                  >
-                    <CardContent className="p-4 text-center">
-                      <UserCheck className="w-8 h-8 mx-auto mb-2 text-green-500" />
-                      <p className="text-sm font-medium">Pengajar Aktif</p>
-                      <p className="text-2xl font-bold text-green-600">{statistics.pengajarAktif}</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card 
-                    className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-primary"
-                    onClick={() => {
-                      setViewMode('table');
-                      setActiveFilter('pengajar');
-                      setFilterRole('pengajar');
-                    }}
-                  >
-                    <CardContent className="p-4 text-center">
-                      <BookOpen className="w-8 h-8 mx-auto mb-2 text-primary" />
-                      <p className="text-sm font-medium">Semua Pengajar</p>
-                      <p className="text-2xl font-bold">{statistics.totalPengajar}</p>
-                    </CardContent>
-                  </Card>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserCog className="w-5 h-5" />
-                  Admin & Pengurus
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-3">
-                  <Card 
-                    className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-purple-500"
-                    onClick={() => {
-                      setViewMode('table');
-                      setActiveFilter('admin');
-                    }}
-                  >
-                    <CardContent className="p-4 text-center">
-                      <Shield className="w-8 h-8 mx-auto mb-2 text-purple-500" />
-                      <p className="text-sm font-medium">Admin</p>
-                      <p className="text-2xl font-bold text-purple-600">{statistics.totalAdmin}</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card 
-                    className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-orange-500"
-                    onClick={() => {
-                      setViewMode('table');
-                      setActiveFilter('pengurus');
-                    }}
-                  >
-                    <CardContent className="p-4 text-center">
-                      <UserCog className="w-8 h-8 mx-auto mb-2 text-orange-500" />
-                      <p className="text-sm font-medium">Pengurus</p>
-                      <p className="text-2xl font-bold text-orange-600">{statistics.totalPengurus}</p>
-                    </CardContent>
-                  </Card>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </>
-      )}
-
       {/* Table View */}
-      {viewMode === 'table' && (
-        <Card>
+      <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Daftar User</CardTitle>
-              <CardDescription>
-                {activeFilter 
-                  ? `Menampilkan: ${activeFilter.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`
-                  : 'Master data semua akun user, pengajar, dan pengurus'
-                }
-              </CardDescription>
-            </div>
-            {activeFilter && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => {
-                  setActiveFilter(null);
-                  setFilterRole('all');
-                  setActiveTab('all');
-                }}
-              >
-                <X className="w-4 h-4 mr-2" />
-                Hapus Filter
-              </Button>
-            )}
-          </div>
+            <CardTitle>Daftar User</CardTitle>
+            <CardDescription>
+              Master data semua akun user, pengajar, dan staff
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {/* Tabs untuk memisahkan Santri, Pengajar, dan Staff */}
             <div className="mb-4 border-b">
               <div className="flex gap-2">
                 <Button
-                  variant={activeTab === 'all' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => {
-                    setActiveTab('all');
-                    setFilterRole('all');
-                    setActiveFilter(null);
-                  }}
-                >
-                  <Users className="w-4 h-4 mr-2" />
-                  Semua User
-                </Button>
-                <Button
                   variant={activeTab === 'santri' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => {
                     setActiveTab('santri');
-                    setFilterRole('santri');
-                    setActiveFilter(null);
+                    setFilterRole('all');
                   }}
                 >
                   <GraduationCap className="w-4 h-4 mr-2" />
@@ -1035,8 +766,7 @@ const UserManagementPage: React.FC = () => {
                   size="sm"
                   onClick={() => {
                     setActiveTab('pengajar');
-                    setFilterRole('pengajar');
-                    setActiveFilter(null);
+                    setFilterRole('all');
                   }}
                 >
                   <BookOpen className="w-4 h-4 mr-2" />
@@ -1048,11 +778,10 @@ const UserManagementPage: React.FC = () => {
                   onClick={() => {
                     setActiveTab('staff');
                     setFilterRole('all');
-                    setActiveFilter(null);
                   }}
                 >
                   <UserCog className="w-4 h-4 mr-2" />
-                  Staff ({statistics.totalAdmin + statistics.totalPengurus})
+                  Staff ({statistics.totalStaff})
                 </Button>
               </div>
             </div>
@@ -1120,17 +849,14 @@ const UserManagementPage: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {displayUsers.length === 0 ? (
+                  {filteredUsers.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                        {activeFilter 
-                          ? `Tidak ada user ditemukan untuk filter: ${activeFilter.replace(/-/g, ' ')}`
-                          : 'Tidak ada user ditemukan'
-                        }
+                        Tidak ada user ditemukan
                       </TableCell>
                     </TableRow>
                   ) : (
-                    displayUsers.map((u) => (
+                    filteredUsers.map((u) => (
                       <TableRow key={u.id}>
                         <TableCell>
                           <div>
@@ -1221,21 +947,51 @@ const UserManagementPage: React.FC = () => {
                               <DropdownMenuItem
                                 onClick={() => {
                                   setSelectedUser(u);
+                                  // Use allowedModules (camelCase) first, fallback to allowed_modules (snake_case)
+                                  let userAllowedModules = u.allowedModules || u.allowed_modules || null;
+                                  
+                                  console.log('[UserManagementPage] Loading user for edit - RAW DATA:', {
+                                    id: u.id,
+                                    email: u.email,
+                                    roles: u.roles,
+                                    allowedModules_raw: u.allowedModules,
+                                    allowed_modules_raw: u.allowed_modules,
+                                    user_object: u
+                                  });
+                                  
+                                  // If user is staff and allowedModules is null/empty, set default
+                                  if (u.roles.includes('staff')) {
+                                    if (!userAllowedModules || (Array.isArray(userAllowedModules) && userAllowedModules.length === 0)) {
+                                      // Only set default if truly empty - means user hasn't configured modules yet
+                                      userAllowedModules = ['dashboard', 'settings'];
+                                      console.log('[UserManagementPage] Staff user with empty allowedModules - setting default:', userAllowedModules);
+                                    } else {
+                                      // Ensure dashboard is always included if not already present
+                                      if (!userAllowedModules.includes('dashboard')) {
+                                        userAllowedModules = ['dashboard', ...userAllowedModules];
+                                        console.log('[UserManagementPage] Dashboard not found - adding it:', userAllowedModules);
+                                      }
+                                      console.log('[UserManagementPage] Using saved allowedModules:', userAllowedModules);
+                                    }
+                                  }
+                                  
+                                  console.log('[UserManagementPage] Final allowedModules for form:', userAllowedModules);
                                   setFormData({
-                                  email: u.email,
-                                  password: '',
-                                  full_name: u.full_name || '',
-                                  roles: u.roles,
-                                  createPengajar: false,
-                                  pengajarData: {
-                                    nama_lengkap: '',
-                                    kode_pengajar: '',
-                                    program_spesialisasi: [],
-                                    kontak: '',
-                                  },
-                                });
-                                setEditDialogOpen(true);
-                              }}
+                                    email: u.email,
+                                    password: '',
+                                    full_name: u.full_name || '',
+                                    roles: u.roles,
+                                    allowedModules: userAllowedModules,
+                                    createPengajar: false,
+                                    pengajarData: {
+                                      nama_lengkap: '',
+                                      kode_pengajar: '',
+                                      program_spesialisasi: [],
+                                      kontak: '',
+                                    },
+                                  });
+                                  setEditDialogOpen(true);
+                                }}
                               >
                                 <Edit className="w-4 h-4 mr-2" />
                                 Kelola Akun
@@ -1349,7 +1105,6 @@ const UserManagementPage: React.FC = () => {
             )}
           </CardContent>
         </Card>
-      )}
 
       {/* Create User Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -1388,13 +1143,24 @@ const UserManagementPage: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label>Roles *</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <Label>Role *</Label>
+              <div className="grid grid-cols-1 gap-2">
                 {ROLE_OPTIONS.map((role) => (
-                  <div key={role.value} className="flex items-start space-x-2 p-2 border rounded">
-                    <Checkbox
-                      checked={formData.roles.includes(role.value)}
-                      onCheckedChange={() => toggleRole(role.value)}
+                  <div 
+                    key={role.value} 
+                    className={`flex items-start space-x-2 p-3 border rounded cursor-pointer transition-colors ${
+                      formData.roles[0] === role.value 
+                        ? 'border-primary bg-primary/5' 
+                        : 'hover:bg-muted/50'
+                    }`}
+                    onClick={() => setRole(role.value)}
+                  >
+                    <input
+                      type="radio"
+                      name="create-role"
+                      checked={formData.roles[0] === role.value}
+                      onChange={() => setRole(role.value)}
+                      className="mt-1"
                     />
                     <div className="flex-1">
                       <Label className="font-medium cursor-pointer">{role.label}</Label>
@@ -1404,17 +1170,77 @@ const UserManagementPage: React.FC = () => {
                 ))}
               </div>
             </div>
+            {/* Module Access - Hanya untuk staff (admin selalu full access) */}
+            {formData.roles[0] === 'staff' && (
+              <div className="space-y-2 p-4 border rounded-lg bg-muted/50">
+                <Label>Akses Modul *</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Pilih modul yang dapat diakses oleh staff ini. Modul yang tidak dipilih tidak akan ditampilkan.
+                </p>
+                <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded mb-2">
+                  ⚠️ Staff wajib memilih minimal 1 modul
+                </div>
+                <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+                  {getAllModuleNames()
+                    .filter(module => module !== 'dashboard') // Dashboard always included, don't show in checkbox
+                    .map((module) => {
+                      const currentModules = formData.allowedModules || ['dashboard'];
+                      const isChecked = currentModules.includes(module);
+                      
+                      return (
+                        <div key={module} className="flex items-center space-x-2">
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={(checked) => {
+                              setFormData(prev => {
+                                const current = prev.allowedModules || ['dashboard'];
+                                const otherModules = current.filter(m => m !== 'dashboard');
+                                
+                                let newOtherModules: string[];
+                                if (checked) {
+                                  newOtherModules = otherModules.includes(module) 
+                                    ? otherModules 
+                                    : [...otherModules, module];
+                                } else {
+                                  newOtherModules = otherModules.filter(m => m !== module);
+                                }
+                                
+                                const finalModules = ['dashboard', ...newOtherModules];
+                                
+                                console.log('[UserManagementPage] Checkbox changed (CREATE):', {
+                                  module,
+                                  checked,
+                                  current,
+                                  otherModules,
+                                  newOtherModules,
+                                  finalModules
+                                });
+                                
+                                return {
+                                  ...prev,
+                                  allowedModules: finalModules,
+                                };
+                              });
+                            }}
+                          />
+                          <Label className="text-sm cursor-pointer">{getModuleLabel(module)}</Label>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
             <div className="flex items-center space-x-2">
               <Checkbox
                 checked={formData.createPengajar}
-                disabled={formData.roles.includes('pengajar')}
+                disabled={formData.roles[0] === 'pengajar'}
                 onCheckedChange={(checked) =>
                   setFormData(prev => ({ ...prev, createPengajar: checked as boolean }))
                 }
               />
-              <Label className={formData.roles.includes('pengajar') ? 'text-muted-foreground' : ''}>
+              <Label className={formData.roles[0] === 'pengajar' ? 'text-muted-foreground' : ''}>
                 Buat Data Pengajar untuk User Ini
-                {formData.roles.includes('pengajar') && (
+                {formData.roles[0] === 'pengajar' && (
                   <span className="text-xs text-muted-foreground ml-1">(Otomatis aktif untuk role Pengajar)</span>
                 )}
               </Label>
@@ -1505,13 +1331,24 @@ const UserManagementPage: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label>Roles *</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <Label>Role *</Label>
+              <div className="grid grid-cols-1 gap-2">
                 {ROLE_OPTIONS.map((role) => (
-                  <div key={role.value} className="flex items-start space-x-2 p-2 border rounded">
-                    <Checkbox
-                      checked={formData.roles.includes(role.value)}
-                      onCheckedChange={() => toggleRole(role.value)}
+                  <div 
+                    key={role.value} 
+                    className={`flex items-start space-x-2 p-3 border rounded cursor-pointer transition-colors ${
+                      formData.roles[0] === role.value 
+                        ? 'border-primary bg-primary/5' 
+                        : 'hover:bg-muted/50'
+                    }`}
+                    onClick={() => setRole(role.value)}
+                  >
+                    <input
+                      type="radio"
+                      name="create-role"
+                      checked={formData.roles[0] === role.value}
+                      onChange={() => setRole(role.value)}
+                      className="mt-1"
                     />
                     <div className="flex-1">
                       <Label className="font-medium cursor-pointer">{role.label}</Label>
@@ -1521,6 +1358,72 @@ const UserManagementPage: React.FC = () => {
                 ))}
               </div>
             </div>
+            {/* Module Access - Hanya untuk staff (admin selalu full access) */}
+            {formData.roles[0] === 'staff' && (
+              <div className="space-y-2 p-4 border rounded-lg bg-muted/50">
+                <Label>Akses Modul *</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Pilih modul yang dapat diakses oleh staff ini. Dashboard akan selalu ditambahkan secara otomatis. Modul yang tidak dipilih tidak akan ditampilkan.
+                </p>
+                <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded mb-2">
+                  ⚠️ Staff wajib memilih minimal 1 modul (selain dashboard)
+                </div>
+                <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+                  {getAllModuleNames()
+                    .filter(module => module !== 'dashboard') // Dashboard always included, don't show in checkbox
+                    .map((module) => {
+                      // Check if module is selected (dashboard is always included, so check the rest)
+                      const currentModules = formData.allowedModules || ['dashboard'];
+                      const isChecked = currentModules.includes(module);
+                      
+                      return (
+                        <div key={module} className="flex items-center space-x-2">
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={(checked) => {
+                              setFormData(prev => {
+                                const current = prev.allowedModules || ['dashboard'];
+                                // Filter out dashboard temporarily to work with other modules
+                                const otherModules = current.filter(m => m !== 'dashboard');
+                                
+                                // Update other modules based on checkbox state
+                                let newOtherModules: string[];
+                                if (checked) {
+                                  // Add module if not already present
+                                  newOtherModules = otherModules.includes(module) 
+                                    ? otherModules 
+                                    : [...otherModules, module];
+                                } else {
+                                  // Remove module
+                                  newOtherModules = otherModules.filter(m => m !== module);
+                                }
+                                
+                                // Always include dashboard, plus selected other modules
+                                const finalModules = ['dashboard', ...newOtherModules];
+                                
+                                console.log('[UserManagementPage] Checkbox changed (EDIT):', {
+                                  module,
+                                  checked,
+                                  current,
+                                  otherModules,
+                                  newOtherModules,
+                                  finalModules
+                                });
+                                
+                                return {
+                                  ...prev,
+                                  allowedModules: finalModules,
+                                };
+                              });
+                            }}
+                          />
+                          <Label className="text-sm cursor-pointer">{getModuleLabel(module)}</Label>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>

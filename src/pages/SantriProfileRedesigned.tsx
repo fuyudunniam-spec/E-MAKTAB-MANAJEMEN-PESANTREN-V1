@@ -65,6 +65,7 @@ import { Textarea } from "@/components/ui/textarea";
 import PersonalStep from "@/components/forms/PersonalStep";
 import WaliStep from "@/components/forms/WaliStep";
 import DokumenSantriTab from "@/components/DokumenSantriTab";
+import SantriProgressTracking from "@/components/SantriProgressTracking";
 import { SantriData, WaliData } from "@/types/santri.types";
 
 type SumberPenjamin = 'Yayasan' | 'Program Orang Tua Asuh' | 'Campuran';
@@ -1996,80 +1997,15 @@ const SantriProfileRedesigned = () => {
 
           {/* Tab Akademik */}
           <TabsContent value="akademik" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <GraduationCap className="w-5 h-5" />
-                    Program Pendidikan Aktif
-                  </CardTitle>
-                  {activeSemester && (
-                    <Badge variant="outline" className="text-xs">
-                      Semester: {activeSemester.nama} {activeSemester.tahun_ajaran?.nama}
-                    </Badge>
-                  )}
-                </div>
-                {activeSemester && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Menampilkan program dari semester aktif: {activeSemester.nama} {activeSemester.tahun_ajaran?.nama}
-                  </p>
-                )}
-              </CardHeader>
-              <CardContent>
-                {!activeSemester ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <AlertTriangle className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Belum ada semester aktif</p>
-                    <p className="text-xs mt-2">Silakan hubungi administrator untuk mengatur semester aktif</p>
-                  </div>
-                ) : programAktif.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Belum ada program aktif untuk semester ini</p>
-                    <p className="text-xs mt-2">Semester: {activeSemester.nama} {activeSemester.tahun_ajaran?.nama}</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <div className="text-2xl font-bold">{programAktif.length}</div>
-                        <p className="text-sm text-muted-foreground">Program Aktif</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {programAktif.map((program) => (
-                        <div key={program.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-                          <div className="flex items-start justify-between mb-2">
-                            <h4 className="font-semibold">{program.nama_kelas}</h4>
-                            <Badge variant="outline">{program.program}</Badge>
-                          </div>
-                          <div className="space-y-1 text-sm text-muted-foreground">
-                            {program.rombel && (
-                              <div className="flex items-center gap-2">
-                                <Users className="w-3 h-3" />
-                                Rombel: {program.rombel}
-                              </div>
-                            )}
-                            {program.tahun_ajaran && (
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-3 h-3" />
-                                Tahun Ajaran: {program.tahun_ajaran}
-                              </div>
-                            )}
-                            {program.semester && (
-                              <div className="flex items-center gap-2">
-                                <BookOpen className="w-3 h-3" />
-                                Semester: {program.semester}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {santriId ? (
+              <SantriProgressTracking santriId={santriId} />
+            ) : (
+              <Card>
+                <CardContent className="p-6 text-muted-foreground text-sm">
+                  Memuat data santri...
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Tab Laporan Keuangan */}

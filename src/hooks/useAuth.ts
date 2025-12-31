@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User as SupabaseUser, Session } from "@supabase/supabase-js";
 import { getUserRoles, getUserProfile, getUserPrimaryRole } from "@/services/auth.service";
-import { canAccessModule, canPerformAction, type AppRole } from "@/utils/permissions";
+import { canAccessModule, canAccessModuleWithUser, canPerformAction, type AppRole } from "@/utils/permissions";
 import { logger } from "@/utils/logger";
 
 export type UserRole = AppRole;
@@ -15,6 +15,7 @@ export interface User {
   name?: string;
   santriId?: string; // UUID dari tabel santri
   idSantri?: string; // ID Santri (format: BM240001)
+  allowedModules?: string[] | null; // Module access list for admin users
   profile?: {
     full_name: string | null;
     email: string | null;
@@ -146,6 +147,7 @@ export function useAuth() {
         name: santriData?.nama_lengkap || profile?.full_name || supabaseUser.email?.split('@')[0] || 'User',
         santriId: santriData?.id,
         idSantri: santriData?.id_santri,
+        allowedModules: (profile as any)?.allowed_modules || null,
         profile: profile ? {
           full_name: profile.full_name,
           email: profile.email
@@ -162,7 +164,8 @@ export function useAuth() {
         email: supabaseUser.email || '',
         role: (testRoleOverride || 'santri') as UserRole,
         roles: [],
-        name: supabaseUser.email?.split('@')[0] || 'User'
+        name: supabaseUser.email?.split('@')[0] || 'User',
+        allowedModules: null,
       };
       setUser(fallbackUser);
       return fallbackUser;
@@ -289,7 +292,8 @@ export function useAuth() {
                     email: session.user.email || '',
                     role: 'santri',
                     roles: [],
-                    name: session.user.email?.split('@')[0] || 'User'
+                    name: session.user.email?.split('@')[0] || 'User',
+                    allowedModules: null,
                   });
                   // Note: loading will be set false by fetchUserRole's then/catch when it completes
                 }
@@ -438,7 +442,7 @@ export function useAuth() {
 
   const canAccess = (module: string): boolean => {
     if (!user) return false;
-    return canAccessModule(user.role, module);
+    return canAccessModuleWithUser(user, module);
   };
 
   const isAdmin = user?.role === "admin";

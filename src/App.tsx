@@ -9,9 +9,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import Dashboard from "./pages/Dashboard";
 import Santri from "./pages/Santri";
 import SantriEnhanced from "./pages/SantriEnhanced";
-import SantriProfileEnhanced from "./pages/SantriProfileEnhanced";
-import SantriProfileMinimal from "./pages/SantriProfileMinimal";
-import SantriProfileMaster from "./pages/SantriProfileMaster";
+// Removed legacy profile imports - files deleted, routes redirected to canonical /santri/profile
 import SantriProfileFull from "./pages/SantriProfileFull";
 import Monitoring from "./pages/Monitoring";
 import Tabungan from "./pages/Tabungan";
@@ -23,13 +21,7 @@ import DonasiDashboard from "./pages/DonasiDashboard";
 // import RancanganPelayananSantri from "./pages/RancanganPelayananSantri";
 // import RancanganDashboard from "./components/rancangan/RancanganDashboard";
 import MasterDonatur from "./pages/MasterDonatur";
-import Inventaris from "./pages/Inventaris";
-import InventarisRefactored from "./pages/InventarisRefactored";
-// Removed: InventarisV2, InventarisV2Simple - using new dashboard structure
-import InventarisTest from "./pages/InventarisTest";
-import InventarisDebug from "./pages/InventarisDebug";
-import Koperasi from "./pages/Koperasi";
-import Keuangan from "./pages/Keuangan";
+// Removed legacy imports - files deleted after routing canonical consolidation
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import SantriProfile from "./pages/SantriProfile";
@@ -38,13 +30,12 @@ import SantriOnboarding from "./pages/SantriOnboarding";
 import SantriAccountManagement from "./pages/SantriAccountManagement";
 import ChangePassword from "./pages/ChangePassword";
 // Removed: ProgramSantri, ApprovalSantri (no longer used)
-import PloatingKelas from "./pages/PloatingKelas";
+// Removed: PloatingKelas - redirecting to /akademik/kelas?tab=plotting
 import TagihanSantri from "./pages/TagihanSantri";
 import ProgramSantriBiayaManager from "./components/ProgramSantriBiayaManager";
 
 // Lazy imports for module dashboards
-const DashboardSantri = lazy(() => import('./modules/santri/DashboardSantri'));
-const DashboardKeuangan = lazy(() => import('./modules/keuangan/DashboardKeuangan'));
+// Removed: DashboardSantri, DashboardKeuangan - routes redirected to canonical routes
 const DashboardAkademik = lazy(() => import('./modules/akademik/DashboardAkademik'));
 const MasterKelasPage = lazy(() => import('./modules/akademik/MasterKelasPage'));
 const PloatingKelasSimple = lazy(() => import('./modules/akademik/PloatingKelasSimple'));
@@ -109,28 +100,10 @@ const App = () => (
                 <Dashboard />
               </Layout>
             } />
-            {/* Module Dashboard Routes */}
-            <Route path="/santri-dashboard" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <DashboardSantri />
-                </Suspense>
-              </Layout>
-            } />
-            <Route path="/keuangan-dashboard" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <DashboardKeuangan />
-                </Suspense>
-              </Layout>
-            } />
-            <Route path="/inventaris-dashboard" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <InventarisDashboard />
-                </Suspense>
-              </Layout>
-            } />
+            {/* Module Dashboard Routes - Redirected to canonical routes */}
+            <Route path="/santri-dashboard" element={<Navigate to="/santri" replace />} />
+            <Route path="/keuangan-dashboard" element={<Navigate to="/keuangan-v3" replace />} />
+            <Route path="/inventaris-dashboard" element={<Navigate to="/inventaris" replace />} />
             {/* Inventory Module Routes */}
             <Route path="/inventaris" element={
               <Layout>
@@ -309,13 +282,7 @@ const App = () => (
               </Layout>
             } />
             {/* Backward compatibility - redirect old routes */}
-            <Route path="/akademik/master" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <KelasPage />
-                </Suspense>
-              </Layout>
-            } />
+            <Route path="/akademik/master" element={<Navigate to="/akademik/kelas" replace />} />
             <Route path="/akademik/semester" element={
               <Layout>
                 <Suspense fallback={<div>Loading...</div>}>
@@ -323,13 +290,7 @@ const App = () => (
                 </Suspense>
               </Layout>
             } />
-            <Route path="/akademik/presensi" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <PertemuanPage />
-                </Suspense>
-              </Layout>
-            } />
+            <Route path="/akademik/presensi" element={<Navigate to="/akademik/pertemuan?tab=presensi" replace />} />
             <Route path="/akademik/setoran" element={
               <Layout>
                 <Suspense fallback={<div>Loading...</div>}>
@@ -345,13 +306,7 @@ const App = () => (
               </Layout>
             } />
             {/* Backward compatibility - redirect old routes */}
-            <Route path="/akademik/jurnal" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <PertemuanPage />
-                </Suspense>
-              </Layout>
-            } />
+            <Route path="/akademik/jurnal" element={<Navigate to="/akademik/pertemuan?tab=jurnal" replace />} />
             <Route path="/akademik/pengajar" element={
               <Layout>
                 <Suspense fallback={<div>Loading...</div>}>
@@ -380,13 +335,7 @@ const App = () => (
                 </Suspense>
               </Layout>
             } />
-            <Route path="/akademik/rapot" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <RapotPage />
-                </Suspense>
-              </Layout>
-            } />
+            <Route path="/akademik/rapot" element={<Navigate to="/akademik/nilai" replace />} />
             <Route path="/administrasi" element={<Navigate to="/admin/users" replace />} />
             <Route path="/santri" element={
               <Layout>
@@ -402,16 +351,11 @@ const App = () => (
                 <SantriProfileRedesigned />
               </Layout>
             } />
-            <Route path="/santri/profile-enhanced" element={
-              <Layout>
-                <SantriProfileEnhanced />
-              </Layout>
-            } />
-            <Route path="/santri/profile-redesigned" element={
-              <Layout>
-                <SantriProfileRedesigned />
-              </Layout>
-            } />
+            {/* Backward compatibility - redirect old profile routes */}
+            <Route path="/santri/profile-enhanced" element={<Navigate to="/santri/profile" replace />} />
+            <Route path="/santri/profile-minimal" element={<Navigate to="/santri/profile" replace />} />
+            <Route path="/santri/profile-master" element={<Navigate to="/santri/profile" replace />} />
+            <Route path="/santri/profile-redesigned" element={<Navigate to="/santri/profile" replace />} />
             <Route path="/santri/program-management/:santriId" element={
               <Layout>
                 <ProgramSantriBiayaManager />
@@ -442,11 +386,7 @@ const App = () => (
                 <DonasiDashboard />
               </Layout>
             } />
-            <Route path="/donasi-dashboard" element={
-              <Layout>
-                <DonasiDashboard />
-              </Layout>
-            } />
+            <Route path="/donasi-dashboard" element={<Navigate to="/donasi" replace />} />
             {/* Modul Kebutuhan Layanan Santri - DINONAKTIFKAN */}
             {/* <Route path="/donasi/kebutuhan-layanan" element={
               <Layout>
@@ -473,32 +413,12 @@ const App = () => (
                 <MasterDonatur />
               </Layout>
             } />
-            {/* Removed: Route /inventaris and /inventaris-v2 using InventarisV2 - now using new dashboard structure */}
-            <Route path="/inventaris-test" element={
-              <Layout>
-                <InventarisTest />
-              </Layout>
-            } />
-            <Route path="/inventaris-legacy" element={
-              <Layout>
-                <InventarisRefactored />
-              </Layout>
-            } />
-            <Route path="/inventaris-old" element={
-              <Layout>
-                <Inventaris />
-              </Layout>
-            } />
-            <Route path="/koperasi-old" element={
-              <Layout>
-                <Koperasi />
-              </Layout>
-            } />
-            <Route path="/keuangan" element={
-              <Layout>
-                <Keuangan />
-              </Layout>
-            } />
+            {/* Legacy routes - redirected to canonical routes */}
+            <Route path="/inventaris-test" element={<Navigate to="/inventaris" replace />} />
+            <Route path="/inventaris-legacy" element={<Navigate to="/inventaris" replace />} />
+            <Route path="/inventaris-old" element={<Navigate to="/inventaris" replace />} />
+            <Route path="/koperasi-old" element={<Navigate to="/koperasi" replace />} />
+            <Route path="/keuangan" element={<Navigate to="/keuangan-v3" replace />} />
             <Route path="/keuangan-v3" element={
               <Layout>
                 <Suspense fallback={<div>Loading...</div>}>
@@ -513,11 +433,8 @@ const App = () => (
                 </Suspense>
               </Layout>
             } />
-            <Route path="/ploating-kelas" element={
-              <Layout>
-                <PloatingKelas />
-              </Layout>
-            } />
+            {/* Redirect old ploating-kelas route to akademik/kelas with plotting tab */}
+            <Route path="/ploating-kelas" element={<Navigate to="/akademik/kelas?tab=plotting" replace />} />
             <Route path="/tagihan-santri" element={
               <Layout>
                 <TagihanSantri />

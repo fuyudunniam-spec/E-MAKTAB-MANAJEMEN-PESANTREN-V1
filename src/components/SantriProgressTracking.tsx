@@ -12,9 +12,18 @@ import {
   Activity,
   Calendar,
   Target,
-  BarChart3
+  BarChart3,
+  GraduationCap
 } from 'lucide-react';
 import { SetoranHarianService } from '@/services/setoranHarian.service';
+import { AkademikNilaiService, Nilai } from '@/services/akademikNilai.service';
+import { AkademikKelasService } from '@/services/akademikKelas.service';
+import { AkademikAgendaService } from '@/services/akademikAgenda.service';
+import { AkademikSemesterService } from '@/services/akademikSemester.service';
+import { supabase } from '@/integrations/supabase/client';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 interface ProgressProgramOption {
@@ -45,6 +54,15 @@ const SantriProgressTracking: React.FC<SantriProgressTrackingProps> = ({ santriI
     avg_kelancaran?: string;
     avg_tajwid?: string;
   } | null>(null);
+  
+  // State untuk nilai akademik Madin
+  const [selectedSemesterId, setSelectedSemesterId] = useState<string | null>(null);
+  const [semesters, setSemesters] = useState<any[]>([]);
+  const [kelasMadin, setKelasMadin] = useState<any | null>(null);
+  const [jadwalKelas, setJadwalKelas] = useState<any[]>([]);
+  const [nilaiPublished, setNilaiPublished] = useState<Nilai[]>([]);
+  const [pertemuanList, setPertemuanList] = useState<any[]>([]);
+  const [loadingAkademik, setLoadingAkademik] = useState(false);
 
   const loadProgress = async () => {
     if (!santriId) return;
@@ -61,9 +79,126 @@ const SantriProgressTracking: React.FC<SantriProgressTrackingProps> = ({ santriI
     }
   };
 
+  // Load semester dan set default
+  const loadSemesters = async () => {
+    try {
+      const list = await AkademikSemesterService.listSemester();
+      setSemesters(list);
+      const aktif = list.find(s => s.is_aktif);
+      if (aktif) {
+        setSelectedSemesterId(aktif.id);
+      } else if (list.length > 0) {
+        setSelectedSemesterId(list[0].id);
+      }
+    } catch (e: any) {
+      console.error('Error loading semesters:', e);
+    }
+  };
+
+  // Load kelas Madin untuk santri pada semester terpilih
+  const loadKelasMadin = async () => {
+    if (!santriId || !selectedSemesterId) {
+      setKelasMadin(null);
+      setJadwalKelas([]);
+      setNilaiPublished([]);
+      return;
+    }
+
+    try {
+      setLoadingAkademik(true);
+      
+      // Ambil kelas Madin dari enrollment
+      const { data: enrollmentList, error: enrollmentError } = await supabase
+        .from('kelas_anggota')
+        .select(`
+          kelas_id,
+          kelas:kelas_id(
+            id,
+            nama_kelas,
+            program,
+            semester_id
+          )
+        `)
+        .eq('santri_id', santriId)
+        .eq('status', 'Aktif');
+
+      if (enrollmentError) {
+        throw enrollmentError;
+      }
+
+      // Cari kelas yang sesuai dengan semester dan program Madin
+      const enrollmentData = (enrollmentList || []).find((enrollment: any) => {
+        const kelas = enrollment.kelas;
+        if (!kelas) return false;
+        // Handle jika kelas adalah array (tidak seharusnya, tapi untuk safety)
+        const kelasObj = Array.isArray(kelas) ? kelas[0] : kelas;
+        return kelasObj && kelasObj.semester_id === selectedSemesterId && kelasObj.program === 'Madin';
+      });
+
+      if (enrollmentData && enrollmentData.kelas) {
+        // Handle jika kelas adalah array (tidak seharusnya, tapi untuk safety)
+        const kelas = Array.isArray(enrollmentData.kelas) ? enrollmentData.kelas[0] : enrollmentData.kelas;
+        
+        if (kelas && kelas.id) {
+          setKelasMadin(kelas);
+
+          // Load jadwal untuk kelas ini
+          const agendas = await AkademikAgendaService.listAgenda({
+            kelasId: kelas.id,
+            semesterId: selectedSemesterId,
+            aktifOnly: false,
+          });
+          setJadwalKelas(agendas);
+
+          // Load pertemuan untuk mendapatkan tanggal & waktu
+          const { AkademikPertemuanService } = await import('@/services/akademikPertemuan.service');
+          const pertemuan = await AkademikPertemuanService.listPertemuan({
+            kelasId: kelas.id,
+          });
+          setPertemuanList(pertemuan);
+
+          // Load nilai published untuk santri ini pada kelas+semester
+          try {
+            const nilai = await AkademikNilaiService.listNilaiPublished(santriId, selectedSemesterId);
+            // Filter hanya nilai untuk kelas ini
+            const nilaiKelas = nilai.filter(n => n.kelas_id === kelas.id);
+            setNilaiPublished(nilaiKelas);
+          } catch (nilaiError: any) {
+            // Jika error karena status_nilai tidak ada, set empty array
+            console.warn('Error loading published nilai (mungkin kolom status_nilai belum ada):', nilaiError);
+            setNilaiPublished([]);
+          }
+        } else {
+          setKelasMadin(null);
+          setJadwalKelas([]);
+          setNilaiPublished([]);
+          setPertemuanList([]);
+        }
+      } else {
+        setKelasMadin(null);
+        setJadwalKelas([]);
+        setNilaiPublished([]);
+        setPertemuanList([]);
+      }
+    } catch (e: any) {
+      console.error('Error loading kelas Madin:', e);
+      setKelasMadin(null);
+      setJadwalKelas([]);
+      setNilaiPublished([]);
+      setPertemuanList([]);
+    } finally {
+      setLoadingAkademik(false);
+    }
+  };
+
   useEffect(() => {
     loadProgress();
-  }, [santriId, selectedProgram]);
+    loadSemesters();
+  }, [santriId]);
+
+  useEffect(() => {
+    loadKelasMadin();
+  }, [santriId, selectedSemesterId]);
 
   useEffect(() => {
     if (programOptions && programOptions.length > 0) {
@@ -117,6 +252,7 @@ const SantriProgressTracking: React.FC<SantriProgressTrackingProps> = ({ santriI
         return <Badge variant="outline">{nilai}</Badge>;
     }
   };
+
 
   return (
     <div className="space-y-6">
@@ -322,6 +458,149 @@ const SantriProgressTracking: React.FC<SantriProgressTrackingProps> = ({ santriI
           </CardContent>
         </Card>
       )}
+
+      {/* Nilai Akademik Madin */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <GraduationCap className="h-5 w-5" />
+                Nilai Akademik Madin
+              </CardTitle>
+              <CardDescription>Nilai published per semester</CardDescription>
+            </div>
+            {semesters.length > 0 && (
+              <Select
+                value={selectedSemesterId || ''}
+                onValueChange={setSelectedSemesterId}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Pilih semester" />
+                </SelectTrigger>
+                <SelectContent>
+                  {semesters.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.nama} {s.tahun_ajaran?.nama ? `• ${s.tahun_ajaran.nama}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loadingAkademik ? (
+            <div className="text-center py-8 text-muted-foreground">Memuat data akademik...</div>
+          ) : !kelasMadin ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Belum ada kelas Madin untuk term ini. Kelas akan muncul otomatis setelah santri diplotting.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Header Kelas */}
+              <div className="p-4 border rounded-lg bg-gray-50">
+                <div className="font-semibold text-lg">
+                  Kelas Madin: {kelasMadin.nama_kelas} — {semesters.find(s => s.id === selectedSemesterId)?.nama || '-'}
+                </div>
+              </div>
+
+              {/* Tabel Jadwal & Nilai */}
+              {jadwalKelas.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  Belum ada jadwal untuk kelas ini
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nama Kelas</TableHead>
+                        <TableHead>Mapel</TableHead>
+                        <TableHead>Tanggal & Waktu Pertemuan</TableHead>
+                        <TableHead>Pengajar</TableHead>
+                        <TableHead className="text-center">Nilai</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {jadwalKelas.map((jadwal) => {
+                        const nilai = nilaiPublished.find(n => n.agenda_id === jadwal.id);
+                        // Ambil pertemuan untuk jadwal ini (ambil yang terakhir untuk contoh)
+                        const pertemuanJadwal = pertemuanList.filter(p => p.agenda_id === jadwal.id);
+                        const pertemuanTerakhir = pertemuanJadwal.length > 0 
+                          ? pertemuanJadwal.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime())[0]
+                          : null;
+                        
+                        return (
+                          <TableRow key={jadwal.id}>
+                            <TableCell className="font-medium">
+                              {kelasMadin?.nama_kelas || '-'}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {jadwal.mapel_nama || jadwal.nama_agenda || '-'}
+                            </TableCell>
+                            <TableCell>
+                              {pertemuanTerakhir ? (
+                                <div>
+                                  <div className="text-sm font-medium">
+                                    {new Date(pertemuanTerakhir.tanggal).toLocaleDateString('id-ID', {
+                                      weekday: 'long',
+                                      year: 'numeric',
+                                      month: 'long',
+                                      day: 'numeric'
+                                    })}
+                                  </div>
+                                  {jadwal.jam_mulai && jadwal.jam_selesai && (
+                                    <div className="text-xs text-muted-foreground">
+                                      {jadwal.jam_mulai.substring(0, 5)} - {jadwal.jam_selesai.substring(0, 5)}
+                                    </div>
+                                  )}
+                                  {pertemuanJadwal.length > 1 && (
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      ({pertemuanJadwal.length} pertemuan)
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div>
+                                  <div className="text-sm">{jadwal.hari || '-'}</div>
+                                  {jadwal.jam_mulai && jadwal.jam_selesai && (
+                                    <div className="text-xs text-muted-foreground">
+                                      {jadwal.jam_mulai.substring(0, 5)} - {jadwal.jam_selesai.substring(0, 5)}
+                                    </div>
+                                  )}
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    Belum ada pertemuan
+                                  </div>
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {jadwal.pengajar_nama || '-'}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {nilai ? (
+                                <div>
+                                  <div className="font-medium">{nilai.nilai_angka !== null ? nilai.nilai_angka : '-'}</div>
+                                  {nilai.nilai_huruf && (
+                                    <Badge variant="outline" className="mt-1">{nilai.nilai_huruf}</Badge>
+                                  )}
+                                </div>
+                              ) : (
+                                <Badge variant="outline" className="text-gray-500">Belum dipublish</Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
