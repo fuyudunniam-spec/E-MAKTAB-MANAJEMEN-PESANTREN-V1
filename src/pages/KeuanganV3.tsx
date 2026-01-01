@@ -18,13 +18,40 @@ import EditTanggalTransferDonasiDialog from '../components/EditTanggalTransferDo
 import StackedAccountCards from '../components/dashboard/StackedAccountCards';
 import TotalBalanceDisplay from '../components/dashboard/TotalBalanceDisplay';
 
-  // Import services
+// Transaction type for this component
+interface Transaction {
+  id: string;
+  tanggal: string;
+  jenis_transaksi: 'Pemasukan' | 'Pengeluaran';
+  kategori: string;
+  deskripsi: string;
+  jumlah: number;
+  akun_kas_id: string;
+  akun_kas_nama: string;
+  status: string;
+  created_at: string;
+  sub_kategori?: string;
+  penerima_pembayar?: string;
+  rincian_items?: unknown[];
+  alokasi_santri?: unknown[];
+  display_category?: string;
+  source_type?: string;
+  display_description?: string;
+  auto_posted?: boolean;
+  source_module?: string;
+  source_id?: string;
+  referensi?: string;
+  is_pengeluaran_riil?: boolean;
+  [key: string]: unknown;
+}
+
+// Import services
 import { getKeuanganDashboardStats, getAkunKasStats } from '../services/keuangan.service';
-import { AkunKasService } from '../services/akunKas.service';
-  import { PeriodFilter } from '../utils/export/types';
-  import { ReportFormatter } from '../utils/export/reportFormatter';
-  import { PDFExporter } from '../utils/export/pdfExporter';
-  import { ExcelExporter } from '../utils/export/excelExporter';
+import { AkunKasService, type AkunKas } from '../services/akunKas.service';
+import { PeriodFilter } from '../utils/export/types';
+import { ReportFormatter } from '../utils/export/reportFormatter';
+import { PDFExporter } from '../utils/export/pdfExporter';
+import { ExcelExporter } from '../utils/export/excelExporter';
 import { AlokasiPengeluaranService } from '../services/alokasiPengeluaran.service';
 import { supabase } from '../integrations/supabase/client';
 // Shared utilities untuk filtering (Phase 1 & 2 refactoring)
@@ -37,7 +64,9 @@ import {
 } from '../utils/keuanganFilters';
 // Service layer untuk chart data (Phase 3 refactoring)
 import { 
-  loadChartData as loadChartDataService
+  loadChartData as loadChartDataService,
+  type MonthlyChartData,
+  type CategoryChartData
 } from '../services/keuanganChart.service';
 
 // Import existing components for modal
@@ -53,11 +82,30 @@ const KeuanganV3: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   
   // Data states
-  const [statistics, setStatistics] = useState<any>(null);
-  const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
-  const [akunKas, setAkunKas] = useState<any[]>([]);
-  const [monthlyData, setMonthlyData] = useState<any[]>([]);
-  const [categoryData, setCategoryData] = useState<any[]>([]);
+  const [statistics, setStatistics] = useState<{
+    saldo_bersih: number;
+    pemasukan_bulan_ini: number;
+    pengeluaran_bulan_ini: number;
+    transaksi_bulan_ini: number;
+    pemasukan_trend: number;
+    pengeluaran_trend: number;
+    jumlahTransaksiPemasukan: number;
+    jumlahTransaksiPengeluaran: number;
+  } | null>(null);
+  const [akunKasStats, setAkunKasStats] = useState<{
+    totalSaldo: number;
+    saldoAwal: number;
+    saldoAkhir: number;
+    pemasukanBulanIni: number;
+    pengeluaranBulanIni: number;
+    totalTransaksi: number;
+    pemasukanTrend: number;
+    pengeluaranTrend: number;
+  } | null>(null);
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [akunKas, setAkunKas] = useState<AkunKas[]>([]);
+  const [monthlyData, setMonthlyData] = useState<MonthlyChartData[]>([]);
+  const [categoryData, setCategoryData] = useState<CategoryChartData[]>([]);
   
   // UI states
   const [showForm, setShowForm] = useState(false);
@@ -68,10 +116,10 @@ const KeuanganV3: React.FC = () => {
   const [showTransactionDetail, setShowTransactionDetail] = useState(false);
   const [showTransactionEdit, setShowTransactionEdit] = useState(false);
   const [showEditTanggalDonasi, setShowEditTanggalDonasi] = useState(false);
-  const [selectedTransactionForEditTanggal, setSelectedTransactionForEditTanggal] = useState<any>(null);
+  const [selectedTransactionForEditTanggal, setSelectedTransactionForEditTanggal] = useState<Transaction | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState<any>(null);
-  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+  const [selectedAccount, setSelectedAccount] = useState<AkunKas | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [selectedAccountFilter, setSelectedAccountFilter] = useState<string | undefined>(undefined);
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(undefined);
   const [editForm, setEditForm] = useState({
@@ -82,9 +130,13 @@ const KeuanganV3: React.FC = () => {
     nama_bank: '',
     atas_nama: '',
     saldo_awal: 0,
-    status: 'aktif'
+    status: 'aktif',
   });
-  const [deletedAccountInfo, setDeletedAccountInfo] = useState<any>(null);
+  const [deletedAccountInfo, setDeletedAccountInfo] = useState<{
+    account_name: string;
+    account_kode: string;
+    id: string;
+  } | null>(null);
   const [showRestoreOption, setShowRestoreOption] = useState(false);
 
   // Chart data loading menggunakan service layer (Phase 3 refactoring)
@@ -198,14 +250,16 @@ const KeuanganV3: React.FC = () => {
         
         // Auto-posted transactions should always be 'posted'
         if (isAutoPosted && tx.status !== 'posted') {
-          console.warn('[KeuanganV3] Auto-posted transaction has non-posted status:', {
-            id: tx.id,
-            referensi: tx.referensi,
-            currentStatus: tx.status,
-            auto_posted: tx.auto_posted
-          });
-          // Don't modify the data here, but log it for investigation
-          // The migration should have fixed this, but if not, we'll handle it gracefully
+            // Auto-posted transactions should always be 'posted'
+            // Log warning only in development
+            if (process.env.NODE_ENV === 'development') {
+              console.warn('[KeuanganV3] Auto-posted transaction has non-posted status:', {
+                id: tx.id,
+                referensi: tx.referensi,
+                currentStatus: tx.status,
+                auto_posted: tx.auto_posted
+              });
+            }
         }
         
         return tx;
@@ -417,24 +471,26 @@ const KeuanganV3: React.FC = () => {
           const transactionId = transaction.referensi.replace('inventory_sale:', '').trim();
           inventoryTx = inventoryTransactionsMap[transactionId];
           
-          // Debug logging untuk transaksi yang tidak memiliki inventaris data
-          if (!inventoryTx) {
-            console.warn('[KeuanganV3] Inventory transaction not found:', {
-              keuanganId: transaction.id,
-              referensi: transaction.referensi,
-              transactionId,
-              availableIds: Object.keys(inventoryTransactionsMap)
-            });
-          } else if (!inventoryTx.inventaris?.nama_barang) {
-            console.warn('[KeuanganV3] Inventory transaction missing nama_barang:', {
-              keuanganId: transaction.id,
-              transactionId,
-              inventoryTx: {
-                id: inventoryTx.id,
-                hasInventaris: !!inventoryTx.inventaris,
-                inventarisData: inventoryTx.inventaris
-              }
-            });
+          // Log warnings only in development
+          if (process.env.NODE_ENV === 'development') {
+            if (!inventoryTx) {
+              console.warn('[KeuanganV3] Inventory transaction not found:', {
+                keuanganId: transaction.id,
+                referensi: transaction.referensi,
+                transactionId,
+                availableIds: Object.keys(inventoryTransactionsMap)
+              });
+            } else if (!inventoryTx.inventaris?.nama_barang) {
+              console.warn('[KeuanganV3] Inventory transaction missing nama_barang:', {
+                keuanganId: transaction.id,
+                transactionId,
+                inventoryTx: {
+                  id: inventoryTx.id,
+                  hasInventaris: !!inventoryTx.inventaris,
+                  inventarisData: inventoryTx.inventaris
+                }
+              });
+            }
           }
           
           if (inventoryTx && inventoryTx.catatan) {
@@ -465,7 +521,6 @@ const KeuanganV3: React.FC = () => {
             if (transaction.penerima_pembayar) {
               finalDeskripsi += ` / ${transaction.penerima_pembayar}`;
             }
-            console.log('[KeuanganV3] Rebuilt description with forced item name:', finalDeskripsi);
           }
         } else {
           // For other transactions, use catatan if available, otherwise use deskripsi
@@ -492,7 +547,10 @@ const KeuanganV3: React.FC = () => {
       });
       
       // FIXED: Get accurate statistics using new getAkunKasStats function
-      const akunKasStats = await getAkunKasStats(selectedAccountFilter);
+      const akunKasStatsData = await getAkunKasStats(selectedAccountFilter);
+      
+      // Store akunKasStats in state for use in render
+      setAkunKasStats(akunKasStatsData);
       
       // Count jumlah transaksi pemasukan dan pengeluaran
       const currentDate = new Date();
@@ -510,37 +568,16 @@ const KeuanganV3: React.FC = () => {
       const jumlahTransaksiPemasukan = currentMonthTransactions.filter(tx => tx.jenis_transaksi === 'Pemasukan').length;
       const jumlahTransaksiPengeluaran = currentMonthTransactions.filter(tx => tx.jenis_transaksi === 'Pengeluaran').length;
       
-      // Calculate dana terikat vs tidak terikat
-      // Fallback: jika fund_type belum ada di akun_kas, semua dianggap tidak_terikat
-      let danaTerikat = 0;
-      let danaTidakTerikat = akunKasStats.totalSaldo;
-      
-      // TODO: Jika fund_type sudah ada di akun_kas, gunakan untuk split
-      // const { data: akunKasWithFundType } = await supabase
-      //   .from('akun_kas')
-      //   .select('saldo_saat_ini, fund_type')
-      //   .eq('status', 'aktif');
-      // if (akunKasWithFundType) {
-      //   danaTerikat = akunKasWithFundType
-      //     .filter(akun => akun.fund_type === 'terikat')
-      //     .reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
-      //   danaTidakTerikat = akunKasWithFundType
-      //     .filter(akun => akun.fund_type === 'tidak_terikat')
-      //     .reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
-      // }
-      
       // Create statistics object with accurate data
       const stats = {
-        saldo_bersih: akunKasStats.totalSaldo,
-        pemasukan_bulan_ini: akunKasStats.pemasukanBulanIni,
-        pengeluaran_bulan_ini: akunKasStats.pengeluaranBulanIni,
-        transaksi_bulan_ini: akunKasStats.totalTransaksi,
-        pemasukan_trend: akunKasStats.pemasukanTrend,
-        pengeluaran_trend: akunKasStats.pengeluaranTrend,
+        saldo_bersih: akunKasStatsData.totalSaldo,
+        pemasukan_bulan_ini: akunKasStatsData.pemasukanBulanIni,
+        pengeluaran_bulan_ini: akunKasStatsData.pengeluaranBulanIni,
+        transaksi_bulan_ini: akunKasStatsData.totalTransaksi,
+        pemasukan_trend: akunKasStatsData.pemasukanTrend,
+        pengeluaran_trend: akunKasStatsData.pengeluaranTrend,
         jumlahTransaksiPemasukan,
-        jumlahTransaksiPengeluaran,
-        danaTerikat,
-        danaTidakTerikat
+        jumlahTransaksiPengeluaran
       };
       
       setStatistics(stats);
@@ -781,8 +818,7 @@ const KeuanganV3: React.FC = () => {
 
 
 
-  const handleEditAccount = (account: any) => {
-    console.log('handleEditAccount called with:', account); // Debug log
+  const handleEditAccount = (account: AkunKas) => {
     setSelectedAccount(account);
     setEditForm({
       nama: account.nama || '',
@@ -792,7 +828,7 @@ const KeuanganV3: React.FC = () => {
       nama_bank: account.nama_bank || '',
       atas_nama: account.atas_nama || '',
       saldo_awal: account.saldo_awal || 0,
-      status: account.status || 'aktif'
+      status: account.status || 'aktif',
     });
     setShowEditAccount(true);
   };
@@ -803,13 +839,14 @@ const KeuanganV3: React.FC = () => {
       await loadData();
       toast.success('Akun berhasil dijadikan default');
     } catch (error) {
-      console.error('Error setting default account:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error setting default account:', error);
+      }
       toast.error('Gagal menjadikan akun default');
     }
   };
 
   const handleAddAccount = () => {
-    console.log('✅ handleAddAccount called - opening modal');
     setSelectedAccount(null);
     setEditForm({
       nama: '',
@@ -819,7 +856,7 @@ const KeuanganV3: React.FC = () => {
       nama_bank: '',
       atas_nama: '',
       saldo_awal: 0,
-      status: 'aktif'
+      status: 'aktif',
     });
     setDeletedAccountInfo(null);
     setShowRestoreOption(false);
@@ -838,7 +875,9 @@ const KeuanganV3: React.FC = () => {
           setShowRestoreOption(false);
         }
       } catch (error) {
-        console.error('Error checking deleted account:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error checking deleted account:', error);
+        }
       }
     }
   };
@@ -883,7 +922,7 @@ const KeuanganV3: React.FC = () => {
           nomor_rekening: editForm.nomor_rekening,
           nama_bank: editForm.nama_bank,
           atas_nama: editForm.atas_nama,
-          status: editForm.status as 'aktif' | 'ditutup' | 'suspended'
+          status: editForm.status as 'aktif' | 'ditutup' | 'suspended',
         });
 
         // Jika saldo_awal berubah, set via RPC resmi + recalc
@@ -892,7 +931,7 @@ const KeuanganV3: React.FC = () => {
             p_akun_id: selectedAccount.id,
             p_saldo_awal: editForm.saldo_awal,
           });
-          if (saldoAwalError) {
+          if (saldoAwalError && process.env.NODE_ENV === 'development') {
             console.warn('RPC set_akun_kas_saldo_awal error:', saldoAwalError);
           }
         }
@@ -907,7 +946,7 @@ const KeuanganV3: React.FC = () => {
           nomor_rekening: editForm.nomor_rekening,
           nama_bank: editForm.nama_bank,
           atas_nama: editForm.atas_nama,
-          saldo_awal: editForm.saldo_awal
+          saldo_awal: editForm.saldo_awal,
         });
         toast.success(showRestoreOption ? 'Akun berhasil dipulihkan' : 'Akun berhasil ditambahkan');
       }
@@ -916,42 +955,33 @@ const KeuanganV3: React.FC = () => {
       setDeletedAccountInfo(null);
       setShowRestoreOption(false);
       await loadData();
-    } catch (error) {
-      console.error('Error saving account:', error);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Terjadi kesalahan tidak diketahui';
       
       // Enhanced error handling with user-friendly messages
-      if (error.message?.includes('duplicate key')) {
+      if (errorMessage.includes('duplicate key')) {
         toast.error('Nama atau kode akun sudah digunakan');
-      } else if (error.message?.includes('violates unique constraint')) {
+      } else if (errorMessage.includes('violates unique constraint')) {
         toast.error('Nama atau kode akun sudah digunakan');
-      } else if (error.message?.includes('foreign key constraint')) {
+      } else if (errorMessage.includes('foreign key constraint')) {
         toast.error('Tidak dapat menghapus akun yang masih memiliki transaksi');
-      } else if (error.message?.includes('permission denied')) {
+      } else if (errorMessage.includes('permission denied')) {
         toast.error('Anda tidak memiliki izin untuk melakukan operasi ini');
-      } else if (error.message?.includes('network')) {
+      } else if (errorMessage.includes('network')) {
         toast.error('Koneksi internet bermasalah. Silakan coba lagi');
       } else {
-        toast.error(`Gagal menyimpan akun: ${error.message || 'Terjadi kesalahan tidak diketahui'}`);
+        toast.error(`Gagal menyimpan akun: ${errorMessage}`);
       }
     }
   };
 
   const handleSelectAccount = (accountId: string | undefined) => {
-    console.log('🎯 handleSelectAccount called:', {
-      newAccountId: accountId,
-      previousAccountId: selectedAccountId,
-      previousFilter: selectedAccountFilter,
-      timestamp: new Date().toISOString()
-    });
-    
     // Clear chart data immediately to prevent showing stale data
     setMonthlyData([]);
     setCategoryData([]);
     
     setSelectedAccountId(accountId);
     setSelectedAccountFilter(accountId);
-    
-    console.log('🔄 State updated, calling loadChartData...');
     
     // Pass the new account ID directly to avoid state timing issues
     loadChartData(accountId);
@@ -972,7 +1002,6 @@ const KeuanganV3: React.FC = () => {
   };
 
   const handleViewAccountTransactions = (accountId: string) => {
-    console.log('handleViewAccountTransactions called with:', accountId); // Debug log
     handleSelectAccount(accountId);
   };
 
@@ -982,12 +1011,12 @@ const KeuanganV3: React.FC = () => {
     loadChartData(undefined);
   };
 
-  const handleViewDetail = (transaction: any) => {
+  const handleViewDetail = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
     setShowTransactionDetail(true);
   };
 
-  const handleEditTransaction = (transaction: any) => {
+  const handleEditTransaction = (transaction: Transaction) => {
     // Izinkan edit untuk auto-posted jika jenis_transaksi === 'Pemasukan'
     if (transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') {
       const sourceModule = transaction.source_module || 'modul lain';
@@ -999,7 +1028,7 @@ const KeuanganV3: React.FC = () => {
     setShowTransactionEdit(true);
   };
 
-  const handleEditTanggalDonasi = (transaction: any) => {
+  const handleEditTanggalDonasi = (transaction: Transaction) => {
     // Hanya untuk transaksi donasi dengan jenis pemasukan
     if (transaction.source_module === 'donasi' && transaction.jenis_transaksi === 'Pemasukan') {
       setSelectedTransactionForEditTanggal(transaction);
@@ -1009,7 +1038,7 @@ const KeuanganV3: React.FC = () => {
     }
   };
 
-  const handleDeleteTransaction = async (transaction: any) => {
+  const handleDeleteTransaction = async (transaction: Transaction) => {
     // Izinkan delete untuk auto-posted jika jenis_transaksi === 'Pemasukan'
     if (transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') {
       const sourceModule = transaction.source_module || 'modul lain';
@@ -1017,25 +1046,20 @@ const KeuanganV3: React.FC = () => {
       return;
     }
     
+    const jumlah = typeof transaction.jumlah === 'number' ? transaction.jumlah : 0;
+    const deskripsi = typeof transaction.deskripsi === 'string' ? transaction.deskripsi : '';
+    const kategori = typeof transaction.kategori === 'string' ? transaction.kategori : '';
+    
     const confirmed = window.confirm(
-      `Apakah Anda yakin ingin menghapus transaksi "${transaction.deskripsi || transaction.kategori}" senilai ${new Intl.NumberFormat('id-ID', {
+      `Apakah Anda yakin ingin menghapus transaksi "${deskripsi || kategori}" senilai ${new Intl.NumberFormat('id-ID', {
         style: 'currency',
         currency: 'IDR',
         minimumFractionDigits: 0,
-      }).format(transaction.jumlah)}?`
+      }).format(jumlah)}?`
     );
     
     if (confirmed) {
       try {
-        console.log('Attempting to delete transaction:', {
-          id: transaction.id,
-          jenis_transaksi: transaction.jenis_transaksi,
-          auto_posted: transaction.auto_posted,
-          source_module: transaction.source_module,
-          referensi: transaction.referensi,
-          kategori: transaction.kategori
-        });
-
         // Untuk transaksi pemasukan auto_posted, coba direct delete dulu (lebih langsung)
         // Jika direct delete gagal, baru coba RPC
         let deleteSuccess = false;
@@ -1059,14 +1083,12 @@ const KeuanganV3: React.FC = () => {
           if (isDonasiTransaction) {
             if (transaction.source_id) {
               // PREFERRED: Gunakan source_id langsung (link stabil, tidak perlu parsing)
-              donationId = transaction.source_id;
-              console.log('🔍 Detected donasi transaction via source_id:', donationId);
+              donationId = transaction.source_id as string;
             } else if (transaction.referensi) {
               // FALLBACK: Parse referensi untuk backward compatibility dengan data lama
-              const donationIdMatch = transaction.referensi.match(/^(?:donation|donasi):(.+)$/);
+              const donationIdMatch = (transaction.referensi as string).match(/^(?:donation|donasi):(.+)$/);
               if (donationIdMatch && donationIdMatch[1]) {
                 donationId = donationIdMatch[1].trim();
-                console.log('🔍 Detected donasi transaction via referensi (fallback):', donationId);
               }
             }
             
@@ -1082,34 +1104,27 @@ const KeuanganV3: React.FC = () => {
                 if (skipError) {
                   // Check if error is because column doesn't exist (PGRST204)
                   if (skipError.code === 'PGRST204' || skipError.message?.includes('skip_finance_sync')) {
-                    console.warn('⚠️ Warning: skip_finance_sync column not found. Migration may not be applied yet.');
-                    console.warn('💡 Please run migration: 20250130000000_fix_donasi_delete_anti_regenerate.sql');
                     // Fallback: Clear posted_to_finance_at to prevent regeneration (old method)
                     try {
-                      const { error: clearError } = await supabase
+                      await supabase
                         .from('donations')
                         .update({ posted_to_finance_at: null })
                         .eq('id', donationId);
-                      
-                      if (!clearError) {
-                        console.log('✅ Cleared posted_to_finance_at (fallback method) for donation:', donationId);
+                    } catch (clearError) {
+                      // Silently handle fallback error
+                      if (process.env.NODE_ENV === 'development') {
+                        console.warn('Failed to clear posted_to_finance_at:', clearError);
                       }
-                    } catch (clearError: any) {
-                      console.warn('⚠️ Warning: Failed to clear posted_to_finance_at:', clearError);
                     }
-                  } else {
-                    console.warn('⚠️ Warning: Failed to set skip_finance_sync:', skipError);
                   }
                   // Continue with delete anyway - the transaction deletion should still work
-                } else {
-                  console.log('✅ Set skip_finance_sync=true for donation:', donationId);
                 }
-              } catch (skipError: any) {
-                console.warn('⚠️ Warning: Exception setting skip_finance_sync:', skipError);
-                // Continue with delete anyway
+              } catch (skipError) {
+                // Silently handle error and continue with delete
+                if (process.env.NODE_ENV === 'development') {
+                  console.warn('Exception setting skip_finance_sync:', skipError);
+                }
               }
-            } else {
-              console.warn('⚠️ Warning: Donasi transaction detected but cannot find donation ID');
             }
           }
           
@@ -1122,61 +1137,47 @@ const KeuanganV3: React.FC = () => {
           
           if (!directDeleteError) {
             deleteSuccess = true;
-            console.log('✅ Direct delete berhasil', { deletedId: transaction.id, akun_kas_id: transaction.akun_kas_id });
             
             // Update saldo akun kas
             if (transaction.akun_kas_id) {
               try {
-                const { error: saldoError } = await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
-                  p_akun_id: transaction.akun_kas_id
+                await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+                  p_akun_id: transaction.akun_kas_id as string
                 });
-                if (saldoError) {
-                  console.warn('Warning: Gagal update saldo setelah delete:', saldoError);
-                } else {
-                  console.log('✅ Saldo akun kas berhasil di-update');
-                }
               } catch (saldoError) {
-                console.warn('Warning: Gagal update saldo setelah delete:', saldoError);
+                // Silently handle saldo update error
+                if (process.env.NODE_ENV === 'development') {
+                  console.warn('Failed to update saldo after delete:', saldoError);
+                }
               }
             }
           } else {
-            console.error('❌ Direct delete gagal:', {
-              error: directDeleteError,
-              code: directDeleteError.code,
-              message: directDeleteError.message,
-              details: directDeleteError.details,
-              hint: directDeleteError.hint,
-              transactionId: transaction.id,
-              akun_kas_id: transaction.akun_kas_id,
-              source_module: transaction.source_module
-            });
-            
             // Fallback: Coba dengan RPC jika ada
             try {
-              const { error: rpcError } = await supabase.rpc('delete_keuangan_and_recalc', { p_keuangan_id: transaction.id });
+              const { error: rpcError } = await supabase.rpc('delete_keuangan_and_recalc', { 
+                p_keuangan_id: transaction.id as string 
+              });
               
               if (!rpcError) {
                 deleteSuccess = true;
-                console.log('✅ RPC delete berhasil (fallback)');
               } else {
-                console.error('❌ RPC delete juga gagal:', rpcError);
                 // Jika RPC juga gagal, tampilkan error detail
                 toast.error(`Gagal menghapus transaksi: ${directDeleteError.message || 'Tidak memiliki izin untuk menghapus transaksi ini'}. Error: ${directDeleteError.code || 'UNKNOWN'}`);
                 return;
               }
-            } catch (rpcCallError: any) {
+            } catch (rpcCallError) {
               // Jika RPC tidak ada atau error, tampilkan error dari direct delete
-              console.error('❌ RPC call error (function mungkin tidak ada):', rpcCallError);
               toast.error(`Gagal menghapus transaksi: ${directDeleteError.message || 'Tidak memiliki izin untuk menghapus transaksi ini'}. Error code: ${directDeleteError.code || 'UNKNOWN'}`);
               return;
             }
           }
         } else {
           // Untuk transaksi non-auto-posted atau pengeluaran, gunakan RPC
-          const { error } = await supabase.rpc('delete_keuangan_and_recalc', { p_keuangan_id: transaction.id });
+          const { error } = await supabase.rpc('delete_keuangan_and_recalc', { 
+            p_keuangan_id: transaction.id as string 
+          });
           
           if (error) {
-            console.error('❌ RPC delete gagal:', error);
             toast.error(`Gagal menghapus transaksi: ${error.message}`);
             return;
           }
@@ -1184,12 +1185,10 @@ const KeuanganV3: React.FC = () => {
         }
         
         if (deleteSuccess) {
-          console.log('🗑️ Delete success, refreshing UI...');
           toast.success('Transaksi berhasil dihapus');
           
           // Don't filter state manually - let loadData() fetch fresh data from DB
           // This ensures we get the actual current state from database
-          console.log('🔄 Calling loadData() to fetch fresh data from database...');
           
           // Call loadData immediately to refresh from database
           // Add a small delay only to ensure database commit is complete
@@ -1197,51 +1196,49 @@ const KeuanganV3: React.FC = () => {
           
           try {
             await loadData();
-            console.log('✅ loadData() completed successfully');
-            
             // Refresh chart data
             await loadChartData(selectedAccountFilter);
-            console.log('✅ Chart data refreshed successfully');
           } catch (refreshError) {
-            console.error('❌ Error during refresh:', refreshError);
             // Retry once more
             try {
-              console.log('🔄 Retrying refresh...');
               await new Promise(resolve => setTimeout(resolve, 300));
               await loadData();
               await loadChartData(selectedAccountFilter);
-              console.log('✅ Retry successful');
             } catch (retryError) {
-              console.error('❌ Retry also failed:', retryError);
+              if (process.env.NODE_ENV === 'development') {
+                console.error('Error during refresh retry:', retryError);
+              }
             }
           }
         }
-      } catch (error: any) {
-        console.error('Error deleting transaction:', error);
-        toast.error(`Gagal menghapus transaksi: ${error.message || 'Terjadi kesalahan yang tidak diketahui'}`);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Terjadi kesalahan yang tidak diketahui';
+        toast.error(`Gagal menghapus transaksi: ${errorMessage}`);
         // Reload data on error to ensure UI is in sync
         await loadData();
       }
     }
   };
 
-  const handleDeleteAccount = async (account: any) => {
-    console.log('handleDeleteAccount called with:', account); // Debug log
-    
+  const handleDeleteAccount = async (account: AkunKas) => {
     // Check if account has transactions first
     try {
       const { data: checkResult, error: checkError } = await supabase
         .rpc('check_akun_kas_deletable', { p_akun_kas_id: account.id });
       
       if (checkError) {
-        console.error('Error checking deletable:', checkError);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error checking deletable:', checkError);
+        }
       } else if (checkResult && !checkResult.deletable) {
         toast.error(checkResult.reason || 'Akun kas masih memiliki transaksi dan tidak dapat dihapus');
         return;
       }
-    } catch (error) {
-      console.error('Error checking deletable:', error);
-    }
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error checking deletable:', error);
+        }
+      }
     
     const confirmed = window.confirm(
       `Apakah Anda yakin ingin menutup akun "${account.nama}"? Akun akan diubah statusnya menjadi "ditutup" dan tidak akan muncul di daftar akun aktif.`
@@ -1252,16 +1249,16 @@ const KeuanganV3: React.FC = () => {
         await AkunKasService.delete(account.id);
         toast.success('Akun berhasil ditutup');
         await loadData(); // Reload data
-      } catch (error: any) {
-        console.error('Error deleting account:', error);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Terjadi kesalahan tidak diketahui';
         
         // Enhanced error handling
-        if (error.message?.includes('masih memiliki') || error.message?.includes('transaksi')) {
+        if (errorMessage.includes('masih memiliki') || errorMessage.includes('transaksi')) {
           toast.error('Tidak dapat menutup akun karena masih memiliki transaksi. Silakan pindahkan atau hapus transaksi terlebih dahulu.');
-        } else if (error.message?.includes('foreign key constraint') || error.message?.includes('RESTRICT')) {
+        } else if (errorMessage.includes('foreign key constraint') || errorMessage.includes('RESTRICT')) {
           toast.error('Tidak dapat menutup akun karena masih memiliki transaksi terkait.');
         } else {
-          toast.error(`Gagal menutup akun: ${error.message || 'Terjadi kesalahan tidak diketahui'}`);
+          toast.error(`Gagal menutup akun: ${errorMessage}`);
         }
       }
     }
@@ -1272,7 +1269,7 @@ const KeuanganV3: React.FC = () => {
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center space-y-4">
           <RefreshCw className="h-8 w-8 animate-spin" />
-          <p className="text-muted-foreground">Memuat data keuangan...</p >
+          <p className="text-muted-foreground">Memuat data keuangan...</p>
         </div>
       </div>
     );
@@ -1395,10 +1392,12 @@ const KeuanganV3: React.FC = () => {
       </div>
 
       {/* Section 2: Summary Cards - 4 KPI Cards */}
-      {statistics && (
+      {statistics && akunKasStats && (
         <SummaryCards 
           stats={{
             totalSaldo: totals.totalBalance,
+            saldoAwal: akunKasStats.saldoAwal,
+            saldoAkhir: akunKasStats.saldoAkhir,
             pemasukanBulanIni: statistics.pemasukan_bulan_ini,
             pengeluaranBulanIni: statistics.pengeluaran_bulan_ini,
             totalTransaksi: statistics.transaksi_bulan_ini,
@@ -1406,10 +1405,9 @@ const KeuanganV3: React.FC = () => {
             pengeluaranTrend: statistics.pengeluaran_trend || 0,
             jumlahTransaksiPemasukan: statistics.jumlahTransaksiPemasukan || 0,
             jumlahTransaksiPengeluaran: statistics.jumlahTransaksiPengeluaran || 0,
-            danaTerikat: statistics.danaTerikat || 0,
-            danaTidakTerikat: statistics.danaTidakTerikat || totals.totalBalance,
           }}
           selectedAccountName={selectedAccountName}
+          periodLabel="Bulan Ini"
         />
       )}
 
@@ -1417,7 +1415,6 @@ const KeuanganV3: React.FC = () => {
       <ChartsSection 
         monthlyData={monthlyData}
         categoryData={categoryData}
-        categoryDataPengeluaran={categoryData} // BUG B FIX: categoryData is pengeluaran data from getCategoryData
         selectedAccountId={selectedAccountFilter}
         selectedAccountName={selectedAccountName}
       />

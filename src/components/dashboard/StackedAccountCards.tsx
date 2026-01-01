@@ -21,7 +21,7 @@ import {
   MoreHorizontal,
   Check,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
 } from 'lucide-react';
 import { AkunKas } from '../../services/akunKas.service';
 
@@ -353,8 +353,10 @@ const StackedAccountCards: React.FC<StackedAccountCardsProps> = ({
                     <div className="text-2xl font-semibold mb-2 tracking-tight">
                       {formatCurrency(account.saldo_saat_ini)}
                     </div>
-                    <div className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-md px-2.5 py-1 text-xs font-medium">
-                      {account.tipe}
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-md px-2.5 py-1 text-xs font-medium">
+                        {account.tipe}
+                      </div>
                     </div>
                   </div>
 

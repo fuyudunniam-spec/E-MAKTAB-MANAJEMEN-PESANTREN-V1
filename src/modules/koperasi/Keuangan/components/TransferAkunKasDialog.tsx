@@ -187,9 +187,18 @@ export default function TransferAkunKasDialog({
     },
     onSuccess: () => {
       toast.success('Transfer antar akun kas berhasil');
+      // Invalidate all related queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['akun-kas-list'] });
+      queryClient.invalidateQueries({ queryKey: ['akun-kas'] });
       queryClient.invalidateQueries({ queryKey: ['keuangan'] });
       queryClient.invalidateQueries({ queryKey: ['keuangan-koperasi'] });
+      queryClient.invalidateQueries({ queryKey: ['koperasi-saldo-map'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['keuangan-dashboard'] });
+      // Invalidate chart data queries
+      queryClient.invalidateQueries({ queryKey: ['chart-data'] });
+      queryClient.invalidateQueries({ queryKey: ['monthly-data'] });
+      queryClient.invalidateQueries({ queryKey: ['category-data'] });
       onSuccess?.(); // Call parent callback to reload data
       onClose();
     },

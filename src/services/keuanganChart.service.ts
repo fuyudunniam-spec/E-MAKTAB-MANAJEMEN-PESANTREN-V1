@@ -85,8 +85,9 @@ export const getMonthlyData = async (
     
     // Exclude tabungan santri transactions (using shared utility)
     query = applyTabunganExclusionFilter(query);
-    // Exclude koperasi transactions (using shared utility)
-    query = applyKoperasiExclusionFilter(query);
+    // NOTE: Don't use applyKoperasiExclusionFilter here because we need to check akun_kas.managed_by
+    // Transfer from koperasi to general finance accounts should be included
+    // We'll filter client-side using excludeKoperasiTransactions which checks akun_kas.managed_by
       
     if (accountId) {
       query = query.eq('akun_kas_id', accountId);
@@ -197,8 +198,9 @@ export const getCategoryData = async (
     
     // Exclude tabungan santri transactions (using shared utility)
     query = applyTabunganExclusionFilter(query);
-    // Exclude koperasi transactions (using shared utility)
-    query = applyKoperasiExclusionFilter(query);
+    // NOTE: Don't use applyKoperasiExclusionFilter here because we need to check akun_kas.managed_by
+    // Transfer from koperasi to general finance accounts should be included
+    // We'll filter client-side using excludeKoperasiTransactions which checks akun_kas.managed_by
       
     // BUG B FIX: Ensure filter by accountId is applied correctly
     if (accountId) {

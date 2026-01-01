@@ -175,14 +175,19 @@ const RiwayatPenyaluranBantuanPage: React.FC = () => {
         query = query.eq('kategori', filters.kategori);
       }
 
-      // Exclude tabungan and koperasi
+      // Exclude tabungan santri transactions (using shared utility)
       query = applyTabunganExclusionFilter(query);
-      query = applyKoperasiExclusionFilter(query);
+      // NOTE: Don't use applyKoperasiExclusionFilter here at query level
+      // We need to check akun_kas.managed_by client-side to correctly handle transfers
+      // Transfer from koperasi to general finance accounts (managed_by != 'koperasi') should be included
+      // Only transactions where akun_kas.managed_by = 'koperasi' should be excluded
 
       const { data, error } = await query;
       if (error) throw error;
 
-      // Filter client-side (backup)
+      // Filter client-side - this correctly handles transfers by checking akun_kas.managed_by
+      // excludeKoperasiTransactions will only exclude if akun_kas.managed_by === 'koperasi'
+      // So transfers to general finance accounts will be included
       let filtered = excludeKoperasiTransactions(excludeTabunganTransactions(data || []));
 
       // Transform to Transaction format
@@ -321,7 +326,9 @@ const RiwayatPenyaluranBantuanPage: React.FC = () => {
           ) : financialStats ? (
             <SummaryCards
               stats={{
-                totalSaldo: financialStats.totalSaldo,
+                totalSaldo: financialStats.totalSaldo, // For backward compatibility
+                saldoAwal: financialStats.saldoAwal,
+                saldoAkhir: financialStats.saldoAkhir,
                 pemasukanBulanIni: financialStats.pemasukan,
                 pengeluaranBulanIni: financialStats.pengeluaran,
                 totalTransaksi: financialStats.totalPemasukanTransaksi + financialStats.totalPengeluaranTransaksi,
@@ -329,8 +336,6 @@ const RiwayatPenyaluranBantuanPage: React.FC = () => {
                 pengeluaranTrend: financialStats.pengeluaranTrend,
                 jumlahTransaksiPemasukan: financialStats.totalPemasukanTransaksi,
                 jumlahTransaksiPengeluaran: financialStats.totalPengeluaranTransaksi,
-                danaTerikat: financialStats.danaTerikat,
-                danaTidakTerikat: financialStats.danaTidakTerikat,
                 penyesuaianSaldoInfo: financialStats.penyesuaianSaldoInfo,
               }}
               periodLabel={
@@ -366,7 +371,6 @@ const RiwayatPenyaluranBantuanPage: React.FC = () => {
             {/* REVISI: Gunakan komponen RiwayatTransaksi yang sama seperti dashboard keuangan */}
             <RiwayatTransaksi
               transactions={transactions || []}
-              loading={historyLoading}
               onViewDetail={handleViewDetail}
             />
           </div>

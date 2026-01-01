@@ -126,21 +126,35 @@ export function normalizeAkunKas(akunKasField: any): any {
  * Check apakah transaksi adalah transaksi koperasi
  * 
  * Logic ini konsisten dengan filtering tabungan
+ * 
+ * IMPORTANT: Untuk transfer antar akun, kita perlu mengecek akun_kas juga
+ * - Jika transaksi masuk ke akun keuangan umum (managed_by bukan 'koperasi'), 
+ *   maka transaksi tersebut BUKAN transaksi koperasi meskipun source_module='koperasi'
+ * - Jika transaksi keluar dari akun koperasi, maka transaksi tersebut ADALAH transaksi koperasi
  */
 export function isKoperasiTransaction(transaction: TransactionToFilter): boolean {
-  // Check 1: source_module contains 'koperasi'
-  if (transaction.source_module && 
-      typeof transaction.source_module === 'string' &&
-      transaction.source_module.toLowerCase().includes('koperasi')) {
-    return true;
-  }
-  
-  // Check 2: account is managed by koperasi module
   const akunKas = Array.isArray(transaction.akun_kas) 
     ? transaction.akun_kas[0] 
     : transaction.akun_kas;
   
+  // Check 1: account is managed by koperasi module (prioritas utama)
+  // Jika akun_kas adalah akun koperasi, maka transaksi ini adalah transaksi koperasi
   if (akunKas?.managed_by === 'koperasi') {
+    return true;
+  }
+  
+  // Check 2: source_module contains 'koperasi' AND akun_kas is NOT managed by koperasi
+  // Jika source_module='koperasi' tapi akun_kas adalah akun keuangan umum,
+  // ini berarti transfer MASUK ke keuangan umum, jadi BUKAN transaksi koperasi
+  if (transaction.source_module && 
+      typeof transaction.source_module === 'string' &&
+      transaction.source_module.toLowerCase().includes('koperasi')) {
+    // Jika akun_kas adalah akun keuangan umum (managed_by bukan 'koperasi'),
+    // maka ini adalah transfer MASUK ke keuangan umum, jadi BUKAN transaksi koperasi
+    if (akunKas?.managed_by && akunKas.managed_by !== 'koperasi') {
+      return false; // Transfer masuk ke keuangan umum, bukan transaksi koperasi
+    }
+    // Jika akun_kas tidak ada atau managed_by null, default ke true (backward compatibility)
     return true;
   }
   

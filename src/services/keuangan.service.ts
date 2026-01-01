@@ -329,6 +329,8 @@ export const getKeuanganDashboardStats = async (): Promise<KeuanganStats> => {
  */
 export interface AkunKasStats {
   totalSaldo: number;
+  saldoAwal: number; // Opening balance (before current month)
+  saldoAkhir: number; // Closing balance (saldoAwal + pemasukan - pengeluaran)
   pemasukanBulanIni: number;
   pengeluaranBulanIni: number;
   totalTransaksi: number;
@@ -395,10 +397,52 @@ export const getAkunKasStats = async (akunKasId?: string): Promise<AkunKasStats>
     const { start: startOfCurrentMonth, end: endOfCurrentMonth } = getMonthBoundaries(currentYear, currentMonth);
     const { start: startOfPrevMonth, end: endOfPrevMonth } = getMonthBoundaries(currentYear, currentMonth - 1);
 
-    let query = supabase.from('keuangan').select('*, akun_kas(managed_by)');
+    // Get akun kas first (with saldo_awal for saldo awal calculation)
+    let filteredAkun: any[] = [];
+    if (akunKasId) {
+      const { data: akunKas, error: akunKasError } = await supabase
+        .from('akun_kas')
+        .select('id, saldo_saat_ini, saldo_awal, managed_by')
+        .eq('id', akunKasId)
+        .single();
+      
+      if (akunKasError) {
+        console.error('Error fetching akun kas:', akunKasError);
+        throw akunKasError;
+      }
+      
+      // Only count if not managed by tabungan or koperasi (using shared utility)
+      if (akunKas && !isTabunganAccount(akunKas) && !isKoperasiAccount(akunKas)) {
+        filteredAkun = [akunKas];
+      }
+    } else {
+      const { data: allAkun, error: allAkunError } = await supabase
+        .from('akun_kas')
+        .select('id, saldo_saat_ini, saldo_awal, managed_by')
+        .eq('status', 'aktif');
+      
+      if (allAkunError) {
+        console.error('Error fetching all akun kas:', allAkunError);
+        throw allAkunError;
+      }
+      
+      // Only count accounts not managed by tabungan or koperasi (using shared utility)
+      filteredAkun = excludeKoperasiAccounts(excludeTabunganAccounts(allAkun || []));
+    }
+
+    let totalSaldo = filteredAkun.reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
+
+    // Get all transactions
+    let query = supabase
+      .from('keuangan')
+      .select('*, akun_kas(managed_by)')
+      .eq('status', 'posted')
+      .eq('ledger', 'UMUM'); // CRITICAL: Only general finance ledger
 
     // Exclude tabungan santri transactions (using shared utility)
     query = applyTabunganExclusionFilter(query);
+    // NOTE: Don't use applyKoperasiExclusionFilter here at query level
+    // We'll filter client-side to correctly handle transfers
 
     // Filter by akun kas if provided
     if (akunKasId) {
@@ -415,41 +459,6 @@ export const getAkunKasStats = async (akunKasId?: string): Promise<AkunKasStats>
     const filteredTransactions = excludeKoperasiTransactions(
       excludeTabunganTransactions(allTransactions || [])
     );
-
-    // Get akun kas saldo
-    // EXCLUDE accounts managed by tabungan and koperasi modules from total saldo (using shared utility)
-    let totalSaldo = 0;
-    if (akunKasId) {
-      const { data: akunKas, error: akunKasError } = await supabase
-        .from('akun_kas')
-        .select('saldo_saat_ini, managed_by')
-        .eq('id', akunKasId)
-        .single();
-      
-      if (akunKasError) {
-        console.error('Error fetching akun kas:', akunKasError);
-        throw akunKasError;
-      }
-      
-      // Only count if not managed by tabungan or koperasi (using shared utility)
-      if (akunKas && !isTabunganAccount(akunKas) && !isKoperasiAccount(akunKas)) {
-        totalSaldo = akunKas.saldo_saat_ini || 0;
-      }
-    } else {
-      const { data: allAkun, error: allAkunError } = await supabase
-        .from('akun_kas')
-        .select('saldo_saat_ini, managed_by')
-        .eq('status', 'aktif');
-      
-      if (allAkunError) {
-        console.error('Error fetching all akun kas:', allAkunError);
-        throw allAkunError;
-      }
-      
-      // Only count accounts not managed by tabungan or koperasi (using shared utility)
-      const filteredAkun = excludeKoperasiAccounts(excludeTabunganAccounts(allAkun));
-      totalSaldo = filteredAkun.reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
-    }
 
     // Filter transactions by month
     const currentMonthTransactions = filterTransactionsByDateRange(
@@ -476,8 +485,73 @@ export const getAkunKasStats = async (akunKasId?: string): Promise<AkunKasStats>
     const pemasukanTrend = calculateTrend(pemasukanBulanIni, pemasukanBulanLalu);
     const pengeluaranTrend = calculateTrend(pengeluaranBulanIni, pengeluaranBulanLalu);
 
+    // Calculate Saldo Awal (Opening Balance): Balance BEFORE current month
+    // Method: Get all transactions before current month and calculate balance
+    let saldoAwal = 0;
+    try {
+      // Get all transactions before current month
+      let saldoAwalQuery = supabase
+        .from('keuangan')
+        .select('*, akun_kas(managed_by)')
+        .eq('status', 'posted')
+        .eq('ledger', 'UMUM')
+        .lt('tanggal', startOfCurrentMonth.toISOString().split('T')[0]); // Before current month
+      
+      saldoAwalQuery = applyTabunganExclusionFilter(saldoAwalQuery);
+      // NOTE: Don't use applyKoperasiExclusionFilter here at query level
+      // We'll filter client-side to correctly handle transfers
+      
+      // Filter by akun kas if provided
+      if (akunKasId) {
+        saldoAwalQuery = saldoAwalQuery.eq('akun_kas_id', akunKasId);
+      }
+      
+      const { data: saldoAwalTransactions, error: saldoAwalError } = await saldoAwalQuery;
+      
+      if (!saldoAwalError && saldoAwalTransactions) {
+        // Filter client-side - this correctly handles transfers by checking akun_kas.managed_by
+        const filteredSaldoAwalTransactions = excludeKoperasiTransactions(
+          excludeTabunganTransactions(saldoAwalTransactions)
+        );
+        
+        // Calculate opening balance: sum of all income minus expenses before current month
+        const saldoAwalPemasukan = filteredSaldoAwalTransactions
+          .filter(t => t.jenis_transaksi === 'Pemasukan')
+          .reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+        
+        const saldoAwalPengeluaran = filteredSaldoAwalTransactions
+          .filter(t => t.jenis_transaksi === 'Pengeluaran')
+          .reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+        
+        // Get initial balances (saldo_awal) from all accounts
+        let totalSaldoAwalAkun = 0;
+        filteredAkun.forEach(akun => {
+          // Get saldo_awal from database
+          const saldoAwalAkun = (akun as any).saldo_awal || 0;
+          totalSaldoAwalAkun += saldoAwalAkun;
+        });
+        
+        // Opening balance = initial account balances + transactions before current month
+        saldoAwal = totalSaldoAwalAkun + saldoAwalPemasukan - saldoAwalPengeluaran;
+      } else {
+        // Fallback: Calculate from current balance minus transactions in current month
+        // saldoAwal = totalSaldo - pemasukanBulanIni + pengeluaranBulanIni
+        saldoAwal = totalSaldo - pemasukanBulanIni + pengeluaranBulanIni;
+      }
+    } catch (error) {
+      console.warn('Error calculating saldo awal, using fallback:', error);
+      // Fallback: use current totalSaldo minus transactions in current month
+      saldoAwal = totalSaldo - pemasukanBulanIni + pengeluaranBulanIni;
+    }
+    
+    // Calculate Saldo Akhir (Closing Balance): Saldo Awal + Pemasukan - Pengeluaran
+    // This is the actual balance at the end of current month
+    const saldoAkhir = saldoAwal + pemasukanBulanIni - pengeluaranBulanIni;
+
     return {
       totalSaldo,
+      saldoAwal,
+      saldoAkhir,
       pemasukanBulanIni,
       pengeluaranBulanIni,
       totalTransaksi: currentMonthTransactions.length,
@@ -689,13 +763,13 @@ export async function getDuplicateKeuanganReport(): Promise<unknown[]> {
  * Get financial statistics for a specific date range (for Laporan Keuangan Yayasan)
  */
 export interface FinancialStatsByDateRange {
-  totalSaldo: number;
+  totalSaldo: number; // Current total saldo (for backward compatibility)
+  saldoAwal: number; // Opening balance (before startDate)
+  saldoAkhir: number; // Closing balance (saldoAwal + pemasukan - pengeluaran)
   pemasukan: number;
   pengeluaran: number;
   totalPemasukanTransaksi: number;
   totalPengeluaranTransaksi: number;
-  danaTerikat: number;
-  danaTidakTerikat: number;
   pemasukanTrend: number;
   pengeluaranTrend: number;
   penyesuaianSaldoInfo?: {
@@ -711,30 +785,78 @@ export const getFinancialStatsByDateRange = async (
 ): Promise<FinancialStatsByDateRange> => {
   try {
     // Get total saldo (current, not filtered by date)
-    const { data: allAkun, error: allAkunError } = await supabase
-      .from('akun_kas')
-      .select('saldo_saat_ini, managed_by')
-      .eq('status', 'aktif');
+    // Try to include default_fund_type, fallback if column doesn't exist
+    let allAkun: any[] = [];
+    let allAkunError: any = null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('akun_kas')
+        .select('id, saldo_saat_ini, saldo_awal, managed_by, default_fund_type')
+        .eq('status', 'aktif');
+      
+      if (error) {
+        // If error is about missing column, try without it
+        if (error.code === '42703' && error.message?.includes('default_fund_type')) {
+          console.warn('default_fund_type column not found, using fallback');
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('akun_kas')
+            .select('id, saldo_saat_ini, saldo_awal, managed_by')
+            .eq('status', 'aktif');
+          
+          if (fallbackError) {
+            throw fallbackError;
+          }
+          
+          // Add default_fund_type as null for backward compatibility
+          allAkun = (fallbackData || []).map((akun: any) => ({
+            ...akun,
+            default_fund_type: null
+          }));
+        } else {
+          throw error;
+        }
+      } else {
+        allAkun = data || [];
+      }
+    } catch (error: any) {
+      console.error('Error fetching all akun kas:', error);
+      allAkunError = error;
+    }
     
     if (allAkunError) {
-      console.error('Error fetching all akun kas:', allAkunError);
-      throw allAkunError;
+      // Final fallback: try without default_fund_type
+      try {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('akun_kas')
+          .select('id, saldo_saat_ini, managed_by')
+          .eq('status', 'aktif');
+        
+        if (fallbackError) {
+          throw fallbackError;
+        }
+        
+        // Add default_fund_type as null for backward compatibility
+        allAkun = (fallbackData || []).map((akun: any) => ({
+          ...akun,
+          default_fund_type: null
+        }));
+      } catch (finalError: any) {
+        console.error('Final fallback failed:', finalError);
+        throw finalError;
+      }
     }
+    
     
     // Filter out koperasi and tabungan accounts
     const filteredAkun = excludeKoperasiAccounts(excludeTabunganAccounts(allAkun));
     
     // Calculate total saldo
-    // Note: fund_type column doesn't exist, so all funds are considered tidak_terikat
     let totalSaldo = 0;
-    const danaTerikat = 0;
-    let danaTidakTerikat = 0;
     
     filteredAkun.forEach(akun => {
       const saldo = akun.saldo_saat_ini || 0;
       totalSaldo += saldo;
-      // Since fund_type doesn't exist, all funds are tidak_terikat
-      danaTidakTerikat += saldo;
     });
     
     // Get transactions in date range
@@ -746,9 +868,12 @@ export const getFinancialStatsByDateRange = async (
       .gte('tanggal', startDate)
       .lte('tanggal', endDate);
     
-    // Exclude tabungan and koperasi
+    // Exclude tabungan santri transactions (using shared utility)
     query = applyTabunganExclusionFilter(query);
-    query = applyKoperasiExclusionFilter(query);
+    // NOTE: Don't use applyKoperasiExclusionFilter here at query level
+    // We need to check akun_kas.managed_by client-side to correctly handle transfers
+    // Transfer from koperasi to general finance accounts (managed_by != 'koperasi') should be included
+    // Only transactions where akun_kas.managed_by = 'koperasi' should be excluded
     
     const { data: transactions, error: transactionsError } = await query;
     
@@ -757,7 +882,9 @@ export const getFinancialStatsByDateRange = async (
       throw transactionsError;
     }
     
-    // Filter client-side (backup)
+    // Filter client-side - this correctly handles transfers by checking akun_kas.managed_by
+    // excludeKoperasiTransactions will only exclude if akun_kas.managed_by === 'koperasi'
+    // So transfers to general finance accounts will be included
     const filteredTransactions = excludeKoperasiTransactions(
       excludeTabunganTransactions(transactions || [])
     );
@@ -785,7 +912,8 @@ export const getFinancialStatsByDateRange = async (
       .lte('tanggal', prevEnd.toISOString().split('T')[0]);
     
     prevQuery = applyTabunganExclusionFilter(prevQuery);
-    prevQuery = applyKoperasiExclusionFilter(prevQuery);
+    // NOTE: Don't use applyKoperasiExclusionFilter here at query level
+    // We'll filter client-side to correctly handle transfers
     
     const { data: prevTransactions, error: prevError } = await prevQuery;
     
@@ -793,6 +921,7 @@ export const getFinancialStatsByDateRange = async (
     let pengeluaranTrend = 0;
     
     if (!prevError && prevTransactions) {
+      // Filter client-side - this correctly handles transfers by checking akun_kas.managed_by
       const filteredPrevTransactions = excludeKoperasiTransactions(
         excludeTabunganTransactions(prevTransactions)
       );
@@ -824,14 +953,74 @@ export const getFinancialStatsByDateRange = async (
     
     const netPenyesuaianSaldo = penyesuaianSaldoPemasukan - penyesuaianSaldoPengeluaran;
     
+    // Calculate Saldo Awal (Opening Balance): Balance BEFORE startDate
+    // Method: Get all transactions before startDate and calculate balance
+    let saldoAwal = 0;
+    try {
+      // Get all transactions before startDate
+      let saldoAwalQuery = supabase
+        .from('keuangan')
+        .select('*, akun_kas(managed_by)')
+        .eq('status', 'posted')
+        .eq('ledger', 'UMUM')
+        .lt('tanggal', startDate); // Before startDate
+      
+      saldoAwalQuery = applyTabunganExclusionFilter(saldoAwalQuery);
+      // NOTE: Don't use applyKoperasiExclusionFilter here at query level
+      // We'll filter client-side to correctly handle transfers
+      
+      const { data: saldoAwalTransactions, error: saldoAwalError } = await saldoAwalQuery;
+      
+      if (!saldoAwalError && saldoAwalTransactions) {
+        // Filter client-side - this correctly handles transfers by checking akun_kas.managed_by
+        const filteredSaldoAwalTransactions = excludeKoperasiTransactions(
+          excludeTabunganTransactions(saldoAwalTransactions)
+        );
+        
+        // Calculate opening balance: sum of all income minus expenses before startDate
+        const saldoAwalPemasukan = filteredSaldoAwalTransactions
+          .filter(t => t.jenis_transaksi === 'Pemasukan')
+          .reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+        
+        const saldoAwalPengeluaran = filteredSaldoAwalTransactions
+          .filter(t => t.jenis_transaksi === 'Pengeluaran')
+          .reduce((sum, t) => sum + (Number(t.jumlah) || 0), 0);
+        
+        // Get initial balances (saldo_awal) from all accounts
+        let totalSaldoAwalAkun = 0;
+        filteredAkun.forEach(akun => {
+          // saldo_awal is the initial balance when account was created
+          // We need to query this from the database
+          const saldoAwalAkun = (akun as any).saldo_awal || 0;
+          totalSaldoAwalAkun += saldoAwalAkun;
+        });
+        
+        // Opening balance = initial account balances + transactions before startDate
+        saldoAwal = totalSaldoAwalAkun + saldoAwalPemasukan - saldoAwalPengeluaran;
+      } else {
+        // Fallback: Calculate from current balance minus transactions in range
+        // saldoAwal = totalSaldo - pemasukan + pengeluaran
+        // This works if totalSaldo is the current balance (which it is)
+        saldoAwal = totalSaldo - pemasukan + pengeluaran;
+      }
+    } catch (error) {
+      console.warn('Error calculating saldo awal, using fallback:', error);
+      // Fallback: use current totalSaldo minus transactions in range
+      saldoAwal = totalSaldo - pemasukan + pengeluaran;
+    }
+    
+    // Calculate Saldo Akhir (Closing Balance): Saldo Awal + Pemasukan - Pengeluaran
+    // This is the actual balance at the end of the selected period
+    const saldoAkhir = saldoAwal + pemasukan - pengeluaran;
+    
     return {
-      totalSaldo,
+      totalSaldo, // Keep for backward compatibility
+      saldoAwal,
+      saldoAkhir,
       pemasukan,
       pengeluaran,
       totalPemasukanTransaksi: pemasukanTransactions.length,
       totalPengeluaranTransaksi: pengeluaranTransactions.length,
-      danaTerikat,
-      danaTidakTerikat,
       pemasukanTrend,
       pengeluaranTrend,
       penyesuaianSaldoInfo: {

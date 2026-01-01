@@ -438,8 +438,8 @@ const KeuanganUnifiedPage: React.FC = () => {
         });
       }
       
-      // Filter out kewajiban/hutang (TAPI INCLUDE transfer ke yayasan sebagai pengeluaran)
-      // Transfer ke yayasan adalah pengeluaran yang valid dan harus dihitung
+      // Filter out kewajiban/hutang (TAPI INCLUDE transfer ke yayasan dan transfer antar akun sebagai pengeluaran)
+      // Transfer ke yayasan dan transfer antar akun adalah pengeluaran yang valid dan harus dihitung
       const biayaOperasional = allPengeluaranData.filter(item => {
         const kategori = (item.kategori || '').toLowerCase();
         const subKategori = (item.sub_kategori || '').toLowerCase();
@@ -451,6 +451,13 @@ const KeuanganUnifiedPage: React.FC = () => {
             deskripsi.includes('transfer ke yayasan') ||
             deskripsi.includes('transfer laba/rugi')) {
           return true; // Include transfer ke yayasan
+        }
+        
+        // INCLUDE transfer antar akun sebagai pengeluaran (untuk transfer dari koperasi ke keuangan umum)
+        if (kategori === 'transfer antar akun' || 
+            subKategori === 'transfer antar akun' ||
+            deskripsi.includes('transfer ke ') && !deskripsi.includes('transfer ke yayasan')) {
+          return true; // Include transfer antar akun
         }
         
         // Exclude hanya kewajiban/hutang (bukan transfer)
@@ -1819,6 +1826,8 @@ const KeuanganUnifiedPage: React.FC = () => {
     // Tapi kita tetap memanggil recalculateStatistics untuk memastikan statistik ter-update
     if (akunKas.length > 0) {
       await recalculateStatistics();
+      // Explicitly call calculatePeriodSummary to ensure it's updated after transfer
+      await calculatePeriodSummary();
     }
   };
 

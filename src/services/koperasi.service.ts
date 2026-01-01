@@ -2598,6 +2598,7 @@ export const koperasiService = {
             source_module: 'koperasi',
             source_id: transferId, // UUID yang valid
             auto_posted: false,
+            ledger: 'UMUM', // Set ledger='UMUM' untuk transfer keluar dari akun keuangan umum
           });
         
         if (pengeluaranError) throw pengeluaranError;
@@ -2626,21 +2627,22 @@ export const koperasiService = {
         if (pemasukanError) throw pemasukanError;
     } else {
       // Gunakan insert langsung untuk akun keuangan umum untuk mengontrol source_id sebagai UUID yang valid
-      const { error: pemasukanError } = await supabase
-        .from('keuangan')
-        .insert({
-          tanggal: data.tanggal,
-          jenis_transaksi: 'Pemasukan',
-          kategori: 'Transfer Antar Akun',
-          jumlah: data.jumlah,
-          deskripsi: deskripsiPemasukan,
-          akun_kas_id: data.ke_akun_kas_id,
-          referensi: transferRef,
-          status: 'posted',
-          source_module: 'koperasi',
-          source_id: transferId, // UUID yang valid (sama dengan pengeluaran untuk linking)
-          auto_posted: false,
-        });
+        const { error: pemasukanError } = await supabase
+          .from('keuangan')
+          .insert({
+            tanggal: data.tanggal,
+            jenis_transaksi: 'Pemasukan',
+            kategori: 'Transfer Antar Akun',
+            jumlah: data.jumlah,
+            deskripsi: deskripsiPemasukan,
+            akun_kas_id: data.ke_akun_kas_id,
+            referensi: transferRef,
+            status: 'posted',
+            source_module: 'koperasi',
+            source_id: transferId, // UUID yang valid (sama dengan pengeluaran untuk linking)
+            auto_posted: false,
+            ledger: 'UMUM', // Set ledger='UMUM' untuk transfer masuk ke akun keuangan umum
+          });
       
       if (pemasukanError) throw pemasukanError;
     }

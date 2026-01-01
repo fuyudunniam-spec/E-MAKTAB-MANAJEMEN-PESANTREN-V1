@@ -1,7 +1,8 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Lock, Unlock } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Info } from 'lucide-react';
 
 interface StatCard {
   title: string;
@@ -13,11 +14,14 @@ interface StatCard {
   };
   icon: React.ReactNode;
   color: string;
+  isHighlighted?: boolean; // For special styling (e.g., Saldo Akhir)
 }
 
 interface SummaryCardsProps {
   stats: {
-    totalSaldo: number;
+    totalSaldo?: number; // For backward compatibility
+    saldoAwal?: number; // Opening balance (before startDate)
+    saldoAkhir?: number; // Closing balance (saldoAwal + pemasukan - pengeluaran)
     pemasukanBulanIni: number;
     pengeluaranBulanIni: number;
     totalTransaksi: number;
@@ -25,8 +29,6 @@ interface SummaryCardsProps {
     pengeluaranTrend: number;
     jumlahTransaksiPemasukan?: number;
     jumlahTransaksiPengeluaran?: number;
-    danaTerikat?: number;
-    danaTidakTerikat?: number;
     penyesuaianSaldoInfo?: {
       jumlah: number;
       jumlahTransaksi: number;
@@ -61,30 +63,28 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({
     return `${sign}${roundedTrend.toFixed(2)}% dari ${previousPeriodLabel}`;
   };
 
-  // Calculate dana terikat vs tidak terikat
-  // Fallback: jika fund_type belum ada, semua dianggap tidak_terikat
-  const danaTerikat = stats.danaTerikat ?? 0;
-  const danaTidakTerikat = stats.danaTidakTerikat ?? stats.totalSaldo;
-  const totalDana = danaTerikat + danaTidakTerikat;
+  // Get saldo values (with backward compatibility)
+  const saldoAwal = stats.saldoAwal ?? (stats.totalSaldo ? stats.totalSaldo - stats.pemasukanBulanIni + stats.pengeluaranBulanIni : 0);
+  const saldoAkhir = stats.saldoAkhir ?? (stats.totalSaldo ?? 0);
 
-  // Prepare penyesuaian saldo info for Total Saldo card
+  // Prepare penyesuaian saldo info
   const penyesuaianSaldoInfo = stats.penyesuaianSaldoInfo;
-  let totalSaldoSubtitle: string | undefined;
+  let saldoAkhirSubtitle: string | undefined;
   if (penyesuaianSaldoInfo?.adaPenyesuaian && penyesuaianSaldoInfo.jumlahTransaksi > 0) {
     const sign = penyesuaianSaldoInfo.jumlah >= 0 ? '+' : '';
-    totalSaldoSubtitle = `Penyesuaian saldo: ${sign}${formatCurrency(Math.abs(penyesuaianSaldoInfo.jumlah))} (${penyesuaianSaldoInfo.jumlahTransaksi} transaksi)`;
+    saldoAkhirSubtitle = `Penyesuaian saldo: ${sign}${formatCurrency(Math.abs(penyesuaianSaldoInfo.jumlah))} (${penyesuaianSaldoInfo.jumlahTransaksi} transaksi)`;
   }
 
   const cards: StatCard[] = [
     {
-      title: 'Total Saldo',
-      value: formatCurrency(stats.totalSaldo),
-      subtitle: totalSaldoSubtitle,
+      title: 'Saldo Awal (Opening Balance)',
+      value: formatCurrency(saldoAwal),
+      subtitle: `Saldo sebelum ${periodLabel}`,
       icon: <DollarSign className="h-5 w-5" />,
-      color: 'text-blue-600',
+      color: 'text-gray-600',
     },
     {
-      title: `Pemasukan ${periodLabel}`,
+      title: `Total Pemasukan ${periodLabel}`,
       value: formatCurrency(stats.pemasukanBulanIni),
       subtitle: `${stats.jumlahTransaksiPemasukan || 0} transaksi`,
       trend: stats.pemasukanTrend !== 0 ? {
@@ -95,7 +95,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({
       color: 'text-green-600',
     },
     {
-      title: `Pengeluaran ${periodLabel}`,
+      title: `Total Pengeluaran ${periodLabel}`,
       value: formatCurrency(stats.pengeluaranBulanIni),
       subtitle: `${stats.jumlahTransaksiPengeluaran || 0} transaksi`,
       trend: stats.pengeluaranTrend !== 0 ? {
@@ -106,13 +106,12 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({
       color: 'text-red-600',
     },
     {
-      title: 'Dana Terikat vs Tidak Terikat',
-      value: `${formatCurrency(danaTerikat)} / ${formatCurrency(danaTidakTerikat)}`,
-      subtitle: totalDana > 0 
-        ? `Terikat: ${((danaTerikat / totalDana) * 100).toFixed(1)}% • Tidak Terikat: ${((danaTidakTerikat / totalDana) * 100).toFixed(1)}%`
-        : 'Belum ada data',
-      icon: danaTerikat > 0 ? <Lock className="h-5 w-5" /> : <Unlock className="h-5 w-5" />,
-      color: 'text-purple-600',
+      title: 'Saldo Akhir (Real Balance)',
+      value: formatCurrency(saldoAkhir),
+      subtitle: saldoAkhirSubtitle || 'Sesuai dengan fisik uang di kas/bank',
+      icon: <DollarSign className="h-5 w-5" />,
+      color: 'text-indigo-600',
+      isHighlighted: true, // Add flag for special styling
     },
   ];
 
@@ -130,19 +129,51 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({
       {/* Summary Cards - 4 KPI Cards untuk Dashboard Keuangan */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card, index) => (
-          <Card key={index} className="hover:shadow-md transition-shadow duration-200 rounded-lg border border-gray-200 bg-white" style={{ minHeight: '140px' }}>
+          <Card 
+            key={index} 
+            className={`hover:shadow-md transition-shadow duration-200 rounded-lg border ${
+              card.isHighlighted 
+                ? 'border-indigo-300 bg-gradient-to-br from-indigo-50 to-white shadow-indigo-100' 
+                : 'border-gray-200 bg-white'
+            }`}
+            style={{ minHeight: '140px' }}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3 pt-5 px-5">
-              <CardTitle className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+              <CardTitle className={`text-xs font-medium uppercase tracking-wide ${
+                card.isHighlighted ? 'text-indigo-700' : 'text-gray-500'
+              }`}>
                 {card.title}
               </CardTitle>
-              <div className={`${card.color} opacity-70`}>
+              <div className={`${card.color} ${card.isHighlighted ? 'opacity-100' : 'opacity-70'}`}>
                 {card.icon}
               </div>
             </CardHeader>
             <CardContent className="px-5 pb-5">
-              <div className="text-xl font-semibold text-gray-900 mb-1.5 tracking-tight leading-tight">{card.value}</div>
+              <div className={`text-xl font-semibold mb-1.5 tracking-tight leading-tight ${
+                card.isHighlighted ? 'text-indigo-900' : 'text-gray-900'
+              }`}>
+                {card.value}
+              </div>
               {card.subtitle && (
-                <div className="text-xs text-gray-500 mb-2">{card.subtitle}</div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className={`text-xs mb-2 flex items-center gap-1 ${
+                        card.isHighlighted ? 'text-indigo-600' : 'text-gray-500'
+                      }`}>
+                        {card.subtitle}
+                        {card.isHighlighted && (
+                          <Info className="h-3 w-3" />
+                        )}
+                      </div>
+                    </TooltipTrigger>
+                    {card.isHighlighted && (
+                      <TooltipContent>
+                        <p className="text-xs">Saldo akhir adalah saldo riil yang sesuai dengan fisik uang di kas/bank pada akhir periode yang dipilih</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               )}
               {card.trend && (
                 <div className={`flex items-center text-xs ${

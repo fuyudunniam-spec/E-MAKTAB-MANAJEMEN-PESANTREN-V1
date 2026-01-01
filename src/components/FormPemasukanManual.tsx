@@ -75,21 +75,23 @@ const FormPemasukanManual: React.FC<FormPemasukanManualProps> = ({ onSuccess }) 
       const { data: { user } } = await supabase.auth.getUser();
 
       // Create keuangan entry
+      const insertData: any = {
+        tanggal,
+        jenis_transaksi: 'Pemasukan',
+        kategori,
+        sub_kategori: subKategori || null,
+        jumlah: jumlahNum,
+        deskripsi: deskripsi || kategori,
+        penerima_pembayar: penerimaPembayar || null,
+        akun_kas_id: akunKasId,
+        status: 'posted',
+        auto_posted: false,
+        created_by: user?.id
+      };
+      
       const { data: keuangan, error: keuanganError } = await supabase
         .from('keuangan')
-        .insert({
-          tanggal,
-          jenis_transaksi: 'Pemasukan',
-          kategori,
-          sub_kategori: subKategori || null,
-          jumlah: jumlahNum,
-          deskripsi: deskripsi || kategori,
-          penerima_pembayar: penerimaPembayar || null,
-          akun_kas_id: akunKasId,
-          status: 'posted',
-          auto_posted: false,
-          created_by: user?.id
-        })
+        .insert(insertData)
         .select()
         .single();
 
@@ -186,7 +188,11 @@ const FormPemasukanManual: React.FC<FormPemasukanManualProps> = ({ onSuccess }) 
 
               <div className="space-y-2">
                 <Label htmlFor="akunKas">Akun Kas *</Label>
-                <Select value={akunKasId} onValueChange={setAkunKasId} required>
+                <Select 
+                  value={akunKasId} 
+                  onValueChange={setAkunKasId}
+                  required
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih akun kas" />
                   </SelectTrigger>
