@@ -3,39 +3,48 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import Layout from "./components/Layout";
 import ErrorBoundary from "./components/ErrorBoundary";
-import Dashboard from "./pages/Dashboard";
-import SantriEnhanced from "./pages/SantriEnhanced";
-// Removed legacy profile imports - files deleted, routes redirected to canonical /santri/profile5
-import Monitoring from "./pages/Monitoring";
-import Tabungan from "./pages/Tabungan";
-import TabunganRouter from "./pages/TabunganRouter";
-import TabunganSantriAdmin from "./pages/TabunganSantriAdmin";
-import LaporanTabungan from "./pages/LaporanTabungan";
-import DonasiDashboard from "./pages/DonasiDashboard";
-// Modul Kebutuhan Layanan Santri - DINONAKTIFKAN (files removed)
-import MasterDonatur from "./pages/MasterDonatur";
-// Removed legacy imports - files deleted after routing canonical consolidation
-import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
-// ProfileLayout with nested routes is the canonical profile implementation
-import SantriOnboarding from "./pages/SantriOnboarding";
-import SantriAccountManagement from "./pages/SantriAccountManagement";
-import ChangePassword from "./pages/ChangePassword";
-import ProfileLayout from "./components/ProfileLayout";
-import ProfileRedirect from "./components/ProfileRedirect";
-import InformasiPage from "./pages/santri/InformasiPage";
-import AkademikPage from "./pages/santri/AkademikPage";
-import KeuanganPage from "./pages/santri/KeuanganPage";
-import TabunganPage from "./pages/santri/TabunganPage";
-import LayananPage from "./pages/santri/LayananPage";
-import DokumenPage from "./pages/santri/DokumenPage";
-// Removed: ProgramSantri, ApprovalSantri (no longer used)
-// Removed: PloatingKelas - redirecting to /akademik/kelas?tab=plotting
-import TagihanSantri from "./pages/TagihanSantri";
-import ProgramSantriBiayaManager from "./components/ProgramSantriBiayaManager";
+
+const RouteFallback = () => (
+  <div className="p-6 text-sm text-muted-foreground">Loading...</div>
+);
+
+const WithLayout = ({ children }: { children: ReactNode }) => (
+  <Layout>
+    <Suspense fallback={<RouteFallback />}>{children}</Suspense>
+  </Layout>
+);
+
+const SuspenseOnly = ({ children }: { children: ReactNode }) => (
+  <Suspense fallback={<RouteFallback />}>{children}</Suspense>
+);
+
+// Route-level lazy loading to keep initial bundle small
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const SantriEnhanced = lazy(() => import("./pages/SantriEnhanced"));
+const Monitoring = lazy(() => import("./pages/Monitoring"));
+const TabunganRouter = lazy(() => import("./pages/TabunganRouter"));
+const TabunganSantriAdmin = lazy(() => import("./pages/TabunganSantriAdmin"));
+const LaporanTabungan = lazy(() => import("./pages/LaporanTabungan"));
+const DonasiDashboard = lazy(() => import("./pages/DonasiDashboard"));
+const MasterDonatur = lazy(() => import("./pages/MasterDonatur"));
+const Auth = lazy(() => import("./pages/Auth"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const SantriOnboarding = lazy(() => import("./pages/SantriOnboarding"));
+const SantriAccountManagement = lazy(() => import("./pages/SantriAccountManagement"));
+const ChangePassword = lazy(() => import("./pages/ChangePassword"));
+const ProfileLayout = lazy(() => import("./components/ProfileLayout"));
+const ProfileRedirect = lazy(() => import("./components/ProfileRedirect"));
+const InformasiPage = lazy(() => import("./pages/santri/InformasiPage"));
+const AkademikPage = lazy(() => import("./pages/santri/AkademikPage"));
+const KeuanganPage = lazy(() => import("./pages/santri/KeuanganPage"));
+const TabunganPage = lazy(() => import("./pages/santri/TabunganPage"));
+const LayananPage = lazy(() => import("./pages/santri/LayananPage"));
+const DokumenPage = lazy(() => import("./pages/santri/DokumenPage"));
+const TagihanSantri = lazy(() => import("./pages/TagihanSantri"));
+const ProgramSantriBiayaManager = lazy(() => import("./components/ProgramSantriBiayaManager"));
 
 // Lazy imports for module dashboards
 // Removed: DashboardSantri, DashboardKeuangan - routes redirected to canonical routes
@@ -53,8 +62,7 @@ const DashboardPengajar = lazy(() => import('./modules/akademik/DashboardPengaja
 const ProfilPengajarPage = lazy(() => import('./modules/akademik/ProfilPengajarPage'));
 const InputNilaiPage = lazy(() => import('./modules/akademik/InputNilaiPage'));
 const RapotPage = lazy(() => import('./modules/akademik/RapotPage'));
-// Temporarily use direct import instead of lazy loading to fix Vite bundling issue
-import UserManagementPage from './modules/admin/UserManagementPage';
+const UserManagementPage = lazy(() => import('./modules/admin/UserManagementPage'));
 
 // Lazy imports for inventory modules
 const InventarisMasterPage = lazy(() => import('./modules/inventaris/MasterData/InventarisMasterPage'));
@@ -97,11 +105,11 @@ const App = () => (
         <Sonner />
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
-            <Route path="/auth" element={<Auth />} />
+            <Route path="/auth" element={<SuspenseOnly><Auth /></SuspenseOnly>} />
             <Route path="/" element={
-              <Layout>
+              <WithLayout>
                 <Dashboard />
-              </Layout>
+              </WithLayout>
             } />
             {/* Module Dashboard Routes - Redirected to canonical routes */}
             <Route path="/santri-dashboard" element={<Navigate to="/santri" replace />} />
@@ -109,257 +117,195 @@ const App = () => (
             <Route path="/inventaris-dashboard" element={<Navigate to="/inventaris" replace />} />
             {/* Inventory Module Routes */}
             <Route path="/inventaris" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <InventarisDashboard />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <InventarisDashboard />
+              </WithLayout>
             } />
             <Route path="/inventaris/master" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <InventarisMasterPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <InventarisMasterPage />
+              </WithLayout>
             } />
             {/* Sales removed from yayasan inventory - all sales now through koperasi */}
             <Route path="/inventaris/sales" element={
               <Navigate to="/koperasi/kasir" replace />
             } />
             <Route path="/inventaris/distribution" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <DistribusiPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <DistribusiPage />
+              </WithLayout>
             } />
             <Route path="/inventaris/distribution/distribusi-paket" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <DistribusiPaketPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <DistribusiPaketPage />
+              </WithLayout>
             } />
             <Route path="/inventaris/distribution/master-paket" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <MasterPaketPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <MasterPaketPage />
+              </WithLayout>
             } />
             <Route path="/inventaris/riwayat" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <RiwayatInventarisYayasanPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <RiwayatInventarisYayasanPage />
+              </WithLayout>
             } />
             {/* Koperasi Module Routes */}
             <Route path="/koperasi" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <DashboardKoperasi />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <DashboardKoperasi />
+              </WithLayout>
             } />
             <Route path="/koperasi/master" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <MasterProdukPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <MasterProdukPage />
+              </WithLayout>
             } />
             <Route path="/koperasi/master/supplier" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <SupplierPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <SupplierPage />
+              </WithLayout>
             } />
             <Route path="/koperasi/kasir" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <KasirPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <KasirPage />
+              </WithLayout>
             } />
             <Route path="/koperasi/inventaris" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <StockKoperasiPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <StockKoperasiPage />
+              </WithLayout>
             } />
             <Route path="/koperasi/transfer" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <TransferInventarisPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <TransferInventarisPage />
+              </WithLayout>
             } />
             <Route path="/koperasi/penjualan" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <RiwayatPenjualanPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <RiwayatPenjualanPage />
+              </WithLayout>
             } />
             <Route path="/koperasi/pembelian" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <PembelianPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <PembelianPage />
+              </WithLayout>
             } />
             <Route path="/koperasi/keuangan/dashboard" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <KeuanganDashboardKoperasi />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <KeuanganDashboardKoperasi />
+              </WithLayout>
             } />
             <Route path="/koperasi/keuangan" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <KeuanganKoperasiPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <KeuanganKoperasiPage />
+              </WithLayout>
             } />
             <Route path="/koperasi/keuangan/pembelian" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <KeuanganPembelianPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <KeuanganPembelianPage />
+              </WithLayout>
             } />
             <Route path="/koperasi/keuangan/operasional" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <KeuanganOperasionalPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <KeuanganOperasionalPage />
+              </WithLayout>
             } />
             <Route path="/koperasi/keuangan/kelola-hpp" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <KelolaHPPDanBagiHasilPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <KelolaHPPDanBagiHasilPage />
+              </WithLayout>
             } />
             <Route path="/koperasi/laporan" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <LaporanKoperasiPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <LaporanKoperasiPage />
+              </WithLayout>
             } />
             <Route path="/admin/keuangan-audit" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <KeuanganAuditPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <KeuanganAuditPage />
+              </WithLayout>
             } />
             <Route path="/admin/users" element={
-              <Layout>
+              <WithLayout>
                 <UserManagementPage />
-              </Layout>
+              </WithLayout>
             } />
             <Route path="/admin/data-master" element={
-              <Layout>
+              <WithLayout>
                 <UserManagementPage />
-              </Layout>
+              </WithLayout>
             } />
             <Route path="/akademik" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <DashboardAkademik />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <DashboardAkademik />
+              </WithLayout>
             } />
             <Route path="/akademik/kelas" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <KelasPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <KelasPage />
+              </WithLayout>
             } />
             {/* Backward compatibility - redirect old routes */}
             <Route path="/akademik/master" element={<Navigate to="/akademik/kelas" replace />} />
             <Route path="/akademik/semester" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <SemesterManagementPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <SemesterManagementPage />
+              </WithLayout>
             } />
             <Route path="/akademik/presensi" element={<Navigate to="/akademik/pertemuan?tab=presensi" replace />} />
             <Route path="/akademik/setoran" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <SetoranHarianPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <SetoranHarianPage />
+              </WithLayout>
             } />
             <Route path="/akademik/pertemuan" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <PertemuanPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <PertemuanPage />
+              </WithLayout>
             } />
             {/* Backward compatibility - redirect old routes */}
             <Route path="/akademik/jurnal" element={<Navigate to="/akademik/pertemuan?tab=jurnal" replace />} />
             <Route path="/akademik/pengajar" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <DashboardPengajar />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <DashboardPengajar />
+              </WithLayout>
             } />
             <Route path="/akademik/pengajar/profil" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <ProfilPengajarPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <ProfilPengajarPage />
+              </WithLayout>
             } />
             <Route path="/akademik/perizinan" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <PerizinanSantriPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <PerizinanSantriPage />
+              </WithLayout>
             } />
             <Route path="/akademik/nilai" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <InputNilaiPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <InputNilaiPage />
+              </WithLayout>
             } />
             <Route path="/akademik/rapot" element={<Navigate to="/akademik/nilai" replace />} />
             <Route path="/administrasi" element={<Navigate to="/admin/users" replace />} />
             <Route path="/santri" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <SantriEnhanced />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <SantriEnhanced />
+              </WithLayout>
             } />
             <Route path="/santri/add" element={<Navigate to="/santri" replace />} />
-            <Route path="/santri/onboarding" element={<SantriOnboarding />} />
+            <Route path="/santri/onboarding" element={<SuspenseOnly><SantriOnboarding /></SuspenseOnly>} />
             {/* Legacy profile route - redirect to new nested route structure */}
             <Route path="/santri/profile" element={
-              <Layout>
+              <WithLayout>
                 <ProfileRedirect />
-              </Layout>
+              </WithLayout>
             } />
             {/* New nested profile routes */}
             <Route path="/santri/profile/:id" element={
-              <Layout>
+              <WithLayout>
                 <ProfileLayout />
-              </Layout>
+              </WithLayout>
             }>
               <Route index element={<InformasiPage />} />
               <Route path="informasi" element={<InformasiPage />} />
@@ -376,41 +322,41 @@ const App = () => (
             <Route path="/santri/profile-redesigned" element={<Navigate to="/santri/profile" replace />} />
             {/* Legacy profile routes removed - all use ProfileLayout with nested routes */}
             <Route path="/santri/program-management/:santriId" element={
-              <Layout>
+              <WithLayout>
                 <ProgramSantriBiayaManager />
-              </Layout>
+              </WithLayout>
             } />
             <Route path="/monitoring" element={
-              <Layout>
+              <WithLayout>
                 <Monitoring />
-              </Layout>
+              </WithLayout>
             } />
             <Route path="/tabungan" element={
-              <Layout>
+              <WithLayout>
                 <TabunganRouter />
-              </Layout>
+              </WithLayout>
             } />
             <Route path="/tabungan-santri" element={
-              <Layout>
+              <WithLayout>
                 <TabunganSantriAdmin />
-              </Layout>
+              </WithLayout>
             } />
             <Route path="/laporan-tabungan" element={
-              <Layout>
+              <WithLayout>
                 <LaporanTabungan />
-              </Layout>
+              </WithLayout>
             } />
             <Route path="/donasi" element={
-              <Layout>
+              <WithLayout>
                 <DonasiDashboard />
-              </Layout>
+              </WithLayout>
             } />
             <Route path="/donasi-dashboard" element={<Navigate to="/donasi" replace />} />
             {/* Modul Kebutuhan Layanan Santri - DINONAKTIFKAN (routes removed) */}
             <Route path="/donasi/master-donatur" element={
-              <Layout>
+              <WithLayout>
                 <MasterDonatur />
-              </Layout>
+              </WithLayout>
             } />
             {/* Legacy routes - redirected to canonical routes */}
             <Route path="/inventaris-test" element={<Navigate to="/inventaris" replace />} />
@@ -419,38 +365,34 @@ const App = () => (
             <Route path="/koperasi-old" element={<Navigate to="/koperasi" replace />} />
             <Route path="/keuangan" element={<Navigate to="/keuangan-v3" replace />} />
             <Route path="/keuangan-v3" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <KeuanganV3 />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <KeuanganV3 />
+              </WithLayout>
             } />
             <Route path="/keuangan-v3/penyaluran-bantuan" element={
-              <Layout>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <RiwayatPenyaluranBantuanPage />
-                </Suspense>
-              </Layout>
+              <WithLayout>
+                <RiwayatPenyaluranBantuanPage />
+              </WithLayout>
             } />
             {/* Redirect old ploating-kelas route to akademik/kelas with plotting tab */}
             <Route path="/ploating-kelas" element={<Navigate to="/akademik/kelas?tab=plotting" replace />} />
             <Route path="/tagihan-santri" element={
-              <Layout>
+              <WithLayout>
                 <TagihanSantri />
-              </Layout>
+              </WithLayout>
             } />
             <Route path="/admin/santri-accounts" element={
-              <Layout>
+              <WithLayout>
                 <SantriAccountManagement />
-              </Layout>
+              </WithLayout>
             } />
             <Route path="/change-password" element={
-              <Layout>
+              <WithLayout>
                 <ChangePassword />
-              </Layout>
+              </WithLayout>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
+            <Route path="*" element={<SuspenseOnly><NotFound /></SuspenseOnly>} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>

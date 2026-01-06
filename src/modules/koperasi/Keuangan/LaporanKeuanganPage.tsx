@@ -11,8 +11,6 @@ import { id as localeId } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { PDFExporter } from '@/utils/export/pdfExporter';
 import { exportToCSV } from '@/utils/inventaris.utils';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 interface FinancialSummary {
   total_pendapatan_koperasi: number;
@@ -217,6 +215,11 @@ const LaporanKeuanganPage = () => {
 
     setIsExporting(true);
     try {
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ]);
+
       const doc = new jsPDF('landscape');
       
       // Header

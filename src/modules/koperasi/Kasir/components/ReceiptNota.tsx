@@ -1,8 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { Button } from "@/components/ui/button";
 import { Download, Share2 } from "lucide-react";
 import { toast } from "sonner";
@@ -200,6 +198,12 @@ export default function ReceiptNota({
 
     setIsGeneratingPDF(true);
     try {
+      // Load heavy libs only when needed (reduces initial bundle/route load)
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
       // Hide action buttons temporarily
       const actionButtons = componentRef.current.querySelector('.no-print');
       if (actionButtons) {

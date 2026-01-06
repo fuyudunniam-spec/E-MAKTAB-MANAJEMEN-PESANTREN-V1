@@ -49,8 +49,6 @@ import {
 } from '@/services/laporanKoperasi.service';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 type ReportType = 'persediaan' | 'laba-rugi' | 'bagi-hasil';
 
@@ -185,6 +183,11 @@ const LaporanPage = () => {
   const handleExportPDFLabaRugi = async (data: LabaRugiReportData) => {
     setIsExporting(true);
     try {
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ]);
+
       const doc = new jsPDF('portrait');
       
       // Header
@@ -280,6 +283,11 @@ const LaporanPage = () => {
   const handleExportPDFBagiHasil = async (data: BagiHasilReportData) => {
     setIsExporting(true);
     try {
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ]);
+
       const doc = new jsPDF('portrait');
       
       // Header
@@ -366,6 +374,11 @@ const LaporanPage = () => {
   const handleExportPDFPersediaan = async (data: PersediaanReportData) => {
     setIsExporting(true);
     try {
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ]);
+
       const doc = new jsPDF('landscape');
       
       // Header
