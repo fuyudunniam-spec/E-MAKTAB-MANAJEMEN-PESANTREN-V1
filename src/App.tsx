@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense, type ReactNode } from "react";
 import Layout from "./components/Layout";
 import ErrorBoundary from "./components/ErrorBoundary";
-
 const RouteFallback = () => (
   <div className="p-6 text-sm text-muted-foreground">Loading...</div>
 );
