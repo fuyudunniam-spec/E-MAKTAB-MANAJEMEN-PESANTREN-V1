@@ -46,6 +46,8 @@ export default defineConfig(({ mode }) => ({
             '@radix-ui/react-switch',
           ],
           'vendor-charts': ['recharts'],
+          // Export/print tooling is large and should be cached separately
+          'vendor-export': ['xlsx', 'jspdf', 'jspdf-autotable', 'html2canvas'],
           'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
         },
       },
