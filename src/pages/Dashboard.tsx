@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, Heart, Activity, Bell, Share2, Search, DollarSign, PiggyBank, BarChart3, Filter, Users, FileText, AlertTriangle, Package, Calendar, Gift, ArrowUpRight, ArrowRight } from "lucide-react";
@@ -9,12 +9,14 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Line, CartesianGrid, Area, AreaChart, XAxis, YAxis, Legend } from "recharts";
 import { getKeuanganDashboardStats } from "@/services/keuangan.service";
 import { getLowStock } from "@/services/inventaris.service";
 import { koperasiService } from "@/services/koperasi.service";
 import { TagihanService } from "@/services/tagihan.service";
 import { getDonasiDashboardStats } from "@/services/donasiDashboard.service";
+
+const CashFlowChart = lazy(() => import("./dashboard/CashFlowChart"));
+const ExpenseDistributionChart = lazy(() => import("./dashboard/ExpenseDistributionChart"));
 
 interface DashboardStats {
   // KPI Cards
@@ -601,22 +603,6 @@ const Dashboard = () => {
     }
   };
 
-
-  // Helper function for chart tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-medium text-sm mb-2">{payload[0].name}</p>
-          <p className="text-xs" style={{ color: payload[0].color }}>
-            {formatRupiah(payload[0].value)}
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -731,31 +717,15 @@ const Dashboard = () => {
               <p className="text-sm text-gray-600 mt-1">Income vs Expenses (Last 6 Months)</p>
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              <ResponsiveContainer width="100%" height={280} minHeight={200}>
-                <AreaChart data={stats.cashFlowData}>
-                  <defs>
-                    <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis dataKey="month" stroke="#6B7280" fontSize={12} />
-                  <YAxis stroke="#6B7280" fontSize={12} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'white',
-                      border: '1px solid #E5E7EB',
-                      borderRadius: '8px',
-                      padding: '12px',
-                    }}
-                    formatter={(value: number) => formatRupiah(value)}
-                  />
-                  <Legend />
-                  <Area type="monotone" dataKey="income" stroke="#3B82F6" fillOpacity={1} fill="url(#colorIncome)" strokeWidth={2} name="Income" />
-                  <Line type="monotone" dataKey="expenses" stroke="#F59E0B" strokeWidth={2} dot={{ fill: '#F59E0B', r: 4 }} name="Expenses" />
-                </AreaChart>
-              </ResponsiveContainer>
+              <Suspense
+                fallback={
+                  <div className="h-[280px] min-h-[200px] flex items-center justify-center text-sm text-gray-500">
+                    Loading chart...
+                  </div>
+                }
+              >
+                <CashFlowChart data={stats.cashFlowData} formatRupiah={formatRupiah} />
+              </Suspense>
             </CardContent>
           </Card>
 
@@ -768,28 +738,15 @@ const Dashboard = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-center mb-4">
-                <div className="relative w-32 h-32">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={stats.expenseDistribution}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={35}
-                        outerRadius={55}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {stats.expenseDistribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<CustomTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                    </div>
+              <Suspense
+                fallback={
+                  <div className="h-32 flex items-center justify-center text-sm text-gray-500">
+                    Loading chart...
                   </div>
+                }
+              >
+                <ExpenseDistributionChart data={stats.expenseDistribution} formatRupiah={formatRupiah} />
+              </Suspense>
               <div className="space-y-2">
                 {stats.expenseDistribution.map((item, index) => {
                   const total = stats.expenseDistribution.reduce((sum, i) => sum + i.value, 0);
