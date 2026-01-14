@@ -11,7 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Plus, Download, Loader2, Calculator, FileText, ChevronDown, ChevronRight, X, Play, MoreVertical, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { LayananSantriService, PilarLayanan } from '@/services/layananSantri.service';
+import { LayananSantriService, type PilarLayanan } from '@/services/layananSantri.service';
+import { MasterDataKeuanganService, type MasterPilarLayanan } from '@/services/masterDataKeuangan.service';
 import { formatCurrency } from '@/utils/formatCurrency';
 import { format, subMonths, startOfYear, endOfYear, startOfMonth, endOfMonth } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -20,13 +21,6 @@ interface RealisasiLayananSantriTabProps {
   periode: string; // Format: "YYYY-MM"
   onPeriodeChange?: (periode: string) => void;
 }
-
-const PILAR_LAYANAN_LABELS: Record<PilarLayanan, string> = {
-  pendidikan_formal: 'Pendidikan Formal',
-  pendidikan_pesantren: 'Pendidikan Pesantren',
-  asrama_konsumsi: 'Asrama & Konsumsi',
-  bantuan_langsung: 'Bantuan Langsung',
-};
 
 const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
   periode,
@@ -56,18 +50,53 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
   const [periodikStatus, setPeriodikStatus] = useState<Map<string, Map<PilarLayanan, boolean>>>(new Map());
   const [monthlyBreakdown, setMonthlyBreakdown] = useState<Map<string, Array<{
     periode: string;
-    pendidikan_formal: number;
-    pendidikan_pesantren: number;
-    asrama_konsumsi: number;
-    bantuan_langsung: number;
+    pilar: Record<string, number>; // Dynamic pilar columns
     total: number;
+    // Backward compatibility
+    pendidikan_formal?: number;
+    pendidikan_pesantren?: number;
+    asrama_konsumsi?: number;
+    bantuan_langsung?: number;
   }>>>(new Map());
   const [loadingBreakdown, setLoadingBreakdown] = useState<Set<string>>(new Set());
+  const [pilarList, setPilarList] = useState<MasterPilarLayanan[]>([]);
+  const [pilarMap, setPilarMap] = useState<Map<string, string>>(new Map()); // Map kode -> nama
 
   // Parse periode untuk input
   const [year, month] = periode.split('-').map(Number);
   const [inputYear, setInputYear] = useState(year);
   const [inputMonth, setInputMonth] = useState(month);
+
+  // Fetch pilar layanan dari master_data_keuangan (dinamis)
+  useEffect(() => {
+    const loadPilarLayanan = async () => {
+      try {
+        const pilarData = await MasterDataKeuanganService.getPilarLayanan(true); // aktifOnly = true
+        setPilarList(pilarData);
+        const map = new Map<string, string>();
+        pilarData.forEach(pilar => {
+          map.set(pilar.kode, pilar.nama);
+        });
+        setPilarMap(map);
+      } catch (error) {
+        console.error('Error loading pilar layanan:', error);
+        // Fallback ke hardcoded jika error
+        const fallbackPilar: MasterPilarLayanan[] = [
+          { id: '', kode: 'pendidikan_formal', nama: 'Pendidikan Formal', deskripsi: '', urutan: 1, warna_badge: '', aktif: true, created_at: '', updated_at: '' },
+          { id: '', kode: 'pendidikan_pesantren', nama: 'Pendidikan Pesantren', deskripsi: '', urutan: 2, warna_badge: '', aktif: true, created_at: '', updated_at: '' },
+          { id: '', kode: 'asrama_konsumsi', nama: 'Asrama & Konsumsi', deskripsi: '', urutan: 3, warna_badge: '', aktif: true, created_at: '', updated_at: '' },
+          { id: '', kode: 'bantuan_langsung', nama: 'Bantuan Langsung', deskripsi: '', urutan: 4, warna_badge: '', aktif: true, created_at: '', updated_at: '' },
+        ];
+        setPilarList(fallbackPilar);
+        const map = new Map<string, string>();
+        fallbackPilar.forEach(pilar => {
+          map.set(pilar.kode, pilar.nama);
+        });
+        setPilarMap(map);
+      }
+    };
+    loadPilarLayanan();
+  }, []);
 
   // Fetch realisasi data
   const {
@@ -109,7 +138,7 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
         pilar_layanan: selectedPilar,
         sumber: 'realisasi',
       });
-      toast.success(`Layanan periodik untuk ${PILAR_LAYANAN_LABELS[selectedPilar]} berhasil di-generate`);
+      toast.success(`Layanan periodik untuk ${pilarMap.get(selectedPilar) || selectedPilar} berhasil di-generate`);
       setShowGenerateDialog(false);
       setSelectedPilar('');
       refetchRealisasi();
@@ -140,7 +169,7 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
         pilar_layanan: selectedPilar,
         nilai_per_santri: nilai,
       });
-      toast.success(`Rancangan anggaran untuk ${PILAR_LAYANAN_LABELS[selectedPilar]} berhasil dibuat`);
+      toast.success(`Rancangan anggaran untuk ${pilarMap.get(selectedPilar) || selectedPilar} berhasil dibuat`);
       setShowRancanganDialog(false);
       setSelectedPilar('');
       setNilaiPerSantri('');
@@ -418,10 +447,12 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nama Santri</TableHead>
-                    <TableHead className="text-right">Pendidikan Formal</TableHead>
-                    <TableHead className="text-right">Pendidikan Pesantren</TableHead>
-                    <TableHead className="text-right">Asrama & Konsumsi</TableHead>
-                    <TableHead className="text-right">Bantuan Langsung</TableHead>
+                    {/* Dynamic pilar columns */}
+                    {pilarList.map(pilar => (
+                      <TableHead key={pilar.kode} className="text-right">
+                        {pilar.nama}
+                      </TableHead>
+                    ))}
                     <TableHead className="text-right font-bold">Total</TableHead>
                     <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
@@ -429,16 +460,12 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
                 <TableBody>
                   {realisasiData.map((item) => {
                     const isExpanded = expandedRows.has(item.santri_id);
-                    const rencanaFormal = rancanganMap.get('pendidikan_formal') || 0;
-                    const rencanaPesantren = rancanganMap.get('pendidikan_pesantren') || 0;
-                    const rencanaAsrama = rancanganMap.get('asrama_konsumsi') || 0;
-                    const rencanaBantuan = rancanganMap.get('bantuan_langsung') || 0;
-                    const totalRencana = rencanaFormal + rencanaPesantren + rencanaAsrama + rencanaBantuan;
                     
-                    const selisihFormal = item.pendidikan_formal - rencanaFormal;
-                    const selisihPesantren = item.pendidikan_pesantren - rencanaPesantren;
-                    const selisihAsrama = item.asrama_konsumsi - rencanaAsrama;
-                    const selisihBantuan = item.bantuan_langsung - rencanaBantuan;
+                    // Calculate total rencana from all pilar
+                    const totalRencana = pilarList.reduce((sum, pilar) => {
+                      return sum + (rancanganMap.get(pilar.kode) || 0);
+                    }, 0);
+                    
                     const selisihTotal = item.total - totalRencana;
                     
                     return (
@@ -475,70 +502,31 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">
-                            <div className="space-y-1">
-                              <div className="font-medium">{formatCurrency(item.pendidikan_formal)}</div>
-                              {isExpanded && (
-                                <div className="text-xs">
-                                  <span className="text-gray-500">Rencana: </span>
-                                  <span>{formatCurrency(rencanaFormal)}</span>
-                                  {selisihFormal !== 0 && (
-                                    <span className={selisihFormal >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                      {' '}({selisihFormal >= 0 ? '+' : ''}{formatCurrency(selisihFormal)})
-                                    </span>
+                          {/* Dynamic pilar columns */}
+                          {pilarList.map(pilar => {
+                            const nilai = item.pilar[pilar.kode] || 0;
+                            const rencana = rancanganMap.get(pilar.kode) || 0;
+                            const selisih = nilai - rencana;
+                            
+                            return (
+                              <TableCell key={pilar.kode} className="text-right">
+                                <div className="space-y-1">
+                                  <div className="font-medium">{formatCurrency(nilai)}</div>
+                                  {isExpanded && (
+                                    <div className="text-xs">
+                                      <span className="text-gray-500">Rencana: </span>
+                                      <span>{formatCurrency(rencana)}</span>
+                                      {selisih !== 0 && (
+                                        <span className={selisih >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                          {' '}({selisih >= 0 ? '+' : ''}{formatCurrency(selisih)})
+                                        </span>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="space-y-1">
-                              <div className="font-medium">{formatCurrency(item.pendidikan_pesantren)}</div>
-                              {isExpanded && (
-                                <div className="text-xs">
-                                  <span className="text-gray-500">Rencana: </span>
-                                  <span>{formatCurrency(rencanaPesantren)}</span>
-                                  {selisihPesantren !== 0 && (
-                                    <span className={selisihPesantren >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                      {' '}({selisihPesantren >= 0 ? '+' : ''}{formatCurrency(selisihPesantren)})
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="space-y-1">
-                              <div className="font-medium">{formatCurrency(item.asrama_konsumsi)}</div>
-                              {isExpanded && (
-                                <div className="text-xs">
-                                  <span className="text-gray-500">Rencana: </span>
-                                  <span>{formatCurrency(rencanaAsrama)}</span>
-                                  {selisihAsrama !== 0 && (
-                                    <span className={selisihAsrama >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                      {' '}({selisihAsrama >= 0 ? '+' : ''}{formatCurrency(selisihAsrama)})
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="space-y-1">
-                              <div className="font-medium">{formatCurrency(item.bantuan_langsung)}</div>
-                              {isExpanded && (
-                                <div className="text-xs">
-                                  <span className="text-gray-500">Rencana: </span>
-                                  <span>{formatCurrency(rencanaBantuan)}</span>
-                                  {selisihBantuan !== 0 && (
-                                    <span className={selisihBantuan >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                      {' '}({selisihBantuan >= 0 ? '+' : ''}{formatCurrency(selisihBantuan)})
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
+                              </TableCell>
+                            );
+                          })}
                           <TableCell className="text-right font-bold">
                             <div className="space-y-1">
                               <div>{formatCurrency(item.total)}</div>
@@ -564,60 +552,41 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={async () => {
-                                      const pilarKey = `${periode}-pendidikan_pesantren`;
-                                      setGeneratingPeriode(new Map(generatingPeriode).set(pilarKey, 'pendidikan_pesantren'));
-                                      try {
-                                        await LayananSantriService.generateLayananPeriodikDariRealisasi({
-                                          periode,
-                                          pilar_layanan: 'pendidikan_pesantren',
-                                          sumber: 'realisasi',
-                                        });
-                                        toast.success(`Layanan periodik Pendidikan Pesantren untuk ${periode} berhasil di-generate`);
-                                        refetchRealisasi();
-                                      } catch (error: any) {
-                                        toast.error(error.message || 'Gagal generate');
-                                      } finally {
-                                        const newMap = new Map(generatingPeriode);
-                                        newMap.delete(pilarKey);
-                                        setGeneratingPeriode(newMap);
-                                      }
-                                    }}
-                                  >
-                                    <Play className="h-4 w-4 mr-2" />
-                                    Generate Pesantren
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={async () => {
-                                      const pilarKey = `${periode}-asrama_konsumsi`;
-                                      setGeneratingPeriode(new Map(generatingPeriode).set(pilarKey, 'asrama_konsumsi'));
-                                      try {
-                                        await LayananSantriService.generateLayananPeriodikDariRealisasi({
-                                          periode,
-                                          pilar_layanan: 'asrama_konsumsi',
-                                          sumber: 'realisasi',
-                                        });
-                                        toast.success(`Layanan periodik Asrama & Konsumsi untuk ${periode} berhasil di-generate`);
-                                        refetchRealisasi();
-                                      } catch (error: any) {
-                                        toast.error(error.message || 'Gagal generate');
-                                      } finally {
-                                        const newMap = new Map(generatingPeriode);
-                                        newMap.delete(pilarKey);
-                                        setGeneratingPeriode(newMap);
-                                      }
-                                    }}
-                                  >
-                                    <Play className="h-4 w-4 mr-2" />
-                                    Generate Asrama
-                                  </DropdownMenuItem>
+                                  {/* Dynamic generate menu items for each pilar */}
+                                  {pilarList.map(pilar => (
+                                    <DropdownMenuItem
+                                      key={pilar.kode}
+                                      onClick={async () => {
+                                        const pilarKey = `${periode}-${pilar.kode}`;
+                                        setGeneratingPeriode(new Map(generatingPeriode).set(pilarKey, pilar.kode));
+                                        try {
+                                          await LayananSantriService.generateLayananPeriodikDariRealisasi({
+                                            periode,
+                                            pilar_layanan: pilar.kode,
+                                            sumber: 'realisasi',
+                                          });
+                                          toast.success(`Layanan periodik ${pilar.nama} untuk ${periode} berhasil di-generate`);
+                                          refetchRealisasi();
+                                        } catch (error: any) {
+                                          toast.error(error.message || 'Gagal generate');
+                                        } finally {
+                                          const newMap = new Map(generatingPeriode);
+                                          newMap.delete(pilarKey);
+                                          setGeneratingPeriode(newMap);
+                                        }
+                                      }}
+                                    >
+                                      <Play className="h-4 w-4 mr-2" />
+                                      Generate {pilar.nama}
+                                    </DropdownMenuItem>
+                                  ))}
                                   <DropdownMenuItem
                                     onClick={async () => {
                                       try {
-                                        await LayananSantriService.deletePeriodik(periode, 'pendidikan_pesantren');
-                                        await LayananSantriService.deletePeriodik(periode, 'asrama_konsumsi');
-                                        await LayananSantriService.deletePeriodik(periode, 'pendidikan_formal');
+                                        // Delete all pilar periodik for this periode
+                                        for (const pilar of pilarList) {
+                                          await LayananSantriService.deletePeriodik(periode, pilar.kode);
+                                        }
                                         toast.success(`Generate untuk ${periode} berhasil dibatalkan`);
                                         refetchRealisasi();
                                       } catch (error: any) {
@@ -626,7 +595,7 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
                                     }}
                                   >
                                     <X className="h-4 w-4 mr-2" />
-                                    Batalkan Generate
+                                    Batalkan Semua Generate
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -636,7 +605,7 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
                         {/* Expanded Row: Monthly Breakdown */}
                         {isExpanded && (
                           <TableRow>
-                            <TableCell colSpan={7} className="bg-gray-50 p-4">
+                            <TableCell colSpan={pilarList.length + 2} className="bg-gray-50 p-4">
                               {loadingBreakdown.has(item.santri_id) ? (
                                 <div className="flex items-center justify-center py-4">
                                   <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
@@ -652,10 +621,12 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
                                       <TableHeader>
                                         <TableRow>
                                           <TableHead className="w-32">Periode</TableHead>
-                                          <TableHead className="text-right">Pendidikan Formal</TableHead>
-                                          <TableHead className="text-right">Pendidikan Pesantren</TableHead>
-                                          <TableHead className="text-right">Asrama & Konsumsi</TableHead>
-                                          <TableHead className="text-right">Bantuan Yayasan</TableHead>
+                                          {/* Dynamic pilar columns */}
+                                          {pilarList.map(pilar => (
+                                            <TableHead key={pilar.kode} className="text-right">
+                                              {pilar.nama}
+                                            </TableHead>
+                                          ))}
                                           <TableHead className="text-right font-bold">Total</TableHead>
                                         </TableRow>
                                       </TableHeader>
@@ -667,18 +638,15 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
                                           return (
                                             <TableRow key={monthData.periode}>
                                               <TableCell className="font-medium">{monthName}</TableCell>
-                                              <TableCell className="text-right">
-                                                {monthData.pendidikan_formal > 0 ? formatCurrency(monthData.pendidikan_formal) : '-'}
-                                              </TableCell>
-                                              <TableCell className="text-right">
-                                                {monthData.pendidikan_pesantren > 0 ? formatCurrency(monthData.pendidikan_pesantren) : '-'}
-                                              </TableCell>
-                                              <TableCell className="text-right">
-                                                {monthData.asrama_konsumsi > 0 ? formatCurrency(monthData.asrama_konsumsi) : '-'}
-                                              </TableCell>
-                                              <TableCell className="text-right">
-                                                {monthData.bantuan_langsung > 0 ? formatCurrency(monthData.bantuan_langsung) : '-'}
-                                              </TableCell>
+                                              {/* Dynamic pilar columns */}
+                                              {pilarList.map(pilar => {
+                                                const nilai = monthData.pilar?.[pilar.kode] || 0;
+                                                return (
+                                                  <TableCell key={pilar.kode} className="text-right">
+                                                    {nilai > 0 ? formatCurrency(nilai) : '-'}
+                                                  </TableCell>
+                                                );
+                                              })}
                                               <TableCell className="text-right font-bold">
                                                 {monthData.total > 0 ? (
                                                   <div className="flex items-center justify-end gap-2">
@@ -702,7 +670,7 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
                                           );
                                         }) || (
                                           <TableRow>
-                                            <TableCell colSpan={6} className="text-center text-gray-500 py-4">
+                                            <TableCell colSpan={pilarList.length + 2} className="text-center text-gray-500 py-4">
                                               Belum ada data untuk periode ini
                                             </TableCell>
                                           </TableRow>
@@ -744,10 +712,12 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
                   <SelectValue placeholder="Pilih pilar layanan" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pendidikan_pesantren">Pendidikan Pesantren</SelectItem>
-                  <SelectItem value="asrama_konsumsi">Asrama & Konsumsi</SelectItem>
-                  <SelectItem value="pendidikan_formal">Pendidikan Formal</SelectItem>
-                  <SelectItem value="bantuan_langsung">Bantuan Langsung Yayasan</SelectItem>
+                  {/* Dynamic pilar options */}
+                  {pilarList.map(pilar => (
+                    <SelectItem key={pilar.kode} value={pilar.kode}>
+                      {pilar.nama}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -862,10 +832,12 @@ const RealisasiLayananSantriTab: React.FC<RealisasiLayananSantriTabProps> = ({
                   <SelectValue placeholder="Pilih pilar layanan" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pendidikan_formal">Pendidikan Formal</SelectItem>
-                  <SelectItem value="pendidikan_pesantren">Pendidikan Pesantren</SelectItem>
-                  <SelectItem value="asrama_konsumsi">Asrama & Konsumsi</SelectItem>
-                  <SelectItem value="bantuan_langsung">Bantuan Langsung</SelectItem>
+                  {/* Dynamic pilar options */}
+                  {pilarList.map(pilar => (
+                    <SelectItem key={pilar.kode} value={pilar.kode}>
+                      {pilar.nama}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

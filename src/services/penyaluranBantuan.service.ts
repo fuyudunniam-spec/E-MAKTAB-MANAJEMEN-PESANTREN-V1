@@ -217,12 +217,13 @@ export class PenyaluranBantuanService {
         // REVISI: Query alokasi dengan filter keuangan harus dilakukan dengan cara berbeda
         // karena Supabase tidak support nested order/filter langsung
         let alokasiQuery = supabase
-          .from('alokasi_pengeluaran_santri')
+          .from('alokasi_layanan_santri')
           .select(`
             id,
             keuangan_id,
             santri_id,
             nominal_alokasi,
+            sumber_alokasi,
             keuangan:keuangan_id(
               id,
               tanggal,
@@ -238,7 +239,8 @@ export class PenyaluranBantuanService {
               nama_lengkap,
               nisn
             )
-          `);
+          `)
+          .eq('sumber_alokasi', 'manual');
         
         // Apply filters - filter by santri_id first (direct field)
         if (filters.santri_id) {
@@ -360,66 +362,7 @@ export class PenyaluranBantuanService {
         }
       }
 
-      // 3. Get inventory distributions (transaksi_inventaris with keluar_mode = 'Distribusi')
-      if (!filters.jenis || filters.jenis === 'All' || filters.jenis === 'Barang') {
-        let inventarisQuery = supabase
-          .from('transaksi_inventaris')
-          .select(`
-            id,
-            tanggal,
-            jumlah,
-            catatan,
-            penerima_santri_id,
-            inventaris:item_id(
-              nama_barang,
-              kategori
-            ),
-            santri:penerima_santri_id(
-              id,
-              nama_lengkap,
-              nisn
-            )
-          `)
-          .eq('tipe', 'Keluar')
-          .eq('keluar_mode', 'Distribusi')
-          .order('tanggal', { ascending: false });
-
-        // Apply filters
-        if (filters.startDate) {
-          inventarisQuery = inventarisQuery.gte('tanggal', filters.startDate);
-        }
-        if (filters.endDate) {
-          inventarisQuery = inventarisQuery.lte('tanggal', filters.endDate);
-        }
-        if (filters.santri_id) {
-          inventarisQuery = inventarisQuery.eq('penerima_santri_id', filters.santri_id);
-        }
-        // Note: kategori filter will be applied after mapping
-
-        const { data: inventarisData, error: inventarisError } = await inventarisQuery;
-
-        if (inventarisError) {
-          console.error('Error fetching inventory data:', inventarisError);
-        } else {
-          (inventarisData || []).forEach((item: any) => {
-            results.push({
-              id: item.id,
-              tanggal: item.tanggal,
-              santri_id: item.santri?.id || item.penerima_santri_id || '',
-              santri_nama: item.santri?.nama_lengkap || 'Tidak Diketahui',
-              santri_nisn: item.santri?.nisn || '',
-              jenis_bantuan: 'Barang',
-              kategori: item.inventaris?.kategori || 'Lain-lain',
-              detail: item.inventaris?.nama_barang || item.catatan || '',
-              jumlah: item.jumlah || 0,
-              satuan: item.inventaris?.satuan || 'pcs',
-              sumber: 'Inventaris',
-              referensi_id: item.id,
-              created_at: item.tanggal,
-            });
-          });
-        }
-      }
+      // 3. Inventory distributions removed - transaksi_inventaris feature deprecated
 
       // Apply kategori filter after mapping (if specified)
       let filteredResults = results;

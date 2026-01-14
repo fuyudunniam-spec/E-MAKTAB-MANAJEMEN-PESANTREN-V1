@@ -117,65 +117,16 @@ class LocalPDFExporter {
     return true;
   }
 
-  // Helper: Build complete description for inventory sales (same logic as KeuanganV3.tsx)
+  // DEPRECATED: buildInventorySaleDescription removed - transaksi_inventaris feature deprecated
+  // Use deskripsi from keuangan table directly
   static buildInventorySaleDescription(
     keuanganDeskripsi: string,
     catatan: string | null,
     inventoryTx: any,
     penerimaPembayar: string | null
   ): string {
-    // CRITICAL: Always prioritize inventaris.nama_barang if available
-    // This ensures we always have the item name, even if keuangan.deskripsi is incomplete
-    const itemName = inventoryTx?.inventaris?.nama_barang || null;
-    const jumlah = inventoryTx?.jumlah || null;
-    
-    // Normalize keuangan deskripsi format first
-    const normalizedDeskripsi = LocalPDFExporter.normalizeKeuanganDeskripsi(keuanganDeskripsi);
-    
-    // Check if keuangan.deskripsi is complete (has item name)
-    const deskripsiIsComplete = LocalPDFExporter.isDeskripsiComplete(normalizedDeskripsi);
-    
-    // If we have item name from inventaris, always use it to build complete description
-    if (itemName && jumlah !== null) {
-      // Build description from inventaris data (most reliable source)
-      let desc = `${itemName} (${jumlah} unit)`;
-      
-      // Add penerima if available
-      if (penerimaPembayar) {
-        desc += ` / ${penerimaPembayar}`;
-      }
-      
-      // Extract additional info from catatan if available
-      if (catatan) {
-        const sumbanganInfo = LocalPDFExporter.extractSumbanganInfo(catatan);
-        const hargaDasarMatch = catatan.match(/Harga Dasar:\s*Rp\s*([\d.,]+)/i);
-        const hargaDasar = hargaDasarMatch ? hargaDasarMatch[1] : '';
-        
-        // Only add harga dasar if not already in deskripsi and if catatan has it
-        if (hargaDasar && !normalizedDeskripsi.includes('Harga Dasar')) {
-          desc += ` - Harga Dasar: Rp ${hargaDasar}/unit`;
-        }
-        
-        // Add sumbangan if > 0
-        if (sumbanganInfo) {
-          desc += ` - ${sumbanganInfo}`;
-        }
-      }
-      
-      return desc;
-    }
-    
-    // Fallback: If keuangan.deskripsi is complete, use it (but add sumbangan if needed)
-    if (deskripsiIsComplete && normalizedDeskripsi && normalizedDeskripsi.trim() !== '' && normalizedDeskripsi !== '-') {
-      const sumbanganInfo = catatan ? LocalPDFExporter.extractSumbanganInfo(catatan) : null;
-      if (sumbanganInfo && !normalizedDeskripsi.includes('Sumbangan')) {
-        return `${normalizedDeskripsi} - ${sumbanganInfo}`;
-      }
-      return normalizedDeskripsi;
-    }
-    
-    // Final fallback: use catatan as-is (but this should rarely happen if inventaris data is available)
-    return catatan || keuanganDeskripsi || 'Penjualan Inventaris';
+    // Return deskripsi as-is (transaksi_inventaris feature deprecated)
+    return keuanganDeskripsi || 'Penjualan Inventaris';
   }
 
   // Helper: Clean description - remove "Sumbangan: Rp 0" if present
@@ -707,40 +658,7 @@ const fetchCashflowPerAccount = async (
   
   console.log('[EXPORT PDF] Fetched transactions:', txs?.length || 0, 'records');
 
-  // Extract inventory transaction IDs from referensi and fetch catatan
-  const inventoryTransactionIds = (txs || [])
-    .filter(t => t.referensi && typeof t.referensi === 'string' && t.referensi.startsWith('inventory_sale:'))
-    .map(t => {
-      const idStr = (t.referensi as string).replace('inventory_sale:', '').trim();
-      if (idStr && idStr.length === 36) {
-        return idStr;
-      }
-      return null;
-    })
-    .filter((id): id is string => id !== null);
-  
-  // Fetch transaksi_inventaris data for these IDs
-  let inventoryTransactionsMap: Record<string, any> = {};
-  if (inventoryTransactionIds.length > 0) {
-    const { data: inventoryTransactions } = await supabase
-      .from('transaksi_inventaris')
-      .select(`
-        id, 
-        catatan, 
-        sumbangan, 
-        harga_dasar,
-        jumlah,
-        inventaris:item_id(nama_barang)
-      `)
-      .in('id', inventoryTransactionIds);
-    
-    if (inventoryTransactions) {
-      inventoryTransactionsMap = inventoryTransactions.reduce((acc, ti) => {
-        acc[ti.id] = ti;
-        return acc;
-      }, {} as Record<string, any>);
-    }
-  }
+  // Inventory transactions removed - transaksi_inventaris feature deprecated
 
   const all = txs || [];
   const totalPemasukan = all.filter(t => t.jenis_transaksi === 'Pemasukan').reduce((s, t) => s + (t.jumlah || 0), 0);
@@ -786,44 +704,22 @@ const fetchCashflowPerAccount = async (
   const incomeRows = all
     .filter(t => t.jenis_transaksi === 'Pemasukan')
     .map(t => {
-      // For inventory sales, get catatan and inventory transaction info
-      let catatanFromInventaris = null;
-      let inventoryTx = null;
-      if (t.referensi && t.referensi.startsWith('inventory_sale:')) {
-        const transactionId = t.referensi.replace('inventory_sale:', '');
-        inventoryTx = inventoryTransactionsMap[transactionId];
-        if (inventoryTx && inventoryTx.catatan) {
-          catatanFromInventaris = inventoryTx.catatan;
-        }
+      // Build description - use deskripsi from keuangan table directly
+      // (transaksi_inventaris feature deprecated)
+      let deskripsi = t.deskripsi || t.kategori || '-';
+      
+      // Untuk donasi - bersihkan format lama
+      if (deskripsi && (deskripsi.includes('Auto-post dari donasi') || deskripsi.includes('Donasi tunai dari'))) {
+        deskripsi = LocalPDFExporter.cleanAutoPostDescription(deskripsi);
       }
       
-      // Build description based on transaction type
-      let finalDeskripsi = '';
-      if (t.kategori === 'Penjualan Inventaris' && t.referensi?.startsWith('inventory_sale:')) {
-        // For inventory sales, use special logic to combine keuangan.deskripsi + catatan info
-        finalDeskripsi = LocalPDFExporter.buildInventorySaleDescription(
-          t.deskripsi || '',
-          catatanFromInventaris,
-          inventoryTx,
-          t.penerima_pembayar || null
-        );
-      } else {
-        // For other transactions (donasi, etc), use existing logic
-        let deskripsi = t.deskripsi || t.kategori || '-';
-        
-        // Untuk donasi - bersihkan format lama
-        if (deskripsi && (deskripsi.includes('Auto-post dari donasi') || deskripsi.includes('Donasi tunai dari'))) {
-          deskripsi = LocalPDFExporter.cleanAutoPostDescription(deskripsi);
-        }
-        
-        // Gabungkan dengan penerima jika ada dan berbeda dengan deskripsi
-        const penerima = t.penerima_pembayar || '-';
-        const isDonasi = t.kategori === 'Donasi' || t.kategori === 'Donasi Tunai';
-        // Untuk donasi, jika deskripsi sudah sama dengan penerima_pembayar, tidak perlu tambahkan "/"
-        finalDeskripsi = (penerima !== '-' && !isDonasi) || (penerima !== '-' && isDonasi && deskripsi !== penerima) 
-          ? `${deskripsi} / ${penerima}` 
-          : deskripsi;
-      }
+      // Gabungkan dengan penerima jika ada dan berbeda dengan deskripsi
+      const penerima = t.penerima_pembayar || '-';
+      const isDonasi = t.kategori === 'Donasi' || t.kategori === 'Donasi Tunai';
+      // Untuk donasi, jika deskripsi sudah sama dengan penerima_pembayar, tidak perlu tambahkan "/"
+      const finalDeskripsi = (penerima !== '-' && !isDonasi) || (penerima !== '-' && isDonasi && deskripsi !== penerima) 
+        ? `${deskripsi} / ${penerima}` 
+        : deskripsi;
       
       // Clean description (remove "Sumbangan: Rp 0")
       const cleanedDeskripsi = LocalPDFExporter.cleanDescription(finalDeskripsi);
@@ -862,30 +758,12 @@ const fetchCashflowPerAccount = async (
     });
 
   const combinedRows = all.map(t => {
-    // For inventory sales, get catatan and inventory transaction info
-    let catatanFromInventaris = null;
-    let inventoryTx = null;
-    if (t.referensi && t.referensi.startsWith('inventory_sale:')) {
-      const transactionId = t.referensi.replace('inventory_sale:', '');
-      inventoryTx = inventoryTransactionsMap[transactionId];
-      if (inventoryTx && inventoryTx.catatan) {
-        catatanFromInventaris = inventoryTx.catatan;
-      }
-    }
-    
     // Build description based on transaction type
+    // (transaksi_inventaris feature deprecated)
     let finalDeskripsi = '-';
     if (t.jenis_transaksi === 'Pengeluaran' && t.rincian_pengeluaran && t.rincian_pengeluaran.length > 0) {
       // Generate description from rincian_pengeluaran if available (untuk pengeluaran)
       finalDeskripsi = LocalPDFExporter.generateDescriptionFromDetails(t.rincian_pengeluaran);
-    } else if (t.jenis_transaksi === 'Pemasukan' && t.kategori === 'Penjualan Inventaris' && t.referensi?.startsWith('inventory_sale:')) {
-      // For inventory sales, use special logic to combine keuangan.deskripsi + catatan info
-      finalDeskripsi = LocalPDFExporter.buildInventorySaleDescription(
-        t.deskripsi || '',
-        catatanFromInventaris,
-        inventoryTx,
-        t.penerima_pembayar || null
-      );
     } else if (t.deskripsi) {
       // Untuk pemasukan lainnya (donasi, etc), gunakan fungsi pembersihan
       if (t.jenis_transaksi === 'Pemasukan' && (t.deskripsi.includes('Auto-post dari penjualan') || t.deskripsi.includes('Penjualan'))) {
@@ -961,63 +839,7 @@ const getComprehensiveReportData = async (period: PeriodFilter, accountId?: stri
     if (accountId) q1 = q1.eq('akun_kas_id', accountId);
     const { data: cashFlowData } = await q1;
     
-    // Process cashFlowData to enhance descriptions for inventory sales
-    if (cashFlowData && cashFlowData.length > 0) {
-      // Extract inventory transaction IDs
-      const inventoryTransactionIds = cashFlowData
-        .filter(t => t.referensi && typeof t.referensi === 'string' && t.referensi.startsWith('inventory_sale:'))
-        .map(t => {
-          const idStr = (t.referensi as string).replace('inventory_sale:', '').trim();
-          if (idStr && idStr.length === 36) {
-            return idStr;
-          }
-          return null;
-        })
-        .filter((id): id is string => id !== null);
-      
-      // Fetch transaksi_inventaris data
-      let inventoryTransactionsMap: Record<string, any> = {};
-      if (inventoryTransactionIds.length > 0) {
-        const { data: inventoryTransactions } = await supabase
-          .from('transaksi_inventaris')
-          .select(`
-            id, 
-            catatan, 
-            sumbangan, 
-            harga_dasar,
-            jumlah,
-            inventaris:item_id(nama_barang)
-          `)
-          .in('id', inventoryTransactionIds);
-        
-        if (inventoryTransactions) {
-          inventoryTransactionsMap = inventoryTransactions.reduce((acc, ti) => {
-            acc[ti.id] = ti;
-            return acc;
-          }, {} as Record<string, any>);
-        }
-      }
-      
-      // Enhance descriptions for inventory sales
-      cashFlowData.forEach((t: any) => {
-        if (t.kategori === 'Penjualan Inventaris' && t.referensi?.startsWith('inventory_sale:')) {
-          const transactionId = t.referensi.replace('inventory_sale:', '');
-          const inventoryTx = inventoryTransactionsMap[transactionId];
-          const catatanFromInventaris = inventoryTx?.catatan || null;
-          
-          // Build complete description
-          t.deskripsi = LocalPDFExporter.buildInventorySaleDescription(
-            t.deskripsi || '',
-            catatanFromInventaris,
-            inventoryTx,
-            t.penerima_pembayar || null
-          );
-          
-          // Clean description
-          t.deskripsi = LocalPDFExporter.cleanDescription(t.deskripsi);
-        }
-      });
-    }
+    // Inventory transactions removed - transaksi_inventaris feature deprecated
 
     // Get student aid data using the complete function
     const studentAidData = await getStudentAidReport(period);
@@ -1134,11 +956,22 @@ const getStudentAidReport = async (period: PeriodFilter) => {
     
     // Get overhead allocations - fix date filter
     const { data: overheadData, error: overheadError } = await supabase
-      .from('alokasi_overhead_per_santri')
+      .from('alokasi_layanan_santri')
       .select(`
-        *,
+        id,
+        alokasi_overhead_id,
+        santri_id,
+        bulan,
+        tahun,
+        periode,
+        spp_pendidikan,
+        asrama_kebutuhan,
+        total_alokasi,
+        nominal_alokasi,
+        created_at,
         santri:santri_id(nama_lengkap, nisn, kategori)
       `)
+      .eq('sumber_alokasi', 'overhead')
       .gte('bulan', period.start.getMonth() + 1)
       .lte('bulan', period.end.getMonth() + 1)
       .gte('tahun', period.start.getFullYear())
@@ -1152,23 +985,25 @@ const getStudentAidReport = async (period: PeriodFilter) => {
     
     // Get direct allocations (alokasi langsung) - try multiple date filters
     const { data: directData, error: directError } = await supabase
-      .from('alokasi_pengeluaran_santri')
+      .from('alokasi_layanan_santri')
       .select(`
         *,
         santri:santri_id(nama_lengkap, nisn, kategori),
         keuangan:keuangan_id(tanggal, kategori, sub_kategori)
       `)
+      .eq('sumber_alokasi', 'manual')
       .gte('created_at', period.start.toISOString())
       .lte('created_at', period.end.toISOString());
     
     // Also try to get data from keuangan table date range (in case created_at is different)
     const { data: directDataAlt, error: directErrorAlt } = await supabase
-      .from('alokasi_pengeluaran_santri')
+      .from('alokasi_layanan_santri')
       .select(`
         *,
         santri:santri_id(nama_lengkap, nisn, kategori),
         keuangan:keuangan_id(tanggal, kategori, sub_kategori)
       `)
+      .eq('sumber_alokasi', 'manual')
       .gte('keuangan.tanggal', period.start.toISOString())
       .lte('keuangan.tanggal', period.end.toISOString());
     
@@ -1278,12 +1113,13 @@ const getDetailedExpenses = async (period: PeriodFilter) => {
         *,
         akun_kas:akun_kas_id(nama),
         rincian_pengeluaran(*),
-        alokasi_pengeluaran_santri(
+        alokasi_layanan_santri:keuangan_id!left(
           id,
           santri_id,
           nominal_alokasi,
           jenis_bantuan,
           periode,
+          sumber_alokasi,
           keterangan,
           santri:santri_id(nama_lengkap, nisn)
         )
@@ -1292,15 +1128,26 @@ const getDetailedExpenses = async (period: PeriodFilter) => {
       .gte('tanggal', period.start.toISOString())
       .lte('tanggal', period.end.toISOString())
       .order('tanggal', { ascending: false });
+    
+    // Filter alokasi_layanan_santri by sumber_alokasi = 'manual' in post-processing
+    if (data) {
+      data.forEach((item: any) => {
+        if (item.alokasi_layanan_santri && Array.isArray(item.alokasi_layanan_santri)) {
+          item.alokasi_layanan_santri = item.alokasi_layanan_santri.filter(
+            (alloc: any) => alloc.sumber_alokasi === 'manual'
+          );
+        }
+      });
+    }
 
     // Transform data to include alokasi info
     return (data || []).map(item => ({
       ...item,
-      totalAlokasiSantri: item.alokasi_pengeluaran_santri?.length || 0,
-      nominalPerSantri: item.alokasi_pengeluaran_santri?.reduce(
+      totalAlokasiSantri: item.alokasi_layanan_santri?.length || 0,
+      nominalPerSantri: item.alokasi_layanan_santri?.reduce(
         (sum, alloc) => sum + (alloc.nominal_alokasi || 0), 0
       ) || 0,
-      alokasiDetails: item.alokasi_pengeluaran_santri || []
+      alokasiDetails: item.alokasi_layanan_santri || []
     }));
   } catch (error) {
     console.error('Error fetching detailed expenses data:', error);

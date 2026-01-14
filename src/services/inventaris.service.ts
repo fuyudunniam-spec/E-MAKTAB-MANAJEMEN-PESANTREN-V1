@@ -285,16 +285,7 @@ export async function deleteInventoryItem(id: string, forceDelete: boolean = fal
     references.push(`riwayat transfer asset (${assetTransferLogs.length} record)`);
   }
   
-  // 3. Cek transaksi_inventaris
-  const { data: transaksiInventaris } = await supabase
-    .from('transaksi_inventaris')
-    .select('id')
-    .eq('item_id', id)
-    .limit(1);
-  
-  if (transaksiInventaris && transaksiInventaris.length > 0) {
-    references.push('transaksi inventaris');
-  }
+  // 3. transaksi_inventaris removed - feature deprecated
   
   // 4. Cek penjualan_items
   // PERUBAHAN: Setelah migration, item_id sudah nullable dan akan otomatis set NULL
@@ -370,7 +361,7 @@ export async function deleteInventoryItem(id: string, forceDelete: boolean = fal
       }
     }
     
-    // Catatan: Untuk referensi lain (transaksi_inventaris, penjualan_items, dll),
+    // Catatan: Untuk referensi lain (penjualan_items, dll),
     // kita tidak bisa menghapus karena itu adalah data historis yang penting
     // User harus menghapus secara manual atau menggunakan cascade delete jika diperlukan
   }

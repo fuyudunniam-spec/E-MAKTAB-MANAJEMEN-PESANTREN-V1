@@ -47,6 +47,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
+  Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MasterDataKeuanganService, type MasterPilarLayanan } from '@/services/masterDataKeuangan.service';
@@ -60,7 +61,7 @@ const PilarLayananTab: React.FC = () => {
   const [editingPilar, setEditingPilar] = useState<MasterPilarLayanan | null>(null);
   const [deletingPilar, setDeletingPilar] = useState<MasterPilarLayanan | null>(null);
   const [usageInfo, setUsageInfo] = useState<{
-    ledger_layanan_santri: number;
+    realisasi_layanan_santri: number;
     rancangan_anggaran: number;
     kategori_pengeluaran: number;
     sub_kategori_pengeluaran: number;
@@ -461,8 +462,8 @@ const PilarLayananTab: React.FC = () => {
                     <div>
                       <p className="font-medium">Pilar ini tidak dapat dihapus karena sudah memiliki riwayat:</p>
                       <ul className="list-disc list-inside mt-2 space-y-1">
-                        {usageInfo.ledger_layanan_santri > 0 && (
-                          <li>{usageInfo.ledger_layanan_santri} transaksi di ledger_layanan_santri</li>
+                        {usageInfo.realisasi_layanan_santri > 0 && (
+                          <li>{usageInfo.realisasi_layanan_santri} transaksi di realisasi_layanan_santri</li>
                         )}
                         {usageInfo.rancangan_anggaran > 0 && (
                           <li>{usageInfo.rancangan_anggaran} rancangan anggaran</li>
@@ -505,4 +506,7 @@ const PilarLayananTab: React.FC = () => {
 };
 
 export default PilarLayananTab;
+
+
+
 

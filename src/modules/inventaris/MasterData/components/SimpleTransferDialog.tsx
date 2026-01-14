@@ -110,22 +110,7 @@ export default function SimpleTransferDialog({
 
       if (updateError) throw updateError;
 
-      // Catat transaksi inventaris
-      const { error: transError } = await supabase
-        .from('transaksi_inventaris')
-        .insert({
-          item_id: item.id,
-          tipe: 'Keluar',
-          keluar_mode: `Transfer ke ${tujuan}`,
-          jumlah: qty,
-          harga_satuan: item.harga_perolehan || 0,
-          tanggal: new Date().toISOString(),
-          catatan: catatan || `Transfer ke ${tujuan}`,
-          before_qty: item.jumlah,
-          after_qty: newStock,
-        });
-
-      if (transError) throw transError;
+      // transaksi_inventaris removed - feature deprecated
 
       // Invalidate query inventaris untuk update otomatis
       queryClient.invalidateQueries({ queryKey: ['inventaris'] });

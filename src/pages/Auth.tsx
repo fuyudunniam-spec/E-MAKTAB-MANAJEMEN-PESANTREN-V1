@@ -1,61 +1,50 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2 } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Loader2, Mail, Lock, User, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function Auth() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  
-  // Login form state
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  
-  // Register form state
-  const [registerEmail, setRegisterEmail] = useState('');
-  const [registerPassword, setRegisterPassword] = useState('');
-  const [registerFullName, setRegisterFullName] = useState('');
-  const [registerPhone, setRegisterPhone] = useState('');
+  const [activeTab, setActiveTab] = useState("login");
 
-  // Check if user is already logged in (only on component mount)
+  // Login form states
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+
+  // Register form states
+  const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerName, setRegisterName] = useState("");
+
   useEffect(() => {
     const checkSession = async () => {
       try {
-        // Skip check if logout is in progress to prevent redirect loop
         const isLoggingOut = sessionStorage.getItem('is_logging_out');
         if (isLoggingOut) {
           sessionStorage.removeItem('is_logging_out');
           return;
         }
 
-        // Check for existing session with timeout to prevent hanging
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((resolve) => 
-          setTimeout(() => resolve({ data: { session: null } }), 2000)
-        );
-        
-        const result: any = await Promise.race([sessionPromise, timeoutPromise]);
-        if (result?.data?.session) {
-          // User already has active session, redirect to dashboard
-          // Layout component will handle routing (e.g., redirect santri to profile)
-          navigate('/', { replace: true });
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // Redirect to Admin Dashboard / PMS
+          navigate('/pms', { replace: true });
         }
       } catch (err) {
         console.error('Error checking session:', err);
       }
     };
-    
+
     checkSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run on mount, don't re-run on every render
+  }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,61 +54,34 @@ export default function Auth() {
 
     try {
       const loginIdentifier = loginEmail.trim().toUpperCase();
-      
+
       // Check if input is id_santri format (8 chars alphanumeric)
       const isIdSantri = /^[A-Z0-9]{8}$/.test(loginIdentifier);
-      
+
       let emailToUse = loginIdentifier;
       if (isIdSantri) {
-        // Convert id_santri to email format
         emailToUse = `${loginIdentifier}@pondoksukses.local`;
-        console.log('🔐 [Auth] Detected id_santri login:', loginIdentifier, '→', emailToUse);
       } else {
-        // Regular email login
         emailToUse = loginIdentifier.toLowerCase();
       }
-      
-      console.log('🔐 [Auth] Attempting login for:', emailToUse);
-      const { data, error } = await supabase.auth.signInWithPassword({
+
+      const { error } = await supabase.auth.signInWithPassword({
         email: emailToUse,
         password: loginPassword,
       });
 
       if (error) {
-        console.error('❌ [Auth] Login error:', error);
-        
-        // Handle santri login errors with better messaging
         if (isIdSantri) {
-          // Check for common login credential errors
-          const errorMsg = error.message?.toLowerCase() || '';
-          const errorStatus = (error as any).status || (error as any).code;
-          const isCredentialError = 
-            errorMsg.includes('invalid login') ||
-            errorMsg.includes('invalid credentials') ||
-            errorMsg.includes('email not confirmed') ||
-            errorStatus === 400 ||
-            errorStatus === 401;
-          
-          if (isCredentialError) {
-            setError('Akun tidak ditemukan atau password salah. Jika akun Anda belum dibuat, silakan hubungi admin untuk membuatkan akun.');
-          } else {
-            setError(error.message || 'Terjadi kesalahan saat login. Silakan hubungi admin jika masalah berlanjut.');
-          }
+          setError('ID Santri atau password salah. Silakan coba lagi.');
         } else {
-          // Regular email login errors
-          setError(error.message || 'Email atau password salah');
+          setError('Email atau password salah.');
         }
       } else {
-        console.log('✅ [Auth] Login successful!', { userId: data.user?.id, email: data.user?.email });
-        setSuccess('Login berhasil! Mengarahkan...');
-        
-        // Redirect to dashboard - useAuth hook and Layout component will handle proper routing
-        // This prevents race conditions and multiple redirects by centralizing redirect logic
-        // For santri users, Layout will automatically redirect to their profile page
-        navigate('/', { replace: true });
+        setSuccess('Login berhasil! Mengarahkan ke dashboard...');
+        // REDIRECT TO ADMIN DASHBOARD
+        navigate('/pms', { replace: true });
       }
     } catch (err: any) {
-      console.error('❌ [Auth] Login exception:', err);
       setError(err.message || 'Terjadi kesalahan saat login');
     } finally {
       setIsLoading(false);
@@ -133,13 +95,12 @@ export default function Auth() {
     setSuccess(null);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email: registerEmail,
         password: registerPassword,
         options: {
           data: {
-            full_name: registerFullName,
-            phone: registerPhone,
+            full_name: registerName,
           },
         },
       });
@@ -147,226 +108,208 @@ export default function Auth() {
       if (error) {
         setError(error.message);
       } else {
-        if (data.user && !data.user.email_confirmed_at) {
-          setSuccess('Pendaftaran berhasil! Silakan cek email untuk konfirmasi.');
-        } else {
-          setSuccess('Pendaftaran berhasil!');
-        }
+        setSuccess('Pendaftaran berhasil! Silakan cek email Anda untuk verifikasi.');
+        setRegisterEmail("");
+        setRegisterPassword("");
+        setRegisterName("");
       }
-    } catch (err) {
-      setError('Terjadi kesalahan saat pendaftaran');
+    } catch (err: any) {
+      setError(err.message || 'Terjadi kesalahan saat mendaftar');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle logout if user is stuck
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      window.location.href = '/auth';
-    } catch (err) {
-      console.error('Error logging out:', err);
-    }
-  };
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-6">
-        {/* Clear Session Button - for users who are stuck */}
-        <div className="flex justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            Clear Session
-          </Button>
-        </div>
-        
-        {/* Logo and Header Section */}
-        <div className="text-center space-y-4">
-          {/* Logo - Large on desktop, proportional on mobile */}
-          <div className="flex justify-center">
-            <img 
-              src="/kop-albisri.png" 
-              alt="Logo Pesantren Al-Bisri" 
-              className="h-24 w-auto sm:h-32 md:h-40 object-contain"
-            />
-          </div>
-          
-          {/* Welcome Text */}
-          <div className="space-y-2">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 tracking-tight">
-              Selamat Datang di E-Maktab
+    <div className="min-h-screen grid lg:grid-cols-2">
+      {/* Left Side - Hero Image */}
+      <div className="relative hidden lg:block bg-slate-900">
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1549675583-45984c497939?auto=format&fit=crop&q=80&w=2974')" }} />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0b2b1f]/90 via-[#0b2b1f]/50 to-transparent" />
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/arabesque.png')] opacity-10" />
+
+        <div className="relative z-10 h-full flex flex-col justify-between p-12 text-white">
+          <Link to="/" className="flex items-center gap-3 w-fit">
+            <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center">
+              <span className="font-heading font-bold text-xl">ا</span>
+            </div>
+            <span className="font-heading font-bold text-xl tracking-tight">An-Nur</span>
+          </Link>
+
+          <div className="space-y-6 max-w-lg">
+            <h1 className="text-4xl md:text-5xl font-heading font-bold leading-tight">
+              Selamat Datang di <span className="text-secondary">e-Maktab</span>
             </h1>
-            <h2 className="text-xl sm:text-2xl font-semibold text-slate-700">
-              Pesantren Anak Yatim Al-Bisri
-            </h2>
+            <p className="text-lg text-slate-300 leading-relaxed font-light">
+              Platform manajemen terpadu Pesantren Mahasiswa An-Nur. Mengelola akademik, administrasi, dan perkembangan santri dalam satu pintu.
+            </p>
+            <div className="flex gap-4 pt-4">
+              <div className="flex -space-x-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className={`w-10 h-10 rounded-full border-2 border-[#0b2b1f] bg-slate-200 z-[${5 - i}]`} />
+                ))}
+              </div>
+              <div className="flex flex-col justify-center">
+                <span className="text-sm font-bold">500+ Santri & Alumni</span>
+                <span className="text-xs text-slate-400">Telah bergabung bersama kami</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-sm text-slate-400">
+            © {new Date().getFullYear()} Yayasan An-Nur. All rights reserved.
           </div>
         </div>
+      </div>
 
-        <Tabs defaultValue="login" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-slate-100">
-            <TabsTrigger value="login" className="data-[state=active]:bg-white">Masuk</TabsTrigger>
-            <TabsTrigger value="register" className="data-[state=active]:bg-white">Daftar</TabsTrigger>
-          </TabsList>
+      {/* Right Side - Form */}
+      <div className="flex flex-col justify-center items-center p-6 md:p-12 bg-slate-50">
+        <div className="w-full max-w-md space-y-8 animate-fade-in">
+          {/* Mobile Logo */}
+          <div className="lg:hidden text-center mb-8">
+            <Link to="/" className="inline-flex items-center gap-2">
+              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+                <span className="font-heading font-bold text-xl text-white">ا</span>
+              </div>
+              <span className="font-heading font-bold text-2xl text-slate-900">An-Nur</span>
+            </Link>
+          </div>
 
-          {error && (
-            <Alert variant="destructive" className="mt-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+          <div className="text-center space-y-2">
+            <h2 className="text-3xl font-heading font-bold text-slate-900">Masuk ke Akun</h2>
+            <p className="text-slate-500">Silakan masukkan kredensial Anda untuk melanjutkan</p>
+          </div>
 
-          {success && (
-            <Alert className="mt-4 bg-green-50 border-green-200">
-              <AlertDescription className="text-green-800">{success}</AlertDescription>
-            </Alert>
-          )}
+          <Tabs defaultValue="login" value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6 p-1 bg-white border border-slate-200 rounded-full">
+              <TabsTrigger value="login" className="rounded-full data-[state=active]:bg-primary data-[state=active]:text-white">Login</TabsTrigger>
+              <TabsTrigger value="register" className="rounded-full data-[state=active]:bg-primary data-[state=active]:text-white">Daftar Baru</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="login">
-            <Card className="border-slate-200 shadow-lg">
-              <CardHeader className="space-y-1 pb-4">
-                <CardTitle className="text-xl font-semibold text-slate-800">Masuk ke Akun</CardTitle>
-                <CardDescription className="text-slate-600">
-                  Masukkan email dan password Anda
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email" className="text-slate-700 font-medium">ID Santri atau Email</Label>
+            {error && (
+              <Alert variant="destructive" className="mb-6 animate-shake">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Gagal</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {success && (
+              <Alert className="mb-6 bg-emerald-50 text-emerald-800 border-emerald-200">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <AlertTitle>Berhasil</AlertTitle>
+                <AlertDescription>{success}</AlertDescription>
+              </Alert>
+            )}
+
+            <TabsContent value="login">
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-slate-600 font-medium">Email / ID Santri</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                     <Input
-                      id="login-email"
+                      id="email"
                       type="text"
-                      placeholder="admin@gmail.com"
+                      placeholder="nama@email.com atau ID Santri"
+                      className="pl-10 bg-white border-slate-200 focus-visible:ring-primary h-11"
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
                       required
-                      disabled={isLoading}
-                      className="border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
-                      style={{ textTransform: 'none' }}
                     />
-                    <p className="text-xs text-slate-500">
-                      Santri: gunakan ID Santri Anda. Admin/Staff: gunakan email.
-                    </p>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password" className="text-slate-700 font-medium">Password</Label>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-slate-600 font-medium">Password</Label>
+                    <Link to="#" className="text-xs text-primary hover:underline font-medium">Lupa Password?</Link>
+                  </div>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                     <Input
-                      id="login-password"
+                      id="password"
                       type="password"
                       placeholder="••••••••"
+                      className="pl-10 bg-white border-slate-200 focus-visible:ring-primary h-11"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
                       required
-                      disabled={isLoading}
-                      className="border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
                     />
                   </div>
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 transition-colors" 
-                    disabled={isLoading}
-                  >
-                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Masuk
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                </div>
+                <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 text-lg shadow-lg shadow-primary/20" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Masuk Sekarang"}
+                </Button>
+              </form>
+            </TabsContent>
 
-          <TabsContent value="register">
-            <Card className="border-slate-200 shadow-lg">
-              <CardHeader className="space-y-1 pb-4">
-                <CardTitle className="text-xl font-semibold text-slate-800">Daftar Akun Pengajar</CardTitle>
-                <CardDescription className="text-slate-600">
-                  Form pendaftaran khusus untuk Pengajar. Akun akan memerlukan persetujuan admin.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Alert className="mb-4 bg-blue-50 border-blue-200">
-                  <AlertDescription className="text-blue-800 text-sm">
-                    <strong>Catatan Penting:</strong>
-                    <ul className="list-disc list-inside mt-2 space-y-1">
-                      <li>Form ini khusus untuk <strong>Pengajar</strong> yang ingin mendaftar</li>
-                      <li>Akun Santri <strong>tidak dapat</strong> dibuat melalui form ini. Silakan hubungi admin</li>
-                      <li>Setelah pendaftaran, akun Anda akan menunggu persetujuan admin</li>
-                      <li>Anda akan menerima email notifikasi setelah akun disetujui</li>
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-                <form onSubmit={handleRegister} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="register-fullname" className="text-slate-700 font-medium">Nama Lengkap</Label>
+            <TabsContent value="register">
+              <form onSubmit={handleRegister} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="reg-name" className="text-slate-600 font-medium">Nama Lengkap</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                     <Input
-                      id="register-fullname"
-                      type="text"
-                      placeholder="Masukkan nama lengkap"
-                      value={registerFullName}
-                      onChange={(e) => setRegisterFullName(e.target.value)}
+                      id="reg-name"
+                      placeholder="Nama Lengkap Anda"
+                      className="pl-10 bg-white border-slate-200 focus-visible:ring-primary h-11"
+                      value={registerName}
+                      onChange={(e) => setRegisterName(e.target.value)}
                       required
-                      disabled={isLoading}
-                      className="border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
-                      style={{ textTransform: 'none' }}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-email" className="text-slate-700 font-medium">Email</Label>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reg-email" className="text-slate-600 font-medium">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                     <Input
-                      id="register-email"
+                      id="reg-email"
                       type="email"
                       placeholder="nama@email.com"
+                      className="pl-10 bg-white border-slate-200 focus-visible:ring-primary h-11"
                       value={registerEmail}
                       onChange={(e) => setRegisterEmail(e.target.value)}
                       required
-                      disabled={isLoading}
-                      className="border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
-                      style={{ textTransform: 'none' }}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-phone" className="text-slate-700 font-medium">No. Telepon</Label>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reg-password" className="text-slate-600 font-medium">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                     <Input
-                      id="register-phone"
-                      type="tel"
-                      placeholder="08xxxxxxxxxx"
-                      value={registerPhone}
-                      onChange={(e) => setRegisterPhone(e.target.value)}
-                      disabled={isLoading}
-                      className="border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
-                      style={{ textTransform: 'none' }}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-password" className="text-slate-700 font-medium">Password</Label>
-                    <Input
-                      id="register-password"
+                      id="reg-password"
                       type="password"
-                      placeholder="Minimal 6 karakter"
+                      placeholder="••••••••"
+                      className="pl-10 bg-white border-slate-200 focus-visible:ring-primary h-11"
                       value={registerPassword}
                       onChange={(e) => setRegisterPassword(e.target.value)}
                       required
                       minLength={6}
-                      disabled={isLoading}
-                      className="border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
                     />
                   </div>
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 transition-colors" 
-                    disabled={isLoading}
-                  >
-                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Daftar
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                </div>
+                <Button type="submit" className="w-full h-11 bg-secondary hover:bg-secondary/90 text-secondary-foreground text-lg shadow-lg shadow-secondary/20" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Buat Akun"}
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-slate-200" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-slate-50 px-2 text-slate-500">Atau</span>
+            </div>
+          </div>
+
+          <Button variant="outline" className="w-full h-11 bg-white border-slate-200 hover:bg-slate-50 text-slate-700" onClick={() => navigate('/')}>
+            Kembali ke Beranda
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -47,10 +47,7 @@ export interface BantuanSantri {
   };
 }
 
-const BULAN_NAMES = [
-  '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-];
+// Helper functions moved to utils.ts to avoid duplication
 
 /**
  * Generate alokasi overhead untuk bulan tertentu
@@ -164,7 +161,7 @@ export const getAlokasiHistory = async (
 };
 
 /**
- * Get alokasi per santri untuk bulan tertentu
+ * Get alokasi per santri untuk bulan tertentu (overhead only)
  */
 export const getAlokasiPerSantri = async (
   bulan: number, 
@@ -172,16 +169,26 @@ export const getAlokasiPerSantri = async (
 ): Promise<AlokasiOverheadPerSantri[]> => {
   try {
     const { data, error } = await supabase
-      .from('alokasi_overhead_per_santri')
+      .from('alokasi_layanan_santri')
       .select(`
-        *,
+        id,
+        alokasi_overhead_id,
+        santri_id,
+        bulan,
+        tahun,
+        periode,
+        spp_pendidikan,
+        asrama_kebutuhan,
+        total_alokasi,
+        created_at,
         santri:santri_id (
           id,
           nama_lengkap,
-          nis,
+          nisn,
           kategori
         )
       `)
+      .eq('sumber_alokasi', 'overhead')
       .eq('bulan', bulan)
       .eq('tahun', tahun)
       .order('santri.nama_lengkap');
@@ -191,7 +198,19 @@ export const getAlokasiPerSantri = async (
       return [];
     }
 
-    return data || [];
+    return (data || []).map(item => ({
+      id: item.id,
+      alokasi_overhead_id: item.alokasi_overhead_id,
+      santri_id: item.santri_id,
+      bulan: item.bulan || 0,
+      tahun: item.tahun || 0,
+      periode: item.periode,
+      spp_pendidikan: item.spp_pendidikan || 0,
+      asrama_kebutuhan: item.asrama_kebutuhan || 0,
+      total_alokasi: item.total_alokasi || 0,
+      created_at: item.created_at,
+      santri: item.santri,
+    })) as AlokasiOverheadPerSantri[];
   } catch (error) {
     console.error('Error getting alokasi per santri:', error);
     return [];
@@ -272,43 +291,8 @@ export const getPreviewAlokasi = async (
   }
 };
 
-/**
- * Format currency to Rupiah
- */
-export const formatRupiah = (amount: number): string => {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
-
-/**
- * Format date to Indonesian format
- */
-export const formatDate = (date: string): string => {
-  return new Date(date).toLocaleDateString('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
-};
-
-/**
- * Get bulan names array
- */
-export const getBulanNames = (): string[] => {
-  return BULAN_NAMES;
-};
-
-/**
- * Get current month and year
- */
-export const getCurrentPeriod = (): { bulan: number; tahun: number } => {
-  const now = new Date();
-  return {
-    bulan: now.getMonth() + 1,
-    tahun: now.getFullYear()
-  };
-};
+// Helper functions moved to utils.ts:
+// - formatRupiah -> use formatRupiah from '@/lib/utils'
+// - formatDate -> use formatDate from '@/lib/utils'
+// - getBulanNames -> use getBulanNames from '@/lib/utils'
+// - getCurrentPeriod -> use getCurrentPeriod from '@/lib/utils'

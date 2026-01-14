@@ -768,57 +768,13 @@ export const koperasiService = {
       });
     }
     
-    // 2. Get total penjualan from transaksi_inventaris (penjualan item yayasan historis)
-    const { data: invSalesData } = await supabase
-      .from('transaksi_inventaris')
-      .select(`
-        id,
-        tanggal,
-        harga_total,
-        harga_satuan,
-        jumlah,
-        inventaris!inner(
-          boleh_dijual_koperasi,
-          is_komoditas,
-          tipe_item,
-          hpp_yayasan,
-          harga_perolehan
-        )
-      `)
-      .eq('tipe', 'Keluar')
-      .eq('keluar_mode', 'Penjualan')
-      .or('channel.is.null,channel.eq.koperasi')
-      .not('harga_total', 'is', null)
-      .gt('harga_total', 0)
-      .gte('tanggal', startDate)
-      .lte('tanggal', endDate);
+    // 2. transaksi_inventaris removed - feature deprecated
+    // Set totals to 0 for inventory sales (historical data no longer available)
+    const totalPenjualanInv = 0;
+    const totalHPPInv = 0;
+    const totalLabaKotorInv = 0;
     
-    // Filter hanya item yayasan yang boleh dijual koperasi
-    const filteredInvSales = (invSalesData || []).filter((tx: any) => {
-      const inventaris = tx.inventaris;
-      if (!inventaris) return false;
-      return inventaris.boleh_dijual_koperasi === true ||
-             inventaris.is_komoditas === true ||
-             inventaris.tipe_item === 'Komoditas';
-    });
-    
-    // Calculate totals from transaksi_inventaris
-    let totalPenjualanInv = 0;
-    let totalHPPInv = 0;
-    let totalLabaKotorInv = 0;
-    
-    filteredInvSales.forEach((tx: any) => {
-      const hargaTotal = parseFloat(tx.harga_total || 0);
-      const jumlah = parseFloat(tx.jumlah || 0);
-      const hppYayasan = tx.inventaris.hpp_yayasan || tx.inventaris.harga_perolehan || 0;
-      const totalHPP = hppYayasan * jumlah;
-      
-      totalPenjualanInv += hargaTotal;
-      totalHPPInv += totalHPP;
-      totalLabaKotorInv += (hargaTotal - totalHPP);
-    });
-    
-    // Combine totals
+    // Combine totals (only from koperasi sales now)
     const totalPenjualan = totalPenjualanKop + totalPenjualanInv;
     const totalHPP = totalHPPKop + totalHPPInv;
     const totalLabaKotor = totalLabaKotorKop + totalLabaKotorInv;
@@ -908,26 +864,11 @@ export const koperasiService = {
       .eq('status_pembayaran', 'lunas')
       .eq('tanggal', today);
     
-    // Penjualan dari transaksi_inventaris (item yayasan)
-    const { data: penjualanHariIniInv } = await supabase
-      .from('transaksi_inventaris')
-      .select('id, harga_total, inventaris!inner(boleh_dijual_koperasi, is_komoditas, tipe_item)')
-      .eq('tipe', 'Keluar')
-      .eq('keluar_mode', 'Penjualan')
-      .or('channel.is.null,channel.eq.koperasi')
-      .not('harga_total', 'is', null)
-      .eq('tanggal', today);
-    
-    const filteredInvHariIni = (penjualanHariIniInv || []).filter((tx: any) => {
-      const inventaris = tx.inventaris;
-      if (!inventaris) return false;
-      return inventaris.boleh_dijual_koperasi === true ||
-             inventaris.is_komoditas === true ||
-             inventaris.tipe_item === 'Komoditas';
-    });
+    // transaksi_inventaris removed - feature deprecated
+    const filteredInvHariIni: any[] = [];
     
     const penjualanHariIniKopTotal = (penjualanHariIniKop || []).reduce((sum, p) => sum + parseFloat(p.total_transaksi || 0), 0);
-    const penjualanHariIniInvTotal = filteredInvHariIni.reduce((sum, tx) => sum + parseFloat(tx.harga_total || 0), 0);
+    const penjualanHariIniInvTotal = 0; // transaksi_inventaris removed
     const penjualanHariIni = penjualanHariIniKopTotal + penjualanHariIniInvTotal;
     const totalTransaksiHariIni = (penjualanHariIniKop?.length || 0) + filteredInvHariIni.length;
     
@@ -1783,25 +1724,8 @@ export const koperasiService = {
       margin_koperasi += detail.bagian_koperasi || 0;
     });
     
-    // Sum from transaksi_inventaris
-    (invTransactions || []).forEach((trans: any) => {
-      const revenue = trans.harga_total || 0;
-      const jumlah = trans.jumlah || 1;
-      const hpp = (trans.inventaris?.hpp_yayasan || 0) * jumlah;
-      const margin = revenue - hpp;
-      
-      total_revenue += revenue;
-      total_hpp += hpp;
-      
-      const ownerType = trans.inventaris?.owner_type || 'yayasan';
-      if (ownerType === 'koperasi') {
-        const bagiHasilYayasan = trans.inventaris?.bagi_hasil_yayasan || 0.3;
-        kewajiban_yayasan += margin * bagiHasilYayasan;
-        margin_koperasi += margin * (1 - bagiHasilYayasan);
-      } else {
-        kewajiban_yayasan += margin;
-      }
-    });
+    // transaksi_inventaris removed - feature deprecated
+    // invTransactions is empty array now
     
     return {
       total_revenue,

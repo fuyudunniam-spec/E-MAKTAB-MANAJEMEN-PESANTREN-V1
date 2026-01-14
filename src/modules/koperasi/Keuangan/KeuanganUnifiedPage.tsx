@@ -1689,27 +1689,7 @@ const KeuanganUnifiedPage: React.FC = () => {
         })
         .filter(id => id !== null);
 
-      if (inventoryTransactionIds.length > 0) {
-        const { data: inventoryTransactions } = await supabase
-          .from('transaksi_inventaris')
-          .select('id, catatan')
-          .in('id', inventoryTransactionIds);
-
-        const inventoryMap = new Map(
-          (inventoryTransactions || []).map(t => [t.id, t.catatan])
-        );
-
-        allTransactions = allTransactions.map(t => {
-          if (t.referensi?.startsWith('inventory_sale:')) {
-            const match = t.referensi.match(/inventory_sale:([^:]+)/);
-            const transaksiId = match ? match[1] : null;
-            if (transaksiId && inventoryMap.has(transaksiId)) {
-              return { ...t, catatan: inventoryMap.get(transaksiId) };
-            }
-          }
-          return t;
-        });
-      }
+      // transaksi_inventaris removed - feature deprecated
       
       // Filter out transactions that should not appear in operational transaction list:
       // 1. "Hutang ke Yayasan" - kewajiban/liability, bukan beban operasional

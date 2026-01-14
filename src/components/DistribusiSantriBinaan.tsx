@@ -24,11 +24,9 @@ import {
   getAlokasiSummary, 
   getAlokasiHistory,
   getPreviewAlokasi,
-  formatRupiah,
-  getBulanNames,
-  getCurrentPeriod,
   AlokasiOverheadBulanan
 } from '@/services/alokasiSantriBinaan.service';
+import { formatRupiah, getBulanNames, getCurrentPeriod } from '@/lib/utils';
 
 const DistribusiSantriBinaan: React.FC = () => {
   const [bulan, setBulan] = useState(new Date().getMonth() + 1);

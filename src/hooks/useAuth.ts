@@ -54,33 +54,33 @@ export function useAuth() {
           try {
             // Try RPC function first with timeout
             const rpcPromise = supabase.rpc('get_santri_by_user_id', { p_user_id: userId });
-            const timeoutPromise = new Promise((resolve) => 
+            const timeoutPromise = new Promise((resolve) =>
               setTimeout(() => resolve({ data: null, error: { message: 'RPC timeout' } }), 3000)
             );
-            
+
             const result: any = await Promise.race([rpcPromise, timeoutPromise]);
             const { data: rpcData, error: rpcError } = result;
-            
+
             // Check if it's a CORS/network error - silently fail
             const isNetworkError = rpcError && (
-              rpcError.message?.includes('CORS') || 
-              rpcError.message?.includes('520') || 
-              rpcError.message?.includes('523') || 
+              rpcError.message?.includes('CORS') ||
+              rpcError.message?.includes('520') ||
+              rpcError.message?.includes('523') ||
               rpcError.message?.includes('Failed to fetch') ||
               rpcError.message?.includes('unreachable') ||
               rpcError.message?.includes('Access-Control-Allow-Origin') ||
               rpcError.message?.includes('timeout')
             );
-            
+
             if (isNetworkError) {
               // Silently fail for network errors, don't spam console
               return null;
             }
-            
+
             if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
               return rpcData[0];
             }
-            
+
             // Fallback: Query directly from santri table using user_id column
             // Link between auth user and santri is via user_id column in santri table
             const { data: santriData, error: santriError } = await supabase
@@ -89,26 +89,26 @@ export function useAuth() {
               .eq('user_id', userId)
               .limit(1)
               .maybeSingle();
-            
+
             if (!santriError && santriData) {
               return santriData;
             }
-            
+
             return null;
           } catch (err: any) {
             // Check if it's a CORS/network error - silently fail
-            const isNetworkError = err?.message?.includes('CORS') || 
-                                  err?.message?.includes('520') || 
-                                  err?.message?.includes('523') || 
-                                  err?.message?.includes('Failed to fetch') ||
-                                  err?.message?.includes('unreachable') ||
-                                  err?.message?.includes('Access-Control-Allow-Origin');
-            
+            const isNetworkError = err?.message?.includes('CORS') ||
+              err?.message?.includes('520') ||
+              err?.message?.includes('523') ||
+              err?.message?.includes('Failed to fetch') ||
+              err?.message?.includes('unreachable') ||
+              err?.message?.includes('Access-Control-Allow-Origin');
+
             if (isNetworkError) {
               // Silently fail for network errors
               return null;
             }
-            
+
             // If RPC function doesn't exist (error 520/523 or CORS), try direct query
             if (err?.code === 'PGRST204' || err?.message?.includes('CORS') || err?.message?.includes('520') || err?.message?.includes('523')) {
               logger.warn('RPC function not available, trying direct query:', err);
@@ -119,7 +119,7 @@ export function useAuth() {
                   .eq('user_id', userId)
                   .limit(1)
                   .maybeSingle();
-                
+
                 if (!santriError && santriData) {
                   return santriData;
                 }
@@ -135,7 +135,7 @@ export function useAuth() {
       ]);
 
       const primaryRole = roles.length > 0 ? roles[0] : 'santri';
-      
+
       // Use test override if available (for debugging)
       const effectiveRole = testRoleOverride || primaryRole;
 
@@ -213,7 +213,7 @@ export function useAuth() {
         setLoadingFalse();
       }
     }, 2500); // Slightly longer than main timeout to allow auth state change to fire
-    
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         authStateChangeFired = true;
@@ -230,20 +230,20 @@ export function useAuth() {
 
           if (session?.user) {
             logger.log("🔐 [useAuth] Fetching role for user", session.user.id);
-            
+
             // Add timeout for role fetching to prevent hanging
             // Check localStorage cache first for faster loading
             // NOTE: For santri users, we skip cache because we need santriId which is not cached
             const cacheKey = `user_roles_${session.user.id}`;
             const cachedRoles = localStorage.getItem(cacheKey);
             let cachedRoleData: any = null;
-            
+
             if (cachedRoles) {
               try {
                 const roles = JSON.parse(cachedRoles);
                 const cacheTime = localStorage.getItem(`${cacheKey}_time`);
                 const cachedRole = roles[0] || 'santri';
-                
+
                 // Don't use cache for santri users - we need to fetch santriId
                 // This prevents Dashboard redirect loop when santriId is missing
                 if (cacheTime && Date.now() - parseInt(cacheTime) < 5 * 60 * 1000 && roles.length > 0 && cachedRole !== 'santri') {
@@ -262,12 +262,12 @@ export function useAuth() {
                 // Invalid cache, continue to fetch
               }
             }
-            
+
             // If we have cached data (and it's not santri), set it immediately but still fetch in background
             if (cachedRoleData) {
               setUser(cachedRoleData);
               setLoadingFalse();
-              
+
               // Fetch in background to refresh (don't wait for it)
               fetchUserRole(session.user.id, session.user)
                 .then(() => {
@@ -281,7 +281,7 @@ export function useAuth() {
               // Set loading to false only after fetch completes
               let roleFetchTimedOut = false;
               let fetchCompleted = false; // Track if fetchUserRole has completed
-              
+
               const timeoutId = setTimeout(() => {
                 if (!fetchCompleted) {
                   roleFetchTimedOut = true;
@@ -298,7 +298,7 @@ export function useAuth() {
                   // Note: loading will be set false by fetchUserRole's then/catch when it completes
                 }
               }, 2000); // 2 second timeout (reduced from 3)
-              
+
               fetchUserRole(session.user.id, session.user)
                 .then(() => {
                   fetchCompleted = true;
@@ -338,13 +338,13 @@ export function useAuth() {
     // Check for existing session - but don't block if it times out
     // onAuthStateChange should fire and handle session detection
     logger.log("🔐 [useAuth] Checking existing session (non-blocking)...");
-    
+
     // Try to get session but don't wait too long - add timeout wrapper
     const sessionPromise = supabase.auth.getSession();
-    const sessionTimeoutPromise = new Promise((resolve) => 
+    const sessionTimeoutPromise = new Promise((resolve) =>
       setTimeout(() => resolve({ data: { session: null }, error: { message: 'Session check timeout' } }), 2000)
     );
-    
+
     Promise.race([sessionPromise, sessionTimeoutPromise]).then(async (result: any) => {
       if (!mounted) {
         console.log("🔐 [useAuth] Component unmounted, skipping getSession result");
@@ -405,11 +405,40 @@ export function useAuth() {
     setUser(userData);
   };
 
+  const signIn = async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      return { data, error };
+    } catch (error: any) {
+      return { data: null, error };
+    }
+  };
+
+  const signUp = async (email: string, password: string, fullName: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
+      });
+      return { data, error };
+    } catch (error: any) {
+      return { data: null, error };
+    }
+  };
+
   const logout = async () => {
     try {
       // Set flag to prevent redirect loops during logout
       sessionStorage.setItem('is_logging_out', 'true');
-      
+
       // Clear all localStorage cache related to user/auth
       // Collect keys first to avoid modifying localStorage during iteration
       const keysToRemove: string[] = [];
@@ -420,15 +449,15 @@ export function useAuth() {
         }
       }
       keysToRemove.forEach(key => localStorage.removeItem(key));
-      
+
       // Clear React state
       setUser(null);
       setSession(null);
       setTestRoleOverride(null);
-      
+
       // Sign out from Supabase auth
       await supabase.auth.signOut();
-      
+
       // Force full page reload to auth page to ensure clean state
       // Using window.location.href instead of navigate() to prevent race conditions
       // and ensure all React state, subscriptions, and effects are completely reset
@@ -482,6 +511,8 @@ export function useAuth() {
     loading,
     login,
     logout,
+    signIn,
+    signUp,
     hasPermission,
     canAccess,
     isAdmin,

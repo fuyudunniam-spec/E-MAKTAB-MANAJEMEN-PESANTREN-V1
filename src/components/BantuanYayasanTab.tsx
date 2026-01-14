@@ -21,12 +21,9 @@ import {
 import { toast } from 'sonner';
 import { 
   getBantuanSantri, 
-  formatRupiah, 
-  formatDate,
-  getBulanNames,
-  getCurrentPeriod,
   BantuanSantri
 } from '@/services/alokasiSantriBinaan.service';
+import { formatRupiah, formatDate, getBulanNames, getCurrentPeriod } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
 interface BantuanYayasanTabProps {
@@ -105,17 +102,19 @@ const BantuanYayasanTab: React.FC<BantuanYayasanTabProps> = ({ santriId, santriN
   const loadAllTimeSummary = async () => {
     if (!santriId) return;
     try {
-      // Query all alokasi_pengeluaran_santri (langsung)
+      // Query all alokasi_layanan_santri (langsung)
       const { data: langsungData } = await supabase
-        .from('alokasi_pengeluaran_santri')
+        .from('alokasi_layanan_santri')
         .select('nominal_alokasi')
-        .eq('santri_id', santriId);
+        .eq('santri_id', santriId)
+        .eq('sumber_alokasi', 'manual');
       
-      // Query all alokasi_overhead_per_santri (overhead)
+      // Query all alokasi_layanan_santri (overhead)
       const { data: overheadData } = await supabase
-        .from('alokasi_overhead_per_santri')
+        .from('alokasi_layanan_santri')
         .select('spp_pendidikan, asrama_kebutuhan, bulan, tahun')
-        .eq('santri_id', santriId);
+        .eq('santri_id', santriId)
+        .eq('sumber_alokasi', 'overhead');
       
       const totalLangsung = (langsungData || []).reduce(
         (sum, item) => sum + (item.nominal_alokasi || 0), 0
@@ -145,9 +144,10 @@ const BantuanYayasanTab: React.FC<BantuanYayasanTabProps> = ({ santriId, santriN
     if (!santriId) return;
     try {
       const { data } = await supabase
-        .from('alokasi_pengeluaran_santri')
-        .select('id, created_at, nominal_alokasi, jenis_bantuan, sub_kategori, keterangan')
+        .from('alokasi_layanan_santri')
+        .select('id, created_at, nominal_alokasi, jenis_bantuan, keterangan')
         .eq('santri_id', santriId)
+        .eq('sumber_alokasi', 'manual')
         .order('created_at', { ascending: false })
         .limit(3);
       
@@ -157,7 +157,7 @@ const BantuanYayasanTab: React.FC<BantuanYayasanTabProps> = ({ santriId, santriN
         jumlah: item.nominal_alokasi || 0,
         deskripsi: item.jenis_bantuan || 'Bantuan',
         tanggal: item.created_at || new Date().toISOString(),
-        kategori: item.sub_kategori || 'Lainnya',
+        kategori: 'Bantuan Langsung', // Unified table doesn't have sub_kategori directly
         // Additional fields for display (if needed)
         nominal_alokasi: item.nominal_alokasi,
         jenis_bantuan: item.jenis_bantuan,

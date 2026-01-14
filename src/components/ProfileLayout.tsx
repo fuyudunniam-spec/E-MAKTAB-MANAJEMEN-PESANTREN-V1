@@ -173,7 +173,8 @@ const ProfileLayout = () => {
           // For Binaan Mukim: Load from alokasi_pengeluaran_santri
           try {
             const { data: alokasiData } = await supabase
-              .from('alokasi_pengeluaran_santri')
+              .from('alokasi_layanan_santri')
+              .eq('sumber_alokasi', 'manual')
               .select('nominal_alokasi')
               .eq('santri_id', santriId);
             

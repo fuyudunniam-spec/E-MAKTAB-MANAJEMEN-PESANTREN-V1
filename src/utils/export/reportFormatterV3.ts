@@ -103,7 +103,7 @@ export interface DetailedExpenseData {
     satuan: string;
     harga_satuan: number;
   }>;
-  alokasi_pengeluaran_santri?: Array<{
+  alokasi_layanan_santri?: Array<{
     santri_id: string;
     nominal_alokasi: number;
     jenis_bantuan: string;
@@ -1018,15 +1018,17 @@ export class ReportFormatterV3 {
       }
 
       const groupFooter: string[] = [];
-      if (showAlokasiSantri && item.alokasi_pengeluaran_santri && item.alokasi_pengeluaran_santri.length > 0) {
-        item.alokasi_pengeluaran_santri.forEach(alloc => {
+      if (showAlokasiSantri && item.alokasi_layanan_santri && item.alokasi_layanan_santri.length > 0) {
+        // Filter only manual allocations
+        const manualAllocations = item.alokasi_layanan_santri.filter((a: any) => a.sumber_alokasi === 'manual');
+        manualAllocations.forEach((alloc: any) => {
           groupFooter.push(
             `${alloc.santri?.nama_lengkap || 'Unknown'} (${alloc.jenis_bantuan}): ${formatCurrencyLocal(alloc.nominal_alokasi || 0)}`
           );
         });
         
-        const totalAlokasi = item.alokasi_pengeluaran_santri.reduce(
-          (sum, alloc) => sum + (alloc.nominal_alokasi || 0), 0
+        const totalAlokasi = manualAllocations.reduce(
+          (sum: number, alloc: any) => sum + (alloc.nominal_alokasi || 0), 0
         );
         groupFooter.push(`Total Alokasi: ${formatCurrencyLocal(totalAlokasi)}`);
       } else if ((item.totalAlokasiSantri || 0) > 0 && (item.nominalPerSantri || 0) > 0) {

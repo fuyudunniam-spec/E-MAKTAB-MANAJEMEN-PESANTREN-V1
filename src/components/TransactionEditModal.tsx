@@ -316,8 +316,9 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
       if (formData.kategori === 'Operasional Yayasan') {
         // Hapus semua alokasi untuk transaksi ini
         const { error: deleteAlokasiError } = await supabase
-          .from('alokasi_pengeluaran_santri')
+          .from('alokasi_layanan_santri')
           .delete()
+          .eq('sumber_alokasi', 'manual')
           .eq('keuangan_id', transaction.id);
         
         if (deleteAlokasiError) {

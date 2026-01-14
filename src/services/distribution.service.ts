@@ -228,52 +228,10 @@ export const updateDistributionTransaction = async (id: string, data: Partial<Di
  * Delete distribution transaction
  */
 export const deleteDistributionTransaction = async (id: string): Promise<void> => {
-  // Ambil transaksi terlebih dahulu untuk mengetahui efek ke stok
-  const { data: trx, error: fetchErr } = await supabase
-    .from('transaksi_inventaris')
-    .select('id, item_id, tipe, jumlah, before_qty, after_qty')
-    .eq('id', id)
-    .maybeSingle();
-
-  if (fetchErr) {
-    console.error('Fetch transaction before delete failed:', fetchErr);
-    throw fetchErr;
-  }
-
-  // Jika transaksi tidak ditemukan, return early
-  if (!trx) {
-    console.warn(`Transaction ${id} not found, may have been already deleted`);
-    return;
-  }
-
-  // Kembalikan stok (karena ini transaksi Keluar/Distribusi, stok harus dikembalikan)
-  try {
-    const { data: item, error: itemErr } = await supabase
-      .from('inventaris')
-      .select('jumlah')
-      .eq('id', trx.item_id)
-      .single();
-
-    if (itemErr) throw itemErr;
-
-    const currentQty = (item?.jumlah ?? 0) as number;
-    const delta = trx.jumlah || 0; // Distribusi adalah Keluar, jadi kembalikan jumlahnya
-
-    await supabase
-      .from('inventaris')
-      .update({ jumlah: currentQty + delta })
-      .eq('id', trx.item_id);
-  } catch (stockErr) {
-    console.warn('Warning updating stock:', stockErr);
-  }
-
-  // Hapus transaksi
-  const { error } = await supabase
-    .from('transaksi_inventaris')
-    .delete()
-    .eq('id', id);
-
-  if (error) throw error;
+  // DEPRECATED: transaksi_inventaris feature removed
+  // This function is no longer used - distribution transactions are not tracked via transaksi_inventaris
+  console.warn('deleteDistributionTransaction is deprecated - transaksi_inventaris feature removed');
+  throw new Error('Distribution transaction deletion not supported - transaksi_inventaris feature deprecated');
 };
 
 /**

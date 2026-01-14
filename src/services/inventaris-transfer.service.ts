@@ -143,26 +143,7 @@ export async function createTransfer(
       throw new TransferValidationError('Gagal membuat transfer: ' + transferError.message);
     }
 
-    // Record transaksi inventaris (keluar) untuk tracking
-    const { error: transaksiError } = await supabase
-      .from('transaksi_inventaris')
-      .insert({
-        item_id: data.item_id,
-        tipe: 'Keluar',
-        keluar_mode: 'Koperasi',
-        channel: 'koperasi',
-        jumlah: data.jumlah,
-        harga_satuan: item.harga_perolehan || 0,
-        tanggal: new Date().toISOString(),
-        catatan: `Transfer ke koperasi - ${item.nama_barang}`,
-        before_qty: availableStock,
-        after_qty: newStock,
-      });
-
-    if (transaksiError) {
-      console.warn('Warning: Gagal mencatat transaksi inventaris:', transaksiError);
-      // Tidak throw error, transfer sudah berhasil
-    }
+    // transaksi_inventaris removed - feature deprecated
 
     return {
       ...transfer,

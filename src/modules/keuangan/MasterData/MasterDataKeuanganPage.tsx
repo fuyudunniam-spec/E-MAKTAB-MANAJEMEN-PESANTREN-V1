@@ -54,3 +54,6 @@ const MasterDataKeuanganPage: React.FC = () => {
 
 export default MasterDataKeuanganPage;
 
+
+
+

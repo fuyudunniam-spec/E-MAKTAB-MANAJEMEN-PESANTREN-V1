@@ -176,7 +176,8 @@ const DaftarPengeluaran: React.FC = () => {
           item.kategori === 'Bantuan Langsung Yayasan' ||
           item.kategori === 'Operasional dan Konsumsi Santri') {
         const { data: alokasiData, error: alokasiError } = await supabase
-          .from('alokasi_pengeluaran_santri')
+          .from('alokasi_layanan_santri')
+          .eq('sumber_alokasi', 'manual')
           .select(`
             id,
             santri_id,

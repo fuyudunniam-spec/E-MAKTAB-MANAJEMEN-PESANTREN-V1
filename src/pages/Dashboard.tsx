@@ -257,7 +257,7 @@ const Dashboard = () => {
         getKeuanganDashboardStats().catch(() => ({ totalSaldo: 0, pemasukanBulanIni: 0, pengeluaranBulanIni: 0, pendingTagihan: 0 })),
         // Get previous month saldo for trend
         safeSupabaseQuery(supabase.from('akun_kas').select('saldo_saat_ini, managed_by').eq('status', 'aktif')),
-        safeSupabaseQuery(supabase.from('santri').select('id, status_santri, jenjang_formal')),
+        safeSupabaseQuery(supabase.from('santri').select('id, status_santri, jenjang_sekolah')),
         getDonasiDashboardStats().catch(() => ({ totalDonation: 0, donationBulanIni: 0, totalDonors: 0, totalItems: 0, donationTrend: 0, donorTrend: 0, inventoryItems: 0, directConsumptionItems: 0, totalPorsi: 0, totalKg: 0 })),
         safeSupabaseQuery(supabase.from('keuangan').select('jumlah, jenis_transaksi, tanggal, status, kategori').eq('status', 'posted').order('tanggal', { ascending: false }).limit(2000)),
         safeSupabaseQuery(supabase.from('tagihan_santri').select('id, sisa_tagihan, status, santri_id').eq('status', 'belum_bayar')),
@@ -272,7 +272,7 @@ const Dashboard = () => {
         // Get tahfidz setoran with juz data
         safeSupabaseQuery(supabase.from('setoran_harian').select('juz, program, santri_id').eq('program', 'Tahfid').in('status', ['Sudah Setor', 'Hadir']).not('juz', 'is', null).limit(1000)),
         // Get santri with jenjang for grouping
-        safeSupabaseQuery(supabase.from('santri').select('id, jenjang_formal'))
+        safeSupabaseQuery(supabase.from('santri').select('id, jenjang_sekolah'))
       ]);
 
       // Calculate stats for executive dashboard
@@ -542,7 +542,7 @@ const Dashboard = () => {
         
         const santri = santriData.find((s: any) => s.id === santriId);
         let level = 'Pengabdian';
-        const jenjang = (santri?.jenjang_formal || '').toUpperCase();
+        const jenjang = (santri?.jenjang_sekolah || '').toUpperCase();
         if (jenjang.includes('SD') || jenjang.includes('SEKOLAH DASAR')) level = 'SD';
         else if (jenjang.includes('SMP') || jenjang.includes('SEKOLAH MENENGAH PERTAMA')) level = 'SMP';
         else if (jenjang.includes('SMA') || jenjang.includes('SEKOLAH MENENGAH ATAS') || jenjang.includes('SMK')) level = 'SMA';

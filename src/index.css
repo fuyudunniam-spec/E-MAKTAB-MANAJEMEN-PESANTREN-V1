@@ -1,5 +1,6 @@
 /* Import print styles */
 @import './styles/print.css';
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,17 +8,18 @@
 
 /* Fix for ARIA accessibility issues with Dialog components */
 @layer base {
+
   /* Ensure dialog content is never aria-hidden when it has focus */
   [data-radix-dialog-content][aria-hidden="true"]:has(:focus) {
     aria-hidden: false !important;
   }
-  
+
   /* Remove aria-hidden from any focused element or its ancestors */
   [aria-hidden="true"]:has(:focus),
   [aria-hidden="true"]:has(:focus-within) {
     aria-hidden: false !important;
   }
-  
+
   /* Ensure dialog content is accessible when open */
   [data-radix-dialog-content][data-state="open"] {
     aria-hidden: false !important;
@@ -30,98 +32,102 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 160 15% 15%;
+    --background: 40 20% 99%;
+    --foreground: 166 50% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 160 15% 15%;
+    --card-foreground: 166 50% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 160 15% 15%;
+    --popover-foreground: 166 50% 10%;
 
-    --primary: 160 84% 39%;
+    --primary: 166 76% 23%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 160 70% 55%;
+    --primary-glow: 166 50% 35%;
 
-    --secondary: 45 93% 47%;
-    --secondary-foreground: 160 15% 15%;
+    --secondary: 35 92% 55%;
+    --secondary-foreground: 166 50% 10%;
 
-    --muted: 160 10% 96%;
-    --muted-foreground: 160 5% 45%;
+    --muted: 166 20% 96%;
+    --muted-foreground: 166 20% 40%;
 
-    --accent: 45 93% 47%;
-    --accent-foreground: 160 15% 15%;
+    --accent: 35 92% 55%;
+    --accent-foreground: 166 50% 10%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 160 15% 90%;
-    --input: 160 15% 90%;
-    --ring: 160 84% 39%;
+    --border: 166 20% 90%;
+    --input: 166 20% 90%;
+    --ring: 166 76% 23%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    --sidebar-background: 160 84% 39%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 0 0% 100%;
-    --sidebar-primary-foreground: 160 84% 39%;
-    --sidebar-accent: 160 70% 45%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 160 70% 35%;
-    --sidebar-ring: 45 93% 47%;
+    --sidebar-background: 166 76% 20%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 35 92% 55%;
+    --sidebar-primary-foreground: 166 76% 23%;
+    --sidebar-accent: 166 60% 25%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 166 40% 30%;
+    --sidebar-ring: 35 92% 55%;
 
     /* Custom gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(160 84% 39%), hsl(160 70% 55%));
-    --gradient-hero: linear-gradient(135deg, hsl(160 84% 39%) 0%, hsl(160 70% 50%) 50%, hsl(45 93% 47%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(160 10% 98%));
-    
+    --gradient-primary: linear-gradient(135deg, hsl(166 76% 23%), hsl(166 60% 35%));
+    --gradient-hero: linear-gradient(135deg, hsl(166 76% 23%) 0%, hsl(166 60% 35%) 60%, hsl(35 92% 55%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(40 20% 98%));
+
     /* Shadows */
-    --shadow-soft: 0 2px 8px hsl(160 84% 39% / 0.08);
-    --shadow-medium: 0 4px 16px hsl(160 84% 39% / 0.12);
-    --shadow-strong: 0 8px 24px hsl(160 84% 39% / 0.16);
-    
+    --shadow-soft: 0 4px 12px -2px hsl(166 76% 23% / 0.08);
+    --shadow-medium: 0 8px 24px -4px hsl(166 76% 23% / 0.12);
+    --shadow-strong: 0 12px 32px -6px hsl(166 76% 23% / 0.16);
+
     /* Animations */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Fonts */
+    --font-heading: 'Playfair Display', serif;
+    --font-body: 'Inter', sans-serif;
   }
 
   .dark {
-    --background: 160 15% 8%;
-    --foreground: 0 0% 98%;
+    --background: 166 50% 5%;
+    --foreground: 40 20% 99%;
 
-    --card: 160 15% 10%;
-    --card-foreground: 0 0% 98%;
+    --card: 166 50% 8%;
+    --card-foreground: 40 20% 99%;
 
-    --popover: 160 15% 10%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 166 50% 8%;
+    --popover-foreground: 40 20% 99%;
 
-    --primary: 160 70% 55%;
-    --primary-foreground: 160 15% 8%;
-    --primary-glow: 160 84% 39%;
+    --primary: 166 60% 35%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 166 40% 45%;
 
-    --secondary: 45 93% 47%;
-    --secondary-foreground: 160 15% 8%;
+    --secondary: 35 80% 50%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 160 10% 15%;
-    --muted-foreground: 160 5% 65%;
+    --muted: 166 30% 15%;
+    --muted-foreground: 166 20% 65%;
 
-    --accent: 45 93% 47%;
-    --accent-foreground: 160 15% 8%;
+    --accent: 35 80% 50%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 160 10% 20%;
-    --input: 160 10% 20%;
-    --ring: 160 70% 55%;
+    --border: 166 30% 15%;
+    --input: 166 30% 15%;
+    --ring: 166 60% 35%;
 
-    --sidebar-background: 160 20% 12%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 160 70% 55%;
-    --sidebar-primary-foreground: 160 15% 8%;
-    --sidebar-accent: 160 15% 18%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 160 10% 20%;
-    --sidebar-ring: 45 93% 47%;
+    --sidebar-background: 166 50% 8%;
+    --sidebar-foreground: 40 20% 99%;
+    --sidebar-primary: 35 80% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 166 40% 12%;
+    --sidebar-accent-foreground: 40 20% 99%;
+    --sidebar-border: 166 30% 15%;
+    --sidebar-ring: 35 80% 50%;
   }
 }
 
@@ -131,12 +137,22 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-body;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading tracking-tight;
   }
 }
 
 /* Custom Scrollbar Styles */
 @layer utilities {
+
   /* Thin scrollbar */
   .scrollbar-thin {
     scrollbar-width: thin;

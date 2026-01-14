@@ -497,7 +497,8 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
       // karena kategori ini tidak dialokasikan ke santri
       if (updateData.kategori === 'Operasional Yayasan') {
         const { error: deleteAlokasiError } = await supabase
-          .from('alokasi_pengeluaran_santri')
+          .from('alokasi_layanan_santri')
+          .eq('sumber_alokasi', 'manual')
           .delete()
           .in('keuangan_id', editableTransactions.map(t => t.id));
 
@@ -510,8 +511,9 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
       // update juga jenis_bantuan di alokasi_pengeluaran_santri
       else if (updateData.kategori === 'Operasional dan Konsumsi Santri' && updateData.sub_kategori) {
         const { error: alokasiError } = await supabase
-          .from('alokasi_pengeluaran_santri')
+          .from('alokasi_layanan_santri')
           .update({ jenis_bantuan: updateData.sub_kategori })
+          .eq('sumber_alokasi', 'manual')
           .in('keuangan_id', editableTransactions.map(t => t.id))
           .eq('alokasi_ke', 'asrama_konsumsi');
 
@@ -946,7 +948,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                                       if (!bantuanLangsungAllocations[transaction.id]) {
                                         try {
                                           const { data, error } = await supabase
-                                            .from('alokasi_pengeluaran_santri')
+                                            .from('alokasi_layanan_santri')
                                             .select(`
                                               id,
                                               santri_id,
@@ -959,7 +961,8 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                                                 id_santri
                                               )
                                             `)
-                                            .eq('keuangan_id', transaction.id);
+                                            .eq('keuangan_id', transaction.id)
+                                            .eq('sumber_alokasi', 'manual');
                                           
                                           if (!error && data) {
                                             setBantuanLangsungAllocations(prev => ({
@@ -1191,7 +1194,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                                   if (!bantuanLangsungAllocations[transaction.id]) {
                                     try {
                                       const { data, error } = await supabase
-                                        .from('alokasi_pengeluaran_santri')
+                                        .from('alokasi_layanan_santri')
                                         .select(`
                                           id,
                                           santri_id,
@@ -1204,7 +1207,8 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                                             id_santri
                                           )
                                         `)
-                                        .eq('keuangan_id', transaction.id);
+                                        .eq('keuangan_id', transaction.id)
+                                        .eq('sumber_alokasi', 'manual');
                                       
                                       if (!error && data) {
                                         setBantuanLangsungAllocations(prev => ({

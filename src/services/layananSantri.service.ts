@@ -1,5 +1,5 @@
 /**
- * Service Layer untuk Ledger Layanan Santri
+ * Service Layer untuk Realisasi Layanan Santri
  * 
  * Menangani:
  * - Rancangan anggaran layanan santri
@@ -9,8 +9,11 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { MasterDataKeuanganService } from './masterDataKeuangan.service';
 
-export type PilarLayanan = 'pendidikan_formal' | 'pendidikan_pesantren' | 'asrama_konsumsi' | 'bantuan_langsung';
+// PilarLayanan is now a string (kode from master_data_keuangan table)
+// Old enum values: 'pendidikan_formal' | 'pendidikan_pesantren' | 'asrama_konsumsi' | 'bantuan_langsung'
+export type PilarLayanan = string;
 
 export interface RancanganAnggaranLayanan {
   id: string;
@@ -51,7 +54,7 @@ export interface LedgerLayananSantriPeriodik {
   updated_at: string;
 }
 
-export interface LedgerLayananSantri {
+export interface RealisasiLayananSantri {
   id: string;
   santri_id: string;
   periode: string; // "YYYY-MM"
@@ -75,11 +78,14 @@ export interface RealisasiLayananSantriSummary {
   santri_id: string;
   santri_nama: string;
   santri_nisn: string | null;
-  pendidikan_formal: number;
-  pendidikan_pesantren: number;
-  asrama_konsumsi: number;
-  bantuan_langsung: number;
+  // Dynamic pilar columns: Record<pilar_kode, nilai>
+  pilar: Record<string, number>;
   total: number;
+  // Backward compatibility: old hardcoded properties (deprecated, use pilar instead)
+  pendidikan_formal?: number;
+  pendidikan_pesantren?: number;
+  asrama_konsumsi?: number;
+  bantuan_langsung?: number;
 }
 
 export interface CreateRancanganAnggaranData {
@@ -145,48 +151,16 @@ export class LayananSantriService {
 
   /**
    * Create rancangan anggaran
+   * DEPRECATED: Tabel rancangan_anggaran_layanan sudah dihapus
+   * Fungsi ini masih ada untuk backward compatibility tapi tidak melakukan operasi apa-apa
    */
   static async createRancanganAnggaran(
     data: CreateRancanganAnggaranData
   ): Promise<RancanganAnggaranLayanan> {
-    try {
-      // Insert main rancangan
-      const { data: rancangan, error: rancanganError } = await supabase
-        .from('rancangan_anggaran_layanan')
-        .insert({
-          periode: data.periode,
-          pilar_layanan: data.pilar_layanan,
-          nilai_per_santri: data.nilai_per_santri,
-          jumlah_santri_target: data.jumlah_santri_target || null,
-          catatan: data.catatan || null,
-          status: 'draft',
-        })
-        .select()
-        .single();
-
-      if (rancanganError) throw rancanganError;
-
-      // Insert custom per santri if provided
-      if (data.customPerSantri && data.customPerSantri.length > 0) {
-        const customData = data.customPerSantri.map(item => ({
-          rancangan_id: rancangan.id,
-          santri_id: item.santri_id,
-          pilar_layanan: data.pilar_layanan,
-          nilai_layanan: item.nilai_layanan,
-        }));
-
-        const { error: customError } = await supabase
-          .from('rancangan_anggaran_layanan_per_santri')
-          .insert(customData);
-
-        if (customError) throw customError;
-      }
-
-      return rancangan;
-    } catch (error) {
-      console.error('Error creating rancangan anggaran:', error);
-      throw error;
-    }
+    // DEPRECATED: Rancangan anggaran feature sudah dihapus
+    // Return empty/dummy data untuk backward compatibility
+    console.warn('createRancanganAnggaran: Rancangan anggaran feature sudah dihapus. Fungsi ini tidak melakukan operasi apapun.');
+    throw new Error('Fitur rancangan anggaran sudah tidak tersedia. Gunakan generate dari realisasi atau input manual.');
   }
 
   /**
@@ -265,9 +239,9 @@ export class LayananSantriService {
       if (periodikData && periodikData.length > 0) {
         const periodikId = periodikData[0].id;
 
-        // Delete ledger entries first (CASCADE should handle this, but explicit is safer)
+        // Delete realisasi entries first (CASCADE should handle this, but explicit is safer)
         const { error: deleteLedgerError } = await supabase
-          .from('ledger_layanan_santri')
+          .from('realisasi_layanan_santri')
           .delete()
           .eq('referensi_periodik_id', periodikId);
 
@@ -417,7 +391,7 @@ export class LayananSantriService {
       // Get dari alokasi_pengeluaran_santri untuk transaksi lama
       // REVISI: Ambil semua alokasi untuk kategori ini, lalu filter berdasarkan tanggal keuangan di client-side
       const { data: alokasiData, error: alokasiError } = await supabase
-        .from('alokasi_pengeluaran_santri')
+        .from('alokasi_layanan_santri')
         .select(`
           santri_id,
           nominal_alokasi,
@@ -431,7 +405,8 @@ export class LayananSantriService {
             nama_lengkap,
             nisn
           )
-        `);
+        `)
+        .eq('sumber_alokasi', 'manual');
 
       if (alokasiError) {
         console.error('Error getting alokasi data:', alokasiError);
@@ -673,18 +648,20 @@ export class LayananSantriService {
 
       if (keuanganError) throw keuanganError;
 
-      // Juga ambil dari alokasi_pengeluaran_santri untuk transaksi lama
+      // Juga ambil dari alokasi_layanan_santri untuk transaksi lama
       const { data: alokasiData, error: alokasiError } = await supabase
-        .from('alokasi_pengeluaran_santri')
+        .from('alokasi_layanan_santri')
         .select(`
           santri_id,
           nominal_alokasi,
+          sumber_alokasi,
           keuangan_id,
           keuangan:keuangan_id(
             kategori,
             tanggal
           )
         `)
+        .eq('sumber_alokasi', 'manual')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString());
 
@@ -736,9 +713,9 @@ export class LayananSantriService {
 
       if (deletePeriodikError) throw deletePeriodikError;
 
-      // Delete existing ledger entries untuk periode ini
+      // Delete existing realisasi entries untuk periode ini
       const { error: deleteLedgerError } = await supabase
-        .from('ledger_layanan_santri')
+        .from('realisasi_layanan_santri')
         .delete()
         .eq('periode', data.periode)
         .eq('pilar_layanan', data.pilar_layanan)
@@ -812,10 +789,10 @@ export class LayananSantriService {
         }
       });
 
-      // Insert ledger entries
+      // Insert realisasi entries
       if (ledgerEntries.length > 0) {
         const { error: insertError } = await supabase
-          .from('ledger_layanan_santri')
+          .from('realisasi_layanan_santri')
           .insert(ledgerEntries);
 
         if (insertError) throw insertError;
@@ -955,7 +932,7 @@ export class LayananSantriService {
         // Delete existing entries for this periodik to avoid conflicts
         // The unique index includes COALESCE which can't be used in onConflict
         const { error: deleteError } = await supabase
-          .from('ledger_layanan_santri')
+          .from('realisasi_layanan_santri')
           .delete()
           .eq('periode', periodik.periode)
           .eq('pilar_layanan', periodik.pilar_layanan)
@@ -966,7 +943,7 @@ export class LayananSantriService {
 
         // Insert new entries
         const { error: insertError } = await supabase
-          .from('ledger_layanan_santri')
+          .from('realisasi_layanan_santri')
           .insert(ledgerEntries);
 
         if (insertError) throw insertError;
@@ -1009,7 +986,7 @@ export class LayananSantriService {
       if (ledgerEntries.length > 0) {
         // Delete existing entries for this periodik and rancangan to avoid conflicts
         const { error: deleteError } = await supabase
-          .from('ledger_layanan_santri')
+          .from('realisasi_layanan_santri')
           .delete()
           .eq('periode', periodik.periode)
           .eq('pilar_layanan', periodik.pilar_layanan)
@@ -1021,7 +998,7 @@ export class LayananSantriService {
 
         // Insert new entries
         const { error: insertError } = await supabase
-          .from('ledger_layanan_santri')
+          .from('realisasi_layanan_santri')
           .insert(ledgerEntries);
 
         if (insertError) throw insertError;
@@ -1036,11 +1013,19 @@ export class LayananSantriService {
    * Get realisasi layanan santri untuk periode tertentu
    * REVISI: Mengembalikan SEMUA santri binaan mukim, bukan hanya yang punya data di ledger
    * REVISI: Ambil langsung dari transaksi keuangan untuk "Bantuan Langsung" dan "Pendidikan Formal"
+   * REVISI: Menggunakan struktur dynamic berdasarkan master_data_keuangan
    */
   static async getRealisasiLayananSantri(
     periode: string
   ): Promise<RealisasiLayananSantriSummary[]> {
     try {
+      // Fetch pilar layanan dari master_data_keuangan
+      const pilarList = await MasterDataKeuanganService.getPilarLayanan();
+      const pilarMap = new Map<string, string>(); // Map kode -> nama
+      pilarList.forEach(pilar => {
+        pilarMap.set(pilar.kode, pilar.nama);
+      });
+
       // Parse periode to get year and month
       const [year, month] = periode.split('-').map(Number);
       const startDate = new Date(year, month - 1, 1);
@@ -1049,7 +1034,7 @@ export class LayananSantriService {
       // Get ALL santri binaan mukim aktif pada akhir periode
       const { data: allSantri, error: santriError } = await supabase
         .from('santri')
-        .select('id, nama_lengkap, id_santri, kategori')
+        .select('id, nama_lengkap, id_santri, nisn, kategori')
         .eq('status', 'Aktif')
         .or('kategori.ilike.%Binaan Mukim%,kategori.ilike.%Mukim Binaan%')
         .lte('created_at', endDate.toISOString())
@@ -1061,50 +1046,57 @@ export class LayananSantriService {
       const summaryMap = new Map<string, RealisasiLayananSantriSummary>();
       
       (allSantri || []).forEach(santri => {
+        // Initialize pilar object with all pilar kodes
+        const pilar: Record<string, number> = {};
+        pilarList.forEach(pilarItem => {
+          pilar[pilarItem.kode] = 0;
+        });
+
         summaryMap.set(santri.id, {
           santri_id: santri.id,
           santri_nama: santri.nama_lengkap || 'Tidak Diketahui',
-          santri_nisn: santri.nisn || null,
-          pendidikan_formal: 0,
-          pendidikan_pesantren: 0,
-          asrama_konsumsi: 0,
-          bantuan_langsung: 0,
+          santri_nisn: (santri as any).nisn || null,
+          pilar,
           total: 0,
         });
       });
 
-      // REVISI: Hanya ambil dari ledger_layanan_santri sebagai single source of truth
+      // REVISI: Hanya ambil dari realisasi_layanan_santri sebagai single source of truth
       // Tidak perlu ambil dari keuangan atau alokasi_pengeluaran_santri karena:
-      // 1. Ledger_layanan_santri sudah di-populate dari keuangan/alokasi saat transaksi dibuat
+      // 1. Realisasi_layanan_santri sudah di-populate dari keuangan/alokasi saat transaksi dibuat
       // 2. Mengambil dari multiple sources bisa menyebabkan duplikasi
-      // 3. Ledger_layanan_santri adalah source of truth untuk realisasi layanan
+      // 3. Realisasi_layanan_santri adalah source of truth untuk realisasi layanan
 
-      // Get all ledger entries for the period
-      const { data: ledgerEntries, error: ledgerError } = await supabase
-        .from('ledger_layanan_santri')
+      // Get all realisasi entries for the period
+      const { data: realisasiEntries, error: realisasiError } = await supabase
+        .from('realisasi_layanan_santri')
         .select(`
           *,
           santri:santri_id(id, nama_lengkap, nisn, kategori)
         `)
         .eq('periode', periode);
 
-      if (ledgerError) throw ledgerError;
+      if (realisasiError) throw realisasiError;
 
-      // Populate summary map with ledger data
-      (ledgerEntries || []).forEach(entry => {
+      // Populate summary map with realisasi data
+      (realisasiEntries || []).forEach(entry => {
         const santriId = entry.santri_id;
+        const pilarKode = entry.pilar_layanan as string;
         
         // Skip if santri not in our map (shouldn't happen, but safety check)
         if (!summaryMap.has(santriId)) {
           const santri = entry.santri as any;
+          // Initialize pilar object with all pilar kodes
+          const pilar: Record<string, number> = {};
+          pilarList.forEach(pilarItem => {
+            pilar[pilarItem.kode] = 0;
+          });
+
           summaryMap.set(santriId, {
             santri_id: santriId,
             santri_nama: santri?.nama_lengkap || 'Tidak Diketahui',
             santri_nisn: santri?.nisn || null,
-            pendidikan_formal: 0,
-            pendidikan_pesantren: 0,
-            asrama_konsumsi: 0,
-            bantuan_langsung: 0,
+            pilar,
             total: 0,
           });
         }
@@ -1112,29 +1104,31 @@ export class LayananSantriService {
         const summary = summaryMap.get(santriId)!;
         const nilai = Number(entry.nilai_layanan) || 0;
 
-        switch (entry.pilar_layanan) {
-          case 'pendidikan_formal':
-            summary.pendidikan_formal += nilai;
-            break;
-          case 'pendidikan_pesantren':
-            summary.pendidikan_pesantren += nilai;
-            break;
-          case 'asrama_konsumsi':
-            summary.asrama_konsumsi += nilai;
-            break;
-          case 'bantuan_langsung':
-            summary.bantuan_langsung += nilai;
-            break;
+        // Accumulate nilai per pilar (dynamic)
+        if (pilarKode && summary.pilar.hasOwnProperty(pilarKode)) {
+          summary.pilar[pilarKode] = (summary.pilar[pilarKode] || 0) + nilai;
+        } else if (pilarKode) {
+          // Pilar tidak ditemukan di master_data_keuangan, tambahkan ke dynamic object
+          summary.pilar[pilarKode] = (summary.pilar[pilarKode] || 0) + nilai;
         }
       });
 
       // Calculate totals
       summaryMap.forEach((summary) => {
-        summary.total = summary.pendidikan_formal + summary.pendidikan_pesantren +
-          summary.asrama_konsumsi + summary.bantuan_langsung;
+        summary.total = Object.values(summary.pilar).reduce((sum, nilai) => sum + (nilai || 0), 0);
       });
 
-      return Array.from(summaryMap.values()).sort((a, b) =>
+      // Add backward compatibility properties for components still using old structure
+      const result = Array.from(summaryMap.values()).map((summary) => ({
+        ...summary,
+        // Backward compatibility: add old properties for components still using them
+        pendidikan_formal: summary.pilar['pendidikan_formal'] || 0,
+        pendidikan_pesantren: summary.pilar['pendidikan_pesantren'] || 0,
+        asrama_konsumsi: summary.pilar['asrama_konsumsi'] || 0,
+        bantuan_langsung: summary.pilar['bantuan_langsung'] || 0,
+      }));
+
+      return result.sort((a, b) =>
         a.santri_nama.localeCompare(b.santri_nama)
       );
     } catch (error) {
@@ -1174,23 +1168,29 @@ export class LayananSantriService {
     endPeriode: string   // Format: "YYYY-MM"
   ): Promise<Array<{
     periode: string;
-    pendidikan_formal: number;
-    pendidikan_pesantren: number;
-    asrama_konsumsi: number;
-    bantuan_langsung: number;
+    pilar: Record<string, number>; // Dynamic pilar columns
     total: number;
+    // Backward compatibility (deprecated)
+    pendidikan_formal?: number;
+    pendidikan_pesantren?: number;
+    asrama_konsumsi?: number;
+    bantuan_langsung?: number;
   }>> {
     try {
+      // Fetch pilar layanan dari master_data_keuangan
+      const pilarList = await MasterDataKeuanganService.getPilarLayanan(true); // aktifOnly = true
+      
       const [startYear, startMonth] = startPeriode.split('-').map(Number);
       const [endYear, endMonth] = endPeriode.split('-').map(Number);
       
       const results: Array<{
         periode: string;
-        pendidikan_formal: number;
-        pendidikan_pesantren: number;
-        asrama_konsumsi: number;
-        bantuan_langsung: number;
+        pilar: Record<string, number>;
         total: number;
+        pendidikan_formal?: number;
+        pendidikan_pesantren?: number;
+        asrama_konsumsi?: number;
+        bantuan_langsung?: number;
       }> = [];
 
       // Generate list of months between start and end
@@ -1210,15 +1210,15 @@ export class LayananSantriService {
         }
       }
 
-      // Get data from ledger_layanan_santri and keuangan for each month
+      // Get data from realisasi_layanan_santri and keuangan for each month
       for (const monthPeriode of months) {
         const [year, month] = monthPeriode.split('-').map(Number);
         const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 0);
 
-        // Get from ledger_layanan_santri
+        // Get from realisasi_layanan_santri
         const { data: ledgerData, error: ledgerError } = await supabase
-          .from('ledger_layanan_santri')
+          .from('realisasi_layanan_santri')
           .select('pilar_layanan, nilai_layanan')
           .eq('santri_id', santri_id)
           .eq('periode', monthPeriode);
@@ -1227,7 +1227,8 @@ export class LayananSantriService {
           console.error(`Error getting ledger for ${monthPeriode}:`, ledgerError);
         }
 
-        // Get from keuangan transactions (for direct aid and formal education)
+        // Get from keuangan transactions - get ALL pengeluaran with santri_id (not hardcoded kategori)
+        // Filter by pilar will be done after fetching kategori data from master_data_keuangan
         const { data: keuanganData, error: keuanganError } = await supabase
           .from('keuangan')
           .select('kategori, jumlah, tanggal')
@@ -1235,7 +1236,6 @@ export class LayananSantriService {
           .eq('status', 'posted')
           .eq('ledger', 'UMUM')
           .eq('santri_id', santri_id)
-          .in('kategori', ['Bantuan Langsung Yayasan', 'Pendidikan Formal'])
           .gte('tanggal', startDate.toISOString().split('T')[0])
           .lte('tanggal', endDate.toISOString().split('T')[0]);
 
@@ -1243,86 +1243,139 @@ export class LayananSantriService {
           console.error(`Error getting keuangan for ${monthPeriode}:`, keuanganError);
         }
 
-        // Aggregate data
-        let pendidikan_formal = 0;
-        let pendidikan_pesantren = 0;
-        let asrama_konsumsi = 0;
-        let bantuan_langsung = 0;
+        // Initialize pilar object with all pilar kodes (dynamic)
+        const pilar: Record<string, number> = {};
+        pilarList.forEach(pilarItem => {
+          pilar[pilarItem.kode] = 0;
+        });
 
-        // From ledger
+        // From ledger - aggregate by pilar_layanan (dynamic)
         (ledgerData || []).forEach(entry => {
           const nilai = Number(entry.nilai_layanan) || 0;
-          switch (entry.pilar_layanan) {
-            case 'pendidikan_formal':
-              pendidikan_formal += nilai;
-              break;
-            case 'pendidikan_pesantren':
-              pendidikan_pesantren += nilai;
-              break;
-            case 'asrama_konsumsi':
-              asrama_konsumsi += nilai;
-              break;
-            case 'bantuan_langsung':
-              bantuan_langsung += nilai;
-              break;
+          const pilarKode = entry.pilar_layanan as string;
+          
+          if (pilarKode && pilar.hasOwnProperty(pilarKode)) {
+            pilar[pilarKode] = (pilar[pilarKode] || 0) + nilai;
+          } else if (pilarKode) {
+            // Pilar tidak ditemukan di master_data_keuangan, tambahkan ke dynamic object
+            pilar[pilarKode] = (pilar[pilarKode] || 0) + nilai;
           }
         });
 
         // From keuangan transactions (direct) - REVISI: Pastikan mengambil semua transaksi yang punya santri_id
+        // Need to map kategori to pilar_kode dynamically
+        // Get unique kategori first, then map them to pilar
+        const uniqueKategori = [...new Set((keuanganData || []).map(tx => tx.kategori).filter(Boolean))];
+        const kategoriToPilarMap = new Map<string, string>();
+        
+        // Map kategori to pilar_layanan_kode
+        for (const kategori of uniqueKategori) {
+          try {
+            const kategoriData = await MasterDataKeuanganService.getKategoriByNama(kategori);
+            if (kategoriData?.pilar_layanan_kode) {
+              kategoriToPilarMap.set(kategori, kategoriData.pilar_layanan_kode);
+            }
+          } catch (error) {
+            console.warn(`Error mapping kategori "${kategori}" to pilar:`, error);
+          }
+        }
+        
+        // Process keuangan transactions with mapped pilar
         (keuanganData || []).forEach(tx => {
           const nilai = Number(tx.jumlah) || 0;
-          if (tx.kategori === 'Bantuan Langsung Yayasan') {
-            bantuan_langsung += nilai;
-          } else if (tx.kategori === 'Pendidikan Formal') {
-            pendidikan_formal += nilai;
+          const pilarKode = kategoriToPilarMap.get(tx.kategori || '');
+          
+          if (pilarKode) {
+            if (pilar.hasOwnProperty(pilarKode)) {
+              pilar[pilarKode] = (pilar[pilarKode] || 0) + nilai;
+            } else {
+              pilar[pilarKode] = nilai;
+            }
           }
         });
 
-        // REVISI: Juga cek dari alokasi_pengeluaran_santri untuk transaksi lama yang mungkin belum punya santri_id di keuangan
+        // REVISI: Juga cek dari alokasi_layanan_santri untuk transaksi lama yang mungkin belum punya santri_id di keuangan
         // Tapi hanya untuk kategori yang relevan
         const { data: alokasiData, error: alokasiError } = await supabase
-          .from('alokasi_pengeluaran_santri')
+          .from('alokasi_layanan_santri')
           .select(`
-            nominal_alokasi,
-            keuangan:keuangan_id(
+          nominal_alokasi,
+          sumber_alokasi,
+          keuangan:keuangan_id(
               kategori,
               tanggal
             )
           `)
+          .eq('sumber_alokasi', 'manual')
           .eq('santri_id', santri_id)
           .gte('created_at', startDate.toISOString())
           .lte('created_at', endDate.toISOString());
 
-        if (!alokasiError && alokasiData) {
-          alokasiData.forEach((alokasi: any) => {
+        if (!alokasiError && alokasiData && alokasiData.length > 0) {
+          // Process alokasi data - map kategori to pilar dynamically
+          // Get unique kategori from alokasi first
+          const uniqueAlokasiKategori = [...new Set(
+            (alokasiData || [])
+              .map((a: any) => (a.keuangan && Array.isArray(a.keuangan) ? a.keuangan[0]?.kategori : a.keuangan?.kategori))
+              .filter(Boolean)
+          )];
+          const alokasiKategoriToPilarMap = new Map<string, string>();
+          
+          // Map kategori to pilar_layanan_kode for alokasi
+          for (const kategori of uniqueAlokasiKategori) {
+            try {
+              const kategoriData = await MasterDataKeuanganService.getKategoriByNama(kategori);
+              if (kategoriData?.pilar_layanan_kode) {
+                alokasiKategoriToPilarMap.set(kategori, kategoriData.pilar_layanan_kode);
+              }
+            } catch (error) {
+              console.warn(`Error mapping kategori "${kategori}" to pilar:`, error);
+            }
+          }
+          
+          // Process alokasi with mapped pilar
+          for (const alokasi of alokasiData) {
             const nilai = Number(alokasi.nominal_alokasi) || 0;
-            const kategori = alokasi.keuangan?.kategori;
+            // Handle keuangan yang bisa berupa object atau array
+            const keuangan = Array.isArray(alokasi.keuangan) ? alokasi.keuangan[0] : alokasi.keuangan;
+            const kategori = keuangan?.kategori;
             
             // Pastikan tanggal transaksi masuk dalam bulan yang sedang diproses
-            const txDate = alokasi.keuangan?.tanggal;
+            const txDate = keuangan?.tanggal;
             if (txDate) {
               const txDateObj = new Date(txDate);
               if (txDateObj >= startDate && txDateObj <= endDate) {
-                if (kategori === 'Bantuan Langsung Yayasan') {
-                  bantuan_langsung += nilai;
-                } else if (kategori === 'Pendidikan Formal') {
-                  pendidikan_formal += nilai;
+                const pilarKode = alokasiKategoriToPilarMap.get(kategori || '');
+                
+                if (pilarKode) {
+                  if (pilar.hasOwnProperty(pilarKode)) {
+                    pilar[pilarKode] = (pilar[pilarKode] || 0) + nilai;
+                  } else {
+                    pilar[pilarKode] = nilai;
+                  }
                 }
               }
             }
-          });
+          }
         }
 
-        const total = pendidikan_formal + pendidikan_pesantren + asrama_konsumsi + bantuan_langsung;
+        // Calculate total
+        const total = Object.values(pilar).reduce((sum, val) => sum + (val || 0), 0);
 
-        results.push({
+        // Build result with dynamic pilar and backward compatibility
+        const result: any = {
           periode: monthPeriode,
-          pendidikan_formal,
-          pendidikan_pesantren,
-          asrama_konsumsi,
-          bantuan_langsung,
+          pilar,
           total,
-        });
+        };
+        
+        // Backward compatibility - map old hardcoded pilar if they exist
+        if (pilar['pendidikan_formal'] !== undefined) result.pendidikan_formal = pilar['pendidikan_formal'];
+        if (pilar['pendidikan_pesantren'] !== undefined) result.pendidikan_pesantren = pilar['pendidikan_pesantren'];
+        if (pilar['asrama_konsumsi'] !== undefined) result.asrama_konsumsi = pilar['asrama_konsumsi'];
+        if (pilar['bantuan_langsung'] !== undefined) result.bantuan_langsung = pilar['bantuan_langsung'];
+
+        results.push(result);
       }
 
       return results.reverse(); // Oldest first

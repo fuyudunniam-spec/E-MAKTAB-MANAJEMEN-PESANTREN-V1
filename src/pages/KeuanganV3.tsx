@@ -216,12 +216,13 @@ const KeuanganV3: React.FC = () => {
           *,
           akun_kas:akun_kas_id(nama, managed_by),
           rincian_pengeluaran(*),
-          alokasi_pengeluaran_santri(
+          alokasi_layanan_santri!keuangan_id(
             id,
             santri_id,
             nominal_alokasi,
             jenis_bantuan,
             periode,
+            sumber_alokasi,
             keterangan,
             santri:santri_id(
               id,
@@ -280,42 +281,7 @@ const KeuanganV3: React.FC = () => {
         return tx;
       });
       
-      // Extract inventory transaction IDs from referensi and fetch catatan
-      const inventoryTransactionIds = filteredTransactions
-        .filter(t => t.referensi && typeof t.referensi === 'string' && t.referensi.startsWith('inventory_sale:'))
-        .map(t => {
-          const idStr = (t.referensi as string).replace('inventory_sale:', '').trim();
-          // Validate UUID format (basic check)
-          if (idStr && idStr.length === 36) {
-            return idStr;
-          }
-          return null;
-        })
-        .filter((id): id is string => id !== null);
-      
-      // Fetch transaksi_inventaris data for these IDs
-      // Include inventaris join to get nama_barang for complete description
-      let inventoryTransactionsMap: Record<string, any> = {};
-      if (inventoryTransactionIds.length > 0) {
-        const { data: inventoryTransactions } = await supabase
-          .from('transaksi_inventaris')
-          .select(`
-            id, 
-            catatan, 
-            sumbangan, 
-            harga_dasar,
-            jumlah,
-            inventaris:item_id(nama_barang)
-          `)
-          .in('id', inventoryTransactionIds);
-        
-        if (inventoryTransactions) {
-          inventoryTransactionsMap = inventoryTransactions.reduce((acc, ti) => {
-            acc[ti.id] = ti;
-            return acc;
-          }, {} as Record<string, any>);
-        }
-      }
+      // Inventory transactions removed - transaksi_inventaris feature deprecated
       
       // Helper function to clean description - remove "Sumbangan: Rp 0" and hajat from donasi
       const cleanDescription = (deskripsi: string, kategori?: string): string => {
@@ -416,131 +382,13 @@ const KeuanganV3: React.FC = () => {
         return true;
       };
 
-      // Helper function to build complete description for inventory sales
-      const buildInventorySaleDescription = (
-        keuanganDeskripsi: string,
-        catatan: string | null,
-        inventoryTx: any,
-        penerimaPembayar: string | null
-      ): string => {
-        // CRITICAL: Always prioritize inventaris.nama_barang if available
-        // This ensures we always have the item name, even if keuangan.deskripsi is incomplete
-        const itemName = inventoryTx?.inventaris?.nama_barang || null;
-        const jumlah = inventoryTx?.jumlah || null;
-        
-        // Normalize keuangan deskripsi format first
-        const normalizedDeskripsi = normalizeKeuanganDeskripsi(keuanganDeskripsi);
-        
-        // Check if keuangan.deskripsi is complete (has item name)
-        const deskripsiIsComplete = isDeskripsiComplete(normalizedDeskripsi);
-        
-        // If we have item name from inventaris, always use it to build complete description
-        if (itemName && jumlah !== null) {
-          // Build description from inventaris data (most reliable source)
-          let desc = `${itemName} (${jumlah} unit)`;
-          
-          // Add penerima if available
-          if (penerimaPembayar) {
-            desc += ` / ${penerimaPembayar}`;
-          }
-          
-          // Extract additional info from catatan if available
-          if (catatan) {
-            const sumbanganInfo = extractSumbanganInfo(catatan);
-            const hargaDasarMatch = catatan.match(/Harga Dasar:\s*Rp\s*([\d.,]+)/i);
-            const hargaDasar = hargaDasarMatch ? hargaDasarMatch[1] : '';
-            
-            // Only add harga dasar if not already in deskripsi and if catatan has it
-            if (hargaDasar && !normalizedDeskripsi.includes('Harga Dasar')) {
-              desc += ` - Harga Dasar: Rp ${hargaDasar}/unit`;
-            }
-            
-            // Add sumbangan if > 0
-            if (sumbanganInfo) {
-              desc += ` - ${sumbanganInfo}`;
-            }
-          }
-          
-          return desc;
-        }
-        
-        // Fallback: If keuangan.deskripsi is complete, use it (but add sumbangan if needed)
-        if (deskripsiIsComplete && normalizedDeskripsi && normalizedDeskripsi.trim() !== '' && normalizedDeskripsi !== '-') {
-          const sumbanganInfo = catatan ? extractSumbanganInfo(catatan) : null;
-          if (sumbanganInfo && !normalizedDeskripsi.includes('Sumbangan')) {
-            return `${normalizedDeskripsi} - ${sumbanganInfo}`;
-          }
-          return normalizedDeskripsi;
-        }
-        
-        // Final fallback: use catatan as-is (but this should rarely happen if inventaris data is available)
-        return catatan || keuanganDeskripsi || 'Penjualan Inventaris';
-      };
+      // buildInventorySaleDescription removed - transaksi_inventaris feature deprecated
 
       // Transform transactions
       const transformedTransactions = filteredTransactions.map(transaction => {
-        // For inventory sales, get catatan and inventory transaction info
-        let catatanFromInventaris = null;
-        let inventoryTx = null;
-        if (transaction.referensi && transaction.referensi.startsWith('inventory_sale:')) {
-          const transactionId = transaction.referensi.replace('inventory_sale:', '').trim();
-          inventoryTx = inventoryTransactionsMap[transactionId];
-          
-          // Log warnings only in development
-          if (process.env.NODE_ENV === 'development') {
-            if (!inventoryTx) {
-              console.warn('[KeuanganV3] Inventory transaction not found:', {
-                keuanganId: transaction.id,
-                referensi: transaction.referensi,
-                transactionId,
-                availableIds: Object.keys(inventoryTransactionsMap)
-              });
-            } else if (!inventoryTx.inventaris?.nama_barang) {
-              console.warn('[KeuanganV3] Inventory transaction missing nama_barang:', {
-                keuanganId: transaction.id,
-                transactionId,
-                inventoryTx: {
-                  id: inventoryTx.id,
-                  hasInventaris: !!inventoryTx.inventaris,
-                  inventarisData: inventoryTx.inventaris
-                }
-              });
-            }
-          }
-          
-          if (inventoryTx && inventoryTx.catatan) {
-            catatanFromInventaris = inventoryTx.catatan;
-          }
-        }
-        
-        // Build description based on transaction type
-        let finalDeskripsi = '';
-        if (transaction.kategori === 'Penjualan Inventaris' && transaction.referensi?.startsWith('inventory_sale:')) {
-          // For inventory sales, use special logic to combine keuangan.deskripsi + catatan info
-          // CRITICAL: This function now ALWAYS uses inventaris.nama_barang if available
-          finalDeskripsi = buildInventorySaleDescription(
-            transaction.deskripsi || '',
-            catatanFromInventaris,
-            inventoryTx,
-            transaction.penerima_pembayar || null
-          );
-          
-          // Final safety check: if finalDeskripsi still doesn't have item name and we have inventoryTx, force rebuild
-          if (inventoryTx?.inventaris?.nama_barang && 
-              !finalDeskripsi.includes(inventoryTx.inventaris.nama_barang) &&
-              !finalDeskripsi.match(/^.+?\s+\(\d+\s+unit\)/i)) {
-            // Rebuild dengan memaksa menggunakan nama_barang
-            const itemName = inventoryTx.inventaris.nama_barang;
-            const jumlah = inventoryTx.jumlah || '';
-            finalDeskripsi = `${itemName} (${jumlah} unit)`;
-            if (transaction.penerima_pembayar) {
-              finalDeskripsi += ` / ${transaction.penerima_pembayar}`;
-            }
-          }
-        } else {
-          // For other transactions, use catatan if available, otherwise use deskripsi
-          finalDeskripsi = catatanFromInventaris || transaction.deskripsi || '';
-        }
+        // Build description - use deskripsi from keuangan table directly
+        // (transaksi_inventaris feature deprecated)
+        const finalDeskripsi = transaction.deskripsi || '';
         
         // Clean description (remove "Sumbangan: Rp 0" and hajat from donasi)
         const cleanedDeskripsi = cleanDescription(finalDeskripsi, transaction.kategori);
@@ -549,8 +397,10 @@ const KeuanganV3: React.FC = () => {
         // Tidak ada special handling untuk tracking nominal - semua transaksi di tabel keuangan adalah uang nyata
         const displayCategory = transaction.kategori || 'Lainnya';
         
-        // Map alokasi_pengeluaran_santri ke alokasi_santri untuk kompatibilitas
-        const alokasiSantri = transaction.alokasi_pengeluaran_santri || [];
+        // Map alokasi_layanan_santri ke alokasi_santri untuk kompatibilitas
+        // Filter hanya yang sumber_alokasi = 'manual' (exclude overhead)
+        const alokasiSantri = (transaction.alokasi_layanan_santri || [])
+          .filter((alloc: any) => alloc.sumber_alokasi === 'manual') || [];
         // Map rincian_pengeluaran ke rincian_items untuk kompatibilitas dengan TransactionDetailModal
         const rincianItems = transaction.rincian_pengeluaran || transaction.rincian_items || [];
         
@@ -1044,7 +894,7 @@ const KeuanganV3: React.FC = () => {
         (!alokasiSantri || alokasiSantri.length === 0)) {
       try {
         const { data: alokasiData, error: alokasiError } = await supabase
-          .from('alokasi_pengeluaran_santri')
+          .from('alokasi_layanan_santri')
           .select(`
             id,
             santri_id,
@@ -1059,7 +909,8 @@ const KeuanganV3: React.FC = () => {
               id_santri
             )
           `)
-          .eq('keuangan_id', transaction.id);
+          .eq('keuangan_id', transaction.id)
+          .eq('sumber_alokasi', 'manual');
         
         if (!alokasiError && alokasiData) {
           alokasiSantri = alokasiData;

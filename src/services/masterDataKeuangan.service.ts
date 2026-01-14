@@ -58,6 +58,9 @@ export interface MasterKategoriPengeluaran {
   aktif: boolean;
   created_at: string;
   updated_at: string;
+  // Unified master data fields
+  tipe_alokasi?: string | null;
+  santri_ids?: string[] | null;
   // Joined data
   sub_kategori?: MasterSubKategoriPengeluaran[];
   santri_mapping?: KategoriSantriMapping;
@@ -94,6 +97,9 @@ export interface MasterSubKategoriPengeluaran {
   aktif: boolean;
   created_at: string;
   updated_at: string;
+  // Unified master data fields
+  tipe_alokasi?: string | null;
+  santri_ids?: string[] | null;
   // Joined data
   santri_mapping?: SubKategoriSantriMapping;
 }
@@ -121,7 +127,7 @@ export interface UpdateSubKategoriPengeluaranData {
 export interface KategoriSantriMapping {
   id: string;
   kategori_id: string;
-  tipe_alokasi: 'tidak_dialokasikan' | 'seluruh_binaan_mukim' | 'pilih_santri';
+  tipe_alokasi: 'tidak_dialokasikan' | 'overhead' | 'pilih_santri';
   deskripsi?: string;
   aktif: boolean;
   created_at: string;
@@ -136,7 +142,7 @@ export interface KategoriSantriMapping {
 
 export interface CreateKategoriSantriMappingData {
   kategori_id: string;
-  tipe_alokasi: 'tidak_dialokasikan' | 'seluruh_binaan_mukim' | 'pilih_santri';
+  tipe_alokasi: 'tidak_dialokasikan' | 'overhead' | 'pilih_santri' | 'seluruh_binaan_mukim'; // 'seluruh_binaan_mukim' mapped to 'overhead'
   deskripsi?: string;
   santri_ids?: string[]; // Hanya untuk tipe 'pilih_santri'
 }
@@ -144,7 +150,7 @@ export interface CreateKategoriSantriMappingData {
 export interface SubKategoriSantriMapping {
   id: string;
   sub_kategori_id: string;
-  tipe_alokasi: 'tidak_dialokasikan' | 'seluruh_binaan_mukim' | 'pilih_santri';
+  tipe_alokasi: 'tidak_dialokasikan' | 'overhead' | 'pilih_santri';
   deskripsi?: string;
   aktif: boolean;
   created_at: string;
@@ -159,7 +165,7 @@ export interface SubKategoriSantriMapping {
 
 export interface CreateSubKategoriSantriMappingData {
   sub_kategori_id: string;
-  tipe_alokasi: 'tidak_dialokasikan' | 'seluruh_binaan_mukim' | 'pilih_santri';
+  tipe_alokasi: 'tidak_dialokasikan' | 'overhead' | 'pilih_santri' | 'seluruh_binaan_mukim'; // 'seluruh_binaan_mukim' mapped to 'overhead'
   deskripsi?: string;
   santri_ids?: string[]; // Hanya untuk tipe 'pilih_santri'
 }
@@ -179,8 +185,9 @@ export class MasterDataKeuanganService {
   static async getPilarLayanan(aktifOnly: boolean = false): Promise<MasterPilarLayanan[]> {
     try {
       let query = supabase
-        .from('master_pilar_layanan')
-        .select('*')
+        .from('master_data_keuangan')
+        .select('id, kode, nama, deskripsi, urutan, warna_badge, aktif, created_at, updated_at')
+        .eq('level', 'pilar')
         .order('urutan', { ascending: true })
         .order('nama', { ascending: true });
 
@@ -191,7 +198,7 @@ export class MasterDataKeuanganService {
       const { data, error } = await query;
       if (error) throw error;
 
-      return data || [];
+      return (data || []) as MasterPilarLayanan[];
     } catch (error) {
       console.error('Error getting pilar layanan:', error);
       throw error;
@@ -204,8 +211,9 @@ export class MasterDataKeuanganService {
   static async getPilarLayananByKode(kode: string): Promise<MasterPilarLayanan | null> {
     try {
       const { data, error } = await supabase
-        .from('master_pilar_layanan')
-        .select('*')
+        .from('master_data_keuangan')
+        .select('id, kode, nama, deskripsi, urutan, warna_badge, aktif, created_at, updated_at')
+        .eq('level', 'pilar')
         .eq('kode', kode)
         .single();
 
@@ -214,7 +222,7 @@ export class MasterDataKeuanganService {
         throw error;
       }
 
-      return data;
+      return data as MasterPilarLayanan;
     } catch (error) {
       console.error('Error getting pilar layanan by kode:', error);
       throw error;
@@ -227,19 +235,26 @@ export class MasterDataKeuanganService {
   static async createPilarLayanan(data: CreatePilarLayananData): Promise<MasterPilarLayanan> {
     try {
       const { data: pilar, error } = await supabase
-        .from('master_pilar_layanan')
+        .from('master_data_keuangan')
         .insert({
+          level: 'pilar',
           kode: data.kode.toLowerCase().replace(/\s+/g, '_'),
           nama: data.nama,
           deskripsi: data.deskripsi || null,
           urutan: data.urutan || 0,
           warna_badge: data.warna_badge || null,
+          parent_id: null,
+          jenis: null,
+          ledger: null,
+          pilar_layanan_kode: null,
+          tipe_alokasi: null,
+          santri_ids: null,
         })
-        .select()
+        .select('id, kode, nama, deskripsi, urutan, warna_badge, aktif, created_at, updated_at')
         .single();
 
       if (error) throw error;
-      return pilar;
+      return pilar as MasterPilarLayanan;
     } catch (error) {
       console.error('Error creating pilar layanan:', error);
       throw error;
@@ -252,7 +267,7 @@ export class MasterDataKeuanganService {
   static async updatePilarLayanan(id: string, data: UpdatePilarLayananData): Promise<void> {
     try {
       const { error } = await supabase
-        .from('master_pilar_layanan')
+        .from('master_data_keuangan')
         .update({
           ...(data.nama && { nama: data.nama }),
           ...(data.deskripsi !== undefined && { deskripsi: data.deskripsi || null }),
@@ -260,7 +275,8 @@ export class MasterDataKeuanganService {
           ...(data.warna_badge !== undefined && { warna_badge: data.warna_badge || null }),
           ...(data.aktif !== undefined && { aktif: data.aktif }),
         })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('level', 'pilar');
 
       if (error) throw error;
     } catch (error) {
@@ -275,9 +291,10 @@ export class MasterDataKeuanganService {
   static async deletePilarLayanan(id: string): Promise<void> {
     try {
       const { error } = await supabase
-        .from('master_pilar_layanan')
+        .from('master_data_keuangan')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('level', 'pilar');
 
       if (error) throw error;
     } catch (error) {
@@ -290,33 +307,35 @@ export class MasterDataKeuanganService {
    * Check pilar layanan usage
    */
   static async checkPilarLayananUsage(kode: string): Promise<{
-    ledger_layanan_santri: number;
+    realisasi_layanan_santri: number;
     rancangan_anggaran: number;
     kategori_pengeluaran: number;
     sub_kategori_pengeluaran: number;
   }> {
     try {
-      // Check ledger_layanan_santri
-      const { count: ledgerCount } = await supabase
-        .from('ledger_layanan_santri')
+      // Check realisasi_layanan_santri
+      const { count: realisasiCount } = await supabase
+        .from('realisasi_layanan_santri')
         .select('*', { count: 'exact', head: true })
         .eq('pilar_layanan', kode);
 
       // Check kategori_pengeluaran
       // NOTE: rancangan_anggaran_layanan sudah dihapus, tidak perlu check lagi
       const { count: kategoriCount } = await supabase
-        .from('master_kategori_pengeluaran')
+        .from('master_data_keuangan')
         .select('*', { count: 'exact', head: true })
+        .eq('level', 'kategori')
         .eq('pilar_layanan_kode', kode);
 
       // Check sub_kategori_pengeluaran
       const { count: subKategoriCount } = await supabase
-        .from('master_sub_kategori_pengeluaran')
+        .from('master_data_keuangan')
         .select('*', { count: 'exact', head: true })
+        .eq('level', 'sub_kategori')
         .eq('pilar_layanan_kode', kode);
 
       return {
-        ledger_layanan_santri: ledgerCount || 0,
+        realisasi_layanan_santri: realisasiCount || 0,
         rancangan_anggaran: 0, // Tabel sudah dihapus
         kategori_pengeluaran: kategoriCount || 0,
         sub_kategori_pengeluaran: subKategoriCount || 0,
@@ -339,12 +358,25 @@ export class MasterDataKeuanganService {
     aktifOnly?: boolean;
   }): Promise<MasterKategoriPengeluaran[]> {
     try {
+      // Query categories first (tanpa nested select)
       let query = supabase
-        .from('master_kategori_pengeluaran')
+        .from('master_data_keuangan')
         .select(`
-          *,
-          pilar_layanan:master_pilar_layanan(*)
+          id,
+          nama,
+          jenis,
+          ledger,
+          kode,
+          parent_id,
+          deskripsi,
+          urutan,
+          aktif,
+          created_at,
+          updated_at,
+          tipe_alokasi,
+          santri_ids
         `)
+        .eq('level', 'kategori')
         .eq('ledger', 'UMUM')
         .order('urutan', { ascending: true })
         .order('nama', { ascending: true });
@@ -357,13 +389,59 @@ export class MasterDataKeuanganService {
         query = query.eq('aktif', true);
       }
 
-      const { data, error } = await query;
+      const { data: categoriesData, error } = await query;
       if (error) throw error;
 
-      return (data || []).map(item => ({
-        ...item,
-        pilar_layanan: item.pilar_layanan || undefined,
-      }));
+      // Get parent pilar IDs
+      const parentIds = [...new Set((categoriesData || [])
+        .map(item => item.parent_id)
+        .filter(Boolean))];
+
+      // Fetch pilar data separately using parent_id
+      let pilarDataMap: Record<string, any> = {};
+      if (parentIds.length > 0) {
+        const { data: pilarDataResult } = await supabase
+          .from('master_data_keuangan')
+          .select('id, kode, nama, deskripsi, urutan, warna_badge, aktif, created_at, updated_at')
+          .eq('level', 'pilar')
+          .in('id', parentIds);
+        
+        if (pilarDataResult) {
+          pilarDataResult.forEach(pilar => {
+            pilarDataMap[pilar.id] = pilar;
+          });
+        }
+      }
+
+      // Map categories with pilar data
+      return (categoriesData || []).map(item => {
+        const pilar = item.parent_id ? pilarDataMap[item.parent_id] : null;
+        return {
+          id: item.id,
+          nama: item.nama,
+          jenis: item.jenis as 'Pemasukan' | 'Pengeluaran',
+          ledger: item.ledger as 'UMUM',
+          pilar_layanan_kode: pilar?.kode || null,
+          pilar_layanan: pilar ? {
+            id: pilar.id,
+            kode: pilar.kode,
+            nama: pilar.nama,
+            deskripsi: pilar.deskripsi,
+            urutan: pilar.urutan,
+            warna_badge: pilar.warna_badge,
+            aktif: pilar.aktif,
+            created_at: pilar.created_at,
+            updated_at: pilar.updated_at,
+          } : undefined,
+          deskripsi: item.deskripsi || undefined,
+          urutan: item.urutan,
+          aktif: item.aktif,
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          tipe_alokasi: item.tipe_alokasi,
+          santri_ids: item.santri_ids || [],
+        };
+      });
     } catch (error) {
       console.error('Error getting kategori pengeluaran:', error);
       throw error;
@@ -375,13 +453,26 @@ export class MasterDataKeuanganService {
    */
   static async getKategoriPengeluaranById(id: string): Promise<MasterKategoriPengeluaran | null> {
     try {
-      const { data, error } = await supabase
-        .from('master_kategori_pengeluaran')
+      // Query category first (tanpa nested select)
+      const { data: categoryData, error } = await supabase
+        .from('master_data_keuangan')
         .select(`
-          *,
-          pilar_layanan:master_pilar_layanan(*)
+          id,
+          nama,
+          jenis,
+          ledger,
+          kode,
+          parent_id,
+          deskripsi,
+          urutan,
+          aktif,
+          created_at,
+          updated_at,
+          tipe_alokasi,
+          santri_ids
         `)
         .eq('id', id)
+        .eq('level', 'kategori')
         .single();
 
       if (error) {
@@ -389,9 +480,45 @@ export class MasterDataKeuanganService {
         throw error;
       }
 
+      // Fetch pilar data separately if parent_id exists
+      let pilarLayanan: MasterPilarLayanan | undefined = undefined;
+      if (categoryData.parent_id) {
+        const { data: pilarData } = await supabase
+          .from('master_data_keuangan')
+          .select('id, kode, nama, deskripsi, urutan, warna_badge, aktif, created_at, updated_at')
+          .eq('id', categoryData.parent_id)
+          .eq('level', 'pilar')
+          .single();
+        
+        if (pilarData) {
+          pilarLayanan = {
+            id: pilarData.id,
+            kode: pilarData.kode,
+            nama: pilarData.nama,
+            deskripsi: pilarData.deskripsi,
+            urutan: pilarData.urutan,
+            warna_badge: pilarData.warna_badge,
+            aktif: pilarData.aktif,
+            created_at: pilarData.created_at,
+            updated_at: pilarData.updated_at,
+          };
+        }
+      }
+      
       return {
-        ...data,
-        pilar_layanan: data.pilar_layanan || undefined,
+        id: categoryData.id,
+        nama: categoryData.nama,
+        jenis: categoryData.jenis as 'Pemasukan' | 'Pengeluaran',
+        ledger: 'UMUM' as const,
+        pilar_layanan_kode: pilarLayanan?.kode || undefined,
+        pilar_layanan: pilarLayanan,
+        deskripsi: categoryData.deskripsi || undefined,
+        urutan: categoryData.urutan,
+        aktif: categoryData.aktif,
+        created_at: categoryData.created_at,
+        updated_at: categoryData.updated_at,
+        tipe_alokasi: categoryData.tipe_alokasi,
+        santri_ids: categoryData.santri_ids || [],
       };
     } catch (error) {
       console.error('Error getting kategori pengeluaran by id:', error);
@@ -406,27 +533,94 @@ export class MasterDataKeuanganService {
     data: CreateKategoriPengeluaranData
   ): Promise<MasterKategoriPengeluaran> {
     try {
+      // Find parent pilar if pilar_layanan_kode provided
+      let parentId: string | null = null;
+      if (data.pilar_layanan_kode) {
+        const { data: pilarData } = await supabase
+          .from('master_data_keuangan')
+          .select('id')
+          .eq('level', 'pilar')
+          .eq('kode', data.pilar_layanan_kode)
+          .single();
+        
+        if (pilarData) {
+          parentId = pilarData.id;
+        }
+      }
+
       const { data: kategori, error } = await supabase
-        .from('master_kategori_pengeluaran')
+        .from('master_data_keuangan')
         .insert({
+          level: 'kategori',
           nama: data.nama,
           jenis: data.jenis,
           ledger: 'UMUM',
           pilar_layanan_kode: data.pilar_layanan_kode || null,
           deskripsi: data.deskripsi || null,
           urutan: data.urutan || 0,
+          parent_id: parentId,
+          kode: null,
+          tipe_alokasi: 'tidak_dialokasikan',
+          santri_ids: [],
         })
         .select(`
-          *,
-          pilar_layanan:master_pilar_layanan(*)
+          id,
+          nama,
+          jenis,
+          ledger,
+          kode,
+          parent_id,
+          deskripsi,
+          urutan,
+          aktif,
+          created_at,
+          updated_at,
+          tipe_alokasi,
+          santri_ids
         `)
         .single();
 
       if (error) throw error;
 
+      // Fetch pilar data separately if parent_id exists
+      let pilarLayanan: MasterPilarLayanan | undefined = undefined;
+      if (kategori.parent_id) {
+        const { data: pilarData } = await supabase
+          .from('master_data_keuangan')
+          .select('id, kode, nama, deskripsi, urutan, warna_badge, aktif, created_at, updated_at')
+          .eq('id', kategori.parent_id)
+          .eq('level', 'pilar')
+          .single();
+        
+        if (pilarData) {
+          pilarLayanan = {
+            id: pilarData.id,
+            kode: pilarData.kode,
+            nama: pilarData.nama,
+            deskripsi: pilarData.deskripsi,
+            urutan: pilarData.urutan,
+            warna_badge: pilarData.warna_badge,
+            aktif: pilarData.aktif,
+            created_at: pilarData.created_at,
+            updated_at: pilarData.updated_at,
+          };
+        }
+      }
+
       return {
-        ...kategori,
-        pilar_layanan: kategori.pilar_layanan || undefined,
+        id: kategori.id,
+        nama: kategori.nama,
+        jenis: kategori.jenis as 'Pemasukan' | 'Pengeluaran',
+        ledger: 'UMUM' as const,
+        pilar_layanan_kode: pilarLayanan?.kode || undefined,
+        pilar_layanan: pilarLayanan,
+        deskripsi: kategori.deskripsi || undefined,
+        urutan: kategori.urutan,
+        aktif: kategori.aktif,
+        created_at: kategori.created_at,
+        updated_at: kategori.updated_at,
+        tipe_alokasi: kategori.tipe_alokasi,
+        santri_ids: kategori.santri_ids || [],
       };
     } catch (error) {
       console.error('Error creating kategori pengeluaran:', error);
@@ -443,7 +637,7 @@ export class MasterDataKeuanganService {
   ): Promise<void> {
     try {
       const { error } = await supabase
-        .from('master_kategori_pengeluaran')
+        .from('master_data_keuangan')
         .update({
           ...(data.nama && { nama: data.nama }),
           ...(data.pilar_layanan_kode !== undefined && {
@@ -453,7 +647,8 @@ export class MasterDataKeuanganService {
           ...(data.urutan !== undefined && { urutan: data.urutan }),
           ...(data.aktif !== undefined && { aktif: data.aktif }),
         })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('level', 'kategori');
 
       if (error) throw error;
     } catch (error) {
@@ -468,9 +663,10 @@ export class MasterDataKeuanganService {
   static async deleteKategoriPengeluaran(id: string): Promise<void> {
     try {
       const { error } = await supabase
-        .from('master_kategori_pengeluaran')
+        .from('master_data_keuangan')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('level', 'kategori');
 
       if (error) throw error;
     } catch (error) {
@@ -484,10 +680,21 @@ export class MasterDataKeuanganService {
    */
   static async checkKategoriUsage(id: string): Promise<number> {
     try {
+      // Get nama kategori dari master_data_keuangan
+      const { data: kategori, error: kategoriError } = await supabase
+        .from('master_data_keuangan')
+        .select('nama')
+        .eq('id', id)
+        .eq('level', 'kategori')
+        .single();
+
+      if (kategoriError || !kategori) return 0;
+
+      // Check usage di keuangan berdasarkan nama kategori
       const { count, error } = await supabase
         .from('keuangan')
         .select('*', { count: 'exact', head: true })
-        .eq('kategori', id);
+        .eq('kategori', kategori.nama);
 
       if (error) throw error;
       return count || 0;
@@ -508,22 +715,77 @@ export class MasterDataKeuanganService {
     kategoriId: string
   ): Promise<MasterSubKategoriPengeluaran[]> {
     try {
-      const { data, error } = await supabase
-        .from('master_sub_kategori_pengeluaran')
+      // Query sub categories first (tanpa nested select)
+      const { data: subKategoriData, error } = await supabase
+        .from('master_data_keuangan')
         .select(`
-          *,
-          pilar_layanan:master_pilar_layanan(*)
+          id,
+          parent_id,
+          nama,
+          pilar_layanan_kode,
+          deskripsi,
+          urutan,
+          aktif,
+          created_at,
+          updated_at,
+          tipe_alokasi,
+          santri_ids
         `)
-        .eq('kategori_id', kategoriId)
+        .eq('level', 'sub_kategori')
+        .eq('parent_id', kategoriId)
         .order('urutan', { ascending: true })
         .order('nama', { ascending: true });
 
       if (error) throw error;
 
-      return (data || []).map(item => ({
-        ...item,
-        pilar_layanan: item.pilar_layanan || undefined,
-      }));
+      // Get pilar kode yang digunakan
+      const pilarKodes = [...new Set((subKategoriData || [])
+        .map(item => item.pilar_layanan_kode)
+        .filter(Boolean))];
+
+      // Fetch pilar data separately
+      let pilarDataMap: Record<string, any> = {};
+      if (pilarKodes.length > 0) {
+        const { data: pilarDataResult } = await supabase
+          .from('master_data_keuangan')
+          .select('id, kode, nama, deskripsi, urutan, warna_badge, aktif, created_at, updated_at')
+          .eq('level', 'pilar')
+          .in('kode', pilarKodes);
+        
+        if (pilarDataResult) {
+          pilarDataResult.forEach(pilar => {
+            pilarDataMap[pilar.kode] = pilar;
+          });
+        }
+      }
+
+      return (subKategoriData || []).map(item => {
+        const pilar = item.pilar_layanan_kode ? pilarDataMap[item.pilar_layanan_kode] : null;
+        return {
+          id: item.id,
+          kategori_id: item.parent_id,
+          nama: item.nama,
+          pilar_layanan_kode: item.pilar_layanan_kode || undefined,
+          pilar_layanan: pilar ? {
+            id: pilar.id,
+            kode: pilar.kode,
+            nama: pilar.nama,
+            deskripsi: pilar.deskripsi,
+            urutan: pilar.urutan,
+            warna_badge: pilar.warna_badge,
+            aktif: pilar.aktif,
+            created_at: pilar.created_at,
+            updated_at: pilar.updated_at,
+          } : undefined,
+          deskripsi: item.deskripsi || undefined,
+          urutan: item.urutan,
+          aktif: item.aktif,
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          tipe_alokasi: item.tipe_alokasi,
+          santri_ids: item.santri_ids || [],
+        };
+      });
     } catch (error) {
       console.error('Error getting sub kategori:', error);
       throw error;
@@ -540,9 +802,10 @@ export class MasterDataKeuanganService {
       if (kategoriIds.length === 0) return {};
 
       const { data, error } = await supabase
-        .from('master_sub_kategori_pengeluaran')
-        .select('kategori_id')
-        .in('kategori_id', kategoriIds);
+        .from('master_data_keuangan')
+        .select('parent_id')
+        .eq('level', 'sub_kategori')
+        .in('parent_id', kategoriIds);
 
       if (error) throw error;
 
@@ -553,8 +816,8 @@ export class MasterDataKeuanganService {
       });
 
       (data || []).forEach(item => {
-        if (counts[item.kategori_id] !== undefined) {
-          counts[item.kategori_id] = (counts[item.kategori_id] || 0) + 1;
+        if (counts[item.parent_id] !== undefined) {
+          counts[item.parent_id] = (counts[item.parent_id] || 0) + 1;
         }
       });
 
@@ -573,25 +836,75 @@ export class MasterDataKeuanganService {
   ): Promise<MasterSubKategoriPengeluaran> {
     try {
       const { data: subKategori, error } = await supabase
-        .from('master_sub_kategori_pengeluaran')
+        .from('master_data_keuangan')
         .insert({
-          kategori_id: data.kategori_id,
+          level: 'sub_kategori',
+          parent_id: data.kategori_id,
           nama: data.nama,
           pilar_layanan_kode: data.pilar_layanan_kode || null,
           deskripsi: data.deskripsi || null,
           urutan: data.urutan || 0,
+          kode: null,
+          jenis: null,
+          ledger: null,
+          tipe_alokasi: 'tidak_dialokasikan',
+          santri_ids: [],
         })
         .select(`
-          *,
-          pilar_layanan:master_pilar_layanan(*)
+          id,
+          parent_id,
+          nama,
+          pilar_layanan_kode,
+          deskripsi,
+          urutan,
+          aktif,
+          created_at,
+          updated_at,
+          tipe_alokasi,
+          santri_ids
         `)
         .single();
 
       if (error) throw error;
 
+      // Fetch pilar data separately if pilar_layanan_kode exists
+      let pilarLayanan: MasterPilarLayanan | undefined = undefined;
+      if (subKategori.pilar_layanan_kode) {
+        const { data: pilarData } = await supabase
+          .from('master_data_keuangan')
+          .select('id, kode, nama, deskripsi, urutan, warna_badge, aktif, created_at, updated_at')
+          .eq('level', 'pilar')
+          .eq('kode', subKategori.pilar_layanan_kode)
+          .single();
+        
+        if (pilarData) {
+          pilarLayanan = {
+            id: pilarData.id,
+            kode: pilarData.kode,
+            nama: pilarData.nama,
+            deskripsi: pilarData.deskripsi,
+            urutan: pilarData.urutan,
+            warna_badge: pilarData.warna_badge,
+            aktif: pilarData.aktif,
+            created_at: pilarData.created_at,
+            updated_at: pilarData.updated_at,
+          };
+        }
+      }
+
       return {
-        ...subKategori,
-        pilar_layanan: subKategori.pilar_layanan || undefined,
+        id: subKategori.id,
+        kategori_id: subKategori.parent_id,
+        nama: subKategori.nama,
+        pilar_layanan_kode: subKategori.pilar_layanan_kode || undefined,
+        pilar_layanan: pilarLayanan,
+        deskripsi: subKategori.deskripsi || undefined,
+        urutan: subKategori.urutan,
+        aktif: subKategori.aktif,
+        created_at: subKategori.created_at,
+        updated_at: subKategori.updated_at,
+        tipe_alokasi: subKategori.tipe_alokasi,
+        santri_ids: subKategori.santri_ids || [],
       };
     } catch (error) {
       console.error('Error creating sub kategori:', error);
@@ -608,7 +921,7 @@ export class MasterDataKeuanganService {
   ): Promise<void> {
     try {
       const { error } = await supabase
-        .from('master_sub_kategori_pengeluaran')
+        .from('master_data_keuangan')
         .update({
           ...(data.nama && { nama: data.nama }),
           ...(data.pilar_layanan_kode !== undefined && {
@@ -618,7 +931,8 @@ export class MasterDataKeuanganService {
           ...(data.urutan !== undefined && { urutan: data.urutan }),
           ...(data.aktif !== undefined && { aktif: data.aktif }),
         })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('level', 'sub_kategori');
 
       if (error) throw error;
     } catch (error) {
@@ -633,9 +947,10 @@ export class MasterDataKeuanganService {
   static async deleteSubKategori(id: string): Promise<void> {
     try {
       const { error } = await supabase
-        .from('master_sub_kategori_pengeluaran')
+        .from('master_data_keuangan')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('level', 'sub_kategori');
 
       if (error) throw error;
     } catch (error) {
@@ -656,28 +971,52 @@ export class MasterDataKeuanganService {
   ): Promise<KategoriSantriMapping | null> {
     try {
       const { data, error } = await supabase
-        .from('master_kategori_santri_mapping')
-        .select('*')
-        .eq('kategori_id', kategoriId)
-        .eq('aktif', true)
-        .maybeSingle();
+        .from('master_data_keuangan')
+        .select('id, tipe_alokasi, deskripsi, aktif, created_at, updated_at, santri_ids')
+        .eq('id', kategoriId)
+        .eq('level', 'kategori')
+        .single();
 
       if (error) {
+        if (error.code === 'PGRST116') return null;
         throw error;
       }
 
       if (!data) return null;
 
-      // Load santri list jika tipe = 'pilih_santri'
-      if (data.tipe_alokasi === 'pilih_santri') {
-        const santriList = await this.getKategoriSantriListByMapping(data.id);
-        return {
-          ...data,
-          santri_list: santriList,
-        };
+      // Map 'seluruh_binaan_mukim' to 'overhead' for backward compatibility
+      let tipeAlokasi = (data.tipe_alokasi || 'tidak_dialokasikan') as 'tidak_dialokasikan' | 'overhead' | 'pilih_santri';
+      if (tipeAlokasi === 'seluruh_binaan_mukim' as any) {
+        tipeAlokasi = 'overhead';
+      }
+      const mapping: KategoriSantriMapping = {
+        id: data.id,
+        kategori_id: kategoriId,
+        tipe_alokasi: tipeAlokasi,
+        deskripsi: data.deskripsi || undefined,
+        aktif: data.aktif,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      };
+
+      // Load santri list jika tipe = 'pilih_santri' dan ada santri_ids
+      if (tipeAlokasi === 'pilih_santri' && data.santri_ids && Array.isArray(data.santri_ids) && data.santri_ids.length > 0) {
+        const santriIds = data.santri_ids as string[];
+        const { data: santriData, error: santriError } = await supabase
+          .from('santri')
+          .select('id, nama_lengkap, id_santri')
+          .in('id', santriIds);
+
+        if (!santriError && santriData) {
+          mapping.santri_list = santriData.map(santri => ({
+            santri_id: santri.id,
+            santri_nama: santri.nama_lengkap,
+            santri_id_santri: santri.id_santri || undefined,
+          }));
+        }
       }
 
-      return data;
+      return mapping;
     } catch (error) {
       console.error('Error getting kategori santri mapping:', error);
       throw error;
@@ -693,8 +1032,9 @@ export class MasterDataKeuanganService {
     try {
       // Cari kategori dulu
       const { data: kategori, error: kategoriError } = await supabase
-        .from('master_kategori_pengeluaran')
+        .from('master_data_keuangan')
         .select('id')
+        .eq('level', 'kategori')
         .eq('nama', namaKategori)
         .eq('ledger', 'UMUM')
         .single();
@@ -709,46 +1049,190 @@ export class MasterDataKeuanganService {
   }
 
   /**
+   * Get kategori by nama
+   */
+  static async getKategoriByNama(nama: string): Promise<MasterKategoriPengeluaran | null> {
+    try {
+      // Query category first - jangan include kode karena kategori tidak punya kode
+      // Use ilike with exact pattern for case-insensitive exact match
+      // This handles URL encoding better than eq with spaces
+      const { data: categoryData, error } = await supabase
+        .from('master_data_keuangan')
+        .select('id, nama, jenis, ledger, pilar_layanan_kode, parent_id, deskripsi, urutan, aktif, created_at, updated_at, tipe_alokasi, santri_ids')
+        .eq('level', 'kategori')
+        .ilike('nama', nama.replace(/%/g, '\\%').replace(/_/g, '\\_')) // Escape special chars and use ilike for exact match
+        .eq('ledger', 'UMUM')
+        .eq('aktif', true)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error getting kategori by nama:', error, { nama });
+        throw error;
+      }
+      if (!categoryData) return null;
+      
+      // Fetch pilar data separately using pilar_layanan_kode
+      let pilarLayanan: MasterPilarLayanan | undefined = undefined;
+      if (categoryData.pilar_layanan_kode) {
+        const { data: pilarData } = await supabase
+          .from('master_data_keuangan')
+          .select('id, kode, nama, deskripsi, urutan, warna_badge, aktif, created_at, updated_at')
+          .eq('level', 'pilar')
+          .eq('kode', categoryData.pilar_layanan_kode)
+          .single();
+        
+        if (pilarData) {
+          pilarLayanan = {
+            id: pilarData.id,
+            kode: pilarData.kode,
+            nama: pilarData.nama,
+            deskripsi: pilarData.deskripsi,
+            urutan: pilarData.urutan,
+            warna_badge: pilarData.warna_badge,
+            aktif: pilarData.aktif,
+            created_at: pilarData.created_at,
+            updated_at: pilarData.updated_at,
+          };
+        }
+      } else if (categoryData.parent_id) {
+        // Alternative: try to find pilar by parent_id if pilar_layanan_kode is null
+        const { data: pilarData } = await supabase
+          .from('master_data_keuangan')
+          .select('id, kode, nama, deskripsi, urutan, warna_badge, aktif, created_at, updated_at')
+          .eq('id', categoryData.parent_id)
+          .eq('level', 'pilar')
+          .maybeSingle();
+        
+        if (pilarData) {
+          pilarLayanan = {
+            id: pilarData.id,
+            kode: pilarData.kode,
+            nama: pilarData.nama,
+            deskripsi: pilarData.deskripsi,
+            urutan: pilarData.urutan,
+            warna_badge: pilarData.warna_badge,
+            aktif: pilarData.aktif,
+            created_at: pilarData.created_at,
+            updated_at: pilarData.updated_at,
+          };
+        }
+      }
+      
+      return {
+        id: categoryData.id,
+        nama: categoryData.nama,
+        jenis: categoryData.jenis as 'Pemasukan' | 'Pengeluaran',
+        ledger: 'UMUM' as const,
+        pilar_layanan_kode: pilarLayanan?.kode || categoryData.pilar_layanan_kode || undefined,
+        pilar_layanan: pilarLayanan,
+        deskripsi: categoryData.deskripsi || undefined,
+        urutan: categoryData.urutan,
+        aktif: categoryData.aktif,
+        created_at: categoryData.created_at,
+        updated_at: categoryData.updated_at,
+        tipe_alokasi: categoryData.tipe_alokasi || null,
+        santri_ids: categoryData.santri_ids || [],
+      };
+    } catch (error) {
+      console.error('Error getting kategori by nama:', error, { nama });
+      return null;
+    }
+  }
+
+  /**
+   * Get sub kategori by nama
+   */
+  static async getSubKategoriByNama(nama: string): Promise<MasterSubKategoriPengeluaran | null> {
+    try {
+      // Query sub category first - jangan include kode karena sub_kategori tidak punya kode
+      // Use ilike with exact pattern for case-insensitive exact match
+      // This handles URL encoding better than eq with spaces
+      const { data: subKategoriData, error } = await supabase
+        .from('master_data_keuangan')
+        .select('id, parent_id, nama, pilar_layanan_kode, deskripsi, urutan, aktif, created_at, updated_at, tipe_alokasi, santri_ids')
+        .eq('level', 'sub_kategori')
+        .ilike('nama', nama.replace(/%/g, '\\%').replace(/_/g, '\\_')) // Escape special chars and use ilike for exact match
+        .eq('aktif', true)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error getting sub kategori by nama:', error, { nama });
+        throw error;
+      }
+      if (!subKategoriData) return null;
+      
+      // Fetch pilar data separately using pilar_layanan_kode
+      let pilarLayanan: MasterPilarLayanan | undefined = undefined;
+      if (subKategoriData.pilar_layanan_kode) {
+        const { data: pilarData } = await supabase
+          .from('master_data_keuangan')
+          .select('id, kode, nama, deskripsi, urutan, warna_badge, aktif, created_at, updated_at')
+          .eq('level', 'pilar')
+          .eq('kode', subKategoriData.pilar_layanan_kode)
+          .maybeSingle();
+        
+        if (pilarData) {
+          pilarLayanan = {
+            id: pilarData.id,
+            kode: pilarData.kode,
+            nama: pilarData.nama,
+            deskripsi: pilarData.deskripsi,
+            urutan: pilarData.urutan,
+            warna_badge: pilarData.warna_badge,
+            aktif: pilarData.aktif,
+            created_at: pilarData.created_at,
+            updated_at: pilarData.updated_at,
+          };
+        }
+      }
+      
+      return {
+        id: subKategoriData.id,
+        kategori_id: subKategoriData.parent_id,
+        nama: subKategoriData.nama,
+        pilar_layanan_kode: pilarLayanan?.kode || subKategoriData.pilar_layanan_kode || undefined,
+        pilar_layanan: pilarLayanan,
+        deskripsi: subKategoriData.deskripsi || undefined,
+        urutan: subKategoriData.urutan,
+        aktif: subKategoriData.aktif,
+        created_at: subKategoriData.created_at,
+        updated_at: subKategoriData.updated_at,
+        tipe_alokasi: subKategoriData.tipe_alokasi || null,
+        santri_ids: subKategoriData.santri_ids || [],
+      };
+    } catch (error) {
+      console.error('Error getting sub kategori by nama:', error, { nama });
+      return null;
+    }
+  }
+
+  /**
    * Save mapping santri untuk kategori
    */
   static async saveKategoriSantriMapping(
     data: CreateKategoriSantriMappingData
   ): Promise<KategoriSantriMapping> {
     try {
-      // Nonaktifkan mapping lama jika ada
-      await supabase
-        .from('master_kategori_santri_mapping')
-        .update({ aktif: false })
-        .eq('kategori_id', data.kategori_id)
-        .eq('aktif', true);
+      // Update mapping langsung di master_data_keuangan
+      const updateData: any = {
+        tipe_alokasi: data.tipe_alokasi === 'seluruh_binaan_mukim' ? 'overhead' : data.tipe_alokasi,
+        ...(data.deskripsi !== undefined && { deskripsi: data.deskripsi || null }),
+      };
 
-      // Insert mapping baru
-      const { data: mapping, error: mappingError } = await supabase
-        .from('master_kategori_santri_mapping')
-        .insert({
-          kategori_id: data.kategori_id,
-          tipe_alokasi: data.tipe_alokasi,
-          deskripsi: data.deskripsi || null,
-          aktif: true,
-        })
-        .select()
-        .single();
-
-      if (mappingError) throw mappingError;
-
-      // Jika tipe = 'pilih_santri', insert santri list
+      // Set santri_ids untuk tipe 'pilih_santri'
       if (data.tipe_alokasi === 'pilih_santri' && data.santri_ids && data.santri_ids.length > 0) {
-        const santriList = data.santri_ids.map(santri_id => ({
-          mapping_id: mapping.id,
-          santri_id,
-        }));
-
-        const { error: listError } = await supabase
-          .from('master_kategori_santri_list')
-          .insert(santriList);
-
-        if (listError) throw listError;
+        updateData.santri_ids = data.santri_ids;
+      } else {
+        updateData.santri_ids = [];
       }
+
+      const { error: updateError } = await supabase
+        .from('master_data_keuangan')
+        .update(updateData)
+        .eq('id', data.kategori_id)
+        .eq('level', 'kategori');
+
+      if (updateError) throw updateError;
 
       return this.getSantriMappingByKategori(data.kategori_id) as Promise<KategoriSantriMapping>;
     } catch (error) {
@@ -758,7 +1242,7 @@ export class MasterDataKeuanganService {
   }
 
   /**
-   * Get santri list untuk mapping kategori
+   * Get santri list untuk mapping kategori (deprecated - use getSantriMappingByKategori instead)
    */
   static async getKategoriSantriListByMapping(
     mappingId: string
@@ -768,20 +1252,31 @@ export class MasterDataKeuanganService {
     santri_id_santri?: string;
   }>> {
     try {
+      // Get mapping data from master_data_keuangan
       const { data, error } = await supabase
-        .from('master_kategori_santri_list')
-        .select(`
-          santri_id,
-          santri:santri_id(id, nama_lengkap, id_santri)
-        `)
-        .eq('mapping_id', mappingId);
+        .from('master_data_keuangan')
+        .select('santri_ids')
+        .eq('id', mappingId)
+        .eq('level', 'kategori')
+        .single();
 
       if (error) throw error;
+      if (!data || !data.santri_ids || !Array.isArray(data.santri_ids)) return [];
 
-      return (data || []).map(item => ({
-        santri_id: item.santri_id,
-        santri_nama: (item.santri as any)?.nama_lengkap || '',
-        santri_id_santri: (item.santri as any)?.id_santri || undefined,
+      const santriIds = data.santri_ids as string[];
+      if (santriIds.length === 0) return [];
+
+      const { data: santriData, error: santriError } = await supabase
+        .from('santri')
+        .select('id, nama_lengkap, id_santri')
+        .in('id', santriIds);
+
+      if (santriError) throw santriError;
+
+      return (santriData || []).map(santri => ({
+        santri_id: santri.id,
+        santri_nama: santri.nama_lengkap,
+        santri_id_santri: santri.id_santri || undefined,
       }));
     } catch (error) {
       console.error('Error getting kategori santri list:', error);
@@ -801,28 +1296,52 @@ export class MasterDataKeuanganService {
   ): Promise<SubKategoriSantriMapping | null> {
     try {
       const { data, error } = await supabase
-        .from('master_sub_kategori_santri_mapping')
-        .select('*')
-        .eq('sub_kategori_id', subKategoriId)
-        .eq('aktif', true)
-        .maybeSingle();
+        .from('master_data_keuangan')
+        .select('id, tipe_alokasi, deskripsi, aktif, created_at, updated_at, santri_ids')
+        .eq('id', subKategoriId)
+        .eq('level', 'sub_kategori')
+        .single();
 
       if (error) {
+        if (error.code === 'PGRST116') return null;
         throw error;
       }
 
       if (!data) return null;
 
-      // Load santri list jika tipe = 'pilih_santri'
-      if (data.tipe_alokasi === 'pilih_santri') {
-        const santriList = await this.getSubKategoriSantriListByMapping(data.id);
-        return {
-          ...data,
-          santri_list: santriList,
-        };
+      // Map 'seluruh_binaan_mukim' to 'overhead' for backward compatibility
+      let tipeAlokasi = (data.tipe_alokasi || 'tidak_dialokasikan') as 'tidak_dialokasikan' | 'overhead' | 'pilih_santri';
+      if (tipeAlokasi === 'seluruh_binaan_mukim' as any) {
+        tipeAlokasi = 'overhead';
+      }
+      const mapping: SubKategoriSantriMapping = {
+        id: data.id,
+        sub_kategori_id: subKategoriId,
+        tipe_alokasi: tipeAlokasi,
+        deskripsi: data.deskripsi || undefined,
+        aktif: data.aktif,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      };
+
+      // Load santri list jika tipe = 'pilih_santri' dan ada santri_ids
+      if (tipeAlokasi === 'pilih_santri' && data.santri_ids && Array.isArray(data.santri_ids) && data.santri_ids.length > 0) {
+        const santriIds = data.santri_ids as string[];
+        const { data: santriData, error: santriError } = await supabase
+          .from('santri')
+          .select('id, nama_lengkap, id_santri')
+          .in('id', santriIds);
+
+        if (!santriError && santriData) {
+          mapping.santri_list = santriData.map(santri => ({
+            santri_id: santri.id,
+            santri_nama: santri.nama_lengkap,
+            santri_id_santri: santri.id_santri || undefined,
+          }));
+        }
       }
 
-      return data;
+      return mapping;
     } catch (error) {
       console.error('Error getting sub kategori santri mapping:', error);
       throw error;
@@ -838,8 +1357,9 @@ export class MasterDataKeuanganService {
     try {
       // Cari sub kategori dulu
       const { data: subKategori, error: subKategoriError } = await supabase
-        .from('master_sub_kategori_pengeluaran')
+        .from('master_data_keuangan')
         .select('id')
+        .eq('level', 'sub_kategori')
         .eq('nama', namaSubKategori)
         .single();
 
@@ -859,40 +1379,26 @@ export class MasterDataKeuanganService {
     data: CreateSubKategoriSantriMappingData
   ): Promise<SubKategoriSantriMapping> {
     try {
-      // Nonaktifkan mapping lama jika ada
-      await supabase
-        .from('master_sub_kategori_santri_mapping')
-        .update({ aktif: false })
-        .eq('sub_kategori_id', data.sub_kategori_id)
-        .eq('aktif', true);
+      // Update mapping langsung di master_data_keuangan
+      const updateData: any = {
+        tipe_alokasi: data.tipe_alokasi === 'seluruh_binaan_mukim' ? 'overhead' : data.tipe_alokasi,
+        ...(data.deskripsi !== undefined && { deskripsi: data.deskripsi || null }),
+      };
 
-      // Insert mapping baru
-      const { data: mapping, error: mappingError } = await supabase
-        .from('master_sub_kategori_santri_mapping')
-        .insert({
-          sub_kategori_id: data.sub_kategori_id,
-          tipe_alokasi: data.tipe_alokasi,
-          deskripsi: data.deskripsi || null,
-          aktif: true,
-        })
-        .select()
-        .single();
-
-      if (mappingError) throw mappingError;
-
-      // Jika tipe = 'pilih_santri', insert santri list
+      // Set santri_ids untuk tipe 'pilih_santri'
       if (data.tipe_alokasi === 'pilih_santri' && data.santri_ids && data.santri_ids.length > 0) {
-        const santriList = data.santri_ids.map(santri_id => ({
-          mapping_id: mapping.id,
-          santri_id,
-        }));
-
-        const { error: listError } = await supabase
-          .from('master_sub_kategori_santri_list')
-          .insert(santriList);
-
-        if (listError) throw listError;
+        updateData.santri_ids = data.santri_ids;
+      } else {
+        updateData.santri_ids = [];
       }
+
+      const { error: updateError } = await supabase
+        .from('master_data_keuangan')
+        .update(updateData)
+        .eq('id', data.sub_kategori_id)
+        .eq('level', 'sub_kategori');
+
+      if (updateError) throw updateError;
 
       return this.getSantriMappingBySubKategori(
         data.sub_kategori_id
@@ -904,7 +1410,7 @@ export class MasterDataKeuanganService {
   }
 
   /**
-   * Get santri list untuk mapping sub kategori
+   * Get santri list untuk mapping sub kategori (deprecated - use getSantriMappingBySubKategori instead)
    */
   static async getSubKategoriSantriListByMapping(
     mappingId: string
@@ -914,20 +1420,31 @@ export class MasterDataKeuanganService {
     santri_id_santri?: string;
   }>> {
     try {
+      // Get mapping data from master_data_keuangan
       const { data, error } = await supabase
-        .from('master_sub_kategori_santri_list')
-        .select(`
-          santri_id,
-          santri:santri_id(id, nama_lengkap, id_santri)
-        `)
-        .eq('mapping_id', mappingId);
+        .from('master_data_keuangan')
+        .select('santri_ids')
+        .eq('id', mappingId)
+        .eq('level', 'sub_kategori')
+        .single();
 
       if (error) throw error;
+      if (!data || !data.santri_ids || !Array.isArray(data.santri_ids)) return [];
 
-      return (data || []).map(item => ({
-        santri_id: item.santri_id,
-        santri_nama: (item.santri as any)?.nama_lengkap || '',
-        santri_id_santri: (item.santri as any)?.id_santri || undefined,
+      const santriIds = data.santri_ids as string[];
+      if (santriIds.length === 0) return [];
+
+      const { data: santriData, error: santriError } = await supabase
+        .from('santri')
+        .select('id, nama_lengkap, id_santri')
+        .in('id', santriIds);
+
+      if (santriError) throw santriError;
+
+      return (santriData || []).map(santri => ({
+        santri_id: santri.id,
+        santri_nama: santri.nama_lengkap,
+        santri_id_santri: santri.id_santri || undefined,
       }));
     } catch (error) {
       console.error('Error getting sub kategori santri list:', error);

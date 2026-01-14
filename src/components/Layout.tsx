@@ -3,14 +3,14 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { canAccessPath, canAccessPathWithUser, canAccessModuleWithUser } from '@/utils/permissions';
-import { 
-  LayoutDashboard, 
-  Users, 
-  BarChart3, 
-  PiggyBank, 
-  Heart, 
-  Package, 
-  ShoppingCart, 
+import {
+  LayoutDashboard,
+  Users,
+  BarChart3,
+  PiggyBank,
+  Heart,
+  Package,
+  ShoppingCart,
   DollarSign,
   LogOut,
   X,
@@ -32,7 +32,9 @@ import {
   FileBarChart,
   Calculator,
   Target,
-  Settings2
+  Target,
+  Settings2,
+  Globe
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -78,7 +80,7 @@ const SidebarContent = () => {
       title: 'DASHBOARD',
       icon: LayoutDashboard,
       items: [
-        { icon: LayoutDashboard, label: 'Executive Overview', path: '/' }
+        { icon: LayoutDashboard, label: 'Executive Overview', path: '/pms' }
       ]
     },
     {
@@ -95,26 +97,26 @@ const SidebarContent = () => {
         // Dashboard Akademik - ditampilkan di paling atas
         { icon: LayoutDashboard, label: 'Dashboard Akademik', path: '/akademik' },
         // Dashboard Pengajar (untuk role pengajar)
-        ...(user?.role === 'pengajar' || user?.roles?.includes('pengajar') 
+        ...(user?.role === 'pengajar' || user?.roles?.includes('pengajar')
           ? [
-              { icon: LayoutDashboard, label: 'Dashboard Pengajar', path: '/akademik/pengajar', dividerBefore: true },
-              { icon: UserIcon, label: 'Profil', path: '/akademik/pengajar/profil' }
-            ]
+            { icon: LayoutDashboard, label: 'Dashboard Pengajar', path: '/akademik/pengajar', dividerBefore: true },
+            { icon: UserIcon, label: 'Profil', path: '/akademik/pengajar/profil' }
+          ]
           : []
         ),
         // Setup & Administrasi - hanya untuk admin
         ...(user?.role === 'admin' || user?.roles?.includes('admin')
           ? [
-        { icon: BookOpen, label: 'Kelas & Plotting', path: '/akademik/kelas', dividerBefore: user?.role === 'pengajar' || user?.roles?.includes('pengajar') },
-            ]
+            { icon: BookOpen, label: 'Kelas & Plotting', path: '/akademik/kelas', dividerBefore: user?.role === 'pengajar' || user?.roles?.includes('pengajar') },
+          ]
           : []
         ),
         // Operasional Harian
         { icon: BookMarked, label: 'Jadwal & Presensi', path: '/akademik/pertemuan', dividerBefore: user?.role === 'pengajar' || user?.roles?.includes('pengajar') },
         ...(user?.role === 'admin' || user?.roles?.includes('admin') || user?.role === 'pengajar' || user?.roles?.includes('pengajar')
           ? [
-              { icon: GraduationCap, label: 'Input Nilai', path: '/akademik/nilai' },
-            ]
+            { icon: GraduationCap, label: 'Input Nilai', path: '/akademik/nilai' },
+          ]
           : []
         ),
         ...(user?.role === 'admin' || user?.roles?.includes('admin')
@@ -166,9 +168,9 @@ const SidebarContent = () => {
         { icon: Warehouse, label: 'Inventaris Koperasi', path: '/koperasi/inventaris' },
         { icon: ShoppingCart, label: 'Penjualan', path: '/koperasi/penjualan' },
         { icon: TruckIcon, label: 'Pembelian', path: '/koperasi/pembelian', dividerBefore: true },
-        { 
-          icon: DollarSign, 
-          label: 'Keuangan Koperasi', 
+        {
+          icon: DollarSign,
+          label: 'Keuangan Koperasi',
           path: '/koperasi/keuangan',
           subItems: [
             { icon: BarChart3, label: 'Dashboard Keuangan', path: '/koperasi/keuangan/dashboard' },
@@ -186,12 +188,24 @@ const SidebarContent = () => {
       items: [
         { icon: Users, label: 'Daftar User', path: '/admin/users' }
       ]
+    },
+    {
+      title: 'MANAJEMEN WEBSITE',
+      icon: Globe,
+      items: [
+        { icon: LayoutDashboard, label: 'Dashboard Web', path: '/admin/website/homepage' },
+        { icon: Settings2, label: 'Pengaturan', path: '/admin/website/settings' },
+        { icon: FileText, label: 'Berita/Artikel', path: '/admin/website/posts' },
+        { icon: BookOpen, label: 'Halaman Statis', path: '/admin/website/pages' },
+        { icon: Heart, label: 'Testimoni', path: '/admin/website/testimonials' },
+        { icon: Package, label: 'Media Library', path: '/admin/website/media' }
+      ]
     }
   ], [showModuleDashboards, user?.role, user?.roles]);
 
   // Sidebar khusus untuk SANTRI (fokus ke profil sendiri)
   const isSantri = user?.role === 'santri';
-  const santriProfileBase = useMemo(() => 
+  const santriProfileBase = useMemo(() =>
     `/santri/profile/${user?.santriId || ''}`,
     [user?.santriId]
   );
@@ -259,11 +273,12 @@ const SidebarContent = () => {
           'DONASI': 'donasi',
           'INVENTARIS': 'inventaris',
           'KOPERASI': 'koperasi',
-          'KELOLA USER': 'settings'
+          'KELOLA USER': 'settings',
+          'MANAJEMEN WEBSITE': 'settings' // Use settings permission for website management
         };
 
         const moduleName = sectionModuleMap[section.title];
-        
+
         // Check if user can access this section
         const canAccessSection = moduleName && user ? canAccessModuleWithUser(user, moduleName) : true;
 
@@ -291,26 +306,26 @@ const SidebarContent = () => {
   }, [user, canAccess]);
 
   // Use filtered structure based on role - memoize to prevent recalculation
-  const effectiveSections = useMemo(() => 
+  const effectiveSections = useMemo(() =>
     isSantri ? santriMenuSections : reorganizedMenuSections,
     [isSantri, santriMenuSections, reorganizedMenuSections]
   );
-  const menuSections = useMemo(() => 
+  const menuSections = useMemo(() =>
     filterMenuByRole(effectiveSections),
     [filterMenuByRole, effectiveSections]
   );
 
   const toggleSection = useCallback((title: string) => {
-    setExpandedSections(prev => 
-      prev.includes(title) 
+    setExpandedSections(prev =>
+      prev.includes(title)
         ? prev.filter(t => t !== title)
         : [...prev, title]
     );
   }, []);
 
   const toggleSubmenu = useCallback((path: string) => {
-    setExpandedSubmenus(prev => 
-      prev.includes(path) 
+    setExpandedSubmenus(prev =>
+      prev.includes(path)
         ? prev.filter(p => p !== path)
         : [...prev, path]
     );
@@ -332,9 +347,9 @@ const SidebarContent = () => {
         <div className="flex flex-col items-center gap-3">
           {/* Logo Al-Bisri - Lebih Besar */}
           <div className="flex-shrink-0">
-            <img 
-              src="/kop-albisri.png" 
-              alt="Logo Al-Bisri" 
+            <img
+              src="/kop-albisri.png"
+              alt="Logo Al-Bisri"
               className="w-24 h-24 object-contain"
             />
           </div>
@@ -354,7 +369,7 @@ const SidebarContent = () => {
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
         {menuSections.map((section) => {
           const isExpanded = expandedSections.includes(section.title);
-          
+
           return (
             <div key={section.title} className="mb-2">
               {/* Section Header */}
@@ -386,7 +401,7 @@ const SidebarContent = () => {
                       {item.dividerBefore && index > 0 && (
                         <div className="my-2 mx-2 border-t border-gray-200" />
                       )}
-                      
+
                       {/* Item with submenu */}
                       {item.subItems ? (
                         <div>
@@ -395,7 +410,7 @@ const SidebarContent = () => {
                             className={cn(
                               "w-full justify-start gap-3 h-9 text-sm",
                               (isActive(item.path || '') || isSubmenuActive(item.subItems))
-                                ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-medium" 
+                                ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-medium"
                                 : "text-gray-700 hover:bg-gray-100"
                             )}
                             onClick={() => {
@@ -413,7 +428,7 @@ const SidebarContent = () => {
                               <ChevronRight className="w-3 h-3" />
                             )}
                           </Button>
-                          
+
                           {/* Submenu items */}
                           {expandedSubmenus.includes(item.path || item.label) && (
                             <div className="mt-1 space-y-1 pl-6">
@@ -423,8 +438,8 @@ const SidebarContent = () => {
                                   variant="ghost"
                                   className={cn(
                                     "w-full justify-start gap-3 h-8 text-sm",
-                                    isActive(subItem.path || '') 
-                                      ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-medium" 
+                                    isActive(subItem.path || '')
+                                      ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-medium"
                                       : "text-gray-600 hover:bg-gray-100"
                                   )}
                                   onClick={() => subItem.path && navigate(subItem.path)}
@@ -442,8 +457,8 @@ const SidebarContent = () => {
                           variant="ghost"
                           className={cn(
                             "w-full justify-start gap-3 h-9 text-sm",
-                            isActive(item.path || '') 
-                              ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-medium" 
+                            isActive(item.path || '')
+                              ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-medium"
                               : "text-gray-700 hover:bg-gray-100"
                           )}
                           onClick={() => item.path && navigate(item.path)}
@@ -561,7 +576,7 @@ const Layout = ({ children }: LayoutProps) => {
   useEffect(() => {
     if (!authUser || authLoading) return;
     if (location.pathname === '/auth') return; // Skip check for auth page
-    
+
     // If user is santri and on dashboard (/), redirect to their profile
     if (authUser.role === 'santri' && authUser.santriId && location.pathname === '/') {
       navigate(`/santri/profile/${authUser.santriId}/informasi`, { replace: true });
@@ -573,10 +588,10 @@ const Layout = ({ children }: LayoutProps) => {
   useEffect(() => {
     if (!authUser || authLoading) return;
     if (location.pathname === '/auth') return; // Skip check for auth page
-    
+
     // Check if user can access current path
     const canAccess = canAccessPathWithUser(authUser, location.pathname);
-    
+
     if (!canAccess) {
       console.warn(`[Layout] User ${authUser.email} (${authUser.role}) does not have permission to access ${location.pathname}, redirecting to dashboard`);
       // Redirect to dashboard if user doesn't have permission
@@ -620,9 +635,9 @@ const Layout = ({ children }: LayoutProps) => {
       {/* Mobile sidebar overlay - Hidden for santri */}
       {!isSantri && sidebarOpen && (
         <div className="fixed inset-0 z-[100] lg:hidden">
-          <div 
-            className="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity" 
-            onClick={() => setSidebarOpen(false)} 
+          <div
+            className="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity"
+            onClick={() => setSidebarOpen(false)}
           />
           <div className="fixed inset-y-0 left-0 flex flex-col max-w-xs w-full bg-white shadow-xl h-screen z-[101]">
             <div className="absolute top-0 right-0 -mr-12 pt-2">
@@ -662,18 +677,18 @@ const Layout = ({ children }: LayoutProps) => {
                     onClick={() => setSidebarOpen(!sidebarOpen)}
                     className="p-1 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
                   >
-                    <img 
-                      src="/kop-albisri.png" 
-                      alt="Menu" 
+                    <img
+                      src="/kop-albisri.png"
+                      alt="Menu"
                       className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
                     />
                   </button>
                 )}
                 {/* Show logo without button for santri */}
                 {isSantri && (
-                  <img 
-                    src="/kop-albisri.png" 
-                    alt="Logo" 
+                  <img
+                    src="/kop-albisri.png"
+                    alt="Logo"
                     className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
                   />
                 )}
@@ -681,7 +696,7 @@ const Layout = ({ children }: LayoutProps) => {
                   Pesantren Anak Yatim Al-Bisri
                 </h1>
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="hidden sm:inline-flex text-xs">
                   {authUser?.role || 'Unknown'}

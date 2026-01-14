@@ -116,10 +116,12 @@ const MappingSantriDialog: React.FC<MappingSantriDialogProps> = ({
 
   // Handle save
   const handleSave = async () => {
-    if (tipeAlokasi === 'pilih_santri' && selectedSantriIds.size === 0) {
-      toast.error('Pilih minimal 1 santri untuk tipe "Pilih Santri"');
-      return;
-    }
+    // REVISI: Tidak perlu minimal 1 santri untuk tipe "pilih_santri"
+    // User bisa menyimpan mapping tanpa santri, dan nanti bisa menambah/hapus santri di form pengeluaran
+    // if (tipeAlokasi === 'pilih_santri' && selectedSantriIds.size === 0) {
+    //   toast.error('Pilih minimal 1 santri untuk tipe "Pilih Santri"');
+    //   return;
+    // }
 
     setSaving(true);
     try {

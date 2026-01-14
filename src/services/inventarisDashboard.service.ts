@@ -78,15 +78,9 @@ export const getInventoryDashboardStats = async (): Promise<InventoryStats> => {
     throw itemsError;
   }
 
-  // Get transactions
-  const { data: transactions, error: transactionsError } = await supabase
-    .from('transaksi_inventaris')
-    .select('id, tipe, tanggal, masuk_mode, referensi_donation_id');
-
-  if (transactionsError) {
-    console.error('Error fetching transactions:', transactionsError);
-    // Don't throw, just use empty array
-  }
+  // transaksi_inventaris removed - feature deprecated
+  // Transactions data not available anymore
+  const transactions: any[] = [];
 
   // Get pending donations (donations with items not yet posted to stock)
   // EXCLUDE direct_consumption items (kategori makanan) - hanya tampilkan inventory items

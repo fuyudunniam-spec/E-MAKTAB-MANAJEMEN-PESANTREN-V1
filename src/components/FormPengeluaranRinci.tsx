@@ -128,6 +128,104 @@ const getAlokasiConfigHelper = (kategoriValue: string): {
   };
 };
 
+// Helper function untuk mengambil config dari master data keuangan
+const getAlokasiConfigFromMasterData = async (
+  kategori: string,
+  subKategori?: string
+): Promise<{
+  jenis_alokasi: string;
+  pilar_layanan_kode?: string;
+  tipe_alokasi?: 'tidak_dialokasikan' | 'seluruh_binaan_mukim' | 'pilih_santri';
+  perluPilihSantri: boolean;
+  createLayananSantri: boolean;
+  alokasi_ke?: 'formal' | 'pesantren' | 'asrama_konsumsi' | 'bantuan_langsung';
+  isPengeluaranRiil: boolean;
+}> => {
+  try {
+    // 1. Cek mapping dari master data (prioritas: sub kategori > kategori)
+    const mappingResult = await MasterDataKeuanganService.getMappingWithPriority(
+      kategori,
+      subKategori || undefined
+    );
+
+    if (mappingResult.mapping && mappingResult.mapping.aktif) {
+      const mapping = mappingResult.mapping;
+      
+      // 2. Konversi tipe_alokasi ke jenis_alokasi
+      let jenis_alokasi = '';
+      let perluPilihSantri = false;
+      let createLayananSantri = false;
+      
+      if (mapping.tipe_alokasi === 'seluruh_binaan_mukim') {
+        jenis_alokasi = 'overhead';
+        perluPilihSantri = false;
+        createLayananSantri = true; // Overhead perlu create ledger
+      } else if (mapping.tipe_alokasi === 'pilih_santri') {
+        jenis_alokasi = 'langsung';
+        perluPilihSantri = true;
+        createLayananSantri = true; // Manual selection perlu create ledger
+      } else if (mapping.tipe_alokasi === 'tidak_dialokasikan') {
+        jenis_alokasi = '';
+        perluPilihSantri = false;
+        createLayananSantri = false;
+      }
+
+      // 3. Ambil pilar_layanan_kode dari master data
+      let pilar_layanan_kode: string | undefined;
+      if (mappingResult.source === 'sub_kategori' && subKategori) {
+        const subKategoriData = await MasterDataKeuanganService.getSubKategoriByNama(subKategori);
+        pilar_layanan_kode = subKategoriData?.pilar_layanan_kode || undefined;
+      } else {
+        const kategoriData = await MasterDataKeuanganService.getKategoriByNama(kategori);
+        pilar_layanan_kode = kategoriData?.pilar_layanan_kode || undefined;
+      }
+
+      // 4. Map pilar_layanan_kode ke alokasi_ke
+      let alokasi_ke: 'formal' | 'pesantren' | 'asrama_konsumsi' | 'bantuan_langsung' | undefined;
+      if (pilar_layanan_kode === 'pendidikan_formal') {
+        alokasi_ke = 'formal';
+      } else if (pilar_layanan_kode === 'pendidikan_pesantren') {
+        alokasi_ke = 'pesantren';
+      } else if (pilar_layanan_kode === 'asrama_konsumsi') {
+        alokasi_ke = 'asrama_konsumsi';
+      } else if (pilar_layanan_kode === 'bantuan_langsung') {
+        alokasi_ke = 'bantuan_langsung';
+      }
+
+      return {
+        jenis_alokasi,
+        pilar_layanan_kode,
+        tipe_alokasi: mapping.tipe_alokasi,
+        perluPilihSantri,
+        createLayananSantri,
+        alokasi_ke,
+        isPengeluaranRiil: true, // Default true untuk pengeluaran
+      };
+    }
+
+    // 5. Fallback ke hardcoded config jika tidak ada mapping
+    const config = getAlokasiConfigHelper(kategori);
+    return {
+      jenis_alokasi: config.defaultJenisAlokasi || '',
+      perluPilihSantri: config.perluPilihSantri,
+      createLayananSantri: config.createLayananSantri,
+      alokasi_ke: config.alokasiKe,
+      isPengeluaranRiil: config.isPengeluaranRiil,
+    };
+  } catch (error) {
+    console.error('Error getting config from master data:', error);
+    // Fallback ke hardcoded config jika error
+    const config = getAlokasiConfigHelper(kategori);
+    return {
+      jenis_alokasi: config.defaultJenisAlokasi || '',
+      perluPilihSantri: config.perluPilihSantri,
+      createLayananSantri: config.createLayananSantri,
+      alokasi_ke: config.alokasiKe,
+      isPengeluaranRiil: config.isPengeluaranRiil,
+    };
+  }
+};
+
 const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) => {
   console.log('[DEBUG] createKeuanganWithDetails input data:', {
     tanggal: data.tanggal,
@@ -247,20 +345,76 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
     if (rincianError) throw rincianError;
   }
   
-  // REVISI v2: Create alokasi santri - HANYA jika user eksplisit memilih santri
-  // Tidak ada lagi auto-generate overhead
-  // JANGAN buat alokasi untuk kategori "Operasional Yayasan" dan "Pendidikan Pesantren" (tanpa pilih santri)
-  if (data.kategori === 'Operasional Yayasan') {
-    // Kategori ini tidak dialokasikan ke santri, skip pembuatan alokasi
-    console.log('[SKIP] Operasional Yayasan tidak dialokasikan ke santri');
-  } else if (data.alokasi_santri.length > 0) {
-    // REVISI v2: Hanya buat alokasi jika user eksplisit memilih santri
-    console.log('Alokasi santri data:', data.alokasi_santri);
+  // REVISI v5: Gunakan master data keuangan untuk menentukan logika alokasi
+  const masterConfig = await getAlokasiConfigFromMasterData(data.kategori, data.sub_kategori);
+
+  // Determine pilar_layanan dari master data
+  const pilar_layanan = masterConfig.pilar_layanan_kode as 'pendidikan_formal' | 'pendidikan_pesantren' | 'asrama_konsumsi' | 'bantuan_langsung' | undefined;
+
+  // Determine sumber_perhitungan berdasarkan jenis_alokasi
+  const sumber_perhitungan = data.jenis_alokasi === 'overhead' ? 'overhead' : 'bantuan_langsung';
+
+  if (data.kategori === 'Operasional Yayasan' || masterConfig.jenis_alokasi === '') {
+    // Tidak dialokasikan
+    console.log('[SKIP] Kategori tidak dialokasikan ke santri');
+  } else if (data.jenis_alokasi === 'overhead' && masterConfig.pilar_layanan_kode) {
+    // Overhead: generate ledger ke semua santri binaan mukim
+    const transaksiDate = new Date(data.tanggal);
+    const periode = `${transaksiDate.getFullYear()}-${String(transaksiDate.getMonth() + 1).padStart(2, '0')}`;
     
-    // Map rincian items untuk mencari rincian_id berdasarkan nama_item
+    // Get semua santri binaan mukim aktif
+    const { data: santriBinaanMukim, error: santriError } = await supabase
+      .from('santri')
+      .select('id')
+      .eq('kategori', 'Binaan Mukim')
+      .eq('status_santri', 'Aktif');
+    
+    if (santriError) {
+      console.error('[ERROR] Failed to get santri binaan mukim:', santriError);
+    } else if (santriBinaanMukim && santriBinaanMukim.length > 0) {
+      // Hitung nominal per santri (total dibagi jumlah santri)
+      const nominalPerSantri = data.jumlah / santriBinaanMukim.length;
+      
+      // Delete existing entries for this keuangan_id
+      const { error: deleteError } = await supabase
+        .from('realisasi_layanan_santri')
+        .delete()
+        .eq('referensi_keuangan_id', keuangan.id)
+        .eq('pilar_layanan', pilar_layanan!)
+        .eq('sumber_perhitungan', 'overhead');
+      
+      if (deleteError) {
+        console.error('[ERROR] Failed to delete existing overhead entries:', deleteError);
+      }
+      
+      // Create realisasi entries untuk semua santri binaan mukim
+      const realisasiEntries = santriBinaanMukim.map(santri => ({
+        santri_id: santri.id,
+        periode: periode,
+        pilar_layanan: pilar_layanan!,
+        nilai_layanan: nominalPerSantri,
+        sumber_perhitungan: 'overhead' as const,
+        referensi_keuangan_id: keuangan.id,
+      }));
+      
+      const { error: realisasiError } = await supabase
+        .from('realisasi_layanan_santri')
+        .insert(realisasiEntries);
+      
+      if (realisasiError) {
+        console.error(`[ERROR] Failed to create realisasi_layanan_santri for ${data.kategori} overhead:`, realisasiError);
+      } else {
+        console.log(`[INFO] Realisasi Layanan Santri created for ${data.kategori} overhead (${santriBinaanMukim.length} santri)`);
+      }
+    }
+  } else if (data.alokasi_santri.length > 0 && masterConfig.createLayananSantri && pilar_layanan) {
+    // Manual selection: create ledger untuk santri yang dipilih
+    const transaksiDate = new Date(data.tanggal);
+    const periode = `${transaksiDate.getFullYear()}-${String(transaksiDate.getMonth() + 1).padStart(2, '0')}`;
+    
+    // Map rincian items untuk mencari rincian_id
     const rincianMap = new Map();
     if (data.rincian_items.length > 0) {
-      // Get rincian items yang sudah di-insert
       const { data: insertedRincian } = await supabase
         .from('rincian_pengeluaran')
         .select('id, nama_item')
@@ -273,120 +427,115 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
       }
     }
     
-    // REVISI v2: Hanya alokasi manual (user pilih santri)
-    const alokasiData = data.alokasi_santri.map(item => {
-      // Cari rincian_id berdasarkan jenis_bantuan (yang seharusnya sama dengan nama_item)
-      const rincianId = rincianMap.get(item.jenis_bantuan) || null;
-      
-      return {
-        keuangan_id: keuangan.id,
-        rincian_id: rincianId, // Link ke rincian item jika ada
-        santri_id: item.santri_id,
-        nominal_alokasi: item.nominal_alokasi || item.jumlah || 0,
-        jenis_bantuan: item.jenis_bantuan || 'Bantuan Langsung',
-        persentase_alokasi: item.persentase_alokasi || 0,
-        periode: item.periode || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
-        keterangan: item.keterangan || '',
-        tipe_alokasi: item.tipe_alokasi || 'pengeluaran_riil',
-        alokasi_ke: item.alokasi_ke || null
-      };
-    });
+    // Create alokasi_layanan_santri
+    // Extract bulan and tahun from periode
+    const periodeStr = data.alokasi_santri[0]?.periode || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+    const periodeParts = periodeStr.match(/(\d{4})-(\d{1,2})/);
+    const tahun = periodeParts ? parseInt(periodeParts[1]) : new Date().getFullYear();
+    const bulan = periodeParts ? parseInt(periodeParts[2]) : new Date().getMonth() + 1;
+    const periodeFormatted = `${tahun}-${bulan.toString().padStart(2, '0')}`;
+
+    const alokasiData = data.alokasi_santri.map(item => ({
+      sumber_alokasi: 'manual' as const,
+      keuangan_id: keuangan.id,
+      rincian_id: rincianMap.get(item.jenis_bantuan) || null,
+      alokasi_overhead_id: null,
+      santri_id: item.santri_id,
+      periode: item.periode || periodeFormatted,
+      bulan: tahun && bulan ? bulan : null,
+      tahun: tahun && bulan ? tahun : null,
+      nominal_alokasi: item.nominal_alokasi || item.jumlah || 0,
+      persentase_alokasi: item.persentase_alokasi || 0,
+      jenis_bantuan: item.jenis_bantuan || 'Bantuan Langsung',
+      keterangan: item.keterangan || '',
+      tipe_alokasi: item.tipe_alokasi || 'pengeluaran_riil',
+      alokasi_ke: item.alokasi_ke || masterConfig.alokasi_ke || null
+    }));
     
-    if (alokasiData.length > 0) {
-      console.log('Mapped alokasi data:', alokasiData);
+    const { error: alokasiError } = await supabase
+      .from('alokasi_layanan_santri')
+      .insert(alokasiData);
+    
+    if (alokasiError) throw alokasiError;
+    
+    // Create realisasi_layanan_santri
+    const { error: deleteError } = await supabase
+      .from('realisasi_layanan_santri')
+      .delete()
+      .eq('referensi_keuangan_id', keuangan.id)
+      .eq('pilar_layanan', pilar_layanan)
+      .eq('sumber_perhitungan', sumber_perhitungan);
+    
+    if (deleteError) {
+      console.error('[ERROR] Failed to delete existing realisasi entries:', deleteError);
+    }
+    
+    const realisasiEntries = alokasiData.map(alokasi => ({
+      santri_id: alokasi.santri_id,
+      periode: periode,
+      pilar_layanan: pilar_layanan,
+      nilai_layanan: alokasi.nominal_alokasi || 0,
+      sumber_perhitungan: sumber_perhitungan as const,
+      referensi_keuangan_id: keuangan.id,
+    }));
+    
+    const { error: realisasiError } = await supabase
+      .from('realisasi_layanan_santri')
+      .insert(realisasiEntries);
+    
+    if (realisasiError) {
+      console.error(`[ERROR] Failed to create realisasi_layanan_santri for ${data.kategori}:`, realisasiError);
+    } else {
+      console.log(`[INFO] Realisasi Layanan Santri created for ${data.kategori}`);
+    }
+  } else if (data.alokasi_santri.length > 0) {
+    // Fallback: Jika ada alokasi santri tapi tidak perlu create ledger (untuk backward compatibility)
+    // Map rincian items untuk mencari rincian_id
+    const rincianMap = new Map();
+    if (data.rincian_items.length > 0) {
+      const { data: insertedRincian } = await supabase
+        .from('rincian_pengeluaran')
+        .select('id, nama_item')
+        .eq('keuangan_id', keuangan.id);
       
-      const { error: alokasiError } = await supabase
-        .from('alokasi_pengeluaran_santri')
-        .insert(alokasiData);
-      
-      if (alokasiError) throw alokasiError;
-      
-      // ⭐ REVISI v2: Create Ledger Layanan Santri HANYA untuk kategori "Bantuan Langsung Yayasan"
-      // Sesuai Spec-keuanganv2.md 5.4: Hanya bantuan langsung yang wajib create Ledger Layanan Santri
-      // Kategori lain (Pendidikan Formal, dll) hanya membuat alokasi_pengeluaran_santri untuk tracking/audit
-      // dan TIDAK akan muncul di profil santri tab "Laporan Layanan / Beasiswa Santri"
-      
-      // Get config untuk check apakah perlu create Ledger Layanan Santri
-      const config = getAlokasiConfigHelper(data.kategori);
-      
-      // Create Ledger Layanan Santri untuk "Bantuan Langsung Yayasan" dan "Pendidikan Formal"
-      if (config.createLayananSantri && data.kategori === 'Bantuan Langsung Yayasan' && alokasiData.length > 0) {
-        // Parse periode from tanggal transaksi (format: YYYY-MM)
-        const transaksiDate = new Date(data.tanggal);
-        const periode = `${transaksiDate.getFullYear()}-${String(transaksiDate.getMonth() + 1).padStart(2, '0')}`;
-        
-        // Delete existing entries for this keuangan_id to avoid duplicates
-        const { error: deleteError } = await supabase
-          .from('ledger_layanan_santri')
-          .delete()
-          .eq('referensi_keuangan_id', keuangan.id)
-          .eq('pilar_layanan', 'bantuan_langsung')
-          .eq('sumber_perhitungan', 'bantuan_langsung');
-        
-        if (deleteError) {
-          console.error('[ERROR] Failed to delete existing Bantuan Langsung entries:', deleteError);
-        }
-        
-        // Create ledger entries for each allocation
-        const ledgerEntries = alokasiData.map(alokasi => ({
-          santri_id: alokasi.santri_id,
-          periode: periode,
-          pilar_layanan: 'bantuan_langsung' as const,
-          nilai_layanan: alokasi.nominal_alokasi || 0,
-          sumber_perhitungan: 'bantuan_langsung' as const,
-          referensi_keuangan_id: keuangan.id,
-        }));
-        
-        const { error: ledgerError } = await supabase
-          .from('ledger_layanan_santri')
-          .insert(ledgerEntries);
-        
-        if (ledgerError) {
-          console.error('[ERROR] Failed to create ledger_layanan_santri:', ledgerError);
-          // Don't throw - alokasi sudah dibuat, ledger error tidak harus block transaksi
-        } else {
-          console.log('[INFO] Ledger Layanan Santri created for Bantuan Langsung Yayasan');
-        }
-      } else if (data.kategori === 'Pendidikan Formal' && alokasiData.length > 0) {
-        // REVISI: Pendidikan Formal juga perlu sync ke ledger_layanan_santri
-        // Tapi hanya untuk tracking, tidak untuk display di profil santri (akan di-override oleh generate periodik)
-        const transaksiDate = new Date(data.tanggal);
-        const periode = `${transaksiDate.getFullYear()}-${String(transaksiDate.getMonth() + 1).padStart(2, '0')}`;
-        
-        // Delete existing entries for this keuangan_id to avoid conflicts
-        const { error: deleteError } = await supabase
-          .from('ledger_layanan_santri')
-          .delete()
-          .eq('referensi_keuangan_id', keuangan.id)
-          .eq('pilar_layanan', 'pendidikan_formal')
-          .eq('sumber_perhitungan', 'bantuan_langsung');
-        
-        if (deleteError) {
-          console.error('[ERROR] Failed to delete existing Pendidikan Formal entries:', deleteError);
-        }
-        
-        const ledgerEntries = alokasiData.map(alokasi => ({
-          santri_id: alokasi.santri_id,
-          periode: periode,
-          pilar_layanan: 'pendidikan_formal' as const,
-          nilai_layanan: alokasi.nominal_alokasi || 0,
-          sumber_perhitungan: 'bantuan_langsung' as const, // Direct allocation
-          referensi_keuangan_id: keuangan.id,
-        }));
-        
-        const { error: ledgerError } = await supabase
-          .from('ledger_layanan_santri')
-          .insert(ledgerEntries);
-        
-        if (ledgerError) {
-          console.error('[ERROR] Failed to sync Pendidikan Formal to ledger_layanan_santri:', ledgerError);
-        } else {
-          console.log('[INFO] Pendidikan Formal synced to ledger_layanan_santri');
-        }
-      } else {
-        console.log(`[INFO] Kategori "${data.kategori}" - alokasi hanya untuk tracking/audit, TIDAK create Ledger Layanan Santri`);
+      if (insertedRincian) {
+        insertedRincian.forEach(rincian => {
+          rincianMap.set(rincian.nama_item, rincian.id);
+        });
       }
     }
+    
+    // Extract bulan and tahun from periode
+    const periodeStr = data.alokasi_santri[0]?.periode || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+    const periodeParts = periodeStr.match(/(\d{4})-(\d{1,2})/);
+    const tahun = periodeParts ? parseInt(periodeParts[1]) : new Date().getFullYear();
+    const bulan = periodeParts ? parseInt(periodeParts[2]) : new Date().getMonth() + 1;
+    const periodeFormatted = `${tahun}-${bulan.toString().padStart(2, '0')}`;
+
+    const alokasiData = data.alokasi_santri.map(item => ({
+      sumber_alokasi: 'manual',
+      keuangan_id: keuangan.id,
+      rincian_id: rincianMap.get(item.jenis_bantuan) || null,
+      alokasi_overhead_id: null,
+      santri_id: item.santri_id,
+      periode: item.periode || periodeFormatted,
+      bulan: tahun && bulan ? bulan : null,
+      tahun: tahun && bulan ? tahun : null,
+      nominal_alokasi: item.nominal_alokasi || item.jumlah || 0,
+      persentase_alokasi: item.persentase_alokasi || 0,
+      jenis_bantuan: item.jenis_bantuan || 'Bantuan Langsung',
+      keterangan: item.keterangan || '',
+      tipe_alokasi: item.tipe_alokasi || 'pengeluaran_riil',
+      alokasi_ke: item.alokasi_ke || masterConfig.alokasi_ke || null
+    }));
+    
+    const { error: alokasiError } = await supabase
+      .from('alokasi_layanan_santri')
+      .insert(alokasiData);
+    
+    if (alokasiError) throw alokasiError;
+    
+    console.log(`[INFO] Alokasi santri created for ${data.kategori} (no ledger entry)`);
   }
   
   return keuangan;
@@ -560,10 +709,10 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
         return;
       }
 
-      // Skip jika user sudah memilih santri manual
-      if (isManualSelection && alokasiSantri.length > 0) {
-        return;
-      }
+      // REVISI: Hapus logika yang mencegah user menambah/hapus santri setelah auto-select
+      // User harus bisa menambah/hapus santri bahkan setelah auto-select dari mapping
+      // Hanya skip jika sudah pernah check mapping untuk kombinasi kategori+subKategori yang sama
+      // dan mapping tidak berubah
 
       try {
         const mappingResult = await MasterDataKeuanganService.getMappingWithPriority(
@@ -585,7 +734,8 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
         }
 
         // Jika tipe = 'seluruh_binaan_mukim', load semua santri binaan mukim
-        if (mapping.tipe_alokasi === 'seluruh_binaan_mukim') {
+        // Hanya auto-select jika belum ada alokasi santri (pertama kali)
+        if (mapping.tipe_alokasi === 'seluruh_binaan_mukim' && alokasiSantri.length === 0) {
           const { data: santriBinaanMukim, error } = await supabase
             .from('santri')
             .select('id, nama_lengkap, id_santri')
@@ -613,10 +763,12 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
           }
         }
 
-        // Jika tipe = 'pilih_santri', load santri dari mapping
-        if (mapping.tipe_alokasi === 'pilih_santri' && 'santri_list' in mapping && mapping.santri_list) {
-          const santriList = mapping.santri_list;
-          if (santriList.length > 0) {
+        // Jika tipe = 'pilih_santri', load santri dari mapping (jika ada)
+        // REVISI: Tidak perlu minimal 1 santri di master data
+        // Hanya auto-select jika belum ada alokasi santri (pertama kali) dan ada santri di mapping
+        if (mapping.tipe_alokasi === 'pilih_santri' && alokasiSantri.length === 0) {
+          if ('santri_list' in mapping && mapping.santri_list && mapping.santri_list.length > 0) {
+            const santriList = mapping.santri_list;
             const newAllocations: AlokasiSantri[] = santriList.map((item) => {
               const santri = santriOptions.find(s => s.id === item.santri_id);
               return {
@@ -636,6 +788,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
             setSelectedSantriIds(santriList.map(item => item.santri_id));
             toast.success(`${santriList.length} santri otomatis dipilih berdasarkan mapping`);
           }
+          // Jika tidak ada santri di mapping, user bisa menambah santri manual
         }
       } catch (error) {
         console.error('Error loading santri mapping:', error);
@@ -651,37 +804,62 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
     return () => clearTimeout(timeoutId);
   }, [kategori, subKategori, santriOptions]);
 
-  // Auto-update jenis alokasi saat kategori berubah
+  // Auto-update jenis alokasi saat kategori berubah (menggunakan master data)
   useEffect(() => {
-    if (kategori) {
-      const config = getAlokasiConfig(kategori);
-      if (config.defaultJenisAlokasi && jenisAlokasi !== config.defaultJenisAlokasi) {
-        setJenisAlokasi(config.defaultJenisAlokasi);
+    const loadConfigFromMasterData = async () => {
+      if (!kategori) {
+        // Reset semua jika kategori kosong
+        setSubKategori('');
+        setUseRangePeriode(false);
+        setPeriodeDari('');
+        setPeriodeSampai('');
+        setNominalPerBulan('');
+        return;
+      }
+
+      try {
+        const masterConfig = await getAlokasiConfigFromMasterData(kategori, subKategori || undefined);
+        
+        // Update jenis_alokasi berdasarkan master data
+        if (masterConfig.jenis_alokasi !== jenisAlokasi) {
+          setJenisAlokasi(masterConfig.jenis_alokasi);
+        }
+
         // Clear alokasi santri jika tidak perlu pilih santri
+        if (!masterConfig.perluPilihSantri && alokasiSantri.length > 0) {
+          setAlokasiSantri([]);
+          setSelectedSantriIds([]);
+        }
+      } catch (error) {
+        console.error('Error loading config from master data:', error);
+        // Fallback ke hardcoded config
+        const config = getAlokasiConfig(kategori);
+        if (config.defaultJenisAlokasi && jenisAlokasi !== config.defaultJenisAlokasi) {
+          setJenisAlokasi(config.defaultJenisAlokasi);
+        }
         if (!config.perluPilihSantri) {
           setAlokasiSantri([]);
           setSelectedSantriIds([]);
         }
       }
-      // Reset sub_kategori untuk kategori dengan dropdown
+
+      // Reset sub_kategori untuk kategori dengan dropdown (backward compatibility)
       if (kategori === 'Operasional dan Konsumsi Santri') {
-        // Jika sub_kategori tidak valid, reset ke kosong
         if (subKategori && subKategori !== 'Konsumsi' && subKategori !== 'Operasional') {
           setSubKategori('');
         }
       } else if (kategori === 'Operasional Yayasan') {
-        // Jika sub_kategori tidak valid, reset ke kosong
         const validSubKategori = ['Gaji & Honor', 'Utilitas', 'Maintenance', 'Administrasi', 'Lain-lain'];
         if (subKategori && !validSubKategori.includes(subKategori)) {
           setSubKategori('');
         }
       } else {
-        // Untuk kategori lain, reset sub_kategori jika sebelumnya adalah dropdown value
         const dropdownValues = ['Konsumsi', 'Operasional', 'Gaji & Honor', 'Utilitas', 'Maintenance', 'Administrasi', 'Lain-lain'];
         if (dropdownValues.includes(subKategori)) {
           setSubKategori('');
         }
       }
+      
       // Reset range periode jika kategori bukan Pendidikan Formal
       if (kategori !== 'Pendidikan Formal') {
         setUseRangePeriode(false);
@@ -689,15 +867,10 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
         setPeriodeSampai('');
         setNominalPerBulan('');
       }
-    } else {
-      // Reset semua jika kategori kosong
-      setSubKategori('');
-      setUseRangePeriode(false);
-      setPeriodeDari('');
-      setPeriodeSampai('');
-      setNominalPerBulan('');
-    }
-  }, [kategori, jenisAlokasi, subKategori]);
+    };
+
+    loadConfigFromMasterData();
+  }, [kategori, subKategori]);
 
   // Helper function untuk mendapatkan sub kategori options dari master data
   interface SubKategoriOption {
@@ -1240,26 +1413,33 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
         }];
       }
       
-      // REVISI v2: Get config untuk menentukan alokasi
+      // REVISI v5: Gunakan master data keuangan untuk menentukan config
+      const masterConfig = await getAlokasiConfigFromMasterData(kategori, subKategori || undefined);
+      
+      // Fallback ke hardcoded config untuk backward compatibility
       const config = kategori ? getAlokasiConfig(kategori) : null;
       
       // REVISI v2: Alokasi hanya jika user eksplisit pilih santri (tidak ada auto-post)
       let finalAlokasiSantri = alokasiSantri;
-      if (config) {
-        // Hanya kategori yang perlu pilih santri yang boleh punya alokasi
-        if (!config.perluPilihSantri) {
-          finalAlokasiSantri = [];
-        }
+      if (masterConfig.perluPilihSantri === false) {
+        // Jika master data mengatakan tidak perlu pilih santri, clear alokasi
+        finalAlokasiSantri = [];
+      } else if (config && !config.perluPilihSantri) {
+        // Fallback: Hanya kategori yang perlu pilih santri yang boleh punya alokasi
+        finalAlokasiSantri = [];
       } else if (jenisAlokasi === 'overhead' || jenisAlokasi === '') {
         // REVISI v2: Overhead tidak lagi digunakan untuk auto-generate
         finalAlokasiSantri = [];
       }
 
-      // REVISI v3: Determine jenis_alokasi berdasarkan config
+      // REVISI v5: Determine jenis_alokasi berdasarkan master data
       // Support untuk overhead, langsung, dan tidak dialokasikan
       let finalJenisAlokasi = jenisAlokasi;
-      if (config && config.defaultJenisAlokasi !== undefined) {
-        // Gunakan defaultJenisAlokasi dari config jika tersedia
+      if (masterConfig.jenis_alokasi) {
+        // Gunakan jenis_alokasi dari master data
+        finalJenisAlokasi = masterConfig.jenis_alokasi;
+      } else if (config && config.defaultJenisAlokasi !== undefined) {
+        // Fallback: Gunakan defaultJenisAlokasi dari config jika tersedia
         finalJenisAlokasi = config.defaultJenisAlokasi;
       } else if (config) {
         // Fallback: jika tidak ada defaultJenisAlokasi, gunakan logika lama
@@ -1271,7 +1451,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
       }
 
       // Determine is_pengeluaran_riil berdasarkan config
-      const isPengeluaranRiil = config ? config.isPengeluaranRiil : true;
+      const isPengeluaranRiil = masterConfig.isPengeluaranRiil ?? (config ? config.isPengeluaranRiil : true);
 
       const formData: CreateKeuanganWithDetailsData = {
         tanggal,
@@ -1300,8 +1480,8 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
           jenis_bantuan: alloc.jenis_bantuan,
           periode: alloc.periode,
           keterangan: alloc.keterangan,
-          tipe_alokasi: alloc.tipe_alokasi || (config?.tipeAlokasi || 'pengeluaran_riil'),
-          alokasi_ke: alloc.alokasi_ke || (config?.alokasiKe || undefined),
+          tipe_alokasi: alloc.tipe_alokasi || 'pengeluaran_riil',
+          alokasi_ke: alloc.alokasi_ke || masterConfig.alokasi_ke || config?.alokasiKe || undefined,
         })),
       };
 
