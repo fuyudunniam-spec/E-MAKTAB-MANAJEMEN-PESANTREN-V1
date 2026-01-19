@@ -18,7 +18,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, Printer, TrendingUp, BookOpen, History, Edit } from 'lucide-react';
+import { FileText, Printer, TrendingUp, BookOpen, History, Edit, Wallet, ArrowUpRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, getMonth, getYear } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
@@ -69,94 +69,132 @@ const LaporanKoperasiPage = () => {
         return { startDate: start, endDate: end };
     }, [selectedMonth, selectedYear]);
 
-    // Fetch transactions for Buku Besar
-    const { data: transactions = [], isLoading: isLoadingTransactions } = useQuery({
+    // Fetch transactions for Buku Besar - CONSOLIDATED TRUTH
+    const { data: bBesarResult = { transactions: [], openingBalance: 0 }, isLoading: isLoadingTransactions } = useQuery({
         queryKey: ['laporan-buku-besar', dateRange.startDate, dateRange.endDate],
         queryFn: async () => {
-            // Get koperasi account IDs
+            const startDateStr = dateRange.startDate.toISOString().split('T')[0];
+            const endDateStr = dateRange.endDate.toISOString().split('T')[0];
+
+            // 1. Get koperasi account IDs & Saldo Awal
             const { data: accounts } = await supabase
                 .from('akun_kas')
-                .select('id')
+                .select('id, saldo_awal')
                 .or('managed_by.eq.koperasi,nama.ilike.%koperasi%');
 
             const accountIds = (accounts || []).map(a => a.id);
-            if (accountIds.length === 0) return [];
+            if (accountIds.length === 0) return { transactions: [], openingBalance: 0 };
 
-            // Get koperasi transactions
+            // 2. Calculate Opening Balance (Balance before startDate)
+            // Start with base saldo_awal from accounts
+            const baseSaldoAwal = (accounts || []).reduce((sum, a) => sum + Number(a.saldo_awal || 0), 0);
+
+            // Get sum of all history BEFORE startDate
+            const { data: historyBefore } = await supabase
+                .from('keuangan')
+                .select('jumlah, jenis_transaksi')
+                .in('akun_kas_id', accountIds)
+                .lt('tanggal', startDateStr);
+
+            const historySum = (historyBefore || []).reduce((sum, tx) => {
+                return sum + (tx.jenis_transaksi === 'Pemasukan' ? Number(tx.jumlah) : -Number(tx.jumlah));
+            }, 0);
+
+            const openingBalance = baseSaldoAwal + historySum;
+
+            // 3. Get ALL transactions from the main 'keuangan' table for Koperasi accounts in THIS PERIOD
             const { data: keuanganData } = await supabase
+                .from('keuangan')
+                .select('*')
+                .in('akun_kas_id', accountIds)
+                .gte('tanggal', startDateStr)
+                .lte('tanggal', endDateStr)
+                .order('tanggal', { ascending: true });
+
+            // 4. Get transactions from 'keuangan_koperasi' that might NOT be in 'keuangan'
+            const { data: keuanganKoperasiData } = await supabase
                 .from('keuangan_koperasi')
                 .select('*')
                 .in('akun_kas_id', accountIds)
-                .gte('tanggal', dateRange.startDate.toISOString().split('T')[0])
-                .lte('tanggal', dateRange.endDate.toISOString().split('T')[0])
-                .order('tanggal', { ascending: true });
+                .gte('tanggal', startDateStr)
+                .lte('tanggal', endDateStr);
 
-            // Get sales transactions
-            const { data: salesData } = await supabase
-                .from('kop_penjualan')
-                .select('id, tanggal, total_transaksi, metode_pembayaran')
-                .gte('tanggal', dateRange.startDate.toISOString().split('T')[0])
-                .lte('tanggal', dateRange.endDate.toISOString().split('T')[0])
-                .order('tanggal', { ascending: true });
-
-            // ✅ NEW: Get transfer ke yayasan dari tabel keuangan
-            const { data: transferData } = await supabase
-                .from('keuangan')
-                .select('id, tanggal, jumlah, deskripsi, kategori')
-                .eq('kategori', 'Transfer dari Koperasi')
-                .gte('tanggal', dateRange.startDate.toISOString().split('T')[0])
-                .lte('tanggal', dateRange.endDate.toISOString().split('T')[0])
-                .order('tanggal', { ascending: true });
+            // 5. Get debt payments (pelunasan hutang) for this period
+            const { data: debtPayments } = await supabase
+                .from('kop_pembayaran_hutang_penjualan')
+                .select('*, kop_penjualan(nomor_struk)')
+                .gte('tanggal_bayar', startDateStr)
+                .lte('tanggal_bayar', endDateStr);
 
             // Combine and format
-            const combined: any[] = [];
+            const transactions: any[] = [];
 
-            (salesData || []).forEach((sale) => {
-                combined.push({
-                    id: sale.id,
-                    tanggal: sale.tanggal,
-                    kode: `PJ-${sale.id.slice(0, 8)}`,
-                    uraian: `Penjualan (${sale.metode_pembayaran})`,
-                    debet: sale.total_transaksi,
-                    kredit: 0,
-                });
-            });
-
+            // Add main keuangan data
             (keuanganData || []).forEach((tx) => {
-                combined.push({
+                transactions.push({
                     id: tx.id,
                     tanggal: tx.tanggal,
-                    kode: tx.no_transaksi || `TX-${tx.id.slice(0, 8)}`,
-                    uraian: tx.deskripsi || tx.kategori || '-',
-                    debet: tx.jenis_transaksi === 'Pemasukan' ? tx.jumlah : 0,
-                    kredit: tx.jenis_transaksi === 'Pengeluaran' ? tx.jumlah : 0,
+                    kode: tx.kategori === 'Penjualan' ? `PJ-${tx.id.slice(0, 8)}` : (tx.kategori === 'Transfer ke Yayasan' ? `TF-${tx.id.slice(0, 8)}` : `TX-${tx.id.slice(0, 8)}`),
+                    uraian: (tx.kategori === 'Transfer ke Yayasan' ? '🏛️ ' : '') + (tx.deskripsi || tx.kategori || '-'),
+                    debet: tx.jenis_transaksi === 'Pemasukan' ? Number(tx.jumlah) : 0,
+                    kredit: tx.jenis_transaksi === 'Pengeluaran' ? Number(tx.jumlah) : 0,
                 });
             });
 
-            // ✅ NEW: Add transfer transactions
-            (transferData || []).forEach((transfer) => {
-                combined.push({
-                    id: transfer.id,
-                    tanggal: transfer.tanggal,
-                    kode: `TF-${transfer.id.slice(0, 8)}`,
-                    uraian: `🏛️ Transfer ke Yayasan\n${transfer.deskripsi || ''}`,
-                    debet: 0,
-                    kredit: transfer.jumlah, // Pengeluaran dari koperasi
-                });
+            // Add koperasi-specific data that isn't already in keuangan
+            (keuanganKoperasiData || []).forEach((tx) => {
+                const isDuplicate = transactions.some(c =>
+                    c.tanggal === tx.tanggal &&
+                    Math.abs(Number(c.debet || c.kredit) - Number(tx.jumlah)) < 0.01
+                );
+
+                if (!isDuplicate) {
+                    transactions.push({
+                        id: tx.id,
+                        tanggal: tx.tanggal,
+                        kode: tx.no_transaksi || `TXK-${tx.id.slice(0, 8)}`,
+                        uraian: `[Kop] ${tx.deskripsi || tx.kategori || '-'}`,
+                        debet: tx.jenis_transaksi === 'Pemasukan' ? Number(tx.jumlah) : 0,
+                        kredit: tx.jenis_transaksi === 'Pengeluaran' ? Number(tx.jumlah) : 0,
+                    });
+                }
+            });
+
+            // Ensure debt payments are represented if not already in keuangan
+            (debtPayments || []).forEach((pay) => {
+                const isAlreadyIn = transactions.some(c =>
+                    c.uraian.includes((pay.kop_penjualan as any)?.nomor_struk) ||
+                    (c.tanggal === pay.tanggal_bayar && Math.abs(Number(c.debet) - Number(pay.jumlah_bayar)) < 0.01)
+                );
+
+                if (!isAlreadyIn) {
+                    transactions.push({
+                        id: pay.id,
+                        tanggal: pay.tanggal_bayar,
+                        kode: `PH-${pay.id.slice(0, 8)}`,
+                        uraian: `Pelunasan Hutang - Struk: ${(pay.kop_penjualan as any)?.nomor_struk || pay.penjualan_id}`,
+                        debet: Number(pay.jumlah_bayar),
+                        kredit: 0,
+                    });
+                }
             });
 
             // Sort by date
-            combined.sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime());
+            transactions.sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime());
 
-            return combined;
+            return { transactions, openingBalance };
         },
     });
+
+    // Simplify usage
+    const transactions = bBesarResult.transactions;
+    const openingBalance = bBesarResult.openingBalance;
 
     // Fetch profit/loss data - SEPARATED BY OWNER TYPE
     const { data: labaRugiData, isLoading: isLoadingLabaRugi } = useQuery({
         queryKey: ['laporan-laba-rugi', dateRange.startDate, dateRange.endDate],
         queryFn: async () => {
-            // Get detailed sales with owner type from kop_penjualan_detail
+            // 1. Get detailed sales with owner type from kop_penjualan_detail
             const { data: salesDetails } = await supabase
                 .from('kop_penjualan_detail')
                 .select(`
@@ -164,10 +202,35 @@ const LaporanKoperasiPage = () => {
                     subtotal,
                     hpp_snapshot,
                     jumlah,
-                    kop_penjualan!inner(tanggal)
+                    penjualan_id,
+                    kop_penjualan!inner(tanggal, status_pembayaran, metode_pembayaran)
                 `)
-                .gte('kop_penjualan.tanggal', dateRange.startDate.toISOString().split('T')[0])
-                .lte('kop_penjualan.tanggal', dateRange.endDate.toISOString().split('T')[0]);
+                .gte('kop_penjualan.tanggal', startDateStr)
+                .lte('kop_penjualan.tanggal', endDateStr);
+
+            // Calculate debt/receivables (piutang) created this month
+            // We group by penjualan_id to avoid double counting for items in same transaction
+            const uniqueSales = new Map();
+            (salesDetails || []).forEach(d => {
+                if (!uniqueSales.has(d.penjualan_id)) {
+                    uniqueSales.set(d.penjualan_id, d.kop_penjualan);
+                }
+            });
+
+            const receivablesCreated = Array.from(uniqueSales.values())
+                .filter(s => s.status_pembayaran === 'pending' || s.metode_pembayaran === 'debt')
+                .reduce((sum, s) => sum + (s.total_transaksi || 0), 0); // Need total_transaksi from parent
+
+            // Re-fetch with total_transaksi to get exact amount
+            const { data: salesSummary } = await supabase
+                .from('kop_penjualan')
+                .select('total_transaksi, status_pembayaran, metode_pembayaran')
+                .gte('tanggal', startDateStr)
+                .lte('tanggal', endDateStr);
+
+            const totalReceivablesNew = (salesSummary || [])
+                .filter(s => s.status_pembayaran === 'pending' || s.metode_pembayaran === 'debt')
+                .reduce((sum, s) => sum + (s.total_transaksi || 0), 0);
 
             // Separate by owner type
             const yayasanItems = (salesDetails || []).filter(d => d.barang_owner_type_snapshot === 'yayasan');
@@ -183,7 +246,16 @@ const LaporanKoperasiPage = () => {
             const hppKoperasi = koperasiItems.reduce((sum, d) => sum + ((d.hpp_snapshot || 0) * (d.jumlah || 0)), 0);
             const labaKotorKoperasi = omsetKoperasi - hppKoperasi;
 
-            // Get expenses
+            // 2. Get debt payments (pelunasan piutang lama) that arrived this month
+            const { data: debtPayments } = await supabase
+                .from('kop_pembayaran_hutang_penjualan')
+                .select('jumlah_bayar')
+                .gte('tanggal_bayar', startDateStr)
+                .lte('tanggal_bayar', endDateStr);
+
+            const totalDebtCollected = (debtPayments || []).reduce((sum, p) => sum + Number(p.jumlah_bayar), 0);
+
+            // 3. Get expenses
             const { data: accounts } = await supabase
                 .from('akun_kas')
                 .select('id')
@@ -196,42 +268,49 @@ const LaporanKoperasiPage = () => {
                 .select('jumlah, kategori')
                 .in('akun_kas_id', accountIds)
                 .eq('jenis_transaksi', 'Pengeluaran')
-                .gte('tanggal', dateRange.startDate.toISOString().split('T')[0])
-                .lte('tanggal', dateRange.endDate.toISOString().split('T')[0]);
+                .gte('tanggal', startDateStr)
+                .lte('tanggal', endDateStr);
 
             const totalOperasional = (expenses || []).reduce((sum, e) => sum + (e.jumlah || 0), 0);
 
-            // Get transfers to Yayasan
+            // 4. Get transfers to Yayasan (Real Cash Out)
             const { data: transfers } = await supabase
                 .from('keuangan')
                 .select('jumlah')
                 .eq('kategori', 'Transfer dari Koperasi')
-                .gte('tanggal', dateRange.startDate.toISOString().split('T')[0])
-                .lte('tanggal', dateRange.endDate.toISOString().split('T')[0]);
+                .gte('tanggal', startDateStr)
+                .lte('tanggal', endDateStr);
 
             const totalTransfer = (transfers || []).reduce((sum, t) => sum + Number(t.jumlah), 0);
 
-            // Get jasa pengelolaan if any
+            // 5. Get jasa pengelolaan
             const { data: jasaData } = await supabase
                 .from('keuangan_koperasi')
                 .select('jumlah')
                 .in('akun_kas_id', accountIds)
                 .eq('jenis_transaksi', 'Pemasukan')
                 .eq('kategori', 'Jasa Pengelolaan')
-                .gte('tanggal', dateRange.startDate.toISOString().split('T')[0])
-                .lte('tanggal', dateRange.endDate.toISOString().split('T')[0]);
+                .gte('tanggal', startDateStr)
+                .lte('tanggal', endDateStr);
 
             const jasaPengelolaan = (jasaData || []).reduce((sum, j) => sum + (j.jumlah || 0), 0);
 
-            // Calculate final profit for Koperasi
-            // Mode: Transfer Omset → Kewajiban = Omset Yayasan
-            const kewajibanYayasan = omsetYayasan - totalOperasional; // Dikurangi operasional
+            // Calculate Cash Reality
+            const totalOmset = omsetYayasan + omsetKoperasi;
+            const cashFromSales = totalOmset - totalReceivablesNew;
+            const netCashInflow = cashFromSales + totalDebtCollected - totalOperasional;
+
+            // Kewajiban Yayasan (Based on 100% margin or HPP - following existing logic)
+            // Mode Default: Transfer Omset → Kewajiban = Omset Yayasan - Operasional
+            const kewajibanYayasan = omsetYayasan - totalOperasional;
             const sisaKewajiban = kewajibanYayasan - totalTransfer;
 
-            // Total laba koperasi = Laba barang koperasi + Jasa pengelolaan
-            const labaBersihKoperasi = labaKotorKoperasi + jasaPengelolaan;
-
             return {
+                // Arus Kas Truth
+                netCashInflow,
+                totalReceivablesNew,
+                totalDebtCollected,
+                cashFromSales,
                 // Barang Yayasan
                 omsetYayasan,
                 hppYayasan,
@@ -245,15 +324,14 @@ const LaporanKoperasiPage = () => {
                 labaKotorKoperasi,
                 // Operasional
                 totalOperasional,
-                // Jasa & Total
                 jasaPengelolaan,
-                labaBersihKoperasi,
-                // Legacy fields for compatibility
-                penjualan: omsetYayasan + omsetKoperasi,
+                labaBersihKoperasi: labaKotorKoperasi + jasaPengelolaan,
+                // Legacy
+                penjualan: totalOmset,
                 hpp: hppYayasan + hppKoperasi,
-                labaKotor: (omsetYayasan + omsetKoperasi) - (hppYayasan + hppKoperasi),
+                labaKotor: totalOmset - (hppYayasan + hppKoperasi),
                 bebanOperasional: totalOperasional,
-                labaBersih: labaBersihKoperasi - sisaKewajiban // Net after pending transfer
+                labaBersih: (labaKotorKoperasi + jasaPengelolaan) - sisaKewajiban
             };
         },
     });
@@ -274,12 +352,12 @@ const LaporanKoperasiPage = () => {
 
     // Calculate running balance for Buku Besar
     const transactionsWithBalance = useMemo(() => {
-        let saldo = 0;
+        let saldo = openingBalance;
         return transactions.map((tx) => {
             saldo = saldo + tx.debet - tx.kredit;
             return { ...tx, saldo };
         });
-    }, [transactions]);
+    }, [transactions, openingBalance]);
 
     // Print handler
     const handlePrint = () => {
@@ -335,6 +413,33 @@ const LaporanKoperasiPage = () => {
                     </div>
                 </div>
 
+                {/* Mini Dashboard Keuangan */}
+                {!isLoading && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <Card className="bg-emerald-600 border-none shadow-md overflow-hidden relative">
+                            <CardContent className="p-4 text-white">
+                                <p className="text-[10px] uppercase font-bold opacity-80 mb-1">Total Kas Tersedia</p>
+                                <p className="text-xl font-mono font-bold">{formatRupiah(transactionsWithBalance.length > 0 ? transactionsWithBalance[transactionsWithBalance.length - 1].saldo : 0)}</p>
+                                <Wallet className="absolute -bottom-2 -right-2 w-16 h-16 opacity-10" />
+                            </CardContent>
+                        </Card>
+                        <Card className="bg-amber-500 border-none shadow-md overflow-hidden relative">
+                            <CardContent className="p-4 text-white">
+                                <p className="text-[10px] uppercase font-bold opacity-80 mb-1">Kewajiban Setor (Belum Dibayar)</p>
+                                <p className="text-xl font-mono font-bold">{formatRupiah(labaRugiData?.sisaKewajiban || 0)}</p>
+                                <ArrowUpRight className="absolute -bottom-2 -right-2 w-16 h-16 opacity-10" />
+                            </CardContent>
+                        </Card>
+                        <Card className="bg-white border-2 border-emerald-100 shadow-md overflow-hidden relative">
+                            <CardContent className="p-4">
+                                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Keuntungan Bersih Koperasi</p>
+                                <p className="text-xl font-mono font-bold text-emerald-600">{formatRupiah(labaRugiData?.labaBersihKoperasi || 0)}</p>
+                                <TrendingUp className="absolute -bottom-2 -right-2 w-16 h-16 opacity-5" />
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
                 {/* Tabs - Hidden on print */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="print:hidden">
                     <TabsList className="mb-6">
@@ -358,6 +463,7 @@ const LaporanKoperasiPage = () => {
                             transactions={transactionsWithBalance}
                             periodLabel={periodLabel}
                             isLoading={isLoading}
+                            openingBalance={openingBalance}
                         />
                     </TabsContent>
 
@@ -387,6 +493,7 @@ const LaporanKoperasiPage = () => {
                             transactions={transactionsWithBalance}
                             periodLabel={periodLabel}
                             isLoading={false}
+                            openingBalance={openingBalance}
                         />
                     )}
                     {activeTab === 'laba-rugi' && (
@@ -415,11 +522,13 @@ const LaporanKoperasiPage = () => {
 const BukuBesarReport = ({
     transactions,
     periodLabel,
-    isLoading
+    isLoading,
+    openingBalance
 }: {
     transactions: any[];
     periodLabel: string;
     isLoading: boolean;
+    openingBalance: number;
 }) => {
     const totals = useMemo(() => {
         return transactions.reduce((acc, tx) => ({
@@ -445,8 +554,6 @@ const BukuBesarReport = ({
                 <div className="p-4">
                     {isLoading ? (
                         <div className="text-center py-12 text-gray-500">Memuat data...</div>
-                    ) : transactions.length === 0 ? (
-                        <div className="text-center py-12 text-gray-500">Tidak ada transaksi</div>
                     ) : (
                         <Table>
                             <TableHeader>
@@ -454,12 +561,31 @@ const BukuBesarReport = ({
                                     <TableHead className="w-24 font-semibold">Tanggal</TableHead>
                                     <TableHead className="w-32 font-semibold">Kode</TableHead>
                                     <TableHead className="font-semibold">Uraian</TableHead>
-                                    <TableHead className="text-right font-semibold w-32">Debet</TableHead>
-                                    <TableHead className="text-right font-semibold w-32">Kredit</TableHead>
-                                    <TableHead className="text-right font-semibold w-36">Saldo</TableHead>
+                                    <TableHead className="text-right font-semibold w-32 text-green-700">Uang Masuk (+)</TableHead>
+                                    <TableHead className="text-right font-semibold w-32 text-red-700">Uang Keluar (-)</TableHead>
+                                    <TableHead className="text-right font-semibold w-36">Saldo Sisa</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
+                                {/* Opening Balance Row */}
+                                <TableRow className="bg-emerald-50/30">
+                                    <TableCell colSpan={3} className="font-bold text-emerald-800">
+                                        SALDO AWAL (Sisa Bulan Lalu)
+                                    </TableCell>
+                                    <TableCell className="text-right">-</TableCell>
+                                    <TableCell className="text-right">-</TableCell>
+                                    <TableCell className="text-right font-mono font-bold text-emerald-700">
+                                        {formatRupiah(openingBalance)}
+                                    </TableCell>
+                                </TableRow>
+
+                                {transactions.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="text-center py-12 text-gray-400">
+                                            Tidak ada transaksi pada periode ini
+                                        </TableCell>
+                                    </TableRow>
+                                )}
                                 {transactions.map((tx) => (
                                     <TableRow key={tx.id} className="border-b">
                                         <TableCell className="font-mono text-sm">
@@ -483,7 +609,7 @@ const BukuBesarReport = ({
                                     <TableCell colSpan={3} className="text-right">TOTAL</TableCell>
                                     <TableCell className="text-right font-mono text-green-700">{formatRupiah(totals.debet)}</TableCell>
                                     <TableCell className="text-right font-mono text-red-700">{formatRupiah(totals.kredit)}</TableCell>
-                                    <TableCell className="text-right font-mono">{formatRupiah(totals.debet - totals.kredit)}</TableCell>
+                                    <TableCell className="text-right font-mono">{formatRupiah(openingBalance + totals.debet - totals.kredit)}</TableCell>
                                 </TableRow>
                             </TableBody>
                         </Table>
@@ -503,8 +629,7 @@ const BukuBesarReport = ({
 const LabaRugiReport = ({
     data,
     periodLabel,
-    isLoading,
-    dateRange
+    isLoading
 }: {
     data: any;
     periodLabel: string;
@@ -538,137 +663,213 @@ const LabaRugiReport = ({
 
                 {/* Content */}
                 <div className="p-4 sm:p-6 max-w-2xl mx-auto">
-                    <div className="space-y-4">
+                    <div className="space-y-6">
 
-                        {/* ═══ BAGIAN A: BARANG KOPERASI ═══ */}
-                        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-                            <h4 className="font-bold text-sm mb-3 text-emerald-800 flex items-center gap-2">
-                                <span className="text-lg">🏪</span>
-                                BAGIAN A: PENJUALAN BARANG KOPERASI
+                        {/* 🌟 EXECUTIVE SUMMARY - POSISI KAS & HAK KOPERASI 🌟 */}
+                        <div className="p-5 bg-gradient-to-br from-gray-800 to-slate-900 text-white rounded-xl shadow-lg mb-8">
+                            <h4 className="text-xs uppercase tracking-widest text-emerald-400 font-bold mb-4 opacity-80">
+                                📊 RINGKASAN POSISI KEUANGAN
                             </h4>
-                            {data.omsetKoperasi > 0 ? (
-                                <div className="space-y-2">
-                                    <div className="flex justify-between text-sm">
-                                        <span>Penjualan Item Koperasi</span>
-                                        <span className="font-mono">{formatRupiah(data.omsetKoperasi)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600">HPP Item Koperasi</span>
-                                        <span className="font-mono text-red-600">({formatRupiah(data.hppKoperasi)})</span>
-                                    </div>
-                                    <div className="flex justify-between font-semibold pt-2 border-t border-emerald-300">
-                                        <span>Laba Kotor Barang Koperasi</span>
-                                        <span className="font-mono text-emerald-700">{formatRupiah(data.labaKotorKoperasi)}</span>
+                            <div className="grid grid-cols-1 gap-6">
+                                {/* Uang Nyata */}
+                                <div className="border-b border-white/10 pb-4">
+                                    <p className="text-gray-400 text-xs mb-1">Estimasi Uang Tunai (Cash) yang Tersedia:</p>
+                                    <div className="flex items-end justify-between">
+                                        <p className="text-2xl font-bold font-mono tracking-tight text-emerald-100">
+                                            {formatRupiah(data.netCashInflow)}
+                                        </p>
+                                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-1 rounded">Kas Murni</span>
                                     </div>
                                 </div>
-                            ) : (
-                                <p className="text-sm text-gray-500 italic">Tidak ada penjualan barang milik koperasi pada periode ini.</p>
-                            )}
-                        </div>
 
-                        {/* ═══ BAGIAN B: PENGELOLAAN BARANG YAYASAN ═══ */}
-                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                            <h4 className="font-bold text-sm mb-3 text-amber-800 flex items-center gap-2">
-                                <span className="text-lg">🏛️</span>
-                                BAGIAN B: PENGELOLAAN BARANG YAYASAN
-                            </h4>
-                            {data.omsetYayasan > 0 ? (
-                                <div className="space-y-2">
-                                    <div className="flex justify-between text-sm">
-                                        <span>Penjualan Item Yayasan</span>
-                                        <span className="font-mono">{formatRupiah(data.omsetYayasan)}</span>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* Kewajiban */}
+                                    <div>
+                                        <p className="text-gray-400 text-[10px] mb-1">Titipan/Hutang ke Yayasan:</p>
+                                        <p className="text-lg font-bold font-mono text-amber-300">
+                                            {formatRupiah(data.kewajibanYayasan)}
+                                        </p>
                                     </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600">HPP Item Yayasan</span>
-                                        <span className="font-mono text-red-600">({formatRupiah(data.hppYayasan)})</span>
+                                    {/* Hak Koperasi */}
+                                    <div>
+                                        <p className="text-gray-400 text-[10px] mb-1">Milik Koperasi (Laba Bersih):</p>
+                                        <p className="text-lg font-bold font-mono text-emerald-400">
+                                            {formatRupiah(data.labaBersihKoperasi)}
+                                        </p>
                                     </div>
-                                    <div className="flex justify-between text-sm pt-2 border-t border-amber-200">
-                                        <span>Margin Pengelolaan</span>
-                                        <span className="font-mono">{formatRupiah(data.marginYayasan)}</span>
-                                    </div>
-
-                                    {/* Mode & Kewajiban */}
-                                    <div className="mt-3 p-3 bg-white/60 rounded border border-amber-200">
-                                        <div className="text-xs text-amber-700 mb-2 font-medium">
-                                            Mode: Transfer Omset (100% omset - operasional)
-                                        </div>
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-gray-600">Operasional Dikurangi:</span>
-                                            <span className="font-mono text-green-600">+{formatRupiah(data.totalOperasional)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-sm font-semibold">
-                                            <span>Kewajiban ke Yayasan:</span>
-                                            <span className="font-mono text-red-700">{formatRupiah(data.kewajibanYayasan)}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Transfer */}
-                                    <div className="mt-3 p-3 bg-purple-50 rounded border border-purple-200">
-                                        <div className="flex justify-between text-sm">
-                                            <span>Transfer ke Yayasan:</span>
-                                            <span className="font-mono text-purple-700">({formatRupiah(data.totalTransfer)})</span>
-                                        </div>
-                                        <div className={`flex justify-between text-sm font-semibold ${data.sisaKewajiban <= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                                            <span>{data.sisaKewajiban <= 0 ? 'Sisa/Lebih:' : 'Sisa Kewajiban:'}</span>
-                                            <span className="font-mono">{formatRupiah(Math.abs(data.sisaKewajiban))}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Jasa Pengelolaan */}
-                                    {data.jasaPengelolaan > 0 && (
-                                        <div className="flex justify-between text-sm pt-2 border-t border-amber-300 text-emerald-700">
-                                            <span className="font-medium">Jasa Pengelolaan (Pemasukan Koperasi):</span>
-                                            <span className="font-mono font-semibold">+{formatRupiah(data.jasaPengelolaan)}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <p className="text-sm text-gray-500 italic">Tidak ada penjualan barang yayasan pada periode ini.</p>
-                            )}
-                        </div>
-
-                        {/* ═══ RINGKASAN LABA RUGI KOPERASI ═══ */}
-                        <div className="mt-6 p-4 bg-gray-100 border-2 border-gray-300 rounded-lg">
-                            <h4 className="font-bold text-sm mb-3 text-gray-800">📊 RINGKASAN LABA RUGI KOPERASI</h4>
-                            <div className="space-y-2">
-                                {data.labaKotorKoperasi > 0 && (
-                                    <div className="flex justify-between text-sm">
-                                        <span>Laba Barang Koperasi:</span>
-                                        <span className="font-mono text-emerald-700">+{formatRupiah(data.labaKotorKoperasi)}</span>
-                                    </div>
-                                )}
-                                {data.jasaPengelolaan > 0 && (
-                                    <div className="flex justify-between text-sm">
-                                        <span>Jasa Pengelolaan:</span>
-                                        <span className="font-mono text-emerald-700">+{formatRupiah(data.jasaPengelolaan)}</span>
-                                    </div>
-                                )}
-                                {data.totalOperasional > 0 && (
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600">Beban Operasional:</span>
-                                        <span className="font-mono text-red-600">({formatRupiah(data.totalOperasional)})</span>
-                                    </div>
-                                )}
-                                {data.sisaKewajiban !== 0 && (
-                                    <div className={`flex justify-between text-sm ${data.sisaKewajiban > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                        <span>{data.sisaKewajiban > 0 ? 'Kewajiban Transfer Pending:' : 'Transfer Lebih:'}</span>
-                                        <span className="font-mono">{data.sisaKewajiban > 0 ? `(${formatRupiah(data.sisaKewajiban)})` : `+${formatRupiah(Math.abs(data.sisaKewajiban))}`}</span>
-                                    </div>
-                                )}
-                                <div className={`flex justify-between py-3 border-t-2 border-gray-400 font-bold text-lg ${data.labaBersihKoperasi >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                                    <span>TOTAL LABA (RUGI) KOPERASI:</span>
-                                    <span className="font-mono">{formatRupiah(data.labaBersihKoperasi)}</span>
                                 </div>
                             </div>
 
-                            {/* Warning jika ada kewajiban pending */}
-                            {data.sisaKewajiban > 0 && (
-                                <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded text-xs text-red-800">
-                                    ⚠️ <strong>Perhatian:</strong> Masih ada kewajiban transfer ke yayasan sebesar {formatRupiah(data.sisaKewajiban)} yang belum disetor.
-                                </div>
-                            )}
+                            <div className="mt-6 pt-4 border-t border-white/10 text-center">
+                                <p className="text-[11px] text-gray-400 leading-relaxed italic">
+                                    {data.netCashInflow < data.kewajibanYayasan
+                                        ? "⚠️ Perhatian: Uang tunai saat ini lebih kecil dari kewajiban ke Yayasan. Hal ini biasanya terjadi karena masih banyak hutang/bon santri yang belum lunas."
+                                        : "✅ Kondisi Baik: Uang tunai mencukupi untuk melunasi kewajiban ke Yayasan dan mencadangkan laba Koperasi."}
+                                </p>
+                            </div>
                         </div>
 
+                        {/* 📝 NARASI PENJELASAN (DIBACA USER) */}
+                        <div className="p-4 bg-white border-2 border-dashed border-gray-300 rounded-lg">
+                            <h5 className="text-xs font-bold text-gray-500 mb-2 flex items-center gap-2">
+                                <span className="text-base">💡</span> CARA MENJELASKAN LAPORAN INI:
+                            </h5>
+                            <p className="text-[13px] text-gray-700 leading-relaxed">
+                                "Bulan ini, kita menjual barang total senilai <strong>{formatRupiah(data.penjualan)}</strong>.
+                                Namun, tidak semua itu jadi uang tunai karena ada santri yang belum bayar senilai <strong>{formatRupiah(data.totalReceivablesNew)}</strong>.
+                                Tapi kabar baiknya, kita menerima uang dari hutang bulan-bulan lama sebesar <strong>{formatRupiah(data.totalDebtCollected)}</strong>.
+                                Setelah dikurangi biaya operasional <strong>{formatRupiah(data.totalOperasional)}</strong>, maka uang nyata
+                                yang masuk ke dompet Koperasi periode ini adalah <strong>{formatRupiah(data.netCashInflow)}</strong>.
+                                Dari uang ini, kita punya kewajiban titipan barang milik Yayasan senilai <strong>{formatRupiah(data.kewajibanYayasan)}</strong>."
+                            </p>
+                        </div>
+
+                        <div className="space-y-4">
+
+                            {/* ═══ BAGIAN A: BARANG KOPERASI ═══ */}
+                            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                                <h4 className="font-bold text-sm mb-3 text-emerald-800 flex items-center gap-2">
+                                    <span className="text-lg">🏪</span>
+                                    BAGIAN A: PENJUALAN BARANG KOPERASI
+                                </h4>
+                                {data.omsetKoperasi > 0 ? (
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                            <span>Penjualan Item Koperasi</span>
+                                            <span className="font-mono">{formatRupiah(data.omsetKoperasi)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">HPP Item Koperasi</span>
+                                            <span className="font-mono text-red-600">({formatRupiah(data.hppKoperasi)})</span>
+                                        </div>
+                                        <div className="flex justify-between font-semibold pt-2 border-t border-emerald-300">
+                                            <span>Laba Kotor Barang Koperasi</span>
+                                            <span className="font-mono text-emerald-700">{formatRupiah(data.labaKotorKoperasi)}</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-gray-500 italic">Tidak ada penjualan barang milik koperasi pada periode ini.</p>
+                                )}
+                            </div>
+
+                            {/* ═══ BAGIAN B: PENGELOLAAN BARANG YAYASAN ═══ */}
+                            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                <h4 className="font-bold text-sm mb-3 text-amber-800 flex items-center gap-2">
+                                    <span className="text-lg">🏛️</span>
+                                    BAGIAN B: PENGELOLAAN BARANG YAYASAN
+                                </h4>
+                                {data.omsetYayasan > 0 ? (
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                            <span>Penjualan Item Yayasan</span>
+                                            <span className="font-mono">{formatRupiah(data.omsetYayasan)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">HPP Item Yayasan</span>
+                                            <span className="font-mono text-red-600">({formatRupiah(data.hppYayasan)})</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm pt-2 border-t border-amber-200">
+                                            <span>Margin Pengelolaan</span>
+                                            <span className="font-mono">{formatRupiah(data.marginYayasan)}</span>
+                                        </div>
+
+                                        {/* Mode & Kewajiban */}
+                                        <div className="mt-3 p-3 bg-white/60 rounded border border-amber-200">
+                                            <div className="text-xs text-amber-700 mb-2 font-medium">
+                                                Mode: Transfer Omset (100% omset - operasional)
+                                            </div>
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-gray-600">Operasional Dikurangi:</span>
+                                                <span className="font-mono text-green-600">+{formatRupiah(data.totalOperasional)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-sm font-semibold">
+                                                <span>Kewajiban ke Yayasan:</span>
+                                                <span className="font-mono text-red-700">{formatRupiah(data.kewajibanYayasan)}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Transfer */}
+                                        <div className="mt-3 p-3 bg-purple-50 rounded border border-purple-200">
+                                            <div className="flex justify-between text-sm">
+                                                <span>Transfer ke Yayasan:</span>
+                                                <span className="font-mono text-purple-700">({formatRupiah(data.totalTransfer)})</span>
+                                            </div>
+                                            <div className={`flex justify-between text-sm font-semibold ${data.sisaKewajiban <= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                                <span>{data.sisaKewajiban <= 0 ? 'Sisa/Lebih:' : 'Sisa Kewajiban:'}</span>
+                                                <span className="font-mono">{formatRupiah(Math.abs(data.sisaKewajiban))}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Jasa Pengelolaan */}
+                                        {data.jasaPengelolaan > 0 && (
+                                            <div className="flex justify-between text-sm pt-2 border-t border-amber-300 text-emerald-700">
+                                                <span className="font-medium">Jasa Pengelolaan (Pemasukan Koperasi):</span>
+                                                <span className="font-mono font-semibold">+{formatRupiah(data.jasaPengelolaan)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-gray-500 italic">Tidak ada penjualan barang yayasan pada periode ini.</p>
+                                )}
+                            </div>
+
+                            {/* ═══ BAGIAN C: REKONSILIASI ARUS KAS (TRUTH) ═══ */}
+                            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <h4 className="font-bold text-sm mb-3 text-blue-800 flex items-center gap-2">
+                                    <span className="text-lg">💰</span>
+                                    BAGIAN C: REALITAS ARUS KAS (CASH FLOW)
+                                </h4>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span>Total Omset (Akrual)</span>
+                                        <span className="font-mono">{formatRupiah(data.penjualan)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-red-600">
+                                        <span>Piutang Baru (Belum Bayar)</span>
+                                        <span className="font-mono">({formatRupiah(data.totalReceivablesNew)})</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-emerald-600">
+                                        <span>Pelunasan Piutang Lama (Uang Masuk)</span>
+                                        <span className="font-mono">+{formatRupiah(data.totalDebtCollected)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm pt-2 border-t border-blue-200 font-semibold text-blue-900">
+                                        <span>Total Kas Masuk Bruto</span>
+                                        <span className="font-mono">{formatRupiah(data.cashFromSales + data.totalDebtCollected)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-gray-600">
+                                        <span>Keluar: Operasional</span>
+                                        <span className="font-mono">({formatRupiah(data.totalOperasional)})</span>
+                                    </div>
+                                    <div className={`flex justify-between font-bold pt-2 border-t-2 border-blue-300 text-base ${data.netCashInflow >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
+                                        <span>NET CASH INFLOW (ESTIMASI KAS):</span>
+                                        <span className="font-mono">{formatRupiah(data.netCashInflow)}</span>
+                                    </div>
+                                    <p className="text-[10px] text-blue-600 mt-2 italic">
+                                        * Angka ini menunjukkan uang tunai yang seharusnya tersedia di kas untuk periode ini setelah mempertimbangkan hutang santri dan operasional.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* ═══ RINGKASAN LABA RUGI KOPERASI ═══ */}
+                            <div className="mt-6 p-4 bg-gray-100 border-2 border-gray-300 rounded-lg">
+                                <h4 className="font-bold text-sm mb-3 text-gray-800 uppercase tracking-wider">📊 Ringkasan Performa Koperasi</h4>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span>Laba Bersih Koperasi (A + Jasa):</span>
+                                        <span className="font-mono text-emerald-700">+{formatRupiah(data.labaBersihKoperasi)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">Kewajiban ke Yayasan:</span>
+                                        <span className="font-mono text-red-700">({formatRupiah(data.kewajibanYayasan)})</span>
+                                    </div>
+                                    <div className={`flex justify-between py-3 border-t-2 border-gray-400 font-bold text-lg ${data.labaBersih >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                                        <span>SISA LABA (RUGI) PERIODE INI:</span>
+                                        <span className="font-mono">{formatRupiah(data.labaBersih)}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
                     </div>
                 </div>
 
