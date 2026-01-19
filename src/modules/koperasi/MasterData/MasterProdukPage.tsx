@@ -1,35 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Package, 
-  AlertTriangle, 
-  FileSpreadsheet, 
-  Plus, 
-  Search, 
-  Pencil, 
+import {
+  Package,
+  AlertTriangle,
+  Plus,
+  Search,
+  Pencil,
   Trash2,
   TrendingDown,
   PackageX,
-  Tag,
-  Store,
-  ClipboardList,
-  DollarSign
+  Store
 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import ProdukFormDialog from './components/ProdukFormDialog';
-import StockOpnameKoperasi from './components/StockOpnameKoperasi';
-import KategoriManagement from './components/KategoriManagement';
-import SupplierManagement from './components/SupplierManagement';
-import ImportExportData from './components/ImportExportData';
 import type { KoperasiProduk } from '@/types/koperasi.types';
+
 
 export default function MasterProdukPage() {
   const [activeTab, setActiveTab] = useState('products');
@@ -47,7 +38,7 @@ export default function MasterProdukPage() {
         .from('kop_barang')
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true);
-      
+
       if (error) throw error;
       return count || 0;
     },
@@ -86,16 +77,16 @@ export default function MasterProdukPage() {
 
       const { data, error } = await query;
       if (error) throw error;
-      
+
       // Fetch all kategori untuk mapping (fallback jika join tidak berfungsi)
       const { data: kategoriList } = await supabase
         .from('kop_kategori')
         .select('id, nama');
-      
+
       const kategoriMap = new Map(
         (kategoriList || []).map((k: any) => [k.id, k.nama])
       );
-      
+
       // Map to include stock status, calculate values, and rename columns
       return (data || []).map((item: any) => {
         const stock = Number(item.stok || 0);
@@ -103,12 +94,12 @@ export default function MasterProdukPage() {
         let statusStock = 'aman';
         if (stock === 0) statusStock = 'habis';
         else if (stock <= stockMin) statusStock = 'menipis';
-        
+
         // Get kategori name from join or fallback to map
-        const kategoriName = item.kop_kategori?.nama || 
-                            (item.kategori_id ? kategoriMap.get(item.kategori_id) : null) || 
-                            null;
-        
+        const kategoriName = item.kop_kategori?.nama ||
+          (item.kategori_id ? kategoriMap.get(item.kategori_id) : null) ||
+          null;
+
         return {
           produk_id: item.id,
           kode_produk: item.kode_barang,
@@ -262,8 +253,8 @@ export default function MasterProdukPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Master Data Koperasi</h1>
-          <p className="text-muted-foreground">Kelola produk dan stok koperasi</p>
+          <h1 className="text-3xl font-bold">Produk & Stok</h1>
+          <p className="text-muted-foreground">Kelola produk dan inventaris koperasi dalam satu layar</p>
         </div>
         <Button onClick={() => setIsDialogOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
@@ -272,37 +263,21 @@ export default function MasterProdukPage() {
       </div>
 
       <Tabs defaultValue="products" value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-7 lg:w-auto">
+        <TabsList className="grid w-full grid-cols-3 lg:w-auto">
           <TabsTrigger key="products" value="products" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
-            <span className="hidden sm:inline">Produk</span>
-          </TabsTrigger>
-          <TabsTrigger key="yayasan-items" value="yayasan-items" className="flex items-center gap-2">
-            <Store className="h-4 w-4" />
-            <span className="hidden sm:inline">Item Yayasan</span>
+            <span className="hidden sm:inline">Semua Produk</span>
           </TabsTrigger>
           <TabsTrigger key="alerts" value="alerts" className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
-            <span className="hidden sm:inline">Alert</span>
+            <span className="hidden sm:inline">Stok Rendah</span>
             {stockAlerts.length > 0 && (
               <Badge variant="destructive" className="ml-1">{stockAlerts.length}</Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger key="stock-opname" value="stock-opname" className="flex items-center gap-2">
-            <ClipboardList className="h-4 w-4" />
-            <span className="hidden sm:inline">Opname</span>
-          </TabsTrigger>
-          <TabsTrigger key="kategori" value="kategori" className="flex items-center gap-2">
-            <Tag className="h-4 w-4" />
-            <span className="hidden sm:inline">Kategori</span>
-          </TabsTrigger>
-          <TabsTrigger key="supplier" value="supplier" className="flex items-center gap-2">
+          <TabsTrigger key="yayasan-items" value="yayasan-items" className="flex items-center gap-2">
             <Store className="h-4 w-4" />
-            <span className="hidden sm:inline">Supplier</span>
-          </TabsTrigger>
-          <TabsTrigger key="import-export" value="import-export" className="flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4" />
-            <span className="hidden sm:inline">I/E</span>
+            <span className="hidden sm:inline">Aset Yayasan</span>
           </TabsTrigger>
         </TabsList>
 
@@ -352,9 +327,8 @@ export default function MasterProdukPage() {
                         <th className="text-left p-3">Kategori</th>
                         <th className="text-right p-3">Stock</th>
                         <th className="text-left p-3">Satuan</th>
-                        <th className="text-right p-3">Harga Beli</th>
-                        <th className="text-right p-3">Harga Ecer</th>
-                        <th className="text-right p-3">Harga Grosir</th>
+                        <th className="text-right p-3">HPP</th>
+                        <th className="text-right p-3">Harga Jual</th>
                         <th className="text-center p-3">Aksi</th>
                       </tr>
                     </thead>
@@ -368,85 +342,65 @@ export default function MasterProdukPage() {
                         .map((produk: any) => {
                           const ownerType = produk.owner_type || 'koperasi';
                           return (
-                          <tr key={produk.produk_id} className="border-b hover:bg-muted/50">
-                            <td className="p-3 font-mono text-sm">{produk.kode_produk}</td>
-                            <td className="p-3">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span>{produk.nama_produk}</span>
-                                <Badge 
-                                  variant={ownerType === 'yayasan' ? 'outline' : 'secondary'} 
-                                  className="text-xs shrink-0"
-                                >
-                                  {ownerType === 'yayasan' ? 'Yayasan' : 'Koperasi'}
-                                </Badge>
-                              </div>
-                            </td>
-                            <td className="p-3">
-                              <Badge variant="outline">{produk.kategori || '-'}</Badge>
-                            </td>
-                          <td className="p-3 text-right">
-                            <div className="flex flex-col items-end gap-1">
-                              <span className={`font-semibold ${
-                                produk.status_stock === 'habis' ? 'text-red-600' :
-                                produk.status_stock === 'menipis' ? 'text-orange-600' :
-                                'text-green-600'
-                              }`}>
-                                {Number(produk.stock || 0).toLocaleString('id-ID')}
-                              </span>
-                              {produk.owner_type === 'yayasan' && produk.inventaris_id && (
-                                <span className="text-xs text-muted-foreground">
-                                  (Stok Koperasi)
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-3">{produk.satuan}</td>
-                          <td className="p-3 text-right">
-                            Rp {Number(produk.harga_beli || 0).toLocaleString('id-ID')}
-                          </td>
-                          <td className="p-3 text-right">
-                            <div className="text-sm">
-                              <div>Rp {Number(produk.harga_jual_ecer || produk.harga_jual || 0).toLocaleString('id-ID')}</div>
-                              <div className="text-xs text-muted-foreground">
-                                ({calculateMargin(Number(produk.harga_beli || 0), Number(produk.harga_jual_ecer || produk.harga_jual || 0))}%)
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-3 text-right">
-                            <div className="text-sm">
-                              <div>
-                                {produk.harga_jual_grosir === 0 
-                                  ? 'Rp 0 (Eceran saja)' 
-                                  : `Rp ${Number(produk.harga_jual_grosir || produk.harga_jual || 0).toLocaleString('id-ID')}`}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {produk.harga_jual_grosir === 0 
-                                  ? '(Hanya eceran)'
-                                  : `(${calculateMargin(Number(produk.harga_beli || 0), Number(produk.harga_jual_grosir || produk.harga_jual || 0))}%)`}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <div className="flex justify-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleEdit({ ...produk, id: produk.produk_id })}
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDelete(produk.produk_id, produk.nama_produk)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                        );
-                      })}
+                            <tr key={produk.produk_id} className="border-b hover:bg-muted/50">
+                              <td className="p-3 font-mono text-sm">{produk.kode_produk}</td>
+                              <td className="p-3">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span>{produk.nama_produk}</span>
+                                  <Badge
+                                    variant={ownerType === 'yayasan' ? 'outline' : 'secondary'}
+                                    className="text-xs shrink-0"
+                                  >
+                                    {ownerType === 'yayasan' ? 'Yayasan' : 'Koperasi'}
+                                  </Badge>
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <Badge variant="outline">{produk.kategori || '-'}</Badge>
+                              </td>
+                              <td className="p-3 text-right">
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className={`font-semibold ${produk.status_stock === 'habis' ? 'text-red-600' :
+                                    produk.status_stock === 'menipis' ? 'text-orange-600' :
+                                      'text-green-600'
+                                    }`}>
+                                    {Number(produk.stock || 0).toLocaleString('id-ID')}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="p-3">{produk.satuan}</td>
+                              <td className="p-3 text-right">
+                                Rp {Number(produk.harga_beli || 0).toLocaleString('id-ID')}
+                              </td>
+                              <td className="p-3 text-right">
+                                <div className="text-sm">
+                                  <div>Rp {Number(produk.harga_jual_ecer || produk.harga_jual || 0).toLocaleString('id-ID')}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    ({calculateMargin(Number(produk.harga_beli || 0), Number(produk.harga_jual_ecer || produk.harga_jual || 0))}%)
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex justify-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleEdit({ ...produk, id: produk.produk_id })}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleDelete(produk.produk_id, produk.nama_produk)}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
@@ -454,6 +408,7 @@ export default function MasterProdukPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
 
         {/* Tab: Item Yayasan (Komoditas) */}
         <TabsContent value="yayasan-items" className="mt-6">
@@ -512,11 +467,10 @@ export default function MasterProdukPage() {
                               </td>
                               <td className="p-3 text-right">
                                 <div className="flex flex-col items-end gap-1">
-                                  <span className={`font-semibold ${
-                                    (item.jumlah || 0) === 0 ? 'text-red-600' :
+                                  <span className={`font-semibold ${(item.jumlah || 0) === 0 ? 'text-red-600' :
                                     (item.jumlah || 0) <= (item.min_stock || 10) ? 'text-orange-600' :
-                                    'text-green-600'
-                                  }`}>
+                                      'text-green-600'
+                                    }`}>
                                     {Number(item.jumlah || 0).toLocaleString('id-ID')} {item.satuan || ''}
                                   </span>
                                   {stokKoperasi > 0 && (
@@ -622,27 +576,8 @@ export default function MasterProdukPage() {
             </Card>
           </div>
         </TabsContent>
-
-        {/* Tab: Stock Opname */}
-        <TabsContent value="stock-opname" className="mt-6">
-          <StockOpnameKoperasi />
-        </TabsContent>
-
-        {/* Tab: Kategori */}
-        <TabsContent value="kategori" className="mt-6">
-          <KategoriManagement />
-        </TabsContent>
-
-        {/* Tab: Supplier */}
-        <TabsContent value="supplier" className="mt-6">
-          <SupplierManagement />
-        </TabsContent>
-
-        {/* Tab: Import/Export */}
-        <TabsContent value="import-export" className="mt-6">
-          <ImportExportData />
-        </TabsContent>
       </Tabs>
+
 
       <ProdukFormDialog
         key={editingProduk?.id || 'new'} // Force re-render when produk changes

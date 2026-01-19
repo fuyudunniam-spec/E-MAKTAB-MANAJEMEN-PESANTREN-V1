@@ -90,7 +90,7 @@ const KeuanganDashboardKoperasi = lazy(() => import('./modules/koperasi/Keuangan
 const KeuanganPembelianPage = lazy(() => import('./modules/koperasi/Keuangan/KeuanganUnifiedPage'));
 const KeuanganOperasionalPage = lazy(() => import('./modules/koperasi/Keuangan/KeuanganUnifiedPage'));
 const KelolaHPPDanBagiHasilPage = lazy(() => import('./modules/koperasi/Keuangan/KelolaHPPDanBagiHasilPage'));
-const LaporanKoperasiPage = lazy(() => import('./modules/koperasi/Laporan/LaporanPage'));
+const LaporanKoperasiPage = lazy(() => import('./modules/koperasi/Laporan/LaporanKoperasiPage'));
 
 const queryClient = new QueryClient();
 
