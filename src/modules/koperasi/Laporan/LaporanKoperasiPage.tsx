@@ -18,10 +18,11 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, Printer, TrendingUp, BookOpen, History } from 'lucide-react';
+import { FileText, Printer, TrendingUp, BookOpen, History, Edit } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, getMonth, getYear } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
+import { EditBagiHasilDialog } from './components/EditBagiHasilDialog';
 
 // Helper function
 const formatRupiah = (amount: number) => {
@@ -98,6 +99,15 @@ const LaporanKoperasiPage = () => {
                 .lte('tanggal', dateRange.endDate.toISOString().split('T')[0])
                 .order('tanggal', { ascending: true });
 
+            // ✅ NEW: Get transfer ke yayasan dari tabel keuangan
+            const { data: transferData } = await supabase
+                .from('keuangan')
+                .select('id, tanggal, jumlah, deskripsi, kategori')
+                .eq('kategori', 'Transfer dari Koperasi')
+                .gte('tanggal', dateRange.startDate.toISOString().split('T')[0])
+                .lte('tanggal', dateRange.endDate.toISOString().split('T')[0])
+                .order('tanggal', { ascending: true });
+
             // Combine and format
             const combined: any[] = [];
 
@@ -123,6 +133,18 @@ const LaporanKoperasiPage = () => {
                 });
             });
 
+            // ✅ NEW: Add transfer transactions
+            (transferData || []).forEach((transfer) => {
+                combined.push({
+                    id: transfer.id,
+                    tanggal: transfer.tanggal,
+                    kode: `TF-${transfer.id.slice(0, 8)}`,
+                    uraian: `🏛️ Transfer ke Yayasan\n${transfer.deskripsi || ''}`,
+                    debet: 0,
+                    kredit: transfer.jumlah, // Pengeluaran dari koperasi
+                });
+            });
+
             // Sort by date
             combined.sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime());
 
@@ -130,27 +152,36 @@ const LaporanKoperasiPage = () => {
         },
     });
 
-    // Fetch profit/loss data
+    // Fetch profit/loss data - SEPARATED BY OWNER TYPE
     const { data: labaRugiData, isLoading: isLoadingLabaRugi } = useQuery({
         queryKey: ['laporan-laba-rugi', dateRange.startDate, dateRange.endDate],
         queryFn: async () => {
-            // Get sales
-            const { data: sales } = await supabase
-                .from('kop_penjualan')
-                .select('total_transaksi')
-                .gte('tanggal', dateRange.startDate.toISOString().split('T')[0])
-                .lte('tanggal', dateRange.endDate.toISOString().split('T')[0]);
-
-            const totalPenjualan = (sales || []).reduce((sum, s) => sum + (s.total_transaksi || 0), 0);
-
-            // Get HPP from sales details
+            // Get detailed sales with owner type from kop_penjualan_detail
             const { data: salesDetails } = await supabase
                 .from('kop_penjualan_detail')
-                .select('hpp_snapshot, jumlah, kop_penjualan!inner(tanggal)')
+                .select(`
+                    barang_owner_type_snapshot,
+                    subtotal,
+                    hpp_snapshot,
+                    jumlah,
+                    kop_penjualan!inner(tanggal)
+                `)
                 .gte('kop_penjualan.tanggal', dateRange.startDate.toISOString().split('T')[0])
                 .lte('kop_penjualan.tanggal', dateRange.endDate.toISOString().split('T')[0]);
 
-            const totalHPP = (salesDetails || []).reduce((sum, d) => sum + ((d.hpp_snapshot || 0) * (d.jumlah || 0)), 0);
+            // Separate by owner type
+            const yayasanItems = (salesDetails || []).filter(d => d.barang_owner_type_snapshot === 'yayasan');
+            const koperasiItems = (salesDetails || []).filter(d => d.barang_owner_type_snapshot === 'koperasi');
+
+            // Calculate Yayasan items
+            const omsetYayasan = yayasanItems.reduce((sum, d) => sum + (d.subtotal || 0), 0);
+            const hppYayasan = yayasanItems.reduce((sum, d) => sum + ((d.hpp_snapshot || 0) * (d.jumlah || 0)), 0);
+            const marginYayasan = omsetYayasan - hppYayasan;
+
+            // Calculate Koperasi items
+            const omsetKoperasi = koperasiItems.reduce((sum, d) => sum + (d.subtotal || 0), 0);
+            const hppKoperasi = koperasiItems.reduce((sum, d) => sum + ((d.hpp_snapshot || 0) * (d.jumlah || 0)), 0);
+            const labaKotorKoperasi = omsetKoperasi - hppKoperasi;
 
             // Get expenses
             const { data: accounts } = await supabase
@@ -168,16 +199,61 @@ const LaporanKoperasiPage = () => {
                 .gte('tanggal', dateRange.startDate.toISOString().split('T')[0])
                 .lte('tanggal', dateRange.endDate.toISOString().split('T')[0]);
 
-            const totalBeban = (expenses || []).reduce((sum, e) => sum + (e.jumlah || 0), 0);
-            const labaKotor = totalPenjualan - totalHPP;
-            const labaBersih = labaKotor - totalBeban;
+            const totalOperasional = (expenses || []).reduce((sum, e) => sum + (e.jumlah || 0), 0);
+
+            // Get transfers to Yayasan
+            const { data: transfers } = await supabase
+                .from('keuangan')
+                .select('jumlah')
+                .eq('kategori', 'Transfer dari Koperasi')
+                .gte('tanggal', dateRange.startDate.toISOString().split('T')[0])
+                .lte('tanggal', dateRange.endDate.toISOString().split('T')[0]);
+
+            const totalTransfer = (transfers || []).reduce((sum, t) => sum + Number(t.jumlah), 0);
+
+            // Get jasa pengelolaan if any
+            const { data: jasaData } = await supabase
+                .from('keuangan_koperasi')
+                .select('jumlah')
+                .in('akun_kas_id', accountIds)
+                .eq('jenis_transaksi', 'Pemasukan')
+                .eq('kategori', 'Jasa Pengelolaan')
+                .gte('tanggal', dateRange.startDate.toISOString().split('T')[0])
+                .lte('tanggal', dateRange.endDate.toISOString().split('T')[0]);
+
+            const jasaPengelolaan = (jasaData || []).reduce((sum, j) => sum + (j.jumlah || 0), 0);
+
+            // Calculate final profit for Koperasi
+            // Mode: Transfer Omset → Kewajiban = Omset Yayasan
+            const kewajibanYayasan = omsetYayasan - totalOperasional; // Dikurangi operasional
+            const sisaKewajiban = kewajibanYayasan - totalTransfer;
+
+            // Total laba koperasi = Laba barang koperasi + Jasa pengelolaan
+            const labaBersihKoperasi = labaKotorKoperasi + jasaPengelolaan;
 
             return {
-                penjualan: totalPenjualan,
-                hpp: totalHPP,
-                labaKotor,
-                bebanOperasional: totalBeban,
-                labaBersih,
+                // Barang Yayasan
+                omsetYayasan,
+                hppYayasan,
+                marginYayasan,
+                kewajibanYayasan,
+                totalTransfer,
+                sisaKewajiban,
+                // Barang Koperasi
+                omsetKoperasi,
+                hppKoperasi,
+                labaKotorKoperasi,
+                // Operasional
+                totalOperasional,
+                // Jasa & Total
+                jasaPengelolaan,
+                labaBersihKoperasi,
+                // Legacy fields for compatibility
+                penjualan: omsetYayasan + omsetKoperasi,
+                hpp: hppYayasan + hppKoperasi,
+                labaKotor: (omsetYayasan + omsetKoperasi) - (hppYayasan + hppKoperasi),
+                bebanOperasional: totalOperasional,
+                labaBersih: labaBersihKoperasi - sisaKewajiban // Net after pending transfer
             };
         },
     });
@@ -291,6 +367,7 @@ const LaporanKoperasiPage = () => {
                             data={labaRugiData}
                             periodLabel={periodLabel}
                             isLoading={isLoading}
+
                         />
                     </TabsContent>
 
@@ -317,6 +394,7 @@ const LaporanKoperasiPage = () => {
                             data={labaRugiData}
                             periodLabel={periodLabel}
                             isLoading={false}
+
                         />
                     )}
                     {activeTab === 'bagi-hasil' && (
@@ -425,12 +503,16 @@ const BukuBesarReport = ({
 const LabaRugiReport = ({
     data,
     periodLabel,
-    isLoading
+    isLoading,
+    dateRange
 }: {
     data: any;
     periodLabel: string;
     isLoading: boolean;
 }) => {
+    // Data transfer sudah ada di labaRugiData (totalTransfer, sisaKewajiban, dll)
+
+
     if (isLoading || !data) {
         return (
             <Card className="border-2 shadow-sm">
@@ -455,37 +537,138 @@ const LabaRugiReport = ({
                 </div>
 
                 {/* Content */}
-                <div className="p-6 max-w-lg mx-auto">
-                    <div className="space-y-3">
-                        {/* Pendapatan */}
-                        <div className="flex justify-between py-2 border-b">
-                            <span className="font-medium">Penjualan</span>
-                            <span className="font-mono">{formatRupiah(data.penjualan)}</span>
+                <div className="p-4 sm:p-6 max-w-2xl mx-auto">
+                    <div className="space-y-4">
+
+                        {/* ═══ BAGIAN A: BARANG KOPERASI ═══ */}
+                        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            <h4 className="font-bold text-sm mb-3 text-emerald-800 flex items-center gap-2">
+                                <span className="text-lg">🏪</span>
+                                BAGIAN A: PENJUALAN BARANG KOPERASI
+                            </h4>
+                            {data.omsetKoperasi > 0 ? (
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span>Penjualan Item Koperasi</span>
+                                        <span className="font-mono">{formatRupiah(data.omsetKoperasi)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">HPP Item Koperasi</span>
+                                        <span className="font-mono text-red-600">({formatRupiah(data.hppKoperasi)})</span>
+                                    </div>
+                                    <div className="flex justify-between font-semibold pt-2 border-t border-emerald-300">
+                                        <span>Laba Kotor Barang Koperasi</span>
+                                        <span className="font-mono text-emerald-700">{formatRupiah(data.labaKotorKoperasi)}</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-500 italic">Tidak ada penjualan barang milik koperasi pada periode ini.</p>
+                            )}
                         </div>
 
-                        {/* HPP */}
-                        <div className="flex justify-between py-2 border-b">
-                            <span className="text-gray-600">Harga Pokok Penjualan (HPP)</span>
-                            <span className="font-mono text-red-600">({formatRupiah(data.hpp)})</span>
+                        {/* ═══ BAGIAN B: PENGELOLAAN BARANG YAYASAN ═══ */}
+                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                            <h4 className="font-bold text-sm mb-3 text-amber-800 flex items-center gap-2">
+                                <span className="text-lg">🏛️</span>
+                                BAGIAN B: PENGELOLAAN BARANG YAYASAN
+                            </h4>
+                            {data.omsetYayasan > 0 ? (
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span>Penjualan Item Yayasan</span>
+                                        <span className="font-mono">{formatRupiah(data.omsetYayasan)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">HPP Item Yayasan</span>
+                                        <span className="font-mono text-red-600">({formatRupiah(data.hppYayasan)})</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm pt-2 border-t border-amber-200">
+                                        <span>Margin Pengelolaan</span>
+                                        <span className="font-mono">{formatRupiah(data.marginYayasan)}</span>
+                                    </div>
+
+                                    {/* Mode & Kewajiban */}
+                                    <div className="mt-3 p-3 bg-white/60 rounded border border-amber-200">
+                                        <div className="text-xs text-amber-700 mb-2 font-medium">
+                                            Mode: Transfer Omset (100% omset - operasional)
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">Operasional Dikurangi:</span>
+                                            <span className="font-mono text-green-600">+{formatRupiah(data.totalOperasional)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm font-semibold">
+                                            <span>Kewajiban ke Yayasan:</span>
+                                            <span className="font-mono text-red-700">{formatRupiah(data.kewajibanYayasan)}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Transfer */}
+                                    <div className="mt-3 p-3 bg-purple-50 rounded border border-purple-200">
+                                        <div className="flex justify-between text-sm">
+                                            <span>Transfer ke Yayasan:</span>
+                                            <span className="font-mono text-purple-700">({formatRupiah(data.totalTransfer)})</span>
+                                        </div>
+                                        <div className={`flex justify-between text-sm font-semibold ${data.sisaKewajiban <= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                            <span>{data.sisaKewajiban <= 0 ? 'Sisa/Lebih:' : 'Sisa Kewajiban:'}</span>
+                                            <span className="font-mono">{formatRupiah(Math.abs(data.sisaKewajiban))}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Jasa Pengelolaan */}
+                                    {data.jasaPengelolaan > 0 && (
+                                        <div className="flex justify-between text-sm pt-2 border-t border-amber-300 text-emerald-700">
+                                            <span className="font-medium">Jasa Pengelolaan (Pemasukan Koperasi):</span>
+                                            <span className="font-mono font-semibold">+{formatRupiah(data.jasaPengelolaan)}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-500 italic">Tidak ada penjualan barang yayasan pada periode ini.</p>
+                            )}
                         </div>
 
-                        {/* Laba Kotor */}
-                        <div className="flex justify-between py-2 border-b-2 border-gray-300 font-semibold">
-                            <span>Laba Kotor</span>
-                            <span className="font-mono">{formatRupiah(data.labaKotor)}</span>
+                        {/* ═══ RINGKASAN LABA RUGI KOPERASI ═══ */}
+                        <div className="mt-6 p-4 bg-gray-100 border-2 border-gray-300 rounded-lg">
+                            <h4 className="font-bold text-sm mb-3 text-gray-800">📊 RINGKASAN LABA RUGI KOPERASI</h4>
+                            <div className="space-y-2">
+                                {data.labaKotorKoperasi > 0 && (
+                                    <div className="flex justify-between text-sm">
+                                        <span>Laba Barang Koperasi:</span>
+                                        <span className="font-mono text-emerald-700">+{formatRupiah(data.labaKotorKoperasi)}</span>
+                                    </div>
+                                )}
+                                {data.jasaPengelolaan > 0 && (
+                                    <div className="flex justify-between text-sm">
+                                        <span>Jasa Pengelolaan:</span>
+                                        <span className="font-mono text-emerald-700">+{formatRupiah(data.jasaPengelolaan)}</span>
+                                    </div>
+                                )}
+                                {data.totalOperasional > 0 && (
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">Beban Operasional:</span>
+                                        <span className="font-mono text-red-600">({formatRupiah(data.totalOperasional)})</span>
+                                    </div>
+                                )}
+                                {data.sisaKewajiban !== 0 && (
+                                    <div className={`flex justify-between text-sm ${data.sisaKewajiban > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                        <span>{data.sisaKewajiban > 0 ? 'Kewajiban Transfer Pending:' : 'Transfer Lebih:'}</span>
+                                        <span className="font-mono">{data.sisaKewajiban > 0 ? `(${formatRupiah(data.sisaKewajiban)})` : `+${formatRupiah(Math.abs(data.sisaKewajiban))}`}</span>
+                                    </div>
+                                )}
+                                <div className={`flex justify-between py-3 border-t-2 border-gray-400 font-bold text-lg ${data.labaBersihKoperasi >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                                    <span>TOTAL LABA (RUGI) KOPERASI:</span>
+                                    <span className="font-mono">{formatRupiah(data.labaBersihKoperasi)}</span>
+                                </div>
+                            </div>
+
+                            {/* Warning jika ada kewajiban pending */}
+                            {data.sisaKewajiban > 0 && (
+                                <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded text-xs text-red-800">
+                                    ⚠️ <strong>Perhatian:</strong> Masih ada kewajiban transfer ke yayasan sebesar {formatRupiah(data.sisaKewajiban)} yang belum disetor.
+                                </div>
+                            )}
                         </div>
 
-                        {/* Beban Operasional */}
-                        <div className="flex justify-between py-2 border-b">
-                            <span className="text-gray-600">Beban Operasional</span>
-                            <span className="font-mono text-red-600">({formatRupiah(data.bebanOperasional)})</span>
-                        </div>
-
-                        {/* Laba Bersih */}
-                        <div className={`flex justify-between py-3 border-t-2 border-b-2 border-gray-800 font-bold text-lg ${data.labaBersih >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                            <span>LABA (RUGI) BERSIH</span>
-                            <span className="font-mono">{formatRupiah(data.labaBersih)}</span>
-                        </div>
                     </div>
                 </div>
 
@@ -506,72 +689,177 @@ const BagiHasilReport = ({
     data: any[];
     isLoading: boolean;
 }) => {
+    const [editingItem, setEditingItem] = useState<any>(null);
+    const [showEditDialog, setShowEditDialog] = useState(false);
+
+    const handleEdit = (item: any) => {
+        setEditingItem(item);
+        setShowEditDialog(true);
+    };
+
+    const handleCloseEdit = () => {
+        setShowEditDialog(false);
+        setEditingItem(null);
+    };
+
     return (
-        <Card className="border-2 shadow-sm print:shadow-none print:border-0">
-            <CardContent className="p-0">
-                {/* Report Header */}
-                <div className="text-center py-6 border-b-2 border-gray-200">
-                    <h2 className="text-xl font-bold text-gray-900">SANTRA MART</h2>
-                    <p className="text-sm text-gray-600">Koperasi Pesantren Anak Yatim Al-Bisri</p>
-                    <div className="mt-4">
-                        <h3 className="text-lg font-semibold text-gray-800">RIWAYAT BAGI HASIL</h3>
-                        <p className="text-sm text-gray-500">Rekap Pembagian Laba dengan Yayasan</p>
+        <>
+            <Card className="border-2 shadow-sm print:shadow-none print:border-0">
+                <CardContent className="p-0">
+                    {/* Report Header */}
+                    <div className="text-center py-6 border-b-2 border-gray-200">
+                        <h2 className="text-xl font-bold text-gray-900">SANTRA MART</h2>
+                        <p className="text-sm text-gray-600">Koperasi Pesantren Anak Yatim Al-Bisri</p>
+                        <div className="mt-4">
+                            <h3 className="text-lg font-semibold text-gray-800">RIWAYAT BAGI HASIL</h3>
+                            <p className="text-sm text-gray-500">Rekap Pembagian Laba dengan Yayasan</p>
+                        </div>
                     </div>
-                </div>
 
-                {/* Table */}
-                <div className="p-4">
-                    {isLoading ? (
-                        <div className="text-center py-12 text-gray-500">Memuat data...</div>
-                    ) : data.length === 0 ? (
-                        <div className="text-center py-12 text-gray-500">Belum ada riwayat bagi hasil</div>
-                    ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="bg-gray-100">
-                                    <TableHead className="font-semibold">Periode</TableHead>
-                                    <TableHead className="font-semibold">Mode</TableHead>
-                                    <TableHead className="text-right font-semibold">Penjualan</TableHead>
-                                    <TableHead className="text-right font-semibold">Bagian Yayasan</TableHead>
-                                    <TableHead className="text-right font-semibold">Bagian Koperasi</TableHead>
-                                    <TableHead className="font-semibold">Status</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {data.map((item) => (
-                                    <TableRow key={item.id} className="border-b">
-                                        <TableCell className="text-sm">
-                                            {item.periode_start && format(new Date(item.periode_start), 'MMM yyyy', { locale: localeId })}
-                                        </TableCell>
-                                        <TableCell className="text-sm capitalize">{item.mode_kalkulasi || '-'}</TableCell>
-                                        <TableCell className="text-right font-mono text-sm">
-                                            {formatRupiah(item.total_penjualan || 0)}
-                                        </TableCell>
-                                        <TableCell className="text-right font-mono text-sm text-amber-700">
-                                            {formatRupiah(item.bagi_hasil_yayasan || 0)}
-                                        </TableCell>
-                                        <TableCell className="text-right font-mono text-sm text-green-700">
-                                            {formatRupiah(item.bagi_hasil_koperasi || 0)}
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className={`px-2 py-1 text-xs rounded-full ${item.status === 'paid'
-                                                    ? 'bg-green-100 text-green-800'
-                                                    : 'bg-amber-100 text-amber-800'
-                                                }`}>
-                                                {item.status === 'paid' ? 'Sudah Disetor' : 'Belum Disetor'}
-                                            </span>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                    {/* Table */}
+                    <div className="p-2 sm:p-4 overflow-x-auto">
+                        {isLoading ? (
+                            <div className="text-center py-12 text-gray-500">Memuat data...</div>
+                        ) : data.length === 0 ? (
+                            <div className="text-center py-12 text-gray-500">Belum ada riwayat bagi hasil</div>
+                        ) : (
+                            <div className="min-w-[800px]">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow className="bg-gray-100">
+                                            <TableHead className="font-semibold min-w-[100px]">Periode</TableHead>
+                                            <TableHead className="font-semibold min-w-[90px]">Rasio</TableHead>
+                                            <TableHead className="text-right font-semibold min-w-[120px]">Penjualan</TableHead>
+                                            <TableHead className="text-right font-semibold min-w-[130px]">Bagian Yayasan</TableHead>
+                                            <TableHead className="text-right font-semibold min-w-[130px]">Bagian Koperasi</TableHead>
+                                            <TableHead className="text-right font-semibold print:hidden min-w-[120px]">Transfer</TableHead>
+                                            <TableHead className="font-semibold min-w-[90px]">Status</TableHead>
+                                            <TableHead className="print:hidden font-semibold w-[60px]">Aksi</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {data.map((item) => {
+                                            const monthDate = new Date(item.tahun, item.bulan - 1, 1);
+                                            const percY = Number(item.percentage_yayasan || 70).toFixed(0);
+                                            const percK = Number(item.percentage_koperasi || 30).toFixed(0);
+                                            const isCustom = item.is_custom || item.mode_kalkulasi === 'custom';
+                                            const transferActual = Number(item.transfer_actual || 0);
+                                            const selisih = Number(item.selisih_transfer || 0);
+
+                                            return (
+                                                <TableRow key={item.id} className="border-b hover:bg-gray-50">
+                                                    <TableCell className="text-sm font-medium">
+                                                        {format(monthDate, 'MMM yyyy', { locale: localeId })}
+                                                    </TableCell>
+                                                    <TableCell className="text-sm">
+                                                        <div className="flex items-center gap-1">
+                                                            <span className={`font-semibold ${isCustom ? 'text-purple-700' : 'text-gray-700'}`}>
+                                                                {percY}:{percK}
+                                                            </span>
+                                                            {isCustom && (
+                                                                <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
+                                                                    Custom
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-mono text-sm">
+                                                        {formatRupiah(Number(item.total_penjualan || 0))}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-mono text-sm">
+                                                        <div>
+                                                            <span className="text-amber-700 font-semibold">
+                                                                {formatRupiah(Number(item.bagian_yayasan || 0))}
+                                                            </span>
+                                                            <div className="text-xs text-gray-500">
+                                                                ({percY}%)
+                                                            </div>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-mono text-sm">
+                                                        <div>
+                                                            <span className="text-green-700 font-semibold">
+                                                                {formatRupiah(Number(item.bagian_koperasi || 0))}
+                                                            </span>
+                                                            <div className="text-xs text-gray-500">
+                                                                ({percK}%)
+                                                            </div>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-mono text-sm print:hidden">
+                                                        {transferActual > 0 ? (
+                                                            <div>
+                                                                <div className="text-blue-700 font-semibold">
+                                                                    {formatRupiah(transferActual)}
+                                                                </div>
+                                                                {selisih !== 0 && (
+                                                                    <div className={`text-xs ${selisih > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                        {selisih > 0 ? '+' : ''}{formatRupiah(selisih)}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-gray-400">-</span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <span className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${item.status === 'paid'
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : 'bg-amber-100 text-amber-800'
+                                                            }`}>
+                                                            {item.status === 'paid' ? '✓ Lunas' : '⏳ Belum'}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="print:hidden">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleEdit(item)}
+                                                            className="h-8 w-8 p-0 hover:bg-purple-100"
+                                                            title="Edit bagi hasil"
+                                                        >
+                                                            <Edit className="h-4 w-4" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Info Footer */}
+                    {!isLoading && data.length > 0 && (
+                        <div className="px-3 sm:px-4 py-3 bg-gray-50 border-t text-xs text-gray-600 print:hidden">
+                            <div className="flex flex-col sm:flex-row items-start gap-2">
+                                <span className="font-semibold flex-shrink-0">💡 Keterangan:</span>
+                                <div className="space-y-1">
+                                    <div>• <strong>Rasio</strong>: Persentase bagi hasil (Koperasi:Yayasan)</div>
+                                    <div>• <strong>Custom</strong>: Bagi hasil disesuaikan berdasarkan keputusan rapat</div>
+                                    <div>• <strong>Transfer</strong>: Setoran aktual (hijau = lebih, merah = kurang)</div>
+                                    <div className="hidden sm:block">• Klik tombol <Edit className="h-3 w-3 inline" /> untuk mengubah persentase</div>
+                                    <div className="sm:hidden">• Tap ✏️ untuk edit</div>
+                                </div>
+                            </div>
+                        </div>
                     )}
-                </div>
 
-                {/* Footer */}
-                <ReportFooter />
-            </CardContent>
-        </Card>
+                    {/* Footer */}
+                    <ReportFooter />
+                </CardContent>
+            </Card>
+
+            {/* Edit Dialog */}
+            {editingItem && (
+                <EditBagiHasilDialog
+                    open={showEditDialog}
+                    onClose={handleCloseEdit}
+                    data={editingItem}
+                />
+            )}
+        </>
     );
 };
 
