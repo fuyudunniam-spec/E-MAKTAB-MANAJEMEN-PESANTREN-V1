@@ -46,14 +46,16 @@ const LayananPage = lazy(() => import("./pages/santri/LayananPage"));
 const DokumenPage = lazy(() => import("./pages/santri/DokumenPage"));
 const TagihanSantri = lazy(() => import("./pages/TagihanSantri"));
 
-// Public Website Imports REMOVED per user request
-// const Index = lazy(() => import("./pages/public/Index"));
-// const BlogPage = lazy(() => import("./pages/public/BlogPage"));
-// const BlogSinglePage = lazy(() => import("./pages/public/BlogSinglePage"));
-// const ShopPage = lazy(() => import("./pages/public/ShopPage"));
-// const ShopSinglePage = lazy(() => import("./pages/public/ShopSinglePage"));
-// const PageSingle = lazy(() => import("./pages/public/PageSingle"));
-// const TagPage = lazy(() => import("./pages/public/TagPage"));
+// Public Website Imports
+const Index = lazy(() => import("./pages/public/Index"));
+const BlogPage = lazy(() => import("./pages/public/BlogPage"));
+const BlogSinglePage = lazy(() => import("./pages/public/BlogSinglePage"));
+const ShopPage = lazy(() => import("./pages/public/ShopPage"));
+const ShopSinglePage = lazy(() => import("./pages/public/ShopSinglePage"));
+const PageSingle = lazy(() => import("./pages/public/PageSingle"));
+const TagPage = lazy(() => import("./pages/public/TagPage"));
+const PSBPortal = lazy(() => import("./pages/public/PSBPortal"));
+const PSBAuth = lazy(() => import("./pages/public/PSBAuth"));
 
 // Admin Website Imports
 const AdminSiteSettings = lazy(() => import("./pages/admin/AdminSiteSettings"));
@@ -124,7 +126,7 @@ const App = () => (
             <Routes>
               <Route path="/auth" element={<SuspenseOnly><Auth /></SuspenseOnly>} />
               
-              {/* Public Website Routes REMOVED
+              {/* Public Website Routes */}
               <Route path="/" element={<SuspenseOnly><Index /></SuspenseOnly>} />
               <Route path="/blog" element={<SuspenseOnly><BlogPage /></SuspenseOnly>} />
               <Route path="/blog/:slug" element={<SuspenseOnly><BlogSinglePage /></SuspenseOnly>} />
@@ -132,14 +134,10 @@ const App = () => (
               <Route path="/shop/:slug" element={<SuspenseOnly><ShopSinglePage /></SuspenseOnly>} />
               <Route path="/p/:slug" element={<SuspenseOnly><PageSingle /></SuspenseOnly>} />
               <Route path="/tag/:tag" element={<SuspenseOnly><TagPage /></SuspenseOnly>} />
-              */}
 
-              {/* Default Route - Redirect to Dashboard or Auth */}
-              <Route path="/" element={
-                <WithLayout>
-                  <Dashboard />
-                </WithLayout>
-              } />
+              {/* PSB Portal Routes */}
+              <Route path="/psb" element={<SuspenseOnly><PSBPortal /></SuspenseOnly>} />
+              <Route path="/psb/auth" element={<SuspenseOnly><PSBAuth /></SuspenseOnly>} />
 
               {/* Dashboard Routes */}
               <Route path="/pms" element={
