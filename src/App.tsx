@@ -120,7 +120,7 @@ const App = () => (
               
               {/* PSB Portal Routes */}
               <Route path="/psb" element={<Navigate to="/" replace />} />
-              <Route path="/psb/register" element={<Navigate to="/" replace />} />
+              <Route path="/psb/register" element={<SuspenseOnly><PSBAuth /></SuspenseOnly>} />
               <Route path="/psb/portal" element={<SuspenseOnly><PSBPortal /></SuspenseOnly>} />
               <Route path="/psb/auth" element={<SuspenseOnly><PSBAuth /></SuspenseOnly>} />
 

@@ -208,19 +208,20 @@ export default function Auth() {
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/arabesque.png')] opacity-10" />
 
         <div className="relative z-10 h-full flex flex-col justify-between p-12 text-white">
-          <Link to="/" className="flex items-center gap-3 w-fit">
-            <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center">
-              <span className="font-heading font-bold text-xl">ا</span>
-            </div>
-            <span className="font-heading font-bold text-xl tracking-tight">An-Nur</span>
+          <Link to="/" className="w-fit">
+            <img 
+              src="/kop-albisri.png" 
+              alt="Logo Al-Bisri" 
+              className="w-56 mb-8 drop-shadow-2xl hover:scale-105 transition-transform duration-500 brightness-0 invert" 
+            />
           </Link>
 
           <div className="space-y-6 max-w-lg">
-            <h1 className="text-4xl md:text-5xl font-heading font-bold leading-tight">
+            <h1 className="text-4xl md:text-5xl font-heading font-bold leading-[1.3]">
               Selamat Datang di <span className="text-secondary">e-Maktab</span>
             </h1>
             <p className="text-lg text-slate-300 leading-relaxed font-light">
-              Platform manajemen terpadu Pesantren Mahasiswa An-Nur. Mengelola akademik, administrasi, dan perkembangan santri dalam satu pintu.
+              Platform manajemen terpadu Pesantren Mahasiswa Al-Bisri. Mengelola akademik, administrasi, dan perkembangan santri dalam satu pintu.
             </p>
             <div className="flex gap-4 pt-4">
               <div className="flex -space-x-3">
@@ -236,7 +237,7 @@ export default function Auth() {
           </div>
 
           <div className="text-sm text-slate-400">
-            © {new Date().getFullYear()} Yayasan An-Nur. All rights reserved.
+            Powered by: Isyraq An-Nur
           </div>
         </div>
       </div>
@@ -245,12 +246,9 @@ export default function Auth() {
       <div className="flex flex-col justify-center items-center p-6 md:p-12 bg-slate-50">
         <div className="w-full max-w-md space-y-8 animate-fade-in">
           {/* Mobile Logo */}
-          <div className="lg:hidden text-center mb-8">
-            <Link to="/" className="inline-flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <span className="font-heading font-bold text-xl text-white">ا</span>
-              </div>
-              <span className="font-heading font-bold text-2xl text-slate-900">An-Nur</span>
+          <div className="lg:hidden flex justify-center mb-8">
+            <Link to="/">
+              <img src="/kop-albisri.png" alt="Logo Al-Bisri" className="w-40" />
             </Link>
           </div>
 
