@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Penerimaan Santri Baru | Al-Bisri Royal Education</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Cinzel:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        royal: { 50: '#f0fdf4', 100: '#dcfce7', 800: '#166534', 900: '#14532d', 950: '#052e16' },
+                        gold: { 100: '#fef9c3', 400: '#d4af37', 500: '#b4941f', 600: '#8c7318' },
+                    },
+                    fontFamily: {
+                        sans: ['Cormorant Garamond', 'serif'],
+                        display: ['Cinzel', 'serif'],
+                    },
+                    borderRadius: { '4xl': '2.5rem', '5xl': '3rem' }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #FAFAF9;
+            color: #1c1917;
+            font-family: 'Cormorant Garamond', serif;
+        }
+
+        .royal-pattern {
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23166534' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+
+        .input-royal {
+            width: 100%;
+            background: white;
+            border: 1px solid #e7e5e4;
+            border-radius: 9999px;
+            padding: 0.8rem 1.5rem;
+            font-weight: 600;
+            color: #1c1917;
+            transition: all 0.3s;
+        }
+
+        .input-royal:focus {
+            outline: none;
+            border-color: #d4af37;
+            box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.1);
+        }
+
+        .radio-card:checked+div {
+            border-color: #14532d;
+            background-color: #f0fdf4;
+        }
+
+        .radio-card:checked+div .check-icon {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .upload-zone {
+            border: 2px dashed #e7e5e4;
+            border-radius: 1.5rem;
+            transition: all 0.3s;
+            cursor: pointer;
+            background-color: #fafaf9;
+        }
+
+        .upload-zone:hover {
+            border-color: #d4af37;
+            background-color: #fffbeb;
+        }
+
+        .hidden-section {
+            display: none;
+        }
+
+        .fade-in-section {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body class="antialiased royal-pattern">
+
+    <!-- NAV -->
+    <nav class="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-stone-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
+            <a href="index.html" class="flex items-center gap-3 group">
+                <div
+                    class="w-8 h-8 bg-royal-900 text-white rotate-45 flex items-center justify-center rounded-sm shadow-md group-hover:rotate-0 transition-transform">
+                    <span
+                        class="font-display font-bold text-gold-400 text-sm -rotate-45 group-hover:rotate-0 transition-transform">A</span>
+                </div>
+                <div class="flex flex-col">
+                    <span
+                        class="font-display font-bold text-royal-900 tracking-widest text-base leading-none">AL-BISRI</span>
+                    <span class="text-[8px] text-gold-600 uppercase tracking-[0.25em] font-sans font-semibold">Kembali
+                        ke Beranda</span>
+                </div>
+            </a>
+            <div class="flex items-center gap-2 text-stone-500 text-xs font-bold uppercase tracking-wider">
+                <i data-lucide="help-circle" class="w-4 h-4"></i> Helpdesk PSB
+            </div>
+        </div>
+    </nav>
+
+    <!-- CONTENT -->
+    <main class="py-12 px-6">
+        <div class="max-w-4xl mx-auto">
+
+            <div class="text-center mb-12">
+                <span class="text-gold-600 font-bold uppercase tracking-[0.2em] text-xs mb-2 block">Tahun Ajaran
+                    2026/2027</span>
+                <h1 class="text-4xl md:text-5xl font-display text-royal-900 mb-4">Formulir Pendaftaran</h1>
+                <p class="text-stone-600 text-lg">Pilih jalur dan jenjang pendidikan yang sesuai.</p>
+            </div>
+
+            <form
+                class="bg-white rounded-[3rem] shadow-xl border border-stone-100 p-8 md:p-12 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-royal-900 via-gold-400 to-royal-900">
+                </div>
+
+                <!-- Step 1: Pilih Jalur -->
+                <div class="mb-10">
+                    <h3 class="text-xl font-display text-royal-900 mb-6 flex items-center gap-2">
+                        <span
+                            class="w-8 h-8 rounded-full bg-royal-100 text-royal-900 flex items-center justify-center text-sm font-bold">1</span>
+                        Pilih Jalur Masuk
+                    </h3>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <!-- Jalur Reguler (Berbayar) -->
+                        <label class="cursor-pointer group">
+                            <input type="radio" name="jalur" value="reguler" class="hidden radio-card" checked
+                                onchange="togglePath('reguler')">
+                            <div
+                                class="border-2 border-stone-200 rounded-[2rem] p-6 transition-all relative hover:border-gold-400 bg-white h-full flex flex-col justify-between">
+                                <div>
+                                    <div class="flex justify-between items-start mb-4">
+                                        <div
+                                            class="w-12 h-12 bg-royal-50 rounded-xl flex items-center justify-center text-royal-900">
+                                            <i data-lucide="crown" class="w-6 h-6"></i>
+                                        </div>
+                                        <div
+                                            class="check-icon w-6 h-6 bg-royal-900 text-white rounded-full flex items-center justify-center opacity-0 transition-transform scale-50">
+                                            <i data-lucide="check" class="w-4 h-4"></i>
+                                        </div>
+                                    </div>
+                                    <h4 class="font-display text-lg font-bold text-royal-900 mb-2">Jalur Reguler</h4>
+                                    <p class="text-sm text-stone-500 mb-4 leading-relaxed">
+                                        Untuk calon santri umum (TPQ, Madin, Mahasiswa). Biaya pendidikan digunakan
+                                        untuk operasional dan subsidi silang.
+                                    </p>
+                                </div>
+                                <span
+                                    class="text-xs font-bold text-royal-800 bg-royal-100 px-3 py-2 rounded-full text-center block">Berbayar
+                                    / Mandiri</span>
+                            </div>
+                        </label>
+
+                        <!-- Jalur Beasiswa (Gratis) -->
+                        <label class="cursor-pointer group">
+                            <input type="radio" name="jalur" value="beasiswa" class="hidden radio-card"
+                                onchange="togglePath('beasiswa')">
+                            <div
+                                class="border-2 border-stone-200 rounded-[2rem] p-6 transition-all relative hover:border-gold-400 bg-white h-full flex flex-col justify-between">
+                                <div>
+                                    <div class="flex justify-between items-start mb-4">
+                                        <div
+                                            class="w-12 h-12 bg-gold-50 rounded-xl flex items-center justify-center text-gold-600">
+                                            <i data-lucide="heart-handshake" class="w-6 h-6"></i>
+                                        </div>
+                                        <div
+                                            class="check-icon w-6 h-6 bg-royal-900 text-white rounded-full flex items-center justify-center opacity-0 transition-transform scale-50">
+                                            <i data-lucide="check" class="w-4 h-4"></i>
+                                        </div>
+                                    </div>
+                                    <h4 class="font-display text-lg font-bold text-royal-900 mb-2">Jalur Beasiswa Kader
+                                    </h4>
+                                    <p class="text-sm text-stone-500 mb-4 leading-relaxed">
+                                        Beasiswa penuh (Full Funded) untuk Yatim & Dhuafa berprestasi. Wajib lolos
+                                        seleksi berkas.
+                                    </p>
+                                </div>
+                                <span
+                                    class="text-xs font-bold text-gold-700 bg-gold-100 px-3 py-2 rounded-full text-center block">Gratis
+                                    100%</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- SUB-STEP 1.1: PILIH JENJANG (Khusus Reguler) -->
+                <div id="jenjang-selection" class="mb-10 pt-4 border-t border-stone-100 fade-in-section">
+                    <label class="text-xs font-bold text-stone-500 uppercase tracking-wider ml-2 mb-4 block">Pilih
+                        Jenjang Pendidikan</label>
+                    <div class="grid md:grid-cols-3 gap-4">
+                        <label class="cursor-pointer group">
+                            <input type="radio" name="jenjang" value="tpq" class="hidden radio-card"
+                                onchange="updateFees('tpq')">
+                            <div
+                                class="border border-stone-200 rounded-2xl p-4 text-center hover:border-gold-400 transition bg-white">
+                                <div
+                                    class="check-icon w-4 h-4 bg-royal-900 text-white rounded-full flex items-center justify-center opacity-0 mx-auto mb-2 scale-50 transition-transform">
+                                    <i data-lucide="check" class="w-3 h-3"></i>
+                                </div>
+                                <span class="block font-bold text-royal-900">TPQ</span>
+                                <span class="text-xs text-stone-500">Usia TK-SD</span>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer group">
+                            <input type="radio" name="jenjang" value="madin" class="hidden radio-card" checked
+                                onchange="updateFees('madin')">
+                            <div
+                                class="border border-stone-200 rounded-2xl p-4 text-center hover:border-gold-400 transition bg-white">
+                                <div
+                                    class="check-icon w-4 h-4 bg-royal-900 text-white rounded-full flex items-center justify-center opacity-0 mx-auto mb-2 scale-50 transition-transform">
+                                    <i data-lucide="check" class="w-3 h-3"></i>
+                                </div>
+                                <span class="block font-bold text-royal-900">Madrasah Diniyah</span>
+                                <span class="text-xs text-stone-500">Usia SD-SMP</span>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer group">
+                            <input type="radio" name="jenjang" value="mahasiswa" class="hidden radio-card"
+                                onchange="updateFees('mahasiswa')">
+                            <div
+                                class="border border-stone-200 rounded-2xl p-4 text-center hover:border-gold-400 transition bg-white">
+                                <div
+                                    class="check-icon w-4 h-4 bg-royal-900 text-white rounded-full flex items-center justify-center opacity-0 mx-auto mb-2 scale-50 transition-transform">
+                                    <i data-lucide="check" class="w-3 h-3"></i>
+                                </div>
+                                <span class="block font-bold text-royal-900">Pesantren Mahasiswa</span>
+                                <span class="text-xs text-stone-500">Mahasiswa/Dewasa</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- DYNAMIC SECTION: FINANCIAL INFO (Muncul jika Reguler) -->
+                <div id="finance-info" class="mb-10 pt-4 fade-in-section">
+                    <h3 class="text-xl font-display text-royal-900 mb-6 flex items-center gap-2">
+                        <i data-lucide="coins" class="w-6 h-6 text-gold-500"></i>
+                        <span id="fee-title">Rincian Biaya (Madrasah Diniyah)</span>
+                    </h3>
+                    <div class="bg-royal-50 rounded-2xl p-6 border border-royal-100">
+                        <table class="w-full text-sm text-stone-600">
+                            <tr class="border-b border-royal-100">
+                                <td class="py-3" id="fee-label-1">Pendaftaran & Seragam</td>
+                                <td class="py-3 text-right font-bold text-royal-900" id="fee-value-1">Rp 350.000</td>
+                            </tr>
+                            <tr class="border-b border-royal-100">
+                                <td class="py-3" id="fee-label-2">SPP Bulanan</td>
+                                <td class="py-3 text-right font-bold text-royal-900" id="fee-value-2">Rp 100.000</td>
+                            </tr>
+                            <tr class="border-b border-royal-100">
+                                <td class="py-3" id="fee-label-3">Kitab & Modul (Per Tahun)</td>
+                                <td class="py-3 text-right font-bold text-royal-900" id="fee-value-3">Rp 250.000</td>
+                            </tr>
+                            <tr>
+                                <td class="py-3 font-bold text-gold-600 italic">*Sebagian dana dialokasikan untuk
+                                    subsidi santri yatim.</td>
+                                <td class="py-3 text-right font-bold text-gold-600">Terima Kasih</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="mt-4 p-4 bg-white border border-stone-200 rounded-xl flex gap-4 items-center">
+                        <div
+                            class="w-10 h-10 bg-royal-900 text-white rounded-full flex items-center justify-center shrink-0 font-bold text-xs">
+                            !</div>
+                        <div class="text-sm">
+                            <p class="font-bold text-royal-900" id="transfer-instruction">Biaya Pendaftaran: Rp 100.000
+                            </p>
+                            <p class="text-stone-500">Transfer ke BSI: 7123-4567-89 a.n. Yayasan Al-Bisri</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DYNAMIC SECTION: SCHOLARSHIP REQUIREMENTS (Muncul jika Beasiswa) -->
+                <div id="scholarship-info" class="mb-10 pt-8 border-t border-stone-100 fade-in-section hidden-section">
+                    <h3 class="text-xl font-display text-royal-900 mb-6 flex items-center gap-2">
+                        <i data-lucide="file-check" class="w-6 h-6 text-gold-500"></i>
+                        Syarat Khusus Beasiswa
+                    </h3>
+                    <div class="bg-gold-50 rounded-2xl p-6 border border-gold-100">
+                        <ul class="space-y-3 text-sm text-stone-700">
+                            <li class="flex gap-2"><i data-lucide="alert-circle"
+                                    class="w-4 h-4 text-gold-600 shrink-0"></i> Melampirkan Surat Keterangan Tidak Mampu
+                                (SKTM) dari Kelurahan.</li>
+                            <li class="flex gap-2"><i data-lucide="alert-circle"
+                                    class="w-4 h-4 text-gold-600 shrink-0"></i> Melampirkan Surat Kematian Ayah (Untuk
+                                Yatim).</li>
+                            <li class="flex gap-2"><i data-lucide="alert-circle"
+                                    class="w-4 h-4 text-gold-600 shrink-0"></i> Bersedia mengikuti masa pengabdian
+                                (khidmah) setelah lulus.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Step 2: Data Diri (Common) -->
+                <div class="mb-10 pt-10 border-t border-stone-100">
+                    <h3 class="text-xl font-display text-royal-900 mb-6 flex items-center gap-2">
+                        <span
+                            class="w-8 h-8 rounded-full bg-royal-100 text-royal-900 flex items-center justify-center text-sm font-bold">2</span>
+                        Data Santri & Wali
+                    </h3>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="md:col-span-2">
+                            <label
+                                class="text-xs font-bold text-stone-500 uppercase tracking-wider ml-4 mb-2 block">Nama
+                                Lengkap Santri</label>
+                            <input type="text" class="input-royal" placeholder="Sesuai Akta Kelahiran">
+                        </div>
+                        <div>
+                            <label
+                                class="text-xs font-bold text-stone-500 uppercase tracking-wider ml-4 mb-2 block">NISN /
+                                NIK</label>
+                            <input type="text" class="input-royal" placeholder="Nomor Induk">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-stone-500 uppercase tracking-wider ml-4 mb-2 block">No.
+                                WA Wali</label>
+                            <input type="text" class="input-royal" placeholder="08..." required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Upload Berkas (Dynamic Label) -->
+                <div class="mb-10 pt-10 border-t border-stone-100">
+                    <h3 class="text-xl font-display text-royal-900 mb-6 flex items-center gap-2">
+                        <span
+                            class="w-8 h-8 rounded-full bg-royal-100 text-royal-900 flex items-center justify-center text-sm font-bold">3</span>
+                        Upload Berkas
+                    </h3>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <!-- Upload 1: Kartu Keluarga -->
+                        <div>
+                            <label
+                                class="text-xs font-bold text-stone-500 uppercase tracking-wider ml-2 mb-2 block">Kartu
+                                Keluarga (KK)</label>
+                            <div
+                                class="upload-zone p-6 flex flex-col items-center justify-center text-center h-32 group relative overflow-hidden">
+                                <input type="file" class="absolute inset-0 opacity-0 cursor-pointer z-10">
+                                <i data-lucide="file-up"
+                                    class="w-6 h-6 text-stone-400 mb-2 group-hover:text-gold-600"></i>
+                                <span class="text-xs font-bold text-stone-600">Pilih File</span>
+                            </div>
+                        </div>
+
+                        <!-- Upload 2: DYNAMIC (Bukti Bayar / SKTM) -->
+                        <div id="dynamic-upload-container">
+                            <label id="dynamic-upload-label"
+                                class="text-xs font-bold text-stone-500 uppercase tracking-wider ml-2 mb-2 block">Bukti
+                                Transfer Pendaftaran</label>
+                            <div
+                                class="upload-zone p-6 flex flex-col items-center justify-center text-center h-32 group relative overflow-hidden">
+                                <input type="file" class="absolute inset-0 opacity-0 cursor-pointer z-10">
+                                <i data-lucide="image"
+                                    class="w-6 h-6 text-stone-400 mb-2 group-hover:text-gold-600"></i>
+                                <span class="text-xs font-bold text-stone-600">Pilih File</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit -->
+                <div class="pt-6">
+                    <button
+                        class="w-full py-4 bg-royal-900 text-white rounded-full shadow-lg hover:bg-royal-800 transition font-display font-bold uppercase tracking-widest text-sm flex items-center justify-center gap-3 transform hover:-translate-y-1">
+                        Kirim Pendaftaran <i data-lucide="send" class="w-4 h-4 text-gold-400"></i>
+                    </button>
+                    <p class="text-center text-[10px] text-stone-400 mt-4">
+                        Pastikan data yang diisi benar. Admin akan memverifikasi dalam 1x24 jam.
+                    </p>
+                </div>
+
+            </form>
+        </div>
+    </main>
+
+    <footer
+        class="bg-royal-900 text-stone-400 py-8 text-center text-xs uppercase tracking-widest mt-12 border-t border-royal-800">
+        &copy; 2026 Al-Bisri Royal Education
+    </footer>
+
+    <script>
+        lucide.createIcons();
+
+        // Data Biaya (Simulasi)
+        const feeData = {
+            'tpq': {
+                title: 'Rincian Biaya (TPQ)',
+                item1: { label: 'Pendaftaran & Buku', value: 'Rp 150.000' },
+                item2: { label: 'Infaq Bulanan', value: 'Rp 50.000' },
+                item3: { label: 'Seragam', value: 'Rp 150.000' },
+                transfer: 'Biaya Pendaftaran: Rp 50.000'
+            },
+            'madin': {
+                title: 'Rincian Biaya (Madrasah Diniyah)',
+                item1: { label: 'Pendaftaran & Seragam', value: 'Rp 350.000' },
+                item2: { label: 'SPP Bulanan', value: 'Rp 100.000' },
+                item3: { label: 'Kitab & Modul (Per Tahun)', value: 'Rp 250.000' },
+                transfer: 'Biaya Pendaftaran: Rp 100.000'
+            },
+            'mahasiswa': {
+                title: 'Rincian Biaya (Pesantren Mahasiswa)',
+                item1: { label: 'Uang Pangkal (Asrama)', value: 'Rp 1.500.000' },
+                item2: { label: 'SPP Bulanan (Makan+Fasilitas)', value: 'Rp 650.000' },
+                item3: { label: 'Kitab & Program', value: 'Rp 300.000' },
+                transfer: 'Biaya Pendaftaran: Rp 200.000'
+            }
+        };
+
+        function togglePath(path) {
+            const jenjangSection = document.getElementById('jenjang-selection');
+            const financeSection = document.getElementById('finance-info');
+            const scholarshipSection = document.getElementById('scholarship-info');
+            const dynamicLabel = document.getElementById('dynamic-upload-label');
+
+            if (path === 'reguler') {
+                jenjangSection.classList.remove('hidden-section');
+                financeSection.classList.remove('hidden-section');
+                scholarshipSection.classList.add('hidden-section');
+                dynamicLabel.innerText = "Bukti Transfer Pendaftaran";
+
+                // Reset to default (Madin) when switching back
+                updateFees('madin');
+                document.querySelector('input[name="jenjang"][value="madin"]').checked = true;
+
+            } else {
+                jenjangSection.classList.add('hidden-section');
+                financeSection.classList.add('hidden-section');
+                scholarshipSection.classList.remove('hidden-section');
+                dynamicLabel.innerText = "Scan SKTM / Surat Kematian Ayah";
+            }
+        }
+
+        function updateFees(type) {
+            const data = feeData[type];
+            document.getElementById('fee-title').innerText = data.title;
+            document.getElementById('fee-label-1').innerText = data.item1.label;
+            document.getElementById('fee-value-1').innerText = data.item1.value;
+            document.getElementById('fee-label-2').innerText = data.item2.label;
+            document.getElementById('fee-value-2').innerText = data.item2.value;
+            document.getElementById('fee-label-3').innerText = data.item3.label;
+            document.getElementById('fee-value-3').innerText = data.item3.value;
+            document.getElementById('transfer-instruction').innerText = data.transfer;
+        }
+    </script>
+</body>
+
+</html>

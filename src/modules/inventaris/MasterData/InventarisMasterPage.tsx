@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 import ItemList from './components/ItemList';
 import StockOpname from './components/StockOpname';
 import StockExpiryTable from './components/StockExpiryTable';
@@ -31,9 +31,9 @@ const InventarisMasterPage = () => {
     const { toast } = useToast();
 
     // Enable real-time stock notifications
-    useStockNotifications({ 
-        enabled: true, 
-        lowStockThreshold: 10 
+    useStockNotifications({
+        enabled: true,
+        lowStockThreshold: 10
     });
 
     useEffect(() => {
@@ -94,7 +94,7 @@ const InventarisMasterPage = () => {
         setIsDeleting(true);
         try {
             await deleteInventoryItem(itemToDelete.id, forceDelete);
-            
+
             toast({
                 title: 'Berhasil',
                 description: `Item "${itemToDelete.nama_barang}" berhasil dihapus${forceDelete ? ' (dengan menghapus referensi produk koperasi)' : ''}`,
@@ -105,7 +105,7 @@ const InventarisMasterPage = () => {
             setItemToDelete(null);
         } catch (error: any) {
             console.error('Error deleting item:', error);
-            
+
             // Cek apakah error karena foreign key constraint
             if (error.message && error.message.includes('direferensikan') && !forceDelete) {
                 // Tampilkan dialog konfirmasi untuk force delete
@@ -114,7 +114,7 @@ const InventarisMasterPage = () => {
                     `Apakah Anda yakin ingin menghapus item ini dengan menghapus referensi di produk koperasi? ` +
                     `Tindakan ini akan mengubah produk koperasi yang terkait menjadi tidak memiliki referensi inventaris.`
                 );
-                
+
                 if (shouldForceDelete) {
                     // Retry dengan forceDelete = true
                     setIsDeleting(false); // Reset state sebelum retry
@@ -176,7 +176,7 @@ const InventarisMasterPage = () => {
                 </TabsList>
 
                 <TabsContent value="items" className="mt-6">
-                    <ItemList 
+                    <ItemList
                         data={inventoryData}
                         isLoading={isLoadingInventory}
                         pagination={pagination}
@@ -218,7 +218,7 @@ const InventarisMasterPage = () => {
                 </TabsContent>
 
                 <TabsContent value="expiry" className="mt-6">
-                    <StockExpiryTable 
+                    <StockExpiryTable
                         lowStockItems={lowStockItems}
                         expiredItems={expiredItems}
                         isLoading={isLoadingAlerts}

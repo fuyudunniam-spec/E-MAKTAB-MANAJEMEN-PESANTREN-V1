@@ -1,5 +1,5 @@
 import { useOutletContext } from "react-router-dom";
-import SantriProgressTracking from "@/components/SantriProgressTracking";
+import SantriProgressTracking from "@/modules/santri/components/SantriProgressTracking";
 
 interface ProfileContext {
   santriId: string;

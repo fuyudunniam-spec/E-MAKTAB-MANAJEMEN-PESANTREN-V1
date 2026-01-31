@@ -5,25 +5,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Store, 
-  Plus, 
-  Edit, 
-  Trash2, 
+import {
+  Store,
+  Plus,
+  Edit,
+  Trash2,
   Search,
   Package
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  listKoperasiProduk, 
-  createKoperasiProduk, 
+import {
+  listKoperasiProduk,
+  createKoperasiProduk,
   updateKoperasiProduk,
   deleteKoperasiProduk,
   KoperasiProduk,
   KoperasiFormData
 } from '@/services/koperasi.service';
 import { toast } from 'sonner';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 
 const MasterProdukPage = () => {
   const navigate = useNavigate();
@@ -128,7 +128,7 @@ const MasterProdukPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.nama_produk || !formData.kategori) {
       toast.error('Nama produk dan kategori wajib diisi');
       return;

@@ -32,63 +32,64 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Deep Forest Green - Primary Brand Color */
-    --primary: 162 48% 20%;
-    /* #1B4D3E */
-    --primary-foreground: 40 33% 98%;
+    /* Deep Navy - Primary Brand Color */
+    --primary: 204 80% 16%;
+    /* #082f49 */
+    --primary-foreground: 210 40% 98%;
 
     /* Paper White - Main Background */
-    --background: 40 33% 98%;
-    /* #FDFBF7 */
-    --foreground: 162 48% 10%;
-    /* Very Dark Green for text */
+    --background: 210 40% 98%;
+    /* #F8FAFC */
+    --foreground: 204 80% 10%;
+    /* Very Dark Navy for text */
 
     /* Card & Surfaces */
     --card: 0 0% 100%;
     /* Pure White for depth against Paper White */
-    --card-foreground: 162 48% 15%;
+    --card-foreground: 204 80% 16%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 162 48% 15%;
+    --popover-foreground: 204 80% 16%;
 
     /* Secondary - Gold/Accent for warmth */
-    --secondary: 35 92% 55%;
-    --secondary-foreground: 162 48% 20%;
+    --secondary: 46 65% 52%;
+    /* #d4af37 */
+    --secondary-foreground: 204 80% 16%;
 
-    --muted: 40 20% 94%;
-    --muted-foreground: 162 20% 40%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
 
-    --accent: 40 20% 94%;
-    --accent-foreground: 162 48% 20%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 204 80% 16%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 162 10% 90%;
-    --input: 162 10% 90%;
-    --ring: 162 48% 20%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 204 80% 16%;
 
     --radius: 0.5rem;
 
-    /* Sidebar Variables - Always Dark/Green */
-    --sidebar-background: 162 48% 20%;
-    --sidebar-foreground: 40 33% 98%;
-    --sidebar-primary: 40 33% 98%;
-    --sidebar-primary-foreground: 162 48% 20%;
-    --sidebar-accent: 162 48% 25%;
-    --sidebar-accent-foreground: 40 33% 98%;
-    --sidebar-border: 162 48% 25%;
-    --sidebar-ring: 35 92% 55%;
+    /* Sidebar Variables - Always Dark/Navy */
+    --sidebar-background: 204 80% 16%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 210 40% 98%;
+    --sidebar-primary-foreground: 204 80% 16%;
+    --sidebar-accent: 204 80% 20%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 204 80% 20%;
+    --sidebar-ring: 46 65% 52%;
 
     /* Custom gradients - Subtler now */
-    --gradient-primary: linear-gradient(135deg, hsl(162 48% 20%), hsl(162 48% 25%));
-    --gradient-hero: linear-gradient(135deg, hsl(162 48% 20%) 0%, hsl(162 48% 30%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(40 33% 99%));
+    --gradient-primary: linear-gradient(135deg, hsl(204 80% 16%), hsl(204 80% 24%));
+    --gradient-hero: linear-gradient(135deg, hsl(204 80% 16%) 0%, hsl(204 80% 24%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 40% 98%));
 
     /* Shadows - Flatter, more elegant */
-    --shadow-soft: 0 2px 4px -1px hsl(162 48% 20% / 0.04);
-    --shadow-medium: 0 4px 6px -1px hsl(162 48% 20% / 0.08);
-    --shadow-strong: 0 10px 15px -3px hsl(162 48% 20% / 0.12);
+    --shadow-soft: 0 2px 4px -1px hsl(204 80% 16% / 0.04);
+    --shadow-medium: 0 4px 6px -1px hsl(204 80% 16% / 0.08);
+    --shadow-strong: 0 10px 15px -3px hsl(204 80% 16% / 0.12);
 
     /* Animations */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

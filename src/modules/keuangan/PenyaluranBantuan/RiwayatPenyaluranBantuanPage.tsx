@@ -12,12 +12,12 @@ import { loadChartData } from '@/services/keuanganChart.service';
 import TopRecipientsChart from './components/TopRecipientsChart';
 import RiwayatTransaksi from '@/components/dashboard/RiwayatTransaksi';
 import FilterBar from './components/FilterBar';
-import RealisasiLayananSantriTab from './components/RealisasiLayananSantriTab';
+import RealisasiLayananSantriTab from "@/modules/santri/components/RealisasiLayananSantriTab";
 import { getFinancialStatsByDateRange } from '@/services/keuangan.service';
 import { supabase } from '@/integrations/supabase/client';
 import { startOfMonth, endOfMonth, format, subMonths, startOfYear, endOfYear } from 'date-fns';
-import { 
-  excludeTabunganTransactions, 
+import {
+  excludeTabunganTransactions,
   applyTabunganExclusionFilter,
   excludeKoperasiTransactions,
   applyKoperasiExclusionFilter
@@ -356,7 +356,7 @@ const RiwayatPenyaluranBantuanPage: React.FC = () => {
           )}
 
           {/* Charts Section - Using the same component as modul keuangan umum */}
-          <ChartsSection 
+          <ChartsSection
             monthlyData={monthlyCashflow}
             categoryData={categoryData}
             startDateFilter={filters.startDate}

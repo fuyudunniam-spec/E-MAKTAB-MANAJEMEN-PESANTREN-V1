@@ -48,7 +48,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 import {
   listPaketSembako,
   getPaketSembakoWithKomponen,
@@ -109,7 +109,7 @@ const DistribusiPaketPage = () => {
       if (!skipLoadingState) {
         setLoading(true);
       }
-      
+
       // Load data secara paralel untuk performa lebih baik
       const [paketListData, distribusiData, statistikData, inventoryData] = await Promise.all([
         listPaketSembako(false), // Hanya load paket aktif
@@ -172,10 +172,10 @@ const DistribusiPaketPage = () => {
       toast.warning('Sedang memproses, harap tunggu...');
       return; // Prevent double submission
     }
-    
+
     try {
       setSubmitting(true);
-      
+
       if (!formData.penerima.trim()) {
         toast.error('Nama penerima harus diisi');
         setSubmitting(false);
@@ -189,7 +189,7 @@ const DistribusiPaketPage = () => {
       }
 
       const distribusi = await createDistribusiPaket(formData);
-      
+
       // Tampilkan detail transaksi yang dibuat
       const komponen = selectedPaket?.komponen || [];
       const detailTransaksi = komponen.map((k) => {
@@ -201,7 +201,7 @@ const DistribusiPaketPage = () => {
         `Distribusi paket berhasil! Stok otomatis berkurang untuk: ${detailTransaksi}`,
         { duration: 5000 }
       );
-      
+
       setShowFormDialog(false);
       resetForm();
       await loadData(); // Wait for reload to prevent duplicate
@@ -258,7 +258,7 @@ const DistribusiPaketPage = () => {
 
     try {
       setSubmitting(true);
-      
+
       if (!formData.penerima.trim()) {
         toast.error('Nama penerima harus diisi');
         return;
@@ -266,7 +266,7 @@ const DistribusiPaketPage = () => {
 
       await updateDistribusiPaket(editingDistribusiId, formData);
       toast.success('Distribusi paket berhasil diperbarui');
-      
+
       setShowEditDialog(false);
       setEditingDistribusiId(null);
       resetForm();
@@ -286,13 +286,13 @@ const DistribusiPaketPage = () => {
 
     try {
       setLoading(true);
-      
+
       // Hapus distribusi
       await deleteDistribusiPaket(distribusiId);
-      
+
       // Update UI langsung tanpa reload penuh untuk respons yang lebih cepat
       setDistribusiList(distribusiList.filter((d) => d.id !== distribusiId));
-      
+
       // Update statistik lokal
       if (statistik) {
         setStatistik({
@@ -300,9 +300,9 @@ const DistribusiPaketPage = () => {
           total_distribusi: Math.max(0, statistik.total_distribusi - 1),
         });
       }
-      
+
       toast.success('Distribusi paket berhasil dihapus');
-      
+
       // Reload data di background untuk sinkronisasi (tanpa blocking UI)
       loadData(true).catch((err) => {
         console.warn('Background reload failed:', err);
@@ -434,11 +434,11 @@ const DistribusiPaketPage = () => {
                 // Hitung berapa paket bisa dibuat dari stok tersedia
                 const paketBisaDibuat = paket.komponen.length > 0
                   ? Math.min(
-                      ...paket.komponen.map((k) => {
-                        if (k.stok_tersedia === 0 || k.jumlah === 0) return 0;
-                        return Math.floor(k.stok_tersedia / k.jumlah);
-                      })
-                    )
+                    ...paket.komponen.map((k) => {
+                      if (k.stok_tersedia === 0 || k.jumlah === 0) return 0;
+                      return Math.floor(k.stok_tersedia / k.jumlah);
+                    })
+                  )
                   : 0;
 
                 return (
@@ -509,10 +509,10 @@ const DistribusiPaketPage = () => {
                         <p className="font-medium">Komposisi Paket:</p>
                         <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                           {paket.komponen.map((k) => {
-                            const bisaBuatPaket = k.jumlah > 0 
+                            const bisaBuatPaket = k.jumlah > 0
                               ? Math.floor(k.stok_tersedia / k.jumlah)
                               : 0;
-                            
+
                             return (
                               <li key={k.id}>
                                 {k.inventaris?.nama_barang}: <strong>{k.jumlah} {k.inventaris?.satuan || 'pcs'}</strong>{' '}
@@ -587,9 +587,9 @@ const DistribusiPaketPage = () => {
                     <TableCell>{dist.penerima}</TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {dist.tipe_penerima === 'santri' ? 'Santri' : 
-                         dist.tipe_penerima === 'keluarga' ? 'Keluarga' : 
-                         dist.tipe_penerima || '-'}
+                        {dist.tipe_penerima === 'santri' ? 'Santri' :
+                          dist.tipe_penerima === 'keluarga' ? 'Keluarga' :
+                            dist.tipe_penerima || '-'}
                       </Badge>
                     </TableCell>
                     <TableCell>{dist.tanggal_distribusi}</TableCell>

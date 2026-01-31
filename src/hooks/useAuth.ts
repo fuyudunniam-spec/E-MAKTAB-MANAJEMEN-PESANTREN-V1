@@ -134,7 +134,37 @@ export function useAuth() {
         })()
       ]);
 
-      const primaryRole = roles.length > 0 ? roles[0] : 'santri';
+      // Determine Primary Role based on multiple factors
+      let primaryRole = 'santri'; // Default
+
+      // 1. Check user_metadata first (set during signup)
+      if (supabaseUser.user_metadata?.role) {
+        primaryRole = supabaseUser.user_metadata.role;
+      }
+
+      // 2. Check santri status if available
+      if (santriData) {
+        if (santriData.status_santri === 'Calon') {
+          primaryRole = 'santri_calon';
+        } else if (santriData.status_santri === 'Aktif') {
+          primaryRole = 'santri';
+        }
+      } else if (!roles.length) {
+        // If NO santri data and NO admin/staff roles, 
+        // they are likely a new applicant (Calon Santri) who hasn't completed registration data.
+        primaryRole = 'santri_calon';
+      }
+
+      // 3. Check explicit roles table (overrides others if admin/staff)
+      if (roles.length > 0) {
+        // If user has admin/staff roles, prioritize them
+        const highPrivilegeRoles = ['admin', 'pengurus', 'keuangan', 'pengajar'];
+        const hasHighPrivilege = roles.some(r => highPrivilegeRoles.includes(r));
+        
+        if (hasHighPrivilege) {
+           primaryRole = roles[0]; // Use the first high privilege role
+        }
+      }
 
       // Use test override if available (for debugging)
       const effectiveRole = testRoleOverride || primaryRole;
@@ -186,215 +216,45 @@ export function useAuth() {
       }
     };
 
-    logger.log("🔐 [useAuth] Initializing auth check...");
-
-    // Safety timeout - ALWAYS set loading to false after 2 seconds max (reduced from 3)
+    // Safety timeout - reduced for effectiveness
     timeoutId = setTimeout(() => {
       if (mounted && !hasSetLoading) {
-        logger.warn("⏰ [useAuth] TIMEOUT: Force setting loading to false after 2 seconds");
-        logger.warn("⏰ [useAuth] This usually means getSession() is hanging. Check Supabase connection.");
         setLoading(false);
         hasSetLoading = true;
-        // On timeout, assume no session and user needs to login
-        // But don't clear session/user if they might exist - let auth state change handle it
-        if (!session) {
-          setSession(null);
-          setUser(null);
-        }
       }
-    }, 2000);
-
-    // Set up auth state listener FIRST (this might fire immediately)
-    // Add a fallback timeout in case onAuthStateChange never fires
-    let authStateChangeFired = false;
-    const fallbackTimeout = setTimeout(() => {
-      if (!authStateChangeFired && mounted && !hasSetLoading) {
-        logger.warn("⏰ [useAuth] onAuthStateChange never fired - forcing loading to false");
-        setLoadingFalse();
-      }
-    }, 2500); // Slightly longer than main timeout to allow auth state change to fire
+    }, 1500);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        authStateChangeFired = true;
-        clearTimeout(fallbackTimeout);
-        if (!mounted) {
-          logger.log("🔐 [useAuth] Component unmounted, skipping auth state change");
-          return;
-        }
+        if (!mounted) return;
 
-        logger.log("🔐 [useAuth] Auth state changed", { event, hasSession: !!session, userId: session?.user?.id });
+        setSession(session);
 
-        try {
-          setSession(session);
-
-          if (session?.user) {
-            logger.log("🔐 [useAuth] Fetching role for user", session.user.id);
-
-            // Add timeout for role fetching to prevent hanging
-            // Check localStorage cache first for faster loading
-            // NOTE: For santri users, we skip cache because we need santriId which is not cached
-            const cacheKey = `user_roles_${session.user.id}`;
-            const cachedRoles = localStorage.getItem(cacheKey);
-            let cachedRoleData: any = null;
-
-            if (cachedRoles) {
-              try {
-                const roles = JSON.parse(cachedRoles);
-                const cacheTime = localStorage.getItem(`${cacheKey}_time`);
-                const cachedRole = roles[0] || 'santri';
-
-                // Don't use cache for santri users - we need to fetch santriId
-                // This prevents Dashboard redirect loop when santriId is missing
-                if (cacheTime && Date.now() - parseInt(cacheTime) < 5 * 60 * 1000 && roles.length > 0 && cachedRole !== 'santri') {
-                  cachedRoleData = {
-                    id: session.user.id,
-                    email: session.user.email || '',
-                    role: cachedRole,
-                    roles: roles,
-                    name: session.user.email?.split('@')[0] || 'User'
-                  };
-                  logger.log("⚡ [useAuth] Using cached role data:", cachedRoleData.role);
-                } else if (cachedRole === 'santri') {
-                  logger.log("⚡ [useAuth] Skipping cache for santri - need to fetch santriId");
-                }
-              } catch (e) {
-                // Invalid cache, continue to fetch
-              }
-            }
-
-            // If we have cached data (and it's not santri), set it immediately but still fetch in background
-            if (cachedRoleData) {
-              setUser(cachedRoleData);
-              setLoadingFalse();
-
-              // Fetch in background to refresh (don't wait for it)
-              fetchUserRole(session.user.id, session.user)
-                .then(() => {
-                  logger.log("🔐 [useAuth] Role refreshed in background");
-                })
-                .catch((roleError) => {
-                  logger.warn("⚠️ [useAuth] Background role refresh failed:", roleError);
-                });
-            } else {
-              // No cache, fetch role (must complete to get santriId for santri users)
-              // Set loading to false only after fetch completes
-              let roleFetchTimedOut = false;
-              let fetchCompleted = false; // Track if fetchUserRole has completed
-
-              const timeoutId = setTimeout(() => {
-                if (!fetchCompleted) {
-                  roleFetchTimedOut = true;
-                  logger.warn("⏰ [useAuth] Role fetch timeout - using default role");
-                  // Set default user if timeout (loading will be set false by fetchUserRole's then/catch)
-                  setUser({
-                    id: session.user.id,
-                    email: session.user.email || '',
-                    role: 'santri',
-                    roles: [],
-                    name: session.user.email?.split('@')[0] || 'User',
-                    allowedModules: null,
-                  });
-                  // Note: loading will be set false by fetchUserRole's then/catch when it completes
-                }
-              }, 2000); // 2 second timeout (reduced from 3)
-
-              fetchUserRole(session.user.id, session.user)
-                .then(() => {
-                  fetchCompleted = true;
-                  clearTimeout(timeoutId);
-                  setLoadingFalse(); // Set loading false after fetch completes
-                  if (roleFetchTimedOut) {
-                    logger.log("🔐 [useAuth] Role fetched after timeout - updating user");
-                  } else {
-                    logger.log("🔐 [useAuth] Role fetched successfully");
-                  }
-                })
-                .catch((roleError) => {
-                  fetchCompleted = true;
-                  clearTimeout(timeoutId);
-                  setLoadingFalse(); // Set loading false even on error
-                  if (!roleFetchTimedOut) {
-                    logger.error("❌ [useAuth] Error fetching role:", roleError);
-                  }
-                  // Default role will be set by timeout handler if needed
-                });
-            }
-          } else {
-            logger.log("🔐 [useAuth] No session, setting user to null");
-            setUser(null);
-            setLoadingFalse();
-          }
-        } catch (error) {
-          logger.error("❌ [useAuth] Error in auth state change:", error);
-          setUser(null);
-          setLoadingFalse();
-        }
-        // Note: setLoadingFalse() is called in each branch above, not in finally
-        // This ensures loading is set false immediately, not waiting for role fetch
-      }
-    );
-
-    // Check for existing session - but don't block if it times out
-    // onAuthStateChange should fire and handle session detection
-    logger.log("🔐 [useAuth] Checking existing session (non-blocking)...");
-
-    // Try to get session but don't wait too long - add timeout wrapper
-    const sessionPromise = supabase.auth.getSession();
-    const sessionTimeoutPromise = new Promise((resolve) =>
-      setTimeout(() => resolve({ data: { session: null }, error: { message: 'Session check timeout' } }), 2000)
-    );
-
-    Promise.race([sessionPromise, sessionTimeoutPromise]).then(async (result: any) => {
-      if (!mounted) {
-        console.log("🔐 [useAuth] Component unmounted, skipping getSession result");
-        return;
-      }
-
-      try {
-        const { data: { session }, error } = result;
-
-        if (error && error.message !== 'Session check timeout') {
-          logger.error("❌ [useAuth] Error getting session:", error);
-          setLoadingFalse();
-          return;
-        }
-
-        if (error && error.message === 'Session check timeout') {
-          logger.warn("⏰ [useAuth] Session check timed out - using auth state change listener");
-          setLoadingFalse();
-          return;
-        }
-
-        logger.log("🔐 [useAuth] Session check result", { hasSession: !!session, userId: session?.user?.id });
-
-        if (session && !session.user) {
-          logger.warn("⚠️ [useAuth] Session exists but no user - clearing");
-          setSession(null);
-          setUser(null);
-          setLoadingFalse();
-        } else if (session) {
-          // If session exists, onAuthStateChange should have already handled it
-          // But set loading false anyway to ensure we don't hang
-          setLoadingFalse();
+        if (session?.user) {
+          // Quick fetch role
+          fetchUserRole(session.user.id, session.user)
+            .finally(() => {
+              if (mounted) setLoadingFalse();
+            });
         } else {
-          // No session - set loading false
+          setUser(null);
           setLoadingFalse();
         }
-      } catch (error) {
-        logger.error("❌ [useAuth] Error processing getSession result:", error);
-        setLoadingFalse();
       }
-    }).catch((error) => {
-      logger.error("❌ [useAuth] Error in getSession (non-fatal):", error);
-      setLoadingFalse();
+    );
+
+    // Immediate session check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (mounted && !hasSetLoading) {
+        if (!session) {
+          setLoadingFalse();
+        }
+      }
     });
 
     return () => {
-      logger.log("🔐 [useAuth] Cleanup - unmounting");
       mounted = false;
       if (timeoutId) clearTimeout(timeoutId);
-      if (fallbackTimeout) clearTimeout(fallbackTimeout);
       subscription.unsubscribe();
     };
   }, [fetchUserRole]);

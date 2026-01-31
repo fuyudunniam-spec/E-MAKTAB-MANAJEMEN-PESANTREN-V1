@@ -8,11 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Helmet } from "react-helmet";
-import { ImageZoomModal } from "@/components/ImageZoomModal";
-import { RelatedProducts } from "@/components/RelatedProducts";
-import { ShareButtons } from "@/components/ShareButtons";
-import { CitationButtons } from "@/components/CitationButtons";
-import { PDFViewer } from "@/components/PDFViewer";
+import { ImageZoomModal } from "@/components/ui/ImageZoomModal";
+import { RelatedProducts } from "@/components/koperasi/RelatedProducts";
+import { ShareButtons } from "@/components/ui/ShareButtons";
+import { CitationButtons } from "@/components/ui/CitationButtons";
+import { PDFViewer } from "@/components/ui/PDFViewer";
 
 interface Book {
   id: string;
@@ -68,7 +68,7 @@ const ShopSinglePage = () => {
         .maybeSingle();
 
       if (error) throw error;
-      
+
       if (!data) {
         setNotFound(true);
       } else {
@@ -108,7 +108,7 @@ const ShopSinglePage = () => {
       </MainLayout>
     );
   }
-  
+
   const waLink = `https://wa.me/6281234567890?text=Assalamu'alaikum,%20saya%20ingin%20memesan%20buku%20"${encodeURIComponent(book.name)}"`;
   const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
 
@@ -148,7 +148,7 @@ const ShopSinglePage = () => {
       <Helmet>
         <title>{book.name} | Toko Buku Pesantren An-Nur</title>
         <meta name="description" content={book.abstract || `${book.name} oleh ${book.author}`} />
-        
+
         {/* Google Scholar Meta Tags */}
         <meta name="citation_title" content={book.name} />
         {book.author && <meta name="citation_author" content={book.author} />}
@@ -164,7 +164,7 @@ const ShopSinglePage = () => {
         {book.keywords?.map((keyword, i) => (
           <meta key={i} name="citation_keywords" content={keyword} />
         ))}
-        
+
         {/* Dublin Core Metadata */}
         <meta name="DC.title" content={book.name} />
         {book.author && <meta name="DC.creator" content={book.author} />}
@@ -174,7 +174,7 @@ const ShopSinglePage = () => {
         {book.language && <meta name="DC.language" content={book.language} />}
         <meta name="DC.type" content="Book" />
         {book.isbn && <meta name="DC.identifier" content={`ISBN:${book.isbn}`} />}
-        
+
         {/* Open Graph */}
         <meta property="og:title" content={book.name} />
         <meta property="og:type" content="book" />
@@ -183,13 +183,13 @@ const ShopSinglePage = () => {
         <meta property="og:url" content={currentUrl} />
         {book.isbn && <meta property="book:isbn" content={book.isbn} />}
         {book.author && <meta property="book:author" content={book.author} />}
-        
+
         {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={book.name} />
         <meta name="twitter:description" content={book.abstract || `${book.name} oleh ${book.author}`} />
         {book.image_url && <meta name="twitter:image" content={book.image_url} />}
-        
+
         {/* Canonical URL */}
         <link rel="canonical" href={currentUrl} />
       </Helmet>
@@ -199,7 +199,7 @@ const ShopSinglePage = () => {
           <Button variant="ghost" asChild className="mb-6">
             <Link to="/shop"><ArrowLeft className="w-4 h-4 mr-2" />Kembali ke Katalog</Link>
           </Button>
-          
+
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Book Cover - Left Column */}
             <div className="lg:col-span-1">
@@ -214,12 +214,12 @@ const ShopSinglePage = () => {
                       </Badge>
                     </div>
                   )}
-                  
+
                   {book.image_url ? (
                     <ImageZoomModal src={book.image_url} alt={`Sampul buku ${book.name}`}>
-                      <img 
-                        src={book.image_url} 
-                        alt={`Sampul buku ${book.name}`} 
+                      <img
+                        src={book.image_url}
+                        alt={`Sampul buku ${book.name}`}
                         className="w-full h-auto object-cover hover:opacity-90 transition-opacity"
                       />
                       <div className="absolute bottom-3 right-3 bg-background/80 px-2 py-1 rounded text-xs text-muted-foreground">
@@ -232,7 +232,7 @@ const ShopSinglePage = () => {
                     </div>
                   )}
                 </div>
-                
+
                 {/* Price & Order */}
                 <Card>
                   <CardContent className="p-4 space-y-4">
@@ -462,7 +462,7 @@ const ShopSinglePage = () => {
               {book.doi && (
                 <section>
                   <h2 className="text-lg font-semibold mb-3">DOI</h2>
-                  <a 
+                  <a
                     href={`https://doi.org/${book.doi}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -477,10 +477,10 @@ const ShopSinglePage = () => {
               {/* Share Buttons */}
               <Separator />
               <section>
-                <ShareButtons 
-                  url={currentUrl} 
-                  title={book.name} 
-                  description={book.abstract || `${book.name} oleh ${book.author}`} 
+                <ShareButtons
+                  url={currentUrl}
+                  title={book.name}
+                  description={book.abstract || `${book.name} oleh ${book.author}`}
                 />
               </section>
             </div>
@@ -530,8 +530,8 @@ const ShopSinglePage = () => {
             "@type": "Offer",
             "price": book.price,
             "priceCurrency": "IDR",
-            "availability": book.stock && book.stock > 0 
-              ? "https://schema.org/InStock" 
+            "availability": book.stock && book.stock > 0
+              ? "https://schema.org/InStock"
               : "https://schema.org/OutOfStock"
           }
         })}

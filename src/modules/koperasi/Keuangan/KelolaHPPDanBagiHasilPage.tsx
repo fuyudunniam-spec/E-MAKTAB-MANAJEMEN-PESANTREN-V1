@@ -39,7 +39,7 @@ import { id as localeId } from 'date-fns/locale';
 import SkemaBagiHasilPage from './SkemaBagiHasilPage';
 import ProfitSharingBreakdown from './components/ProfitSharingBreakdown';
 import RiwayatTransaksi from '@/components/dashboard/RiwayatTransaksi';
-import TransactionDetailModal from '@/components/TransactionDetailModal';
+import TransactionDetailModal from '@/components/koperasi/TransactionDetailModal';
 import { addKeuanganKoperasiTransaction } from '@/services/keuanganKoperasi.service';
 import type { MonthlySummary } from '@/types/koperasi.types';
 
@@ -83,7 +83,7 @@ const KelolaHPPDanBagiHasilPage = () => {
   const [filterKategori, setFilterKategori] = useState<string>('all');
   const [filterOwnerType, setFilterOwnerType] = useState<'all' | 'yayasan' | 'koperasi'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'with_hpp' | 'without_hpp'>('all');
-  
+
   // State untuk Riwayat Bagi Hasil (dari BagiHasilPage)
   const [dateFilter, setDateFilter] = useState<string>('semua');
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -203,7 +203,7 @@ const KelolaHPPDanBagiHasilPage = () => {
         .eq('status', 'aktif')
         .limit(1)
         .single();
-      
+
       if (!error && data) {
         setKasKoperasiId(data.id);
       }
@@ -220,23 +220,23 @@ const KelolaHPPDanBagiHasilPage = () => {
     queryKey: ['koperasi-cost-operasional', getDateRangeForBagiHasil().startDate, getDateRangeForBagiHasil().endDate, kasKoperasiId],
     queryFn: async () => {
       const dateRange = getDateRangeForBagiHasil();
-      
+
       // Get akun kas koperasi untuk filter (sama seperti di KeuanganUnifiedPage)
       // IMPORTANT: Gunakan filter yang sama persis dengan KeuanganUnifiedPage untuk konsistensi
       const { data: akunKasData } = await supabase
         .from('akun_kas')
         .select('id, nama, managed_by')
         .eq('status', 'aktif');
-      
+
       // Filter sama seperti di KeuanganUnifiedPage: managed_by === 'koperasi' || nama includes 'koperasi'
       const koperasiAccountIds = (akunKasData || [])
         .filter(akun => akun.managed_by === 'koperasi' || akun.nama?.toLowerCase().includes('koperasi'))
         .map(akun => akun.id);
-      
+
       if (koperasiAccountIds.length === 0) {
         return [];
       }
-      
+
       // 1. Ambil dari keuangan (source_module = 'koperasi') - transaksi baru
       let keuanganQuery = supabase
         .from('keuangan')
@@ -245,17 +245,17 @@ const KelolaHPPDanBagiHasilPage = () => {
         .eq('status', 'posted')
         .eq('source_module', 'koperasi')
         .in('akun_kas_id', koperasiAccountIds);
-      
+
       // Apply date filter (skip if 'semua')
       if (dateFilter !== 'semua') {
         keuanganQuery = keuanganQuery.gte('tanggal', dateRange.startDate.toISOString());
         keuanganQuery = keuanganQuery.lte('tanggal', dateRange.endDate.toISOString());
       }
-      
+
       const { data: dataKeuangan, error: errorKeuangan } = await keuanganQuery.order('tanggal', { ascending: false });
 
       if (errorKeuangan) throw errorKeuangan;
-      
+
       // 2. Ambil dari keuangan_koperasi (tabel lama) - untuk backward compatibility
       let koperasiQuery = supabase
         .from('keuangan_koperasi')
@@ -263,36 +263,36 @@ const KelolaHPPDanBagiHasilPage = () => {
         .eq('jenis_transaksi', 'Pengeluaran')
         .eq('status', 'posted')
         .in('akun_kas_id', koperasiAccountIds);
-      
+
       // Apply date filter (skip if 'semua')
       if (dateFilter !== 'semua') {
         koperasiQuery = koperasiQuery.gte('tanggal', dateRange.startDate.toISOString());
         koperasiQuery = koperasiQuery.lte('tanggal', dateRange.endDate.toISOString());
       }
-      
+
       const { data: dataKoperasi, error: errorKoperasi } = await koperasiQuery.order('tanggal', { ascending: false });
 
       if (errorKoperasi) throw errorKoperasi;
-      
+
       // 3. Gabungkan data dari kedua tabel (sama seperti di KeuanganUnifiedPage)
       // Prioritaskan keuangan_koperasi untuk deduplication
       const transactionMap = new Map();
-      
+
       // Masukkan dari keuangan_koperasi dulu
       (dataKoperasi || []).forEach((item: any) => {
         transactionMap.set(item.id, item);
       });
-      
+
       // Tambahkan dari keuangan hanya jika ID belum ada
       (dataKeuangan || []).forEach((item: any) => {
         if (!transactionMap.has(item.id)) {
           transactionMap.set(item.id, item);
         }
       });
-      
+
       // Convert map back to array
       const allData = Array.from(transactionMap.values());
-      
+
       // Filter out kewajiban/hutang ke yayasan DAN transfer ke yayasan
       // Cost operasional hanya pengeluaran operasional biasa, BUKAN kewajiban pembayaran ke yayasan
       // BUKAN juga transfer ke yayasan (transfer laba/rugi)
@@ -301,24 +301,24 @@ const KelolaHPPDanBagiHasilPage = () => {
         const kategori = (item.kategori || '').toLowerCase();
         const subKategori = (item.sub_kategori || '').toLowerCase();
         const deskripsi = (item.deskripsi || '').toLowerCase();
-        
+
         // EXCLUDE transfer ke yayasan (transfer laba/rugi)
         // Transfer ke yayasan BUKAN cost operasional, melainkan distribusi laba/rugi
-        const isTransferYayasan = 
+        const isTransferYayasan =
           kategori === 'transfer ke yayasan' ||
           subKategori === 'transfer ke yayasan' ||
           subKategori === 'laba/rugi bulanan' ||
           deskripsi.includes('transfer ke yayasan') ||
           deskripsi.includes('transfer laba/rugi') ||
           deskripsi.includes('transfer ke bank operasional umum');
-        
+
         if (isTransferYayasan) {
           return false; // Exclude transfer ke yayasan
         }
-        
+
         // EXCLUDE semua yang terkait kewajiban/hutang ke yayasan
         // Termasuk variasi: "Kewajiban", "Hutang ke Yayasan", "Kewajiban Penjualan", dll
-        const isKewajiban = 
+        const isKewajiban =
           kategori === 'kewajiban' ||
           kategori === 'hutang ke yayasan' ||
           kategori.includes('kewajiban') ||
@@ -332,10 +332,10 @@ const KelolaHPPDanBagiHasilPage = () => {
           deskripsi.includes('hutang ke yayasan') ||
           deskripsi.includes('pembayaran omset penjualan inventaris yayasan') ||
           deskripsi.includes('pembayaran omset');
-        
+
         return !isKewajiban;
       });
-      
+
       return filtered;
     },
     enabled: !!kasKoperasiId,
@@ -350,7 +350,7 @@ const KelolaHPPDanBagiHasilPage = () => {
     queryKey: ['inventaris-sold-items', getDateRangeForBagiHasil().startDate, getDateRangeForBagiHasil().endDate],
     queryFn: async () => {
       const dateRange = getDateRangeForBagiHasil();
-      
+
       // Hanya mengambil data dari kop_penjualan (modul penjualan koperasi)
       // Semua data penjualan sudah terpusat di kop_penjualan setelah migrasi
       // Mengambil SEMUA owner_type (yayasan dan koperasi), filter akan dilakukan di UI
@@ -393,19 +393,19 @@ const KelolaHPPDanBagiHasilPage = () => {
         // Status pembayaran tidak mempengaruhi apakah penjualan masuk ke kalkulator HPP
         // Barang sudah keluar dari stok, jadi harus dihitung di HPP
         .in('status_pembayaran', ['lunas', 'hutang', 'cicilan']);
-      
+
       // Apply date filter (skip if 'semua')
       if (dateFilter !== 'semua') {
         kopPenjualanQuery = kopPenjualanQuery.gte('tanggal', dateRange.startDate.toISOString());
         kopPenjualanQuery = kopPenjualanQuery.lte('tanggal', dateRange.endDate.toISOString());
       }
-      
+
       const { data: kopPenjualan, error: kopError } = await kopPenjualanQuery.order('tanggal', { ascending: false });
 
       if (kopError) {
         throw new Error(`Gagal memuat data penjualan: ${kopError.message}`);
       }
-      
+
       // Process semua penjualan (yayasan dan koperasi)
       // AMBIL SEMUA BARANG (baik yang punya inventaris_id maupun tidak)
       // Karena ada barang koperasi yang tidak punya inventaris_id
@@ -413,7 +413,7 @@ const KelolaHPPDanBagiHasilPage = () => {
       (kopPenjualan || []).forEach((penjualan: any) => {
         (penjualan.kop_penjualan_detail || []).forEach((detail: any) => {
           const kopBarang = detail.kop_barang;
-          
+
           // PERUBAHAN: Gunakan snapshot jika kop_barang NULL (barang sudah dihapus)
           // Dengan denormalisasi, history tetap lengkap meski barang dihapus
           const namaBarang = kopBarang?.nama_barang || detail.barang_nama_snapshot || 'Barang Dihapus';
@@ -421,13 +421,13 @@ const KelolaHPPDanBagiHasilPage = () => {
           const ownerType = kopBarang?.owner_type || detail.barang_owner_type_snapshot || 'koperasi';
           const kategori = kopBarang?.kop_kategori?.nama || detail.barang_kategori_snapshot || 'Koperasi';
           const barangId = kopBarang?.id || detail.barang_id; // Gunakan barang_id dari detail jika kop_barang NULL
-          
+
           // Skip jika tidak ada identifier sama sekali (tidak seharusnya terjadi)
           if (!barangId && !detail.barang_id) {
             console.warn('Penjualan detail tanpa barang_id:', detail);
             return;
           }
-          
+
           filteredKopPenjualan.push({
             source: 'kop_penjualan',
             penjualan_id: penjualan.id,
@@ -478,11 +478,11 @@ const KelolaHPPDanBagiHasilPage = () => {
 
         // Akumulasi jumlah terjual
         acc[groupKey].total_terjual += tx.jumlah || 0;
-        
+
         // Akumulasi nilai penjualan (subtotal dari kop_penjualan_detail)
         const nilaiTransaksi = tx.harga_total || ((tx.harga_satuan || 0) * (tx.jumlah || 0));
         acc[groupKey].total_nilai += nilaiTransaksi;
-        
+
         // Update HPP dengan hpp_snapshot dari kop_penjualan_detail jika ada
         // hpp_snapshot adalah nilai HPP yang digunakan saat transaksi penjualan
         if (tx.hpp_snapshot && tx.hpp_snapshot > 0) {
@@ -491,10 +491,10 @@ const KelolaHPPDanBagiHasilPage = () => {
             acc[groupKey].hpp_yayasan = tx.hpp_snapshot;
           }
         }
-        
+
         // Update tanggal penjualan terakhir
-        if (!acc[groupKey].tanggal_penjualan_terakhir || 
-            new Date(tx.tanggal) > new Date(acc[groupKey].tanggal_penjualan_terakhir || '')) {
+        if (!acc[groupKey].tanggal_penjualan_terakhir ||
+          new Date(tx.tanggal) > new Date(acc[groupKey].tanggal_penjualan_terakhir || '')) {
           acc[groupKey].tanggal_penjualan_terakhir = tx.tanggal;
         }
 
@@ -532,7 +532,7 @@ const KelolaHPPDanBagiHasilPage = () => {
   const updateHppMutation = useMutation({
     mutationFn: async ({ itemId, hpp }: { itemId: string; hpp: number }) => {
       const { data: user } = await supabase.auth.getUser();
-      
+
       const { error } = await supabase
         .from('inventaris')
         .update({
@@ -609,7 +609,7 @@ const KelolaHPPDanBagiHasilPage = () => {
     setShowHPPDialog(false);
     setEditingItem(null);
     setHppValue('');
-    
+
     // Refresh soldItems untuk update display
     queryClient.invalidateQueries({ queryKey: ['inventaris-sold-items'] });
   };
@@ -627,20 +627,20 @@ const KelolaHPPDanBagiHasilPage = () => {
   const calculateResults = () => {
     // Filter selected items
     const selectedItems: SoldItem[] = (soldItems as SoldItem[]).filter((item: SoldItem) => selectedItemIds.has(item.item_id));
-    
+
     // Calculate total penjualan (omset)
     const totalPenjualan = selectedItems.reduce((sum, item) => sum + (item.total_nilai || 0), 0);
-    
+
     // Calculate total cost operasional
     const selectedCosts = costOperasional.filter((cost: any) => selectedCostOperasionalIds.has(cost.id));
     const totalCostOperasional = selectedCosts.reduce((sum, cost: any) => sum + (cost.jumlah || 0), 0);
-    
+
     if (calculationMode === 'akumulatif') {
       // Mode Akumulatif: Langsung bagi hasil dari omset - cost operasional
       const labaRugiBersih = totalPenjualan - totalCostOperasional;
       const bagianYayasan = (labaRugiBersih * bagiHasilYayasan) / 100;
       const bagianKoperasi = (labaRugiBersih * bagiHasilKoperasi) / 100;
-      
+
       return {
         totalPenjualan,
         totalHPP: 0, // Tidak ada HPP di mode akumulatif
@@ -659,14 +659,14 @@ const KelolaHPPDanBagiHasilPage = () => {
         const qty = item.total_terjual || 0;
         return sum + (hpp * qty);
       }, 0);
-      
+
       // Calculate margin
       const totalMargin = totalPenjualan - totalHPP;
-      
+
       // Calculate laba/rugi bersih (margin - cost operasional)
       // Laba bersih ini langsung menjadi bagian koperasi (tidak perlu bagi hasil)
       const labaRugiBersih = totalMargin - totalCostOperasional;
-      
+
       return {
         totalPenjualan,
         totalHPP,
@@ -826,7 +826,7 @@ const KelolaHPPDanBagiHasilPage = () => {
       // Jika mode atur-hpp, simpan HPP ke database
       if (calculationMode === 'atur-hpp' && Object.keys(pendingHppChanges).length > 0) {
         const { data: user } = await supabase.auth.getUser();
-        
+
         // Update HPP untuk semua item yang ada di pendingHppChanges
         for (const [itemId, hpp] of Object.entries(pendingHppChanges)) {
           await supabase
@@ -859,12 +859,12 @@ const KelolaHPPDanBagiHasilPage = () => {
       });
 
       toast.success('Keputusan berhasil disimpan dan entry keuangan telah dibuat');
-      
+
       // Reset selections dan pending changes
       setSelectedItemIds(new Set());
       setSelectedCostOperasionalIds(new Set());
       setPendingHppChanges({});
-      
+
       // Refresh data
       queryClient.invalidateQueries({ queryKey: ['koperasi-cost-operasional'] });
       queryClient.invalidateQueries({ queryKey: ['inventaris-sold-items'] });
@@ -954,13 +954,13 @@ const KelolaHPPDanBagiHasilPage = () => {
         `)
         .eq('akun_kas_id', akunId)
         .eq('kategori', 'Bagi Hasil');
-      
+
       // Apply date filter (skip if 'semua')
       if (dateFilter !== 'semua') {
         txQuery = txQuery.gte('tanggal', startDate.toISOString());
         txQuery = txQuery.lte('tanggal', endDate.toISOString());
       }
-      
+
       const { data: txData, error: txError } = await txQuery
         .order('tanggal', { ascending: false })
         .order('created_at', { ascending: false });
@@ -1001,7 +1001,7 @@ const KelolaHPPDanBagiHasilPage = () => {
       if (error) throw error;
 
       toast.success('Pembayaran berhasil diproses');
-      
+
       await Promise.all([
         loadMonthlySummaries(),
         loadTransactionsWithFilter()
@@ -1204,7 +1204,7 @@ const KelolaHPPDanBagiHasilPage = () => {
               ) : (() => {
                 // Filter soldItems berdasarkan searchTerm, filterKategori, dan filterOwnerType
                 const filteredSoldItems = (soldItems as SoldItem[]).filter((item: SoldItem) => {
-                  const matchesSearch = !searchTerm || 
+                  const matchesSearch = !searchTerm ||
                     item.nama_barang.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (item.kode_inventaris && item.kode_inventaris.toLowerCase().includes(searchTerm.toLowerCase())) ||
                     (item.kode_barang && item.kode_barang.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -1238,7 +1238,7 @@ const KelolaHPPDanBagiHasilPage = () => {
                       <span className="text-sm font-medium text-gray-700">
                         {(() => {
                           const selectedCount = filteredSoldItems.filter(item => selectedItemIds.has(item.item_id)).length;
-                          return selectedCount > 0 
+                          return selectedCount > 0
                             ? `${selectedCount} dari ${filteredSoldItems.length} item dipilih`
                             : `Pilih Semua (${filteredSoldItems.length} item)`
                         })()}
@@ -1280,120 +1280,120 @@ const KelolaHPPDanBagiHasilPage = () => {
                             </TableRow>
                           ) : (
                             filteredSoldItems.map((item) => {
-                          const isSelected = selectedItemIds.has(item.item_id);
-                          // Gunakan pending HPP jika ada, jika tidak gunakan HPP dari database
-                          const hppPerUnit = pendingHppChanges[item.item_id] ?? item.hpp_yayasan ?? 0;
-                          const totalHPP = hppPerUnit * (item.total_terjual || 0);
-                          const margin = (item.total_nilai || 0) - totalHPP;
-                          const hasPendingHpp = pendingHppChanges[item.item_id] !== undefined;
-                          
-                          // Buat objek minimal untuk handleEditHPP (fungsi akan fetch ulang dari database)
-                          const minimalItemForEdit: InventoryItem = {
-                            id: item.item_id,
-                            kode_inventaris: item.kode_inventaris,
-                            nama_barang: item.nama_barang,
-                            kategori: item.kategori,
-                            tipe_item: '',
-                            jumlah: 0,
-                            satuan: null,
-                            harga_perolehan: item.harga_perolehan,
-                            hpp_yayasan: item.hpp_yayasan,
-                            is_komoditas: null,
-                            boleh_dijual_koperasi: null,
-                            sumber: null,
-                            created_at: '',
-                          };
-                          
-                          return (
-                            <TableRow 
-                              key={item.item_id}
-                              className={isSelected ? 'bg-blue-50 border-blue-200' : ''}
-                            >
-                              <TableCell>
-                                <Checkbox
-                                  checked={isSelected}
-                                  onCheckedChange={() => handleToggleItem(item.item_id)}
-                                />
-                              </TableCell>
-                              <TableCell className="font-mono text-sm font-semibold">
-                                {item.kode_barang || '-'}
-                              </TableCell>
-                              <TableCell className="font-mono text-xs text-gray-500">
-                                {item.kode_inventaris || '-'}
-                              </TableCell>
-                              <TableCell className="font-medium">{item.nama_barang}</TableCell>
-                              <TableCell>
-                                <Badge 
-                                  variant={item.owner_type === 'yayasan' ? 'default' : 'secondary'}
-                                  className={item.owner_type === 'yayasan' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}
+                              const isSelected = selectedItemIds.has(item.item_id);
+                              // Gunakan pending HPP jika ada, jika tidak gunakan HPP dari database
+                              const hppPerUnit = pendingHppChanges[item.item_id] ?? item.hpp_yayasan ?? 0;
+                              const totalHPP = hppPerUnit * (item.total_terjual || 0);
+                              const margin = (item.total_nilai || 0) - totalHPP;
+                              const hasPendingHpp = pendingHppChanges[item.item_id] !== undefined;
+
+                              // Buat objek minimal untuk handleEditHPP (fungsi akan fetch ulang dari database)
+                              const minimalItemForEdit: InventoryItem = {
+                                id: item.item_id,
+                                kode_inventaris: item.kode_inventaris,
+                                nama_barang: item.nama_barang,
+                                kategori: item.kategori,
+                                tipe_item: '',
+                                jumlah: 0,
+                                satuan: null,
+                                harga_perolehan: item.harga_perolehan,
+                                hpp_yayasan: item.hpp_yayasan,
+                                is_komoditas: null,
+                                boleh_dijual_koperasi: null,
+                                sumber: null,
+                                created_at: '',
+                              };
+
+                              return (
+                                <TableRow
+                                  key={item.item_id}
+                                  className={isSelected ? 'bg-blue-50 border-blue-200' : ''}
                                 >
-                                  {item.owner_type === 'yayasan' ? 'YYS' : 'KOP'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{item.kategori}</Badge>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {item.total_terjual.toLocaleString('id-ID')} pcs
-                              </TableCell>
-                              <TableCell className="text-right font-semibold">
-                                {formatCurrency(item.total_nilai)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {calculationMode === 'atur-hpp' ? (
-                                  <div className="flex items-center gap-2 justify-end">
-                                    {hasPendingHpp && (
-                                      <Badge variant="outline" className="bg-yellow-50 text-yellow-700 text-xs">
-                                        Baru
+                                  <TableCell>
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={() => handleToggleItem(item.item_id)}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="font-mono text-sm font-semibold">
+                                    {item.kode_barang || '-'}
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs text-gray-500">
+                                    {item.kode_inventaris || '-'}
+                                  </TableCell>
+                                  <TableCell className="font-medium">{item.nama_barang}</TableCell>
+                                  <TableCell>
+                                    <Badge
+                                      variant={item.owner_type === 'yayasan' ? 'default' : 'secondary'}
+                                      className={item.owner_type === 'yayasan' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}
+                                    >
+                                      {item.owner_type === 'yayasan' ? 'YYS' : 'KOP'}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline">{item.kategori}</Badge>
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {item.total_terjual.toLocaleString('id-ID')} pcs
+                                  </TableCell>
+                                  <TableCell className="text-right font-semibold">
+                                    {formatCurrency(item.total_nilai)}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {calculationMode === 'atur-hpp' ? (
+                                      <div className="flex items-center gap-2 justify-end">
+                                        {hasPendingHpp && (
+                                          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 text-xs">
+                                            Baru
+                                          </Badge>
+                                        )}
+                                        {formatCurrency(hppPerUnit)}
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-400">-</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {calculationMode === 'atur-hpp' ? formatCurrency(totalHPP) : <span className="text-gray-400">-</span>}
+                                  </TableCell>
+                                  <TableCell className={`text-right font-semibold ${margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {calculationMode === 'atur-hpp' ? formatCurrency(margin) : formatCurrency(item.total_nilai || 0)}
+                                  </TableCell>
+                                  <TableCell>
+                                    {calculationMode === 'atur-hpp' ? (
+                                      hppPerUnit > 0 ? (
+                                        <Badge variant="default" className="bg-green-100 text-green-700">
+                                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                                          {hasPendingHpp ? 'HPP Baru' : 'Sudah Diatur'}
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="bg-red-50 text-red-700">
+                                          <AlertCircle className="h-3 w-3 mr-1" />
+                                          Perlu Diatur
+                                        </Badge>
+                                      )
+                                    ) : (
+                                      <Badge variant="outline" className="bg-gray-100 text-gray-700">
+                                        Mode Akumulatif
                                       </Badge>
                                     )}
-                                    {formatCurrency(hppPerUnit)}
-                                  </div>
-                                ) : (
-                                  <span className="text-gray-400">-</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {calculationMode === 'atur-hpp' ? formatCurrency(totalHPP) : <span className="text-gray-400">-</span>}
-                              </TableCell>
-                              <TableCell className={`text-right font-semibold ${margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {calculationMode === 'atur-hpp' ? formatCurrency(margin) : formatCurrency(item.total_nilai || 0)}
-                              </TableCell>
-                              <TableCell>
-                                {calculationMode === 'atur-hpp' ? (
-                                  hppPerUnit > 0 ? (
-                                    <Badge variant="default" className="bg-green-100 text-green-700">
-                                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                                      {hasPendingHpp ? 'HPP Baru' : 'Sudah Diatur'}
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline" className="bg-red-50 text-red-700">
-                                      <AlertCircle className="h-3 w-3 mr-1" />
-                                      Perlu Diatur
-                                    </Badge>
-                                  )
-                                ) : (
-                                  <Badge variant="outline" className="bg-gray-100 text-gray-700">
-                                    Mode Akumulatif
-                                  </Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {calculationMode === 'atur-hpp' ? (
-                                  <Button
-                                    variant={hppPerUnit > 0 ? "outline" : "default"}
-                                    size="sm"
-                                    onClick={() => handleEditHPP(minimalItemForEdit)}
-                                  >
-                                    <Edit className="h-4 w-4 mr-1" />
-                                    {hppPerUnit > 0 ? 'Edit HPP' : 'Set HPP'}
-                                  </Button>
-                                ) : (
-                                  <span className="text-sm text-gray-400">-</span>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          );
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    {calculationMode === 'atur-hpp' ? (
+                                      <Button
+                                        variant={hppPerUnit > 0 ? "outline" : "default"}
+                                        size="sm"
+                                        onClick={() => handleEditHPP(minimalItemForEdit)}
+                                      >
+                                        <Edit className="h-4 w-4 mr-1" />
+                                        {hppPerUnit > 0 ? 'Edit HPP' : 'Set HPP'}
+                                      </Button>
+                                    ) : (
+                                      <span className="text-sm text-gray-400">-</span>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
                             })
                           )}
                         </TableBody>
@@ -1510,16 +1510,16 @@ const KelolaHPPDanBagiHasilPage = () => {
                                 // Prioritas: deskripsi > sub_kategori > kategori > penerima_pembayar > '-'
                                 const desc = cost.deskripsi?.trim();
                                 if (desc) return desc;
-                                
+
                                 const subKat = cost.sub_kategori?.trim();
                                 if (subKat) return subKat;
-                                
+
                                 const kat = cost.kategori?.trim();
                                 if (kat) return kat;
-                                
+
                                 const penerima = cost.penerima_pembayar?.trim();
                                 if (penerima) return penerima;
-                                
+
                                 return '-';
                               })()}
                             </TableCell>
@@ -1589,9 +1589,9 @@ const KelolaHPPDanBagiHasilPage = () => {
                     <div>
                       <p className="text-sm font-semibold text-gray-700 mb-1">Laba/Rugi Bersih</p>
                       <p className={`text-2xl font-bold ${calculationResults.labaRugiBersih >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(calculationResults.labaRugiBersih)}
-                  </p>
-                </div>
+                        {formatCurrency(calculationResults.labaRugiBersih)}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -1610,9 +1610,9 @@ const KelolaHPPDanBagiHasilPage = () => {
                         <div className="flex items-baseline justify-between">
                           <span className="text-xs text-gray-500">Nilai</span>
                           <span className={`text-xl font-bold ${calculationResults.bagianYayasan >= 0 ? 'text-purple-600' : 'text-red-600'}`}>
-                        {formatCurrency(calculationResults.bagianYayasan)}
+                            {formatCurrency(calculationResults.bagianYayasan)}
                           </span>
-                    </div>
+                        </div>
                       </div>
                     </div>
                     <div className="border rounded-lg overflow-hidden">
@@ -1627,7 +1627,7 @@ const KelolaHPPDanBagiHasilPage = () => {
                         <div className="flex items-baseline justify-between">
                           <span className="text-xs text-gray-500">Nilai</span>
                           <span className={`text-xl font-bold ${calculationResults.bagianKoperasi >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>
-                        {formatCurrency(calculationResults.bagianKoperasi)}
+                            {formatCurrency(calculationResults.bagianKoperasi)}
                           </span>
                         </div>
                       </div>
@@ -1644,7 +1644,7 @@ const KelolaHPPDanBagiHasilPage = () => {
                       <div className="flex items-baseline justify-between mb-3">
                         <span className="text-sm text-gray-600">Laba Bersih</span>
                         <span className={`text-xl font-bold ${calculationResults.labaRugiBersih >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>
-                      {formatCurrency(calculationResults.labaRugiBersih)}
+                          {formatCurrency(calculationResults.labaRugiBersih)}
                         </span>
                       </div>
                       <div className="pt-3 border-t">
@@ -1666,8 +1666,8 @@ const KelolaHPPDanBagiHasilPage = () => {
               <CardTitle className="text-lg">Simpan Keputusan</CardTitle>
             </CardHeader>
             <CardContent>
-              <Button 
-                size="lg" 
+              <Button
+                size="lg"
                 className="w-full"
                 onClick={handleSaveDecision}
                 disabled={isSavingDecision || selectedItemIds.size === 0 || (calculationMode === 'akumulatif' && bagiHasilYayasan + bagiHasilKoperasi !== 100)}
@@ -1714,377 +1714,377 @@ const KelolaHPPDanBagiHasilPage = () => {
 
             {/* Sub-tab: Item Terjual */}
             <TabsContent value="terjual" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Item Terjual</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoadingSold ? (
-                <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-                  <p className="text-sm text-gray-500 mt-2">Memuat data...</p>
-                </div>
-              ) : soldItems.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <Package className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p className="font-medium">Belum ada item terjual</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Kode</TableHead>
-                        <TableHead>Nama Barang</TableHead>
-                        <TableHead>Kategori</TableHead>
-                        <TableHead className="text-right">Total Terjual</TableHead>
-                        <TableHead className="text-right">Total Nilai</TableHead>
-                        <TableHead className="text-right">HPP Yayasan</TableHead>
-                        <TableHead>Status HPP</TableHead>
-                        <TableHead>Tanggal Terakhir</TableHead>
-                        <TableHead className="text-center">Aksi</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {soldItems.map((item: SoldItem) => {
-                        // Create a minimal InventoryItem from soldItems data
-                        // This ensures button always appears even if item not in inventoryItems
-                        const minimalItem: InventoryItem = {
-                          id: item.item_id,
-                          kode_inventaris: item.kode_inventaris,
-                          nama_barang: item.nama_barang,
-                          kategori: item.kategori,
-                          tipe_item: 'Komoditas',
-                          jumlah: item.total_terjual,
-                          satuan: 'pcs',
-                          harga_perolehan: item.harga_perolehan,
-                          hpp_yayasan: item.hpp_yayasan,
-                          is_komoditas: true,
-                          boleh_dijual_koperasi: true,
-                          sumber: null,
-                          created_at: item.tanggal_penjualan_terakhir || new Date().toISOString(),
-                        };
-                        
-                        return (
-                          <TableRow key={item.item_id}>
-                            <TableCell className="font-mono text-sm">
-                              {item.kode_inventaris || '-'}
-                            </TableCell>
-                            <TableCell className="font-medium">{item.nama_barang}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{item.kategori}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {item.total_terjual.toLocaleString('id-ID')} pcs
-                            </TableCell>
-                            <TableCell className="text-right font-semibold">
-                              {formatCurrency(item.total_nilai)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {formatCurrency(item.hpp_yayasan)}
-                            </TableCell>
-                            <TableCell>
-                              {item.hpp_yayasan && item.hpp_yayasan > 0 ? (
-                                <Badge variant="default" className="bg-green-100 text-green-700">
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Sudah Diatur
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="bg-red-50 text-red-700">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Perlu Diatur
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-sm text-gray-600">
-                              {item.tanggal_penjualan_terakhir
-                                ? format(new Date(item.tanggal_penjualan_terakhir), 'd MMM yyyy', { locale: localeId })
-                                : '-'}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Button
-                                variant={item.hpp_yayasan && item.hpp_yayasan > 0 ? "outline" : "default"}
-                                size="sm"
-                                onClick={() => handleEditHPP(minimalItem)}
-                                className={item.hpp_yayasan && item.hpp_yayasan > 0 ? "" : "bg-green-600 hover:bg-green-700 text-white"}
-                              >
-                                <Edit className="h-4 w-4 mr-1" />
-                                {item.hpp_yayasan && item.hpp_yayasan > 0 ? 'Edit HPP' : 'Set HPP'}
-                              </Button>
-                            </TableCell>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Item Terjual</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingSold ? (
+                    <div className="text-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                      <p className="text-sm text-gray-500 mt-2">Memuat data...</p>
+                    </div>
+                  ) : soldItems.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <Package className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p className="font-medium">Belum ada item terjual</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Kode</TableHead>
+                            <TableHead>Nama Barang</TableHead>
+                            <TableHead>Kategori</TableHead>
+                            <TableHead className="text-right">Total Terjual</TableHead>
+                            <TableHead className="text-right">Total Nilai</TableHead>
+                            <TableHead className="text-right">HPP Yayasan</TableHead>
+                            <TableHead>Status HPP</TableHead>
+                            <TableHead>Tanggal Terakhir</TableHead>
+                            <TableHead className="text-center">Aksi</TableHead>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                        </TableHeader>
+                        <TableBody>
+                          {soldItems.map((item: SoldItem) => {
+                            // Create a minimal InventoryItem from soldItems data
+                            // This ensures button always appears even if item not in inventoryItems
+                            const minimalItem: InventoryItem = {
+                              id: item.item_id,
+                              kode_inventaris: item.kode_inventaris,
+                              nama_barang: item.nama_barang,
+                              kategori: item.kategori,
+                              tipe_item: 'Komoditas',
+                              jumlah: item.total_terjual,
+                              satuan: 'pcs',
+                              harga_perolehan: item.harga_perolehan,
+                              hpp_yayasan: item.hpp_yayasan,
+                              is_komoditas: true,
+                              boleh_dijual_koperasi: true,
+                              sumber: null,
+                              created_at: item.tanggal_penjualan_terakhir || new Date().toISOString(),
+                            };
+
+                            return (
+                              <TableRow key={item.item_id}>
+                                <TableCell className="font-mono text-sm">
+                                  {item.kode_inventaris || '-'}
+                                </TableCell>
+                                <TableCell className="font-medium">{item.nama_barang}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">{item.kategori}</Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {item.total_terjual.toLocaleString('id-ID')} pcs
+                                </TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  {formatCurrency(item.total_nilai)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {formatCurrency(item.hpp_yayasan)}
+                                </TableCell>
+                                <TableCell>
+                                  {item.hpp_yayasan && item.hpp_yayasan > 0 ? (
+                                    <Badge variant="default" className="bg-green-100 text-green-700">
+                                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                                      Sudah Diatur
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="bg-red-50 text-red-700">
+                                      <AlertCircle className="h-3 w-3 mr-1" />
+                                      Perlu Diatur
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-sm text-gray-600">
+                                  {item.tanggal_penjualan_terakhir
+                                    ? format(new Date(item.tanggal_penjualan_terakhir), 'd MMM yyyy', { locale: localeId })
+                                    : '-'}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Button
+                                    variant={item.hpp_yayasan && item.hpp_yayasan > 0 ? "outline" : "default"}
+                                    size="sm"
+                                    onClick={() => handleEditHPP(minimalItem)}
+                                    className={item.hpp_yayasan && item.hpp_yayasan > 0 ? "" : "bg-green-600 hover:bg-green-700 text-white"}
+                                  >
+                                    <Edit className="h-4 w-4 mr-1" />
+                                    {item.hpp_yayasan && item.hpp_yayasan > 0 ? 'Edit HPP' : 'Set HPP'}
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             {/* Sub-tab: Riwayat Bagi Hasil */}
             <TabsContent value="bagi-hasil" className="space-y-4">
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Riwayat Bagi Hasil</h2>
-                <p className="text-sm text-gray-500 mt-1">{getFilterLabel()}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <Select value={dateFilter} onValueChange={setDateFilter}>
-                  <SelectTrigger className="w-[180px]">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    <SelectValue placeholder="Pilih periode" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="semua">Semua Waktu</SelectItem>
-                    <SelectItem value="hari-ini">Hari Ini</SelectItem>
-                    <SelectItem value="minggu-ini">Minggu Ini</SelectItem>
-                    <SelectItem value="bulan-ini">Bulan Ini</SelectItem>
-                    <SelectItem value="bulan-lalu">Bulan Lalu</SelectItem>
-                    <SelectItem value="tahun-ini">Tahun Ini</SelectItem>
-                    <SelectItem value="tahun-lalu">Tahun Lalu</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    loadBagiHasilData();
-                    toast.success('Data berhasil diperbarui');
-                  }}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh
-                </Button>
-              </div>
-            </div>
-
-            {/* Profit Sharing Breakdown */}
-            <ProfitSharingBreakdown 
-              startDate={getDateRangeForBagiHasil().startDate}
-              endDate={getDateRangeForBagiHasil().endDate}
-            />
-
-            {/* Monthly Summary Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Ringkasan Bagi Hasil Bulanan</CardTitle>
-                <p className="text-sm text-gray-500 mt-1">
-                  Pembagian hasil penjualan produk yayasan (70:30)
-                </p>
-              </CardHeader>
-              <CardContent>
-                {monthlySummaries.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Belum ada data bagi hasil</p>
+              <div className="space-y-6">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Riwayat Bagi Hasil</h2>
+                    <p className="text-sm text-gray-500 mt-1">{getFilterLabel()}</p>
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Periode</TableHead>
-                          <TableHead className="text-right">Total Penjualan</TableHead>
-                          <TableHead className="text-right">Bagian Yayasan</TableHead>
-                          <TableHead className="text-right">Bagian Koperasi</TableHead>
-                          <TableHead className="text-center">Status</TableHead>
-                          <TableHead className="text-center">Tanggal Bayar</TableHead>
-                          <TableHead className="text-center">Aksi</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {monthlySummaries.map((summary) => (
-                          <TableRow 
-                            key={summary.id}
-                            className={summary.status === 'unpaid' && summary.bagian_yayasan > 0 ? 'bg-amber-50' : ''}
-                          >
-                            <TableCell className="font-medium">
-                              {getMonthName(summary.bulan)} {summary.tahun}
-                            </TableCell>
-                            <TableCell className="text-right font-mono">
-                              {formatCurrencyBagiHasil(summary.total_penjualan)}
-                            </TableCell>
-                            <TableCell className="text-right font-mono text-emerald-600 font-semibold">
-                              {formatCurrencyBagiHasil(summary.bagian_yayasan)}
-                            </TableCell>
-                            <TableCell className="text-right font-mono text-blue-600 font-semibold">
-                              {formatCurrencyBagiHasil(summary.bagian_koperasi)}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {summary.status === 'paid' ? (
-                                <Badge variant="outline" className="bg-green-50 text-green-700">
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Lunas
-                                </Badge>
-                              ) : summary.bagian_yayasan > 0 ? (
-                                <Badge variant="outline" className="bg-amber-50 text-amber-700">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Belum Bayar
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline">Tidak Ada</Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-center text-sm text-gray-600">
-                              {summary.tanggal_bayar 
-                                ? format(new Date(summary.tanggal_bayar), 'd MMM yyyy', { locale: localeId })
-                                : '-'
-                              }
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {summary.status === 'unpaid' && summary.bagian_yayasan > 0 ? (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handlePaymentClick(summary)}
-                                  className="bg-emerald-600 hover:bg-emerald-700"
-                                >
-                                  <Wallet className="h-4 w-4 mr-1" />
-                                  Bayar
-                                </Button>
-                              ) : (
-                                <span className="text-sm text-gray-400">-</span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Transactions List */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Riwayat Transaksi Bagi Hasil</CardTitle>
-                <p className="text-sm text-gray-500 mt-1">
-                  {transactions.length} transaksi tercatat
-                </p>
-              </CardHeader>
-              <CardContent>
-                {transactions.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <PieChart className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Belum ada transaksi bagi hasil</p>
-                  </div>
-                ) : (
-                  <RiwayatTransaksi
-                    transactions={transactions}
-                    onViewDetail={handleViewTransaction}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Payment Confirmation Dialog */}
-          <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Wallet className="h-5 w-5 text-emerald-600" />
-                  Konfirmasi Pembayaran Bagi Hasil
-                </DialogTitle>
-                <DialogDescription>
-                  Pastikan data pembayaran sudah benar sebelum melanjutkan
-                </DialogDescription>
-              </DialogHeader>
-              
-              {selectedSummary && (
-                <div className="space-y-4 py-4">
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Periode</span>
-                      <span className="font-semibold">
-                        {getMonthName(selectedSummary.bulan)} {selectedSummary.tahun}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Total Penjualan</span>
-                      <span className="font-mono">
-                        {formatCurrencyBagiHasil(selectedSummary.total_penjualan)}
-                      </span>
-                    </div>
-                    <div className="border-t border-gray-200 pt-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Bagian Yayasan (70%)</span>
-                        <span className="font-mono text-emerald-600 font-semibold">
-                          {formatCurrencyBagiHasil(selectedSummary.bagian_yayasan)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Bagian Koperasi</span>
-                      <span className="font-mono text-blue-600 font-semibold">
-                        {formatCurrencyBagiHasil(selectedSummary.bagian_koperasi)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                    <div className="flex gap-3">
-                      <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <div className="text-sm text-amber-800">
-                        <p className="font-semibold mb-1">Perhatian</p>
-                        <p>
-                          Pembayaran akan mengurangi saldo Kas Koperasi sebesar{' '}
-                          <span className="font-semibold">{formatCurrencyBagiHasil(selectedSummary.bagian_yayasan)}</span>.
-                          Pastikan saldo kas mencukupi.
-                        </p>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <Select value={dateFilter} onValueChange={setDateFilter}>
+                      <SelectTrigger className="w-[180px]">
+                        <Calendar className="h-4 w-4 mr-2" />
+                        <SelectValue placeholder="Pilih periode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="semua">Semua Waktu</SelectItem>
+                        <SelectItem value="hari-ini">Hari Ini</SelectItem>
+                        <SelectItem value="minggu-ini">Minggu Ini</SelectItem>
+                        <SelectItem value="bulan-ini">Bulan Ini</SelectItem>
+                        <SelectItem value="bulan-lalu">Bulan Lalu</SelectItem>
+                        <SelectItem value="tahun-ini">Tahun Ini</SelectItem>
+                        <SelectItem value="tahun-lalu">Tahun Lalu</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        loadBagiHasilData();
+                        toast.success('Data berhasil diperbarui');
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh
+                    </Button>
                   </div>
                 </div>
-              )}
 
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowPaymentDialog(false);
-                    setSelectedSummary(null);
-                  }}
-                  disabled={processingPayment}
-                >
-                  Batal
-                </Button>
-                <Button
-                  onClick={handleConfirmPayment}
-                  disabled={processingPayment}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  {processingPayment ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Memproses...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Konfirmasi Pembayaran
-                    </>
+                {/* Profit Sharing Breakdown */}
+                <ProfitSharingBreakdown
+                  startDate={getDateRangeForBagiHasil().startDate}
+                  endDate={getDateRangeForBagiHasil().endDate}
+                />
+
+                {/* Monthly Summary Table */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Ringkasan Bagi Hasil Bulanan</CardTitle>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Pembagian hasil penjualan produk yayasan (70:30)
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    {monthlySummaries.length === 0 ? (
+                      <div className="text-center py-12 text-gray-500">
+                        <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>Belum ada data bagi hasil</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Periode</TableHead>
+                              <TableHead className="text-right">Total Penjualan</TableHead>
+                              <TableHead className="text-right">Bagian Yayasan</TableHead>
+                              <TableHead className="text-right">Bagian Koperasi</TableHead>
+                              <TableHead className="text-center">Status</TableHead>
+                              <TableHead className="text-center">Tanggal Bayar</TableHead>
+                              <TableHead className="text-center">Aksi</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {monthlySummaries.map((summary) => (
+                              <TableRow
+                                key={summary.id}
+                                className={summary.status === 'unpaid' && summary.bagian_yayasan > 0 ? 'bg-amber-50' : ''}
+                              >
+                                <TableCell className="font-medium">
+                                  {getMonthName(summary.bulan)} {summary.tahun}
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {formatCurrencyBagiHasil(summary.total_penjualan)}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-emerald-600 font-semibold">
+                                  {formatCurrencyBagiHasil(summary.bagian_yayasan)}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-blue-600 font-semibold">
+                                  {formatCurrencyBagiHasil(summary.bagian_koperasi)}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {summary.status === 'paid' ? (
+                                    <Badge variant="outline" className="bg-green-50 text-green-700">
+                                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                                      Lunas
+                                    </Badge>
+                                  ) : summary.bagian_yayasan > 0 ? (
+                                    <Badge variant="outline" className="bg-amber-50 text-amber-700">
+                                      <AlertCircle className="h-3 w-3 mr-1" />
+                                      Belum Bayar
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline">Tidak Ada</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-center text-sm text-gray-600">
+                                  {summary.tanggal_bayar
+                                    ? format(new Date(summary.tanggal_bayar), 'd MMM yyyy', { locale: localeId })
+                                    : '-'
+                                  }
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {summary.status === 'unpaid' && summary.bagian_yayasan > 0 ? (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handlePaymentClick(summary)}
+                                      className="bg-emerald-600 hover:bg-emerald-700"
+                                    >
+                                      <Wallet className="h-4 w-4 mr-1" />
+                                      Bayar
+                                    </Button>
+                                  ) : (
+                                    <span className="text-sm text-gray-400">-</span>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Transactions List */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Riwayat Transaksi Bagi Hasil</CardTitle>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {transactions.length} transaksi tercatat
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    {transactions.length === 0 ? (
+                      <div className="text-center py-12 text-gray-500">
+                        <PieChart className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>Belum ada transaksi bagi hasil</p>
+                      </div>
+                    ) : (
+                      <RiwayatTransaksi
+                        transactions={transactions}
+                        onViewDetail={handleViewTransaction}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Payment Confirmation Dialog */}
+              <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Wallet className="h-5 w-5 text-emerald-600" />
+                      Konfirmasi Pembayaran Bagi Hasil
+                    </DialogTitle>
+                    <DialogDescription>
+                      Pastikan data pembayaran sudah benar sebelum melanjutkan
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  {selectedSummary && (
+                    <div className="space-y-4 py-4">
+                      <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Periode</span>
+                          <span className="font-semibold">
+                            {getMonthName(selectedSummary.bulan)} {selectedSummary.tahun}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Total Penjualan</span>
+                          <span className="font-mono">
+                            {formatCurrencyBagiHasil(selectedSummary.total_penjualan)}
+                          </span>
+                        </div>
+                        <div className="border-t border-gray-200 pt-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Bagian Yayasan (70%)</span>
+                            <span className="font-mono text-emerald-600 font-semibold">
+                              {formatCurrencyBagiHasil(selectedSummary.bagian_yayasan)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Bagian Koperasi</span>
+                          <span className="font-mono text-blue-600 font-semibold">
+                            {formatCurrencyBagiHasil(selectedSummary.bagian_koperasi)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                        <div className="flex gap-3">
+                          <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div className="text-sm text-amber-800">
+                            <p className="font-semibold mb-1">Perhatian</p>
+                            <p>
+                              Pembayaran akan mengurangi saldo Kas Koperasi sebesar{' '}
+                              <span className="font-semibold">{formatCurrencyBagiHasil(selectedSummary.bagian_yayasan)}</span>.
+                              Pastikan saldo kas mencukupi.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
 
-          {/* Transaction Detail Modal */}
-          {showTransactionDetail && selectedTransaction && (
-            <TransactionDetailModal
-              transaction={selectedTransaction}
-              isOpen={showTransactionDetail}
-              onClose={() => {
-                setShowTransactionDetail(false);
-                setSelectedTransaction(null);
-              }}
-            />
-          )}
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowPaymentDialog(false);
+                        setSelectedSummary(null);
+                      }}
+                      disabled={processingPayment}
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      onClick={handleConfirmPayment}
+                      disabled={processingPayment}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      {processingPayment ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Memproses...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Konfirmasi Pembayaran
+                        </>
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Transaction Detail Modal */}
+              {showTransactionDetail && selectedTransaction && (
+                <TransactionDetailModal
+                  transaction={selectedTransaction}
+                  isOpen={showTransactionDetail}
+                  onClose={() => {
+                    setShowTransactionDetail(false);
+                    setSelectedTransaction(null);
+                  }}
+                />
+              )}
             </TabsContent>
           </Tabs>
         </TabsContent>

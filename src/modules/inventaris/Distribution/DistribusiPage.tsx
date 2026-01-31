@@ -35,7 +35,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 import {
   getDistributionTransactions,
   createDistributionTransaction,
@@ -295,7 +295,7 @@ const DistribusiPage = () => {
 
   const confirmDelete = async () => {
     if (!selectedDistribution) return;
-    
+
     try {
       await deleteDistributionTransaction(selectedDistribution.id);
       toast.success('Distribusi berhasil dihapus');
@@ -515,17 +515,17 @@ const DistribusiPage = () => {
               <p className="text-sm text-muted-foreground">
                 Apakah Anda yakin ingin menghapus distribusi ini?
               </p>
-              
+
               <div className="bg-muted/50 p-3 rounded-md">
                 <p className="text-sm font-medium">{selectedDistribution.nama_barang}</p>
                 <p className="text-xs text-muted-foreground">
                   Penerima: {selectedDistribution.penerima} • {selectedDistribution.tanggal}
                 </p>
               </div>
-              
+
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                 <p className="text-sm text-red-800">
-                  <strong>Peringatan:</strong> Tindakan ini tidak dapat dibatalkan. 
+                  <strong>Peringatan:</strong> Tindakan ini tidak dapat dibatalkan.
                   Distribusi akan dihapus secara permanen dan stok akan dikembalikan.
                 </p>
               </div>
@@ -627,11 +627,10 @@ const DistribusiPage = () => {
                       />
                       {selectedItem && formData.jumlah && (
                         <p
-                          className={`text-xs mt-1 ${
-                            parseFloat(formData.jumlah) > stokTersedia
+                          className={`text-xs mt-1 ${parseFloat(formData.jumlah) > stokTersedia
                               ? 'text-red-600'
                               : 'text-muted-foreground'
-                          }`}
+                            }`}
                         >
                           {parseFloat(formData.jumlah) > stokTersedia ? (
                             <span className="flex items-center gap-1">
@@ -705,10 +704,10 @@ const DistribusiPage = () => {
 
                   <div className="flex gap-2">
                     <Button type="submit" disabled={submitting}>
-                      {submitting 
-                        ? 'Menyimpan...' 
-                        : editingDistribution 
-                          ? 'Update Distribusi' 
+                      {submitting
+                        ? 'Menyimpan...'
+                        : editingDistribution
+                          ? 'Update Distribusi'
                           : 'Simpan Distribusi'}
                     </Button>
                     <Button

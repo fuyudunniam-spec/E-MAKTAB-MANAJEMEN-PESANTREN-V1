@@ -57,10 +57,40 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        royal: {
+          50: '#f0f9ff',
+          100: '#e0f2fe',
+          200: '#bae6fd',
+          300: '#7dd3fc',
+          400: '#38bdf8',
+          500: '#0ea5e9',
+          600: '#0284c7',
+          700: '#0369a1',
+          800: '#075985',
+          900: '#0c4a6e',
+          950: '#082f49', // Warna Utama (Deep Navy)
+          brand: '#0f172a' // Slate 900 untuk kontras
+        },
+        gold: {
+          50: '#fffbeb',
+          100: '#fef9c3',
+          200: '#fde68a',
+          300: '#fcd34d',
+          400: '#d4af37', // Emas Klasik
+          500: '#b4941f',
+          600: '#8c7318',
+          700: '#b45309',
+          800: '#92400e',
+          900: '#78350f',
+          950: '#451a03',
+        },
+        paper: '#F8FAFC',
       },
       fontFamily: {
-        heading: ["var(--font-heading)", "serif"],
-        body: ["var(--font-body)", "sans-serif"],
+        heading: ["Cinzel", "serif"],
+        body: ["Cormorant Garamond", "serif"],
+        display: ["Cinzel", "serif"],
+        sans: ["Cormorant Garamond", "serif"],
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { Helmet } from "react-helmet";
-import { ShareButtons } from "@/components/ShareButtons";
+import { ShareButtons } from "@/components/ui/ShareButtons";
 import { Separator } from "@/components/ui/separator";
 
 interface Post {

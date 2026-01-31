@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Package, Store, ChefHat, HandHeart, TrendingUp, ArrowRight, Download, Calendar, BarChart3 } from 'lucide-react';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 import { TransferFormDialog } from './components/TransferFormDialog';
 import { TransferHistoryList } from './components/TransferHistoryList';
 import { TransferDashboardSummary } from './components/TransferDashboardSummary';
@@ -123,7 +123,7 @@ export default function TransferInventarisPage() {
   return (
     <div className="space-y-6">
       <ModuleHeader title="Transfer Inventaris" tabs={tabs} />
-      
+
       {/* Header Section - Clean Design */}
       <div className="flex items-center justify-between">
         <div>
@@ -343,11 +343,11 @@ export default function TransferInventarisPage() {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4">
-          <TransferHistoryList 
+          <TransferHistoryList
             key={activeTab}
             onRefresh={() => {
               // Refresh handled by component
-            }} 
+            }}
           />
         </TabsContent>
       </Tabs>

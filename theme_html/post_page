@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Santri Al-Bisri Juara Nasional | Berita Al-Bisri</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&family=Cinzel:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        royal: { 50: '#f0fdf4', 100: '#dcfce7', 800: '#166534', 900: '#14532d', 950: '#052e16' },
+                        gold: { 100: '#fef9c3', 400: '#d4af37', 500: '#b4941f', 600: '#8c7318' },
+                    },
+                    fontFamily: {
+                        serif: ['Cormorant Garamond', 'serif'],
+                        display: ['Cinzel', 'serif'],
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    },
+                    typography: (theme) => ({
+                        DEFAULT: {
+                            css: {
+                                color: theme('colors.stone.700'),
+                                fontFamily: theme('fontFamily.serif'),
+                                fontSize: '1.25rem',
+                                lineHeight: '2',
+                                p: { marginBottom: '1.5em' },
+                                h2: { fontFamily: theme('fontFamily.display'), color: theme('colors.royal.900'), marginTop: '2em' },
+                                blockquote: { borderLeftColor: theme('colors.gold.400'), fontStyle: 'italic' },
+                            },
+                        },
+                    }),
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #FAFAF9;
+            color: #1c1917;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .article-content {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.25rem;
+            line-height: 2;
+            color: #44403c;
+        }
+
+        .article-content p {
+            margin-bottom: 1.5rem;
+        }
+
+        .article-content h2 {
+            font-family: 'Cinzel', serif;
+            font-size: 1.8rem;
+            color: #14532d;
+            margin-top: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .article-content blockquote {
+            border-left: 4px solid #d4af37;
+            padding-left: 1.5rem;
+            margin: 2rem 0;
+            font-style: italic;
+            color: #1c1917;
+            font-size: 1.4rem;
+        }
+
+        .article-content img {
+            border-radius: 1rem;
+            margin: 2rem 0;
+            width: 100%;
+        }
+
+        .royal-pattern {
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23166534' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2V6h4V4h-4zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+    </style>
+</head>
+
+<body class="antialiased royal-pattern">
+
+    <!-- NAV -->
+    <nav
+        class="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-stone-200 shadow-sm transition-all duration-300">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
+            <a href="index.html" class="flex items-center gap-3 group">
+                <div
+                    class="w-8 h-8 bg-royal-900 text-white rotate-45 flex items-center justify-center rounded-sm shadow-md group-hover:rotate-0 transition-transform">
+                    <span
+                        class="font-display font-bold text-gold-400 text-sm -rotate-45 group-hover:rotate-0 transition-transform">A</span>
+                </div>
+                <div class="flex flex-col">
+                    <span
+                        class="font-display font-bold text-royal-900 tracking-widest text-base leading-none">AL-BISRI</span>
+                    <span
+                        class="text-[8px] text-gold-600 uppercase tracking-[0.25em] font-sans font-semibold">Newsroom</span>
+                </div>
+            </a>
+
+            <div class="flex items-center gap-4">
+                <div
+                    class="hidden md:flex items-center gap-6 text-xs font-bold uppercase tracking-widest text-stone-500">
+                    <a href="#" class="hover:text-royal-900">Prestasi</a>
+                    <a href="#" class="hover:text-royal-900">Opini</a>
+                    <a href="#" class="hover:text-royal-900">Wakaf Update</a>
+                </div>
+                <button class="p-2 hover:bg-stone-100 rounded-full"><i data-lucide="search"
+                        class="w-5 h-5 text-stone-600"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ARTICLE HEADER -->
+    <header class="pt-16 pb-12 px-6 max-w-4xl mx-auto text-center">
+        <div
+            class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-100 text-gold-700 text-[10px] font-bold uppercase tracking-widest mb-6 border border-gold-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-gold-600"></span> Prestasi Santri
+        </div>
+        <h1 class="text-4xl md:text-6xl font-display text-royal-900 mb-6 leading-tight">
+            Santri Al-Bisri Raih Juara 1 <br> <span class="italic text-gold-600 font-serif">MHQ Nasional 2024</span>
+        </h1>
+        <div class="flex items-center justify-center gap-4 text-stone-500 text-sm font-medium">
+            <span class="flex items-center gap-2"><i data-lucide="calendar" class="w-4 h-4"></i> 20 Oktober 2024</span>
+            <span class="w-1 h-1 rounded-full bg-stone-300"></span>
+            <span class="flex items-center gap-2"><i data-lucide="clock" class="w-4 h-4"></i> 5 Menit Baca</span>
+        </div>
+    </header>
+
+    <!-- FEATURED IMAGE -->
+    <div class="max-w-5xl mx-auto px-6 mb-16">
+        <div class="relative aspect-video rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white">
+            <img src="https://images.unsplash.com/photo-1585036156171-384164a8c675?q=80&w=2000&auto=format&fit=crop"
+                class="w-full h-full object-cover">
+            <div
+                class="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black/80 to-transparent text-white/80 text-xs italic">
+                Ananda Fatih saat menerima penghargaan dari Menteri Agama RI.
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTENT WRAPPER -->
+    <div class="max-w-7xl mx-auto px-6 pb-24 grid lg:grid-cols-12 gap-12">
+
+        <!-- SIDEBAR (Share & Author) -->
+        <aside class="lg:col-span-2 order-2 lg:order-1">
+            <div class="sticky top-32 space-y-8 text-center lg:text-left">
+                <!-- Author -->
+                <div class="flex lg:flex-col items-center gap-3">
+                    <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&auto=format&fit=crop"
+                        class="w-12 h-12 rounded-full object-cover border border-stone-200">
+                    <div>
+                        <p class="text-xs font-bold text-stone-400 uppercase tracking-widest">Penulis</p>
+                        <p class="font-display text-royal-900 font-bold">Humas Al-Bisri</p>
+                    </div>
+                </div>
+
+                <div class="w-full h-px bg-stone-200 hidden lg:block"></div>
+
+                <!-- Share -->
+                <div>
+                    <p class="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4">Bagikan</p>
+                    <div class="flex lg:flex-col justify-center gap-3">
+                        <button
+                            class="w-10 h-10 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-royal-900 hover:text-white hover:border-royal-900 transition"><i
+                                data-lucide="facebook" class="w-4 h-4"></i></button>
+                        <button
+                            class="w-10 h-10 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-green-600 hover:text-white hover:border-green-600 transition"><i
+                                data-lucide="message-circle" class="w-4 h-4"></i></button>
+                        <button
+                            class="w-10 h-10 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-blue-400 hover:text-white hover:border-blue-400 transition"><i
+                                data-lucide="twitter" class="w-4 h-4"></i></button>
+                        <button
+                            class="w-10 h-10 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-800 hover:text-white hover:border-stone-800 transition"><i
+                                data-lucide="link" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN ARTICLE -->
+        <article class="lg:col-span-7 order-1 lg:order-2 article-content">
+            <p>
+                <span class="float-left text-6xl font-display text-gold-500 mr-4 mt-[-10px]">A</span>lhamdulillah, kabar
+                gembira kembali menyelimuti keluarga besar Pesantren Al-Bisri Royal Education. Salah satu santri kader
+                ulama terbaik kami, <strong>Muhammad Fatih (17 tahun)</strong>, berhasil meraih Juara 1 pada ajang
+                Musabaqah Hifzhil Qur'an (MHQ) Tingkat Nasional tahun 2024 yang diselenggarakan di Jakarta.
+            </p>
+            <p>
+                Fatih, yang merupakan santri penerima beasiswa yatim penuh, berhasil menyisihkan lebih dari 300 peserta
+                dari berbagai provinsi di Indonesia dalam kategori Hafalan 30 Juz Beserta Tafsir Bahasa Arab.
+            </p>
+
+            <blockquote>
+                "Kemenangan ini bukan hanya milik saya, tapi milik seluruh donatur dan orang tua asuh yang telah
+                membiayai pendidikan saya di Al-Bisri. Tanpa dukungan fasilitas asrama dan bimbingan ustadz, mungkin
+                saya tidak akan sampai di titik ini."
+                <br><span class="text-sm font-sans not-italic font-bold text-royal-900 mt-2 block">— Muhammad
+                    Fatih</span>
+            </blockquote>
+
+            <h2>Buah dari Kurikulum Takhassus</h2>
+            <p>
+                Prestasi ini menjadi bukti nyata efektivitas kurikulum <em>Takhassus</em> (Spesialisasi) yang diterapkan
+                di Al-Bisri. Santri tidak hanya dituntut menghafal lafadz, tetapi juga memahami makna melalui kajian
+                tafsir klasik dan modern yang didukung oleh <strong>Isyraq Annur Media</strong>.
+            </p>
+            <p>
+                KH. Ahmad Bisri, selaku pengasuh, menyampaikan rasa syukurnya. Beliau menekankan bahwa prestasi ini
+                adalah amanah untuk terus meningkatkan kualitas pendidikan bagi kaum dhuafa.
+            </p>
+
+            <img src="https://images.unsplash.com/photo-1511632765486-a01980e01a18?q=80&w=1200&auto=format&fit=crop"
+                alt="Suasana Belajar">
+
+            <h2>Undangan Berpartisipasi</h2>
+            <p>
+                Kami mengundang Bapak/Ibu untuk turut serta melahirkan "Fatih-Fatih" baru. Masih banyak anak-anak yatim
+                berbakat di luar sana yang menunggu uluran tangan kita untuk mendapatkan akses pendidikan berkualitas.
+            </p>
+
+            <!-- In-Article CTA -->
+            <div class="my-10 p-8 bg-royal-50 rounded-[2rem] border border-royal-100 text-center not-prose font-sans">
+                <h4 class="font-display text-xl text-royal-900 mb-2">Dukung Lahirnya Generasi Qur'ani</h4>
+                <p class="text-stone-600 text-sm mb-6">Investasikan harta Anda untuk beasiswa santri penghafal Qur'an.
+                </p>
+                <div class="flex flex-col sm:flex-row justify-center gap-4">
+                    <a href="donation.html"
+                        class="px-8 py-3 bg-royal-900 text-white rounded-full font-bold text-sm hover:bg-royal-800 transition shadow-lg">
+                        Wakaf Beasiswa
+                    </a>
+                    <a href="psb.html"
+                        class="px-8 py-3 bg-white border border-stone-200 text-royal-900 rounded-full font-bold text-sm hover:border-gold-400 transition">
+                        Lihat Program
+                    </a>
+                </div>
+            </div>
+        </article>
+
+        <!-- SIDEBAR (Related News & Products) -->
+        <aside class="lg:col-span-3 order-3">
+            <div class="sticky top-32 space-y-8">
+
+                <!-- Related News Widget -->
+                <div>
+                    <h3 class="font-display text-lg text-royal-900 mb-6 pb-2 border-b border-stone-200">Berita Terkait
+                    </h3>
+                    <div class="space-y-6">
+                        <a href="#" class="block group">
+                            <div class="aspect-video rounded-xl overflow-hidden mb-3">
+                                <img src="https://images.unsplash.com/photo-1625246333195-58197bd47d26?q=80&w=400&auto=format&fit=crop"
+                                    class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                            </div>
+                            <span class="text-[10px] font-bold text-gold-600 uppercase tracking-wider">Wakaf
+                                Produktif</span>
+                            <h4
+                                class="font-display text-base text-royal-900 leading-tight mt-1 group-hover:text-gold-600 transition">
+                                Panen Raya Padi Organik Pesantren: Kemandirian Pangan</h4>
+                        </a>
+
+                        <a href="#" class="block group">
+                            <div class="aspect-video rounded-xl overflow-hidden mb-3">
+                                <img src="https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=400&auto=format&fit=crop"
+                                    class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                            </div>
+                            <span class="text-[10px] font-bold text-gold-600 uppercase tracking-wider">Kunjungan</span>
+                            <h4
+                                class="font-display text-base text-royal-900 leading-tight mt-1 group-hover:text-gold-600 transition">
+                                Studi Banding Kemenag ke Laboratorium Bahasa Al-Bisri</h4>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Academy/Product Promo Widget -->
+                <div class="bg-white border border-stone-200 rounded-2xl p-6 relative overflow-hidden group">
+                    <div
+                        class="absolute top-0 right-0 w-32 h-32 bg-gold-100 rounded-full blur-2xl -z-0 translate-x-1/2 -translate-y-1/2">
+                    </div>
+                    <div class="relative z-10">
+                        <span
+                            class="text-[10px] font-bold bg-royal-100 text-royal-800 px-2 py-1 rounded mb-3 inline-block uppercase tracking-wider">Academy</span>
+                        <h4 class="font-display text-lg text-royal-900 mb-2">Ingin Belajar Bahasa Arab?</h4>
+                        <p class="text-xs text-stone-500 mb-4 leading-relaxed">
+                            Akses kurikulum standar Timur Tengah secara digital. Mulai dari Nahwu, Shorof, hingga
+                            Balaghah.
+                        </p>
+                        <div class="flex items-center gap-3 mb-4">
+                            <img src="https://images.unsplash.com/photo-1532012197267-da84d127e765?q=80&w=100&auto=format&fit=crop"
+                                class="w-12 h-12 rounded-lg object-cover shadow-sm">
+                            <div>
+                                <p class="text-xs font-bold text-royal-900">Modul Al-Arabiyyah</p>
+                                <p class="text-[10px] text-stone-400">Level Pemula - Mahir</p>
+                            </div>
+                        </div>
+                        <a href="academy.html"
+                            class="block w-full py-3 bg-white border border-stone-200 text-royal-900 text-center rounded-xl font-bold text-xs uppercase tracking-widest hover:border-gold-400 hover:text-gold-600 transition">
+                            Lihat Kurikulum
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Support Us (Replacing Newsletter) -->
+                <div class="bg-royal-900 rounded-2xl p-6 text-white relative overflow-hidden">
+                    <div class="absolute inset-0 opacity-10"
+                        style="background-image: url('https://www.transparenttextures.com/patterns/arabesque.png');">
+                    </div>
+                    <div class="relative z-10 text-center">
+                        <div
+                            class="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 text-gold-400">
+                            <i data-lucide="heart-handshake" class="w-6 h-6"></i>
+                        </div>
+                        <h3 class="font-display text-lg mb-2">Dukung Peradaban Ilmu</h3>
+                        <p class="text-xs text-royal-200 mb-6 leading-relaxed">
+                            Jadilah bagian dari gerakan mencetak 1000 ulama dan teknokrat muslim masa depan.
+                        </p>
+                        <a href="donation.html"
+                            class="block w-full py-3 bg-gold-500 text-royal-900 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-gold-400 transition shadow-lg">
+                            Support Us
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-royal-900 text-stone-400 py-12 border-t border-royal-800">
+        <div class="max-w-7xl mx-auto px-6 text-center text-xs uppercase tracking-widest">
+            &copy; 2026 Yayasan Al-Bisri Royal Education
+        </div>
+    </footer>
+
+    <script> lucide.createIcons(); </script>
+</body>
+
+</html>

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Eye, EyeOff, Lock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { changePassword } from '@/services/santriAuth.service';
+import { changePassword } from '@/modules/santri/services/santriAuth.service';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function ChangePassword() {
@@ -54,12 +54,12 @@ export default function ChangePassword() {
       await changePassword(currentPassword, newPassword);
       setSuccess(true);
       toast.success('Password berhasil diubah!');
-      
+
       // Clear form
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      
+
       // Redirect after 2 seconds
       setTimeout(() => {
         navigate('/');
@@ -84,7 +84,7 @@ export default function ChangePassword() {
             <div>
               <CardTitle>Ubah Password</CardTitle>
               <CardDescription>
-                {user?.idSantri 
+                {user?.idSantri
                   ? `Santri: ${user.idSantri} - ${user.name}`
                   : user?.email
                 }
