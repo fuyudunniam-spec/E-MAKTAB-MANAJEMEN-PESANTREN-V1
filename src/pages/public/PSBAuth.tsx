@@ -139,8 +139,14 @@ export default function PSBAuth() {
     return (
         <div className="min-h-screen flex font-body bg-paper">
             {/* Left Decoration - Hidden on Mobile */}
-            <div className="hidden lg:flex lg:w-1/2 bg-royal-950 relative flex-col justify-between p-16 text-white">
-                <div className="absolute inset-0 bg-gradient-to-br from-royal-950 to-royal-900"></div>
+            <div className="hidden lg:flex lg:w-1/2 bg-royal-950 relative flex-col justify-between p-16 text-white overflow-hidden">
+                {/* Background Pattern */}
+                <div className="absolute inset-0 bg-gradient-to-br from-royal-950 to-royal-900 z-0"></div>
+                <div className="absolute inset-0 opacity-10 z-0 bg-[url('https://www.transparenttextures.com/patterns/arabesque.png')] mix-blend-overlay"></div>
+                
+                {/* Decorative Glows */}
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gold-500/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
+                <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-blue-500/10 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2"></div>
 
                 <Link to="/" className="relative z-10 flex items-center gap-3 w-fit group">
                     <div className="w-10 h-10 bg-white/10 backdrop-blur border border-white/20 rounded-xl flex items-center justify-center group-hover:bg-gold-500 group-hover:border-gold-500 transition-all duration-300">
@@ -150,16 +156,18 @@ export default function PSBAuth() {
                 </Link>
 
                 <div className="relative z-10 max-w-md">
+                    <img 
+                        src="/kop-albisri.png" 
+                        alt="Logo Al-Bisri" 
+                        className="w-56 mb-12 drop-shadow-2xl hover:scale-105 transition-transform duration-500 brightness-0 invert"
+                    />
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/20 border border-gold-500/30 text-gold-400 text-[10px] uppercase tracking-widest font-bold mb-6">
                         <ShieldCheck className="w-3 h-3" /> Penerimaan Santri Baru 2026/2027
                     </div>
-                    <h1 className="text-5xl font-display font-medium leading-[1.1] mb-8">
+                    <h1 className="text-5xl font-display font-medium leading-[1.3] mb-8">
                         Mulai <span className="text-gold-400 italic">Perjalanan</span><br />
                         Spiritual & Intelektual Anda.
                     </h1>
-                    <p className="text-lg text-royal-200 font-light leading-relaxed">
-                        Bergabunglah dengan ekosistem pendidikan yang memadukan tradisi pesantren dengan keunggulan akademik modern.
-                    </p>
                 </div>
 
                 <div className="relative z-10 flex items-center gap-4 text-sm text-royal-300 font-light">
@@ -181,15 +189,11 @@ export default function PSBAuth() {
                 <div className="w-full max-w-md">
                     {/* Mobile Logo */}
                     <div className="lg:hidden flex justify-center mb-12">
-                        <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-royal-900 text-white rotate-45 flex items-center justify-center rounded-sm">
-                                <span className="font-display font-bold text-gold-400 text-xl -rotate-45">A</span>
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="font-display font-bold text-royal-900 tracking-widest text-xl leading-none">AL-BISRI</span>
-                                <span className="text-[10px] text-gold-600 uppercase tracking-[0.25em] font-sans font-semibold">Institute</span>
-                            </div>
-                        </div>
+                        <img 
+                            src="/kop-albisri.png" 
+                            alt="Logo Al-Bisri" 
+                            className="w-40"
+                        />
                     </div>
 
                     {sessionUser ? (
@@ -334,10 +338,10 @@ export default function PSBAuth() {
 
                     <div className="mt-20 flex flex-col items-center opacity-40">
                         <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-stone-500 mb-2">
-                            <Heart className="w-3 h-3 text-gold-600 fill-current" /> Supported by
+                            <Heart className="w-3 h-3 text-gold-600 fill-current" /> Powered by:
                         </div>
                         <div className="font-display font-bold text-royal-900 tracking-[0.3em] text-[10px]">
-                            AN-NUR MEDIA
+                            Isyraq An-Nur
                         </div>
                     </div>
                 </div>

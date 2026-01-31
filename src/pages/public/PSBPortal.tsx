@@ -394,60 +394,115 @@ const PSBPortal = () => {
                                     {currentStep === 'status' && (
                                         <div className="space-y-10 py-10">
                                             <div className="text-center">
+                                                {/* Status Icon */}
                                                 <div className={`
-                                                    w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl
-                                                    ${santriData?.status_approval === 'disetujui' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}
+                                                    w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl animate-in zoom-in duration-500
+                                                    ${santriData?.status_approval === 'disetujui' ? 'bg-green-100 text-green-600' 
+                                                      : santriData?.status_approval === 'ditolak' ? 'bg-red-100 text-red-600'
+                                                      : 'bg-amber-100 text-amber-600'}
                                                 `}>
-                                                    {santriData?.status_approval === 'disetujui' ? <CheckCircle className="w-12 h-12" /> : <Clock className="w-12 h-12" />}
+                                                    {santriData?.status_approval === 'disetujui' ? <CheckCircle className="w-12 h-12" /> 
+                                                     : santriData?.status_approval === 'ditolak' ? <XCircle className="w-12 h-12" />
+                                                     : <Clock className="w-12 h-12" />}
                                                 </div>
-                                                <h3 className="text-3xl font-bold text-royal-950 mb-3">
-                                                    {santriData?.status_approval === 'disetujui' ? 'Selamat! Anda Diterima' : 'Sedang Diverifikasi'}
+
+                                                {/* Status Title */}
+                                                <h3 className={`text-3xl font-bold mb-3 ${
+                                                    santriData?.status_approval === 'disetujui' ? 'text-green-700'
+                                                    : santriData?.status_approval === 'ditolak' ? 'text-red-700'
+                                                    : 'text-royal-950'
+                                                }`}>
+                                                    {santriData?.status_approval === 'disetujui' ? 'Selamat! Anda Diterima' 
+                                                     : santriData?.status_approval === 'ditolak' ? 'Mohon Maaf, Pendaftaran Ditolak'
+                                                     : 'Sedang Diverifikasi'}
                                                 </h3>
+
+                                                {/* Status Description */}
                                                 <p className="text-slate-500 max-w-lg mx-auto font-medium leading-relaxed mb-6">
                                                     {santriData?.status_approval === 'disetujui'
-                                                        ? 'Pendaftaran Anda telah disetujui. Silakan login ke dashboard santri reguler menggunakan akun ini.'
-                                                        : 'Terima kasih telah melengkapi data. Tim panitia sedang melakukan pengecekan berkas dan data Anda.'
+                                                        ? 'Alhamdulillah, pendaftaran Anda telah disetujui. Silakan gunakan ID Santri di bawah ini untuk login ke Sistem Akademik.'
+                                                        : santriData?.status_approval === 'ditolak'
+                                                        ? 'Mohon maaf, berdasarkan hasil verifikasi, pendaftaran Anda belum dapat kami terima. Silakan hubungi panitia untuk informasi lebih lanjut.'
+                                                        : 'Terima kasih telah melengkapi data. Tim panitia sedang melakukan pengecekan berkas dan data Anda. Mohon tunggu informasi selanjutnya.'
                                                     }
                                                 </p>
                                                 
+                                                {/* APPROVED ACTION: Show ID & Login Button */}
                                                 {santriData?.status_approval === 'disetujui' && (
-                                                  <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-500">
-                                                    <div className="p-4 bg-royal-950/5 rounded-xl border border-royal-950/10">
-                                                      <p className="text-xs uppercase tracking-widest font-bold text-slate-500 mb-1">ID Santri Anda</p>
-                                                      <p className="text-3xl font-display font-bold text-royal-950 tracking-wider">{santriData.id_santri}</p>
+                                                  <div className="flex flex-col items-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-150">
+                                                    <div className="p-6 bg-royal-950/5 rounded-2xl border-2 border-royal-950/10 w-full max-w-sm relative overflow-hidden group hover:border-gold-500/50 transition-colors">
+                                                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-royal-900 via-gold-500 to-royal-900"></div>
+                                                      <p className="text-xs uppercase tracking-widest font-bold text-slate-500 mb-2">ID Santri Resmi Anda</p>
+                                                      <div className="flex items-center justify-center gap-3">
+                                                          <p className="text-4xl font-display font-bold text-royal-950 tracking-wider font-mono">{santriData.id_santri}</p>
+                                                      </div>
+                                                      <p className="text-[10px] text-slate-400 mt-2">Gunakan ID ini sebagai username login Anda</p>
                                                     </div>
-                                                    <Button 
-                                                      onClick={() => {
-                                                        signOut();
-                                                        setTimeout(() => navigate('/auth'), 500);
-                                                      }}
-                                                      className="bg-gold-500 hover:bg-gold-600 text-royal-950 font-bold px-8 py-6 rounded-2xl shadow-xl shadow-gold-500/20"
-                                                    >
-                                                      <LogIn className="w-5 h-5 mr-2" />
-                                                      Login Portal Santri
-                                                    </Button>
+
+                                                    <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md justify-center">
+                                                        <Button 
+                                                          onClick={() => {
+                                                            signOut();
+                                                            setTimeout(() => navigate('/auth'), 500);
+                                                          }}
+                                                          className="bg-gold-500 hover:bg-gold-600 text-royal-950 font-bold px-8 py-6 rounded-2xl shadow-xl shadow-gold-500/20 w-full sm:w-auto transition-all hover:scale-105"
+                                                        >
+                                                          <LogIn className="w-5 h-5 mr-2" />
+                                                          Login Portal Santri
+                                                        </Button>
+                                                    </div>
                                                   </div>
+                                                )}
+
+                                                {/* REJECTED ACTION: Show Contact Button */}
+                                                {santriData?.status_approval === 'ditolak' && (
+                                                    <div className="flex justify-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                                        <a
+                                                            href="https://wa.me/6281234567890" // Ganti dengan nomor admin yang sesuai
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-4 rounded-xl font-bold transition-colors"
+                                                        >
+                                                            <MessageCircle className="w-5 h-5" />
+                                                            Hubungi Panitia PSB
+                                                        </a>
+                                                    </div>
                                                 )}
                                             </div>
 
-                                            {/* Timeline Visual */}
-                                            <div className="relative pt-10">
-                                                <div className="absolute top-[70px] left-0 right-0 h-1 bg-slate-100"></div>
-                                                <div className="grid grid-cols-4 gap-4 relative">
+                                            {/* Timeline Visual - Updated Logic */}
+                                            <div className="relative pt-10 px-4 md:px-0">
+                                                <div className="absolute top-[70px] left-0 right-0 h-1 bg-slate-100 hidden md:block"></div>
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-8 gap-x-4 relative">
                                                     {[
                                                         { label: "Daftar Akun", status: "done" },
                                                         { label: "Lengkapi Data", status: "done" },
                                                         { label: "Verifikasi", status: santriData?.status_approval === 'pending' ? "active" : "done" },
-                                                        { label: "Selesai", status: santriData?.status_approval === 'disetujui' ? "done" : "pending" },
+                                                        { 
+                                                            label: santriData?.status_approval === 'ditolak' ? "Ditolak" : "Diterima", 
+                                                            status: santriData?.status_approval === 'pending' ? "pending" 
+                                                                    : santriData?.status_approval === 'ditolak' ? "error" 
+                                                                    : "done" 
+                                                        },
                                                     ].map((item, i) => (
-                                                        <div key={i} className="text-center group">
+                                                        <div key={i} className="text-center group flex flex-col items-center z-10">
                                                             <div className={`
-                                                                w-12 h-12 rounded-full border-4 border-white flex items-center justify-center mx-auto mb-4 transition-all relative z-10 shadow-lg
-                                                                ${item.status === 'done' ? 'bg-green-500 text-white' : item.status === 'active' ? 'bg-royal-950 text-white ring-8 ring-royal-950/5' : 'bg-slate-200 text-slate-400'}
+                                                                w-12 h-12 rounded-full border-4 border-white flex items-center justify-center mb-3 transition-all shadow-lg
+                                                                ${item.status === 'done' ? 'bg-green-500 text-white' 
+                                                                  : item.status === 'active' ? 'bg-royal-950 text-white ring-4 ring-royal-950/10' 
+                                                                  : item.status === 'error' ? 'bg-red-500 text-white'
+                                                                  : 'bg-slate-200 text-slate-400'}
                                                             `}>
-                                                                {item.status === 'done' ? <CheckCircle2 className="w-6 h-6" /> : <span className="font-bold text-sm">{i + 1}</span>}
+                                                                {item.status === 'done' ? <CheckCircle2 className="w-6 h-6" /> 
+                                                                 : item.status === 'error' ? <XCircle className="w-6 h-6" />
+                                                                 : <span className="font-bold text-sm">{i + 1}</span>}
                                                             </div>
-                                                            <span className={`text-xs font-bold uppercase tracking-widest ${item.status === 'done' ? 'text-green-600' : item.status === 'active' ? 'text-royal-950' : 'text-slate-400'}`}>
+                                                            <span className={`text-xs font-bold uppercase tracking-widest ${
+                                                                item.status === 'done' ? 'text-green-600' 
+                                                                : item.status === 'active' ? 'text-royal-950' 
+                                                                : item.status === 'error' ? 'text-red-600'
+                                                                : 'text-slate-400'
+                                                            }`}>
                                                                 {item.label}
                                                             </span>
                                                         </div>
@@ -455,15 +510,24 @@ const PSBPortal = () => {
                                                 </div>
                                             </div>
 
-                                            <div className="p-8 rounded-[32px] bg-slate-50 border border-slate-100">
-                                                <h4 className="font-bold text-royal-950 mb-4 flex items-center gap-2">
-                                                    <Info className="w-5 h-5 text-royal-600" />
-                                                    Catatan Panitia
-                                                </h4>
-                                                <p className="text-slate-500 font-medium italic">
-                                                    "{santriData?.catatan_approval || 'Belum ada catatan untuk Anda saat ini.'}"
-                                                </p>
-                                            </div>
+                                            {/* Admin Notes Section */}
+                                            {(santriData?.catatan_approval || santriData?.status_approval === 'ditolak') && (
+                                                <div className={`p-6 rounded-[24px] border ${
+                                                    santriData?.status_approval === 'ditolak' ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'
+                                                }`}>
+                                                    <h4 className={`font-bold mb-3 flex items-center gap-2 ${
+                                                        santriData?.status_approval === 'ditolak' ? 'text-red-800' : 'text-royal-950'
+                                                    }`}>
+                                                        <Info className={`w-5 h-5 ${santriData?.status_approval === 'ditolak' ? 'text-red-600' : 'text-royal-600'}`} />
+                                                        Catatan Panitia
+                                                    </h4>
+                                                    <p className={`font-medium italic leading-relaxed ${
+                                                        santriData?.status_approval === 'ditolak' ? 'text-red-600' : 'text-slate-600'
+                                                    }`}>
+                                                        "{santriData?.catatan_approval || 'Tidak ada catatan khusus.'}"
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 

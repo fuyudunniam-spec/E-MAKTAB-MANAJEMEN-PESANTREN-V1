@@ -51,15 +51,8 @@ const PSBPage = lazy(() => import("./pages/public/PSBPage"));
 const PSBPortal = lazy(() => import("./pages/public/PSBPortal"));
 const PSBAuth = lazy(() => import("./pages/public/PSBAuth"));
 
-// Admin Website Imports
-const AdminSiteSettings = lazy(() => import("./pages/admin/AdminSiteSettings"));
-const AdminHomepage = lazy(() => import("./pages/admin/AdminHomepage"));
-const AdminPosts = lazy(() => import("./pages/admin/AdminPosts"));
-const AdminPages = lazy(() => import("./pages/admin/AdminPages"));
-const AdminMediaLibrary = lazy(() => import("./pages/admin/AdminMediaLibrary"));
-const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements"));
-const AdminGallery = lazy(() => import("./pages/admin/AdminGallery"));
-const AdminTestimonials = lazy(() => import("./pages/admin/AdminTestimonials"));
+// Admin Website Imports - Removed unused imports
+
 
 // Lazy imports for module dashboards
 const DashboardAkademik = lazy(() => import('./modules/akademik/DashboardAkademik'));
@@ -85,7 +78,7 @@ const DistribusiPage = lazy(() => import('./modules/inventaris/Distribution/Dist
 const DistribusiPaketPage = lazy(() => import('./modules/inventaris/Distribution/DistribusiPaketPage'));
 const MasterPaketPage = lazy(() => import('./modules/inventaris/Distribution/MasterPaketPage'));
 const RiwayatInventarisYayasanPage = lazy(() => import('./modules/inventaris/Transactions/RiwayatInventarisYayasanPage'));
-const KeuanganAuditPage = lazy(() => import('./pages/admin/KeuanganAuditPage'));
+const KeuanganAuditPage = lazy(() => import('./pages/KeuanganAuditPage'));
 const KeuanganV3 = lazy(() => import('./pages/KeuanganV3'));
 const RiwayatPenyaluranBantuanPage = lazy(() => import('./modules/keuangan/PenyaluranBantuan/RiwayatPenyaluranBantuanPage'));
 const MasterDataKeuanganPage = lazy(() => import('./modules/keuangan/MasterData/MasterDataKeuanganPage'));

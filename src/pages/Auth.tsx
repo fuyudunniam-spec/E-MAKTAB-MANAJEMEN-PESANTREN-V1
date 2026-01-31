@@ -82,10 +82,26 @@ export default function Auth() {
       const isIdSantri = /^[A-Z0-9]{8}$/.test(loginIdentifier);
 
       let emailToUse = loginIdentifier;
-      if (isIdSantri) {
-        emailToUse = `${loginIdentifier}@pondoksukses.local`;
+      
+      if (!isAdminLogin) {
+         // PUBLIC/SANTRI LOGIN
+         // Rule: Santri MUST use ID Santri.
+         // If user inputs email here, we assume they are trying to use admin account or wrong page.
+         // However, existing admins might use this page too (as per existing logic).
+         // If we want to strictly enforce "Santri use ID", we prioritize ID detection.
+         
+         if (isIdSantri) {
+            emailToUse = `${loginIdentifier}@pondoksukses.local`;
+         } else {
+            // Not an ID Santri format.
+            // If it's an email, it might be an admin trying to login here (which we redirect later)
+            // OR it's a santri trying to use their personal email (which we should BLOCK/WARN).
+            emailToUse = loginIdentifier.toLowerCase();
+         }
       } else {
-        emailToUse = loginIdentifier.toLowerCase();
+         // ADMIN LOGIN PAGE
+         // Admins use Email.
+         emailToUse = loginIdentifier.toLowerCase();
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -97,7 +113,12 @@ export default function Auth() {
         if (isIdSantri) {
           setError('ID Santri atau password salah. Silakan coba lagi.');
         } else {
-          setError('Email atau password salah.');
+           if (!isAdminLogin) {
+              // On public login, if they used email and failed -> warn them to use ID Santri if they are santri
+              setError('Email atau password salah. Santri harap login menggunakan ID Santri.');
+           } else {
+              setError('Email atau password salah.');
+           }
         }
       } else if (data.user) {
         // Successful login - Now check Role Access
@@ -120,6 +141,21 @@ export default function Auth() {
               setError('Administrator harap login melalui portal khusus admin.');
               return;
            }
+
+           // Prevent PSB accounts (registered via email) from logging in here if they somehow passed auth
+           // Santri accounts should be ID based. If current email is NOT ID based, it might be a PSB account.
+           const userEmail = data.user.email || "";
+           const isEmailLogin = userEmail.includes('@') && !userEmail.endsWith('@pondoksukses.local');
+           
+           if (isEmailLogin) {
+              // This is likely a PSB account trying to login to Santri Dashboard
+              // Redirect them to PSB Portal or Show Error
+               await supabase.auth.signOut();
+               setError('Akun pendaftaran PSB tidak dapat digunakan di sini. Silakan login di Portal PSB.');
+               setTimeout(() => navigate('/psb/auth'), 2000);
+               return;
+           }
+
            setSuccess('Login berhasil! Mengarahkan ke dashboard santri...');
            navigate('/santri', { replace: true });
         }
