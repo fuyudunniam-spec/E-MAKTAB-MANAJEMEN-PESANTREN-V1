@@ -1,0 +1,198 @@
+/* Import print styles */
+@import './styles/print.css';
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Fix for ARIA accessibility issues with Dialog components */
+@layer base {
+
+  /* Ensure dialog content is never aria-hidden when it has focus */
+  [data-radix-dialog-content][aria-hidden="true"]:has(:focus) {
+    aria-hidden: false !important;
+  }
+
+  /* Remove aria-hidden from any focused element or its ancestors */
+  [aria-hidden="true"]:has(:focus),
+  [aria-hidden="true"]:has(:focus-within) {
+    aria-hidden: false !important;
+  }
+
+  /* Ensure dialog content is accessible when open */
+  [data-radix-dialog-content][data-state="open"] {
+    aria-hidden: false !important;
+  }
+}
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Deep Forest Green - Primary Brand Color */
+    --primary: 162 48% 20%;
+    /* #1B4D3E */
+    --primary-foreground: 40 33% 98%;
+
+    /* Paper White - Main Background */
+    --background: 40 33% 98%;
+    /* #FDFBF7 */
+    --foreground: 162 48% 10%;
+    /* Very Dark Green for text */
+
+    /* Card & Surfaces */
+    --card: 0 0% 100%;
+    /* Pure White for depth against Paper White */
+    --card-foreground: 162 48% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 162 48% 15%;
+
+    /* Secondary - Gold/Accent for warmth */
+    --secondary: 35 92% 55%;
+    --secondary-foreground: 162 48% 20%;
+
+    --muted: 40 20% 94%;
+    --muted-foreground: 162 20% 40%;
+
+    --accent: 40 20% 94%;
+    --accent-foreground: 162 48% 20%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 162 10% 90%;
+    --input: 162 10% 90%;
+    --ring: 162 48% 20%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar Variables - Always Dark/Green */
+    --sidebar-background: 162 48% 20%;
+    --sidebar-foreground: 40 33% 98%;
+    --sidebar-primary: 40 33% 98%;
+    --sidebar-primary-foreground: 162 48% 20%;
+    --sidebar-accent: 162 48% 25%;
+    --sidebar-accent-foreground: 40 33% 98%;
+    --sidebar-border: 162 48% 25%;
+    --sidebar-ring: 35 92% 55%;
+
+    /* Custom gradients - Subtler now */
+    --gradient-primary: linear-gradient(135deg, hsl(162 48% 20%), hsl(162 48% 25%));
+    --gradient-hero: linear-gradient(135deg, hsl(162 48% 20%) 0%, hsl(162 48% 30%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(40 33% 99%));
+
+    /* Shadows - Flatter, more elegant */
+    --shadow-soft: 0 2px 4px -1px hsl(162 48% 20% / 0.04);
+    --shadow-medium: 0 4px 6px -1px hsl(162 48% 20% / 0.08);
+    --shadow-strong: 0 10px 15px -3px hsl(162 48% 20% / 0.12);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Fonts */
+    --font-heading: 'Playfair Display', serif;
+    --font-body: 'Inter', sans-serif;
+  }
+
+  /* Dark mode is just a slightly deeper version of the primary theme, 
+     but user asked for Paper White background specifically. 
+     We will keep dark mode variables but align them with the new palette identity if needed.
+     For now, assuming "Light Mode" with Paper White is the main request. 
+     We'll adjust dark mode to be a "Night in the Forest" theme. */
+  .dark {
+    --background: 162 48% 10%;
+    --foreground: 40 33% 98%;
+
+    --card: 162 48% 13%;
+    --card-foreground: 40 33% 98%;
+
+    --popover: 162 48% 13%;
+    --popover-foreground: 40 33% 98%;
+
+    --primary: 162 48% 40%;
+    /* Lighter green for visibility */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 35 92% 55%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 162 30% 20%;
+    --muted-foreground: 162 20% 70%;
+
+    --accent: 162 30% 20%;
+    --accent-foreground: 40 33% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 162 30% 20%;
+    --input: 162 30% 20%;
+    --ring: 162 48% 40%;
+
+    /* Sidebar stays similar in dark mode */
+    --sidebar-background: 162 48% 8%;
+    --sidebar-foreground: 40 33% 98%;
+    --sidebar-primary: 162 48% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 162 48% 15%;
+    --sidebar-accent-foreground: 40 33% 98%;
+    --sidebar-border: 162 30% 20%;
+    --sidebar-ring: 35 92% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading tracking-tight;
+  }
+}
+
+/* Custom Scrollbar Styles */
+@layer utilities {
+
+  /* Thin scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  /* Webkit scrollbar styling */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+    background-color: rgb(209 213 219);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thumb-gray-400:hover::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(156 163 175);
+  }
+
+  .scrollbar-track-transparent::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  /* Smooth scrolling */
+  .scrollbar-thin {
+    scroll-behavior: smooth;
+  }
+}
