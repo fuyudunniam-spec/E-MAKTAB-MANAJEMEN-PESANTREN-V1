@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,13 +7,18 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, Mail, Lock, User, CheckCircle2, AlertCircle } from "lucide-react";
+import { getUserRoles } from "@/services/auth.service";
 
 export default function Auth() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("login");
+
+  // Determine access type based on URL
+  const isAdminLogin = location.pathname.includes('/pms/');
 
   // Login form states
   const [loginEmail, setLoginEmail] = useState("");
@@ -35,8 +40,26 @@ export default function Auth() {
 
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          // Redirect to Admin Dashboard / PMS
-          navigate('/pms', { replace: true });
+          // Check role before redirecting
+          const roles = await getUserRoles(session.user.id);
+          const hasAdminRole = roles.some(r => ['admin', 'superadmin', 'pengurus'].includes(r) || r.startsWith('admin_'));
+          
+          if (isAdminLogin) {
+            if (hasAdminRole) {
+              navigate('/pms', { replace: true });
+            } else {
+               // Logged in as santri but trying to access admin login page -> redirect to santri dashboard
+               navigate('/santri', { replace: true });
+            }
+          } else {
+             // Standard login page (/auth)
+             if (hasAdminRole) {
+                // Admin trying to access public login -> redirect to PMS
+                navigate('/pms', { replace: true });
+             } else {
+                navigate('/santri', { replace: true });
+             }
+          }
         }
       } catch (err) {
         console.error('Error checking session:', err);
@@ -44,7 +67,7 @@ export default function Auth() {
     };
 
     checkSession();
-  }, [navigate]);
+  }, [navigate, isAdminLogin]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,7 +88,7 @@ export default function Auth() {
         emailToUse = loginIdentifier.toLowerCase();
       }
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: emailToUse,
         password: loginPassword,
       });
@@ -76,10 +99,30 @@ export default function Auth() {
         } else {
           setError('Email atau password salah.');
         }
-      } else {
-        setSuccess('Login berhasil! Mengarahkan ke dashboard...');
-        // REDIRECT TO ADMIN DASHBOARD
-        navigate('/pms', { replace: true });
+      } else if (data.user) {
+        // Successful login - Now check Role Access
+        const roles = await getUserRoles(data.user.id);
+        const hasAdminRole = roles.some(r => ['admin', 'superadmin', 'pengurus'].includes(r) || r.startsWith('admin_'));
+
+        if (isAdminLogin) {
+           // Admin Login Page Logic
+           if (!hasAdminRole) {
+              await supabase.auth.signOut();
+              setError('Akses ditolak. Halaman ini khusus untuk Administrator & Pengurus.');
+              return;
+           }
+           setSuccess('Login berhasil! Mengarahkan ke dashboard admin...');
+           navigate('/pms', { replace: true });
+        } else {
+           // Public Login Page Logic
+           if (hasAdminRole) {
+              await supabase.auth.signOut();
+              setError('Administrator harap login melalui portal khusus admin.');
+              return;
+           }
+           setSuccess('Login berhasil! Mengarahkan ke dashboard santri...');
+           navigate('/santri', { replace: true });
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Terjadi kesalahan saat login');

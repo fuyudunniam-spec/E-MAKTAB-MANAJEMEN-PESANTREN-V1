@@ -36,14 +36,27 @@ export default function PSBAuth() {
     const [checkingSession, setCheckingSession] = useState(true);
 
     useEffect(() => {
-        // Check if user is already logged in
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session) {
-                setSessionUser(session.user);
+        // Only check session once on mount, and let the form handle redirects manually
+        // This avoids fighting with useAuth hook elsewhere
+        let mounted = true;
+
+        const checkSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session && mounted) {
+                console.log("Session found, redirecting to portal...");
+                navigate("/psb/portal", { replace: true });
             }
-            setCheckingSession(false);
-        });
-    }, []);
+            if (mounted) {
+                setCheckingSession(false);
+            }
+        };
+
+        checkSession();
+
+        return () => {
+            mounted = false;
+        };
+    }, [navigate]);
 
     const handleLogout = async () => {
         setLoading(true);
@@ -111,6 +124,17 @@ export default function PSBAuth() {
             setLoading(false);
         }
     };
+
+    if (checkingSession) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-royal-950 text-white">
+                <div className="flex flex-col items-center gap-4 animate-pulse">
+                    <Loader2 className="w-10 h-10 text-gold-500 animate-spin" />
+                    <p className="text-xs uppercase tracking-widest font-bold text-royal-200">Memeriksa Sesi...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen flex font-body bg-paper">

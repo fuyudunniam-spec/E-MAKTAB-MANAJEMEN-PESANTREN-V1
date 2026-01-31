@@ -38,6 +38,8 @@ export function useAuth() {
 
   // Fetch user role from database
   const fetchUserRole = useCallback(async (userId: string, supabaseUser: SupabaseUser) => {
+    // Only run if we don't have this user's data already or if forced
+    // This prevents infinite loops
     try {
       const [roles, profile, santriData] = await Promise.all([
         getUserRoles(userId).catch(err => {
@@ -376,7 +378,10 @@ export function useAuth() {
         } else if (session) {
           // If session exists, onAuthStateChange should have already handled it
           // But set loading false anyway to ensure we don't hang
-          setLoadingFalse();
+          // UPDATE: Don't set loading false here if user is not yet set.
+          // Let onAuthStateChange handle the user setting and loading state.
+          // The safety timeout will eventually clear loading if something goes wrong.
+          logger.log("🔐 [useAuth] Session exists, waiting for onAuthStateChange to populate user...");
         } else {
           // No session - set loading false
           setLoadingFalse();

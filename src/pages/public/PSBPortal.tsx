@@ -53,18 +53,16 @@ const PSBPortal = () => {
 
     useEffect(() => {
         // Handle auth state once loading is finished
-        if (!authLoading) {
-            if (!user) {
-                navigate('/psb/auth');
-            } else if (user.role !== 'santri_calon') {
-                // If admin/staff tries to access portal, redirect to management dashboard
-                console.log("Access denied: User is not an applicant", user.role);
-                navigate('/pms');
-            } else {
-                loadInitialData();
-            }
+        if (!authLoading && !user) {
+             // Only redirect if explicitly not logged in AND loading is done
+             console.log("No user found in portal, redirecting to auth");
+             navigate('/psb/auth', { replace: true });
+        } else if (user && !dataLoading && !santriData) {
+             // User exists, but data not loaded yet.
+             // Only load if not already loading and no data present
+             loadInitialData();
         }
-    }, [user, authLoading, navigate]);
+    }, [user, authLoading, navigate, santriData]);
 
     const loadInitialData = async () => {
         if (!user?.id) return;
@@ -235,12 +233,12 @@ const PSBPortal = () => {
     };
 
     // Initial Auth Loading Screen (Clean & Minimal)
-    if (authLoading && !user) {
+    if (authLoading || (user && !santriData && !showProgramSelection)) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-royal-950">
                 <div className="flex flex-col items-center gap-4">
                     <Loader2 className="w-10 h-10 text-gold-500 animate-spin" />
-                    <p className="text-slate-400 font-medium tracking-widest text-sm">MEMUAT SESI...</p>
+                    <p className="text-slate-400 font-medium tracking-widest text-sm">MEMUAT DATA...</p>
                 </div>
             </div>
         );

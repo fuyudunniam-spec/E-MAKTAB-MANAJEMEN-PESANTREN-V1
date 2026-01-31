@@ -47,13 +47,7 @@ const DokumenPage = lazy(() => import("./pages/santri/DokumenPage"));
 const TagihanSantri = lazy(() => import("./pages/TagihanSantri"));
 
 // Public Website Imports
-const Index = lazy(() => import("./pages/public/Index"));
-const BlogPage = lazy(() => import("./pages/public/BlogPage"));
-const BlogSinglePage = lazy(() => import("./pages/public/BlogSinglePage"));
-const ShopPage = lazy(() => import("./pages/public/ShopPage"));
-const ShopSinglePage = lazy(() => import("./pages/public/ShopSinglePage"));
-const PageSingle = lazy(() => import("./pages/public/PageSingle"));
-const TagPage = lazy(() => import("./pages/public/TagPage"));
+const PSBPage = lazy(() => import("./pages/public/PSBPage"));
 const PSBPortal = lazy(() => import("./pages/public/PSBPortal"));
 const PSBAuth = lazy(() => import("./pages/public/PSBAuth"));
 
@@ -125,18 +119,16 @@ const App = () => (
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/auth" element={<SuspenseOnly><Auth /></SuspenseOnly>} />
+              {/* SLICE UNIK UNTUK SUPERADMIN - Ganti 'secure-gate' dengan kata sandi url yang anda inginkan */}
+              <Route path="/pms/secure-gate" element={<SuspenseOnly><Auth /></SuspenseOnly>} />
               
               {/* Public Website Routes */}
-              <Route path="/" element={<SuspenseOnly><Index /></SuspenseOnly>} />
-              <Route path="/blog" element={<SuspenseOnly><BlogPage /></SuspenseOnly>} />
-              <Route path="/blog/:slug" element={<SuspenseOnly><BlogSinglePage /></SuspenseOnly>} />
-              <Route path="/shop" element={<SuspenseOnly><ShopPage /></SuspenseOnly>} />
-              <Route path="/shop/:slug" element={<SuspenseOnly><ShopSinglePage /></SuspenseOnly>} />
-              <Route path="/p/:slug" element={<SuspenseOnly><PageSingle /></SuspenseOnly>} />
-              <Route path="/tag/:tag" element={<SuspenseOnly><TagPage /></SuspenseOnly>} />
-
+              <Route path="/" element={<SuspenseOnly><PSBPage /></SuspenseOnly>} />
+              
               {/* PSB Portal Routes */}
-              <Route path="/psb" element={<SuspenseOnly><PSBPortal /></SuspenseOnly>} />
+              <Route path="/psb" element={<Navigate to="/" replace />} />
+              <Route path="/psb/register" element={<Navigate to="/" replace />} />
+              <Route path="/psb/portal" element={<SuspenseOnly><PSBPortal /></SuspenseOnly>} />
               <Route path="/psb/auth" element={<SuspenseOnly><PSBAuth /></SuspenseOnly>} />
 
               {/* Dashboard Routes */}
@@ -276,16 +268,8 @@ const App = () => (
                 </WithLayout>
               } />
 
-              {/* Website Management Routes */}
-              <Route path="/admin/website/settings" element={<WithLayout><AdminSiteSettings /></WithLayout>} />
-              <Route path="/admin/website/homepage" element={<WithLayout><AdminHomepage /></WithLayout>} />
-              <Route path="/admin/website/posts" element={<WithLayout><AdminPosts /></WithLayout>} />
-              <Route path="/admin/website/pages" element={<WithLayout><AdminPages /></WithLayout>} />
-              <Route path="/admin/website/media" element={<WithLayout><AdminMediaLibrary /></WithLayout>} />
-              <Route path="/admin/website/announcements" element={<WithLayout><AdminAnnouncements /></WithLayout>} />
-              <Route path="/admin/website/gallery" element={<WithLayout><AdminGallery /></WithLayout>} />
-              <Route path="/admin/website/testimonials" element={<WithLayout><AdminTestimonials /></WithLayout>} />
-
+              {/* Website Management Routes - Removed as per user request */}
+              
               {/* Academic Routes */}
               <Route path="/akademik" element={
                 <WithLayout>
