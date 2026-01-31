@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense, type ReactNode } from "react";
 import Layout from "./components/Layout";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 const RouteFallback = () => (
   <div className="p-6 text-sm text-muted-foreground">Loading...</div>
@@ -115,332 +116,334 @@ const queryClient = new QueryClient();
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <Routes>
-            <Route path="/auth" element={<SuspenseOnly><Auth /></SuspenseOnly>} />
-            
-            {/* Public Website Routes */}
-            <Route path="/" element={<SuspenseOnly><Index /></SuspenseOnly>} />
-            <Route path="/blog" element={<SuspenseOnly><BlogPage /></SuspenseOnly>} />
-            <Route path="/blog/:slug" element={<SuspenseOnly><BlogSinglePage /></SuspenseOnly>} />
-            <Route path="/shop" element={<SuspenseOnly><ShopPage /></SuspenseOnly>} />
-            <Route path="/shop/:slug" element={<SuspenseOnly><ShopSinglePage /></SuspenseOnly>} />
-            <Route path="/p/:slug" element={<SuspenseOnly><PageSingle /></SuspenseOnly>} />
-            <Route path="/tag/:tag" element={<SuspenseOnly><TagPage /></SuspenseOnly>} />
+      <ThemeProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <Routes>
+              <Route path="/auth" element={<SuspenseOnly><Auth /></SuspenseOnly>} />
+              
+              {/* Public Website Routes */}
+              <Route path="/" element={<SuspenseOnly><Index /></SuspenseOnly>} />
+              <Route path="/blog" element={<SuspenseOnly><BlogPage /></SuspenseOnly>} />
+              <Route path="/blog/:slug" element={<SuspenseOnly><BlogSinglePage /></SuspenseOnly>} />
+              <Route path="/shop" element={<SuspenseOnly><ShopPage /></SuspenseOnly>} />
+              <Route path="/shop/:slug" element={<SuspenseOnly><ShopSinglePage /></SuspenseOnly>} />
+              <Route path="/p/:slug" element={<SuspenseOnly><PageSingle /></SuspenseOnly>} />
+              <Route path="/tag/:tag" element={<SuspenseOnly><TagPage /></SuspenseOnly>} />
 
-            {/* Dashboard Routes */}
-            <Route path="/pms" element={
-              <WithLayout>
-                <Dashboard />
-              </WithLayout>
-            } />
+              {/* Dashboard Routes */}
+              <Route path="/pms" element={
+                <WithLayout>
+                  <Dashboard />
+                </WithLayout>
+              } />
 
-            {/* Module Dashboard Routes - Redirected to canonical routes */}
-            <Route path="/santri-dashboard" element={<Navigate to="/santri" replace />} />
-            <Route path="/keuangan-dashboard" element={<Navigate to="/keuangan-v3" replace />} />
-            <Route path="/inventaris-dashboard" element={<Navigate to="/inventaris" replace />} />
+              {/* Module Dashboard Routes - Redirected to canonical routes */}
+              <Route path="/santri-dashboard" element={<Navigate to="/santri" replace />} />
+              <Route path="/keuangan-dashboard" element={<Navigate to="/keuangan-v3" replace />} />
+              <Route path="/inventaris-dashboard" element={<Navigate to="/inventaris" replace />} />
 
-            {/* Inventory Module Routes */}
-            <Route path="/inventaris" element={
-              <WithLayout>
-                <InventarisDashboard />
-              </WithLayout>
-            } />
-            <Route path="/inventaris/master" element={
-              <WithLayout>
-                <InventarisMasterPage />
-              </WithLayout>
-            } />
-            {/* Sales removed from yayasan inventory - all sales now through koperasi */}
-            <Route path="/inventaris/sales" element={
-              <Navigate to="/koperasi/kasir" replace />
-            } />
-            <Route path="/inventaris/distribution" element={
-              <WithLayout>
-                <DistribusiPage />
-              </WithLayout>
-            } />
-            <Route path="/inventaris/distribution/distribusi-paket" element={
-              <WithLayout>
-                <DistribusiPaketPage />
-              </WithLayout>
-            } />
-            <Route path="/inventaris/distribution/master-paket" element={
-              <WithLayout>
-                <MasterPaketPage />
-              </WithLayout>
-            } />
-            <Route path="/inventaris/riwayat" element={
-              <WithLayout>
-                <RiwayatInventarisYayasanPage />
-              </WithLayout>
-            } />
+              {/* Inventory Module Routes */}
+              <Route path="/inventaris" element={
+                <WithLayout>
+                  <InventarisDashboard />
+                </WithLayout>
+              } />
+              <Route path="/inventaris/master" element={
+                <WithLayout>
+                  <InventarisMasterPage />
+                </WithLayout>
+              } />
+              {/* Sales removed from yayasan inventory - all sales now through koperasi */}
+              <Route path="/inventaris/sales" element={
+                <Navigate to="/koperasi/kasir" replace />
+              } />
+              <Route path="/inventaris/distribution" element={
+                <WithLayout>
+                  <DistribusiPage />
+                </WithLayout>
+              } />
+              <Route path="/inventaris/distribution/distribusi-paket" element={
+                <WithLayout>
+                  <DistribusiPaketPage />
+                </WithLayout>
+              } />
+              <Route path="/inventaris/distribution/master-paket" element={
+                <WithLayout>
+                  <MasterPaketPage />
+                </WithLayout>
+              } />
+              <Route path="/inventaris/riwayat" element={
+                <WithLayout>
+                  <RiwayatInventarisYayasanPage />
+                </WithLayout>
+              } />
 
-            {/* Koperasi Module Routes */}
-            <Route path="/koperasi" element={
-              <WithLayout>
-                <DashboardKoperasi />
-              </WithLayout>
-            } />
-            <Route path="/koperasi/master" element={
-              <WithLayout>
-                <MasterProdukPage />
-              </WithLayout>
-            } />
-            <Route path="/koperasi/master/supplier" element={
-              <WithLayout>
-                <SupplierPage />
-              </WithLayout>
-            } />
-            <Route path="/koperasi/kasir" element={
-              <WithLayout>
-                <KasirPage />
-              </WithLayout>
-            } />
-            <Route path="/koperasi/inventaris" element={
-              <WithLayout>
-                <StockKoperasiPage />
-              </WithLayout>
-            } />
-            <Route path="/koperasi/transfer" element={
-              <WithLayout>
-                <TransferInventarisPage />
-              </WithLayout>
-            } />
-            <Route path="/koperasi/penjualan" element={
-              <WithLayout>
-                <RiwayatPenjualanPage />
-              </WithLayout>
-            } />
-            <Route path="/koperasi/pembelian" element={
-              <WithLayout>
-                <PembelianPage />
-              </WithLayout>
-            } />
-            <Route path="/koperasi/keuangan/dashboard" element={
-              <WithLayout>
-                <KeuanganDashboardKoperasi />
-              </WithLayout>
-            } />
-            <Route path="/koperasi/keuangan" element={
-              <WithLayout>
-                <KeuanganKoperasiPage />
-              </WithLayout>
-            } />
-            <Route path="/koperasi/keuangan/pembelian" element={
-              <WithLayout>
-                <KeuanganPembelianPage />
-              </WithLayout>
-            } />
-            <Route path="/koperasi/keuangan/operasional" element={
-              <WithLayout>
-                <KeuanganOperasionalPage />
-              </WithLayout>
-            } />
-            <Route path="/koperasi/keuangan/kelola-hpp" element={
-              <WithLayout>
-                <KelolaHPPDanBagiHasilPage />
-              </WithLayout>
-            } />
-            <Route path="/koperasi/laporan" element={
-              <WithLayout>
-                <LaporanKoperasiPage />
-              </WithLayout>
-            } />
+              {/* Koperasi Module Routes */}
+              <Route path="/koperasi" element={
+                <WithLayout>
+                  <DashboardKoperasi />
+                </WithLayout>
+              } />
+              <Route path="/koperasi/master" element={
+                <WithLayout>
+                  <MasterProdukPage />
+                </WithLayout>
+              } />
+              <Route path="/koperasi/master/supplier" element={
+                <WithLayout>
+                  <SupplierPage />
+                </WithLayout>
+              } />
+              <Route path="/koperasi/kasir" element={
+                <WithLayout>
+                  <KasirPage />
+                </WithLayout>
+              } />
+              <Route path="/koperasi/inventaris" element={
+                <WithLayout>
+                  <StockKoperasiPage />
+                </WithLayout>
+              } />
+              <Route path="/koperasi/transfer" element={
+                <WithLayout>
+                  <TransferInventarisPage />
+                </WithLayout>
+              } />
+              <Route path="/koperasi/penjualan" element={
+                <WithLayout>
+                  <RiwayatPenjualanPage />
+                </WithLayout>
+              } />
+              <Route path="/koperasi/pembelian" element={
+                <WithLayout>
+                  <PembelianPage />
+                </WithLayout>
+              } />
+              <Route path="/koperasi/keuangan/dashboard" element={
+                <WithLayout>
+                  <KeuanganDashboardKoperasi />
+                </WithLayout>
+              } />
+              <Route path="/koperasi/keuangan" element={
+                <WithLayout>
+                  <KeuanganKoperasiPage />
+                </WithLayout>
+              } />
+              <Route path="/koperasi/keuangan/pembelian" element={
+                <WithLayout>
+                  <KeuanganPembelianPage />
+                </WithLayout>
+              } />
+              <Route path="/koperasi/keuangan/operasional" element={
+                <WithLayout>
+                  <KeuanganOperasionalPage />
+                </WithLayout>
+              } />
+              <Route path="/koperasi/keuangan/kelola-hpp" element={
+                <WithLayout>
+                  <KelolaHPPDanBagiHasilPage />
+                </WithLayout>
+              } />
+              <Route path="/koperasi/laporan" element={
+                <WithLayout>
+                  <LaporanKoperasiPage />
+                </WithLayout>
+              } />
 
-            {/* Admin & Finance Routes */}
-            <Route path="/admin/keuangan-audit" element={
-              <WithLayout>
-                <KeuanganAuditPage />
-              </WithLayout>
-            } />
-            <Route path="/admin/users" element={
-              <WithLayout>
-                <UserManagementPage />
-              </WithLayout>
-            } />
-            <Route path="/admin/data-master" element={
-              <WithLayout>
-                <UserManagementPage />
-              </WithLayout>
-            } />
+              {/* Admin & Finance Routes */}
+              <Route path="/admin/keuangan-audit" element={
+                <WithLayout>
+                  <KeuanganAuditPage />
+                </WithLayout>
+              } />
+              <Route path="/admin/users" element={
+                <WithLayout>
+                  <UserManagementPage />
+                </WithLayout>
+              } />
+              <Route path="/admin/data-master" element={
+                <WithLayout>
+                  <UserManagementPage />
+                </WithLayout>
+              } />
 
-            {/* Website Management Routes */}
-            <Route path="/admin/website/settings" element={<WithLayout><AdminSiteSettings /></WithLayout>} />
-            <Route path="/admin/website/homepage" element={<WithLayout><AdminHomepage /></WithLayout>} />
-            <Route path="/admin/website/posts" element={<WithLayout><AdminPosts /></WithLayout>} />
-            <Route path="/admin/website/pages" element={<WithLayout><AdminPages /></WithLayout>} />
-            <Route path="/admin/website/media" element={<WithLayout><AdminMediaLibrary /></WithLayout>} />
-            <Route path="/admin/website/announcements" element={<WithLayout><AdminAnnouncements /></WithLayout>} />
-            <Route path="/admin/website/gallery" element={<WithLayout><AdminGallery /></WithLayout>} />
-            <Route path="/admin/website/testimonials" element={<WithLayout><AdminTestimonials /></WithLayout>} />
+              {/* Website Management Routes */}
+              <Route path="/admin/website/settings" element={<WithLayout><AdminSiteSettings /></WithLayout>} />
+              <Route path="/admin/website/homepage" element={<WithLayout><AdminHomepage /></WithLayout>} />
+              <Route path="/admin/website/posts" element={<WithLayout><AdminPosts /></WithLayout>} />
+              <Route path="/admin/website/pages" element={<WithLayout><AdminPages /></WithLayout>} />
+              <Route path="/admin/website/media" element={<WithLayout><AdminMediaLibrary /></WithLayout>} />
+              <Route path="/admin/website/announcements" element={<WithLayout><AdminAnnouncements /></WithLayout>} />
+              <Route path="/admin/website/gallery" element={<WithLayout><AdminGallery /></WithLayout>} />
+              <Route path="/admin/website/testimonials" element={<WithLayout><AdminTestimonials /></WithLayout>} />
 
-            {/* Academic Routes */}
-            <Route path="/akademik" element={
-              <WithLayout>
-                <DashboardAkademik />
-              </WithLayout>
-            } />
-            <Route path="/akademik/kelas" element={
-              <WithLayout>
-                <KelasPage />
-              </WithLayout>
-            } />
-            <Route path="/akademik/master" element={<Navigate to="/akademik/kelas" replace />} />
-            <Route path="/akademik/semester" element={
-              <WithLayout>
-                <SemesterManagementPage />
-              </WithLayout>
-            } />
-            <Route path="/akademik/presensi" element={<Navigate to="/akademik/pertemuan?tab=presensi" replace />} />
-            <Route path="/akademik/setoran" element={
-              <WithLayout>
-                <SetoranHarianPage />
-              </WithLayout>
-            } />
-            <Route path="/akademik/pertemuan" element={
-              <WithLayout>
-                <PertemuanPage />
-              </WithLayout>
-            } />
-            <Route path="/akademik/jurnal" element={<Navigate to="/akademik/pertemuan?tab=jurnal" replace />} />
-            <Route path="/akademik/pengajar" element={
-              <WithLayout>
-                <DashboardPengajar />
-              </WithLayout>
-            } />
-            <Route path="/akademik/pengajar/profil" element={
-              <WithLayout>
-                <ProfilPengajarPage />
-              </WithLayout>
-            } />
-            <Route path="/akademik/perizinan" element={
-              <WithLayout>
-                <PerizinanSantriPage />
-              </WithLayout>
-            } />
-            <Route path="/akademik/nilai" element={
-              <WithLayout>
-                <InputNilaiPage />
-              </WithLayout>
-            } />
-            <Route path="/akademik/rapot" element={<Navigate to="/akademik/nilai" replace />} />
-            
-            <Route path="/administrasi" element={<Navigate to="/admin/users" replace />} />
+              {/* Academic Routes */}
+              <Route path="/akademik" element={
+                <WithLayout>
+                  <DashboardAkademik />
+                </WithLayout>
+              } />
+              <Route path="/akademik/kelas" element={
+                <WithLayout>
+                  <KelasPage />
+                </WithLayout>
+              } />
+              <Route path="/akademik/master" element={<Navigate to="/akademik/kelas" replace />} />
+              <Route path="/akademik/semester" element={
+                <WithLayout>
+                  <SemesterManagementPage />
+                </WithLayout>
+              } />
+              <Route path="/akademik/presensi" element={<Navigate to="/akademik/pertemuan?tab=presensi" replace />} />
+              <Route path="/akademik/setoran" element={
+                <WithLayout>
+                  <SetoranHarianPage />
+                </WithLayout>
+              } />
+              <Route path="/akademik/pertemuan" element={
+                <WithLayout>
+                  <PertemuanPage />
+                </WithLayout>
+              } />
+              <Route path="/akademik/jurnal" element={<Navigate to="/akademik/pertemuan?tab=jurnal" replace />} />
+              <Route path="/akademik/pengajar" element={
+                <WithLayout>
+                  <DashboardPengajar />
+                </WithLayout>
+              } />
+              <Route path="/akademik/pengajar/profil" element={
+                <WithLayout>
+                  <ProfilPengajarPage />
+                </WithLayout>
+              } />
+              <Route path="/akademik/perizinan" element={
+                <WithLayout>
+                  <PerizinanSantriPage />
+                </WithLayout>
+              } />
+              <Route path="/akademik/nilai" element={
+                <WithLayout>
+                  <InputNilaiPage />
+                </WithLayout>
+              } />
+              <Route path="/akademik/rapot" element={<Navigate to="/akademik/nilai" replace />} />
+              
+              <Route path="/administrasi" element={<Navigate to="/admin/users" replace />} />
 
-            {/* Santri Routes */}
-            <Route path="/santri" element={
-              <WithLayout>
-                <SantriEnhanced />
-              </WithLayout>
-            } />
-            <Route path="/santri/add" element={<Navigate to="/santri" replace />} />
-            <Route path="/santri/onboarding" element={<SuspenseOnly><SantriOnboarding /></SuspenseOnly>} />
-            
-            <Route path="/santri/profile" element={
-              <WithLayout>
-                <ProfileRedirect />
-              </WithLayout>
-            } />
-            <Route path="/santri/profile/:id" element={
-              <WithLayout>
-                <ProfileLayout />
-              </WithLayout>
-            }>
-              <Route index element={<InformasiPage />} />
-              <Route path="informasi" element={<InformasiPage />} />
-              <Route path="akademik" element={<AkademikPage />} />
-              <Route path="keuangan" element={<KeuanganPage />} />
-              <Route path="tabungan" element={<TabunganPage />} />
-              <Route path="layanan" element={<LayananPage />} />
-              <Route path="dokumen" element={<DokumenPage />} />
-            </Route>
+              {/* Santri Routes */}
+              <Route path="/santri" element={
+                <WithLayout>
+                  <SantriEnhanced />
+                </WithLayout>
+              } />
+              <Route path="/santri/add" element={<Navigate to="/santri" replace />} />
+              <Route path="/santri/onboarding" element={<SuspenseOnly><SantriOnboarding /></SuspenseOnly>} />
+              
+              <Route path="/santri/profile" element={
+                <WithLayout>
+                  <ProfileRedirect />
+                </WithLayout>
+              } />
+              <Route path="/santri/profile/:id" element={
+                <WithLayout>
+                  <ProfileLayout />
+                </WithLayout>
+              }>
+                <Route index element={<InformasiPage />} />
+                <Route path="informasi" element={<InformasiPage />} />
+                <Route path="akademik" element={<AkademikPage />} />
+                <Route path="keuangan" element={<KeuanganPage />} />
+                <Route path="tabungan" element={<TabunganPage />} />
+                <Route path="layanan" element={<LayananPage />} />
+                <Route path="dokumen" element={<DokumenPage />} />
+              </Route>
 
-            <Route path="/santri/profile-enhanced" element={<Navigate to="/santri/profile" replace />} />
-            <Route path="/santri/profile-minimal" element={<Navigate to="/santri/profile" replace />} />
-            <Route path="/santri/profile-master" element={<Navigate to="/santri/profile" replace />} />
-            <Route path="/santri/profile-redesigned" element={<Navigate to="/santri/profile" replace />} />
+              <Route path="/santri/profile-enhanced" element={<Navigate to="/santri/profile" replace />} />
+              <Route path="/santri/profile-minimal" element={<Navigate to="/santri/profile" replace />} />
+              <Route path="/santri/profile-master" element={<Navigate to="/santri/profile" replace />} />
+              <Route path="/santri/profile-redesigned" element={<Navigate to="/santri/profile" replace />} />
 
-            {/* Other Modules */}
-            <Route path="/monitoring" element={
-              <WithLayout>
-                <Monitoring />
-              </WithLayout>
-            } />
-            <Route path="/tabungan" element={
-              <WithLayout>
-                <TabunganRouter />
-              </WithLayout>
-            } />
-            <Route path="/tabungan-santri" element={
-              <WithLayout>
-                <TabunganSantriAdmin />
-              </WithLayout>
-            } />
-            <Route path="/laporan-tabungan" element={
-              <WithLayout>
-                <LaporanTabungan />
-              </WithLayout>
-            } />
-            <Route path="/donasi" element={
-              <WithLayout>
-                <DonasiDashboard />
-              </WithLayout>
-            } />
-            <Route path="/donasi-dashboard" element={<Navigate to="/donasi" replace />} />
-            <Route path="/donasi/master-donatur" element={
-              <WithLayout>
-                <MasterDonatur />
-              </WithLayout>
-            } />
+              {/* Other Modules */}
+              <Route path="/monitoring" element={
+                <WithLayout>
+                  <Monitoring />
+                </WithLayout>
+              } />
+              <Route path="/tabungan" element={
+                <WithLayout>
+                  <TabunganRouter />
+                </WithLayout>
+              } />
+              <Route path="/tabungan-santri" element={
+                <WithLayout>
+                  <TabunganSantriAdmin />
+                </WithLayout>
+              } />
+              <Route path="/laporan-tabungan" element={
+                <WithLayout>
+                  <LaporanTabungan />
+                </WithLayout>
+              } />
+              <Route path="/donasi" element={
+                <WithLayout>
+                  <DonasiDashboard />
+                </WithLayout>
+              } />
+              <Route path="/donasi-dashboard" element={<Navigate to="/donasi" replace />} />
+              <Route path="/donasi/master-donatur" element={
+                <WithLayout>
+                  <MasterDonatur />
+                </WithLayout>
+              } />
 
-            {/* Legacy Redirects */}
-            <Route path="/inventaris-test" element={<Navigate to="/inventaris" replace />} />
-            <Route path="/inventaris-legacy" element={<Navigate to="/inventaris" replace />} />
-            <Route path="/inventaris-old" element={<Navigate to="/inventaris" replace />} />
-            <Route path="/koperasi-old" element={<Navigate to="/koperasi" replace />} />
-            <Route path="/keuangan" element={<Navigate to="/keuangan-v3" replace />} />
-            
-            <Route path="/keuangan-v3" element={
-              <WithLayout>
-                <KeuanganV3 />
-              </WithLayout>
-            } />
-            <Route path="/keuangan-v3/penyaluran-bantuan" element={
-              <WithLayout>
-                <RiwayatPenyaluranBantuanPage />
-              </WithLayout>
-            } />
-            <Route path="/keuangan/master-data" element={
-              <WithLayout>
-                <MasterDataKeuanganPage />
-              </WithLayout>
-            } />
+              {/* Legacy Redirects */}
+              <Route path="/inventaris-test" element={<Navigate to="/inventaris" replace />} />
+              <Route path="/inventaris-legacy" element={<Navigate to="/inventaris" replace />} />
+              <Route path="/inventaris-old" element={<Navigate to="/inventaris" replace />} />
+              <Route path="/koperasi-old" element={<Navigate to="/koperasi" replace />} />
+              <Route path="/keuangan" element={<Navigate to="/keuangan-v3" replace />} />
+              
+              <Route path="/keuangan-v3" element={
+                <WithLayout>
+                  <KeuanganV3 />
+                </WithLayout>
+              } />
+              <Route path="/keuangan-v3/penyaluran-bantuan" element={
+                <WithLayout>
+                  <RiwayatPenyaluranBantuanPage />
+                </WithLayout>
+              } />
+              <Route path="/keuangan/master-data" element={
+                <WithLayout>
+                  <MasterDataKeuanganPage />
+                </WithLayout>
+              } />
 
-            <Route path="/ploating-kelas" element={<Navigate to="/akademik/kelas?tab=plotting" replace />} />
-            <Route path="/tagihan-santri" element={
-              <WithLayout>
-                <TagihanSantri />
-              </WithLayout>
-            } />
-            <Route path="/admin/santri-accounts" element={
-              <WithLayout>
-                <SantriAccountManagement />
-              </WithLayout>
-            } />
-            <Route path="/change-password" element={
-              <WithLayout>
-                <ChangePassword />
-              </WithLayout>
-            } />
+              <Route path="/ploating-kelas" element={<Navigate to="/akademik/kelas?tab=plotting" replace />} />
+              <Route path="/tagihan-santri" element={
+                <WithLayout>
+                  <TagihanSantri />
+                </WithLayout>
+              } />
+              <Route path="/admin/santri-accounts" element={
+                <WithLayout>
+                  <SantriAccountManagement />
+                </WithLayout>
+              } />
+              <Route path="/change-password" element={
+                <WithLayout>
+                  <ChangePassword />
+                </WithLayout>
+              } />
 
-            <Route path="*" element={<SuspenseOnly><NotFound /></SuspenseOnly>} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+              <Route path="*" element={<SuspenseOnly><NotFound /></SuspenseOnly>} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   </ErrorBoundary>
 );
