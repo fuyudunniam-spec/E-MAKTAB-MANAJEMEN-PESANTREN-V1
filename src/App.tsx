@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+<<<<<<< HEAD
 import { lazy, Suspense } from "react";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Layout from "./components/Layout";
@@ -37,9 +38,52 @@ import TabunganPage from "./pages/santri/TabunganPage";
 import LayananPage from "./pages/santri/LayananPage";
 import DokumenPage from "./pages/santri/DokumenPage";
 import TagihanSantri from "./pages/TagihanSantri";
+=======
+import { lazy, Suspense, type ReactNode } from "react";
+import Layout from "./components/Layout";
+import ErrorBoundary from "./components/ErrorBoundary";
+
+const RouteFallback = () => (
+  <div className="p-6 text-sm text-muted-foreground">Loading...</div>
+);
+
+const WithLayout = ({ children }: { children: ReactNode }) => (
+  <Layout>
+    <Suspense fallback={<RouteFallback />}>{children}</Suspense>
+  </Layout>
+);
+
+const SuspenseOnly = ({ children }: { children: ReactNode }) => (
+  <Suspense fallback={<RouteFallback />}>{children}</Suspense>
+);
+
+// Route-level lazy loading to keep initial bundle small
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const SantriEnhanced = lazy(() => import("./pages/SantriEnhanced"));
+const Monitoring = lazy(() => import("./pages/Monitoring"));
+const TabunganRouter = lazy(() => import("./pages/TabunganRouter"));
+const TabunganSantriAdmin = lazy(() => import("./pages/TabunganSantriAdmin"));
+const LaporanTabungan = lazy(() => import("./pages/LaporanTabungan"));
+const DonasiDashboard = lazy(() => import("./pages/DonasiDashboard"));
+const MasterDonatur = lazy(() => import("./pages/MasterDonatur"));
+const Auth = lazy(() => import("./pages/Auth"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const SantriOnboarding = lazy(() => import("./pages/SantriOnboarding"));
+const SantriAccountManagement = lazy(() => import("./pages/SantriAccountManagement"));
+const ChangePassword = lazy(() => import("./pages/ChangePassword"));
+const ProfileLayout = lazy(() => import("./components/ProfileLayout"));
+const ProfileRedirect = lazy(() => import("./components/ProfileRedirect"));
+const InformasiPage = lazy(() => import("./pages/santri/InformasiPage"));
+const AkademikPage = lazy(() => import("./pages/santri/AkademikPage"));
+const KeuanganPage = lazy(() => import("./pages/santri/KeuanganPage"));
+const TabunganPage = lazy(() => import("./pages/santri/TabunganPage"));
+const LayananPage = lazy(() => import("./pages/santri/LayananPage"));
+const DokumenPage = lazy(() => import("./pages/santri/DokumenPage"));
+const TagihanSantri = lazy(() => import("./pages/TagihanSantri"));
+
+>>>>>>> 450b14902b4b084469dd3c829c9843785b0ec94c
 
 // Lazy imports for module dashboards
-// Removed: DashboardSantri, DashboardKeuangan - routes redirected to canonical routes
 const DashboardAkademik = lazy(() => import('./modules/akademik/DashboardAkademik'));
 const MasterKelasPage = lazy(() => import('./modules/akademik/MasterKelasPage'));
 const PloatingKelasSimple = lazy(() => import('./modules/akademik/PloatingKelasSimple'));
@@ -80,25 +124,15 @@ const RiwayatPenjualanPage = lazy(() => import('./modules/koperasi/Penjualan/Riw
 const PembelianPage = lazy(() => import('./modules/koperasi/Pembelian/PembelianPage'));
 const KeuanganKoperasiPage = lazy(() => import('./modules/koperasi/Keuangan/KeuanganUnifiedPage'));
 const KeuanganDashboardKoperasi = lazy(() => import('./modules/koperasi/Keuangan/KeuanganDashboard'));
-// Using KeuanganUnifiedPage for all keuangan routes (replaces separate pages)
 const KeuanganPembelianPage = lazy(() => import('./modules/koperasi/Keuangan/KeuanganUnifiedPage'));
 const KeuanganOperasionalPage = lazy(() => import('./modules/koperasi/Keuangan/KeuanganUnifiedPage'));
-// BagiHasilPage merged into KelolaHPPDanBagiHasilPage
 const KelolaHPPDanBagiHasilPage = lazy(() => import('./modules/koperasi/Keuangan/KelolaHPPDanBagiHasilPage'));
 const LaporanKoperasiPage = lazy(() => import('./modules/koperasi/Laporan/LaporanPage'));
-// Lazy imports for website management modules (from Lovable)
-const AdminSiteSettings = lazy(() => import('./pages/admin/AdminSiteSettings'));
-const AdminHomepage = lazy(() => import('./pages/admin/AdminHomepage'));
-const AdminPosts = lazy(() => import('./pages/admin/AdminPosts'));
-const AdminPages = lazy(() => import('./pages/admin/AdminPages'));
-const AdminMediaLibrary = lazy(() => import('./pages/admin/AdminMediaLibrary'));
-const AdminAnnouncements = lazy(() => import('./pages/admin/AdminAnnouncements'));
-const AdminGallery = lazy(() => import('./pages/admin/AdminGallery'));
-const AdminTestimonials = lazy(() => import('./pages/admin/AdminTestimonials'));
 
 const queryClient = new QueryClient();
 
 const App = () => (
+<<<<<<< HEAD
     <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
             <ThemeProvider>
@@ -536,8 +570,22 @@ const App = () => (
             </ThemeProvider>
         </QueryClientProvider>
     </ErrorBoundary>
+=======
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Routes>
+>>>>>>> 450b14902b4b084469dd3c829c9843785b0ec94c
             <Route path="/auth" element={<SuspenseOnly><Auth /></SuspenseOnly>} />
             <Route path="/" element={
+              <WithLayout>
+                <Dashboard />
+              </WithLayout>
+            } />
+            <Route path="/pms" element={
               <WithLayout>
                 <Dashboard />
               </WithLayout>
@@ -752,11 +800,7 @@ const App = () => (
             <Route path="/santri/profile-master" element={<Navigate to="/santri/profile" replace />} />
             <Route path="/santri/profile-redesigned" element={<Navigate to="/santri/profile" replace />} />
             {/* Legacy profile routes removed - all use ProfileLayout with nested routes */}
-            <Route path="/santri/program-management/:santriId" element={
-              <WithLayout>
-                <ProgramSantriBiayaManager />
-              </WithLayout>
-            } />
+
             <Route path="/monitoring" element={
               <WithLayout>
                 <Monitoring />
@@ -805,6 +849,11 @@ const App = () => (
                 <RiwayatPenyaluranBantuanPage />
               </WithLayout>
             } />
+            <Route path="/keuangan/master-data" element={
+              <WithLayout>
+                <MasterDataKeuanganPage />
+              </WithLayout>
+            } />
             {/* Redirect old ploating-kelas route to akademik/kelas with plotting tab */}
             <Route path="/ploating-kelas" element={<Navigate to="/akademik/kelas?tab=plotting" replace />} />
             <Route path="/tagihan-santri" element={
@@ -829,7 +878,6 @@ const App = () => (
       </TooltipProvider>
     </QueryClientProvider>
   </ErrorBoundary>
->>>>>>> 3bb658f9e7b2bf60a840c97abb87dd33692b8991
 );
 
 export default App;
