@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, CheckCircle, DollarSign, FileText, Download, RefreshCw, Eye } from 'lucide-react';
-import DoubleEntryMonitor from '@/components/koperasi/DoubleEntryMonitor';
+import DoubleEntryMonitor from '@/components/DoubleEntryMonitor';
 import { useQuery } from '@tanstack/react-query';
 import { getAutoPostedSummary, reconcileAutoPostedTransactions, getOrphanedKeuangan, monitorDoubleEntry } from '@/services/keuangan.service';
 import { toast } from 'sonner';
@@ -92,8 +92,8 @@ const KeuanganAuditPage = () => {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
+          <Button 
+            variant="outline" 
             onClick={() => {
               refetchSummary();
               refetchDoubleEntries();
@@ -104,7 +104,7 @@ const KeuanganAuditPage = () => {
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button
+          <Button 
             variant="outline"
             onClick={() => setShowDetails(!showDetails)}
             className="flex items-center gap-2"
@@ -114,7 +114,7 @@ const KeuanganAuditPage = () => {
           </Button>
         </div>
       </div>
-
+      
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -185,7 +185,7 @@ const KeuanganAuditPage = () => {
         </CardHeader>
         <CardContent>
           <div className="flex gap-4 flex-wrap">
-            <Button
+            <Button 
               className="flex items-center gap-2"
               onClick={handleReconcile}
               disabled={isLoading}
@@ -193,7 +193,7 @@ const KeuanganAuditPage = () => {
               <CheckCircle className="h-4 w-4" />
               Reconcile Transactions
             </Button>
-            <Button
+            <Button 
               variant="outline"
               onClick={() => setShowDetails(true)}
               className="flex items-center gap-2"
@@ -201,7 +201,7 @@ const KeuanganAuditPage = () => {
               <Eye className="h-4 w-4" />
               View Duplicates
             </Button>
-            <Button
+            <Button 
               variant="outline"
               onClick={handleExportReport}
               disabled={isLoading}
@@ -215,7 +215,7 @@ const KeuanganAuditPage = () => {
       </Card>
 
       {/* Double Entry Monitor */}
-      <DoubleEntryMonitor
+      <DoubleEntryMonitor 
         showDetails={showDetails}
         autoRefresh={true}
         refreshInterval={60000}

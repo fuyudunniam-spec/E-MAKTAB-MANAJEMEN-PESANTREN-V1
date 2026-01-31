@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import Tabungan from './Tabungan';
-import TabunganSantriMy from '@/modules/santri/pages/TabunganSantriMy';
+import TabunganSantriMy from './TabunganSantriMy';
 
 export default function TabunganRouter() {
   const { user } = useAuth();

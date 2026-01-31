@@ -43,7 +43,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import ModuleHeader from '@/components/layout/ModuleHeader';
+import ModuleHeader from '@/components/ModuleHeader';
 import {
   listPaketSembako,
   getPaketSembakoWithKomponen,
@@ -187,10 +187,10 @@ const MasterPaketPage = () => {
     try {
       await deletePaketSembako(id);
       toast.success('Paket berhasil dihapus');
-
+      
       // Remove dari state langsung untuk update UI yang lebih cepat
       setPaketList(paketList.filter((p) => p.id !== id));
-
+      
       // Reload data untuk memastikan sinkronisasi
       await loadData();
     } catch (error: any) {

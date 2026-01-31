@@ -35,13 +35,13 @@ const defaultHeaderSettings: HeaderSettings = {
   site_name_short: "An-Nur",
 };
 
-// Fallback menu jika database kosong - CLEANED UP for Landing Page Only
+// Fallback menu jika database kosong
 const fallbackMenu = [
   { id: '1', title: "Beranda", url: "/", is_external: false, parent_id: null, position: 1 },
-  { id: '2', title: "Tentang Kami", url: "/about", is_external: false, parent_id: null, position: 2 },
-  { id: '3', title: "PSB Online", url: "/psb", is_external: false, parent_id: null, position: 3 },
-  // { id: '4', title: "Blog", url: "/blog", is_external: false, parent_id: null, position: 4 }, // Removed
-  // { id: '5', title: "Donasi", url: "/donasi", is_external: false, parent_id: null, position: 5 }, // Removed
+  { id: '2', title: "Profil", url: "/about", is_external: false, parent_id: null, position: 2 },
+  { id: '3', title: "Program", url: "/#program", is_external: false, parent_id: null, position: 3 },
+  { id: '4', title: "Blog", url: "/blog", is_external: false, parent_id: null, position: 4 },
+  { id: '5', title: "Donasi", url: "/donasi", is_external: false, parent_id: null, position: 5 },
 ];
 
 export function Navbar() {
@@ -107,8 +107,6 @@ export function Navbar() {
       }
 
       // CUSTOM LOGIC: Always Ensure "Donasi" exists if not present in main items
-      // DISABLED: Donasi removed from public view
-      /*
       if (!hierarchy.some(item => item.url === '/donasi' || item.title.toLowerCase().includes('donasi'))) {
         // Insert "Donasi" before the last item (which is usually a functional item or Contact)
         // Or if generic, just push it before user related items
@@ -123,16 +121,13 @@ export function Navbar() {
           position: 98
         });
       }
-      */
 
       // CUSTOM LOGIC: Ensure "Kesantrian" exists for Login dropdown
-      // Edited: Login E-Maktab sekarang hanya untuk Santri (/auth)
-      // Login Admin (/pms/auth) disembunyikan dari menu publik
       const kesantrianIndex = hierarchy.findIndex(item => item.title.toLowerCase().includes('kesantrian'));
       const loginItem = {
         id: 'login-emaktab',
         title: 'Login E-Maktab',
-        url: '/auth', // Mengarah ke login santri
+        url: '/auth',
         is_external: false,
         parent_id: 'virtual-kesantrian',
         position: 99,
@@ -147,8 +142,6 @@ export function Navbar() {
         if (!hierarchy[kesantrianIndex].children!.some(c => c.url === '/auth')) {
           hierarchy[kesantrianIndex].children!.push(loginItem);
         }
-        // Remove Admin login link if exists (cleanup)
-        hierarchy[kesantrianIndex].children = hierarchy[kesantrianIndex].children!.filter(c => c.url !== '/pms/auth');
       } else {
         // Create new Kesantrian menu (virtual)
         hierarchy.push({

@@ -8,14 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import ModuleHeader from '@/components/layout/ModuleHeader';
+import ModuleHeader from '@/components/ModuleHeader';
 import DonationItemsModal from '@/components/dashboard/inventaris/DonationItemsModal';
 import RiwayatTransaksiInventaris from '@/components/dashboard/inventaris/RiwayatTransaksiInventaris';
 import InventorySummaryCards from '@/components/dashboard/inventaris/InventorySummaryCards';
 import InventoryChartsSection from '@/components/dashboard/inventaris/InventoryChartsSection';
-import {
-  getInventoryDashboardStats,
-  getInventoryMonthlyData,
+import { 
+  getInventoryDashboardStats, 
+  getInventoryMonthlyData, 
   getInventoryConditionData,
   getPendingDonations
 } from '@/services/inventarisDashboard.service';
@@ -70,7 +70,7 @@ const InventarisDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
+  
   const [statistics, setStatistics] = useState<InventoryStats | null>(null);
   const [monthlyData, setMonthlyData] = useState<InventoryMonthlyData[]>([]);
   const [categoryData, setCategoryData] = useState<InventoryCategoryData[]>([]);
@@ -82,7 +82,7 @@ const InventarisDashboard: React.FC = () => {
   const [showDonationModal, setShowDonationModal] = useState(false);
   const [selectedDonationIds, setSelectedDonationIds] = useState<Set<string>>(new Set());
   const [postingBulk, setPostingBulk] = useState(false);
-
+  
   useEffect(() => {
     loadData();
   }, []);
@@ -90,7 +90,7 @@ const InventarisDashboard: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-
+      
       // Load data utama secara parallel untuk performa lebih baik
       const [stats, monthly, condition, pending] = await Promise.all([
         getInventoryDashboardStats(),
@@ -98,15 +98,15 @@ const InventarisDashboard: React.FC = () => {
         getInventoryConditionData(),
         getPendingDonations()
       ]);
-
+      
       setStatistics(stats);
       setMonthlyData(monthly);
       setCategoryData(condition); // Using condition data instead of category
       setPendingDonations(pending);
-
+      
       // Set loading false setelah data utama selesai (tidak perlu tunggu data sekunder)
       setLoading(false);
-
+      
       // Load data sekunder secara parallel di background (tidak blocking UI)
       Promise.all([
         getLowStock(10).then(result => {
@@ -146,7 +146,7 @@ const InventarisDashboard: React.FC = () => {
               referensi_distribusi_paket_id: tx.referensi_distribusi_paket_id,
               distribusi_paket: tx.distribusi_paket
             }));
-
+            
             setRecentTransactions(transformed as RecentTransaction[]);
           }
         }).catch(err => {
@@ -156,7 +156,7 @@ const InventarisDashboard: React.FC = () => {
       ]).catch(err => {
         console.error('Error loading secondary data:', err);
       });
-
+      
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Gagal memuat data inventaris');
@@ -202,7 +202,7 @@ const InventarisDashboard: React.FC = () => {
 
       // Refresh semua data setelah posting
       await loadData();
-
+      
       // Close modal jika terbuka
       setShowDonationModal(false);
       setSelectedDonation(null);
@@ -268,10 +268,10 @@ const InventarisDashboard: React.FC = () => {
 
       // Refresh semua data setelah posting masal
       await loadData();
-
+      
       // Reset seleksi
       setSelectedDonationIds(new Set());
-
+      
       // Close modal jika terbuka
       setShowDonationModal(false);
       setSelectedDonation(null);
@@ -357,7 +357,7 @@ const InventarisDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       <ModuleHeader title="Inventaris" tabs={tabs} />
-
+      
       {/* Header dengan Action Buttons */}
       <div className="flex items-center justify-between">
         <div>
@@ -537,7 +537,7 @@ const InventarisDashboard: React.FC = () => {
       </div>
 
       {/* Charts Section */}
-      <InventoryChartsSection
+      <InventoryChartsSection 
         monthlyData={monthlyData}
         categoryData={categoryData}
       />
@@ -654,7 +654,7 @@ const InventarisDashboard: React.FC = () => {
                     </div>
                   </div>
                 )}
-
+                
                 {nearExpiryItems.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-2">

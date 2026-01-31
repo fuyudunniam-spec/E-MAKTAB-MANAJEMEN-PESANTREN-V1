@@ -12,8 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Wallet, Plus, ArrowDownCircle, CheckCircle, XCircle, Clock, AlertCircle, Loader2 } from "lucide-react";
 import { formatRupiah } from "@/utils/inventaris.utils";
 import { formatDate } from "@/utils/inventaris.utils";
-import { TabunganSantriService } from '@/modules/santri/services/tabunganSantri.service';
-import { ajukanPenarikan, listPermohonanSaya, listTransaksi } from '@/modules/santri/services/tabunganSantriClient';
+import { TabunganSantriService } from '@/services/tabunganSantri.service';
+import { ajukanPenarikan, listPermohonanSaya, listTransaksi } from '@/services/tabunganSantriClient';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from "@/lib/utils";
@@ -48,13 +48,13 @@ interface Transaction {
 }
 
 // Section Wrapper Component
-const Section = ({
-  title,
-  rightSlot,
-  children
-}: {
-  title: string;
-  rightSlot?: React.ReactNode;
+const Section = ({ 
+  title, 
+  rightSlot, 
+  children 
+}: { 
+  title: string; 
+  rightSlot?: React.ReactNode; 
   children: React.ReactNode;
 }) => (
   <Card>
@@ -74,10 +74,10 @@ const TabunganPage = () => {
   const params = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { santriId: contextSantriId, saldoTabungan: initialSaldo } = useOutletContext<ProfileContext>();
-
+  
   // Use route params as source of truth
   const santriId = params.id || contextSantriId;
-
+  
   const [saldoTabungan, setSaldoTabungan] = useState(initialSaldo);
   const [loadingSaldo, setLoadingSaldo] = useState(false);
   const [showSetorDialog, setShowSetorDialog] = useState(false);
@@ -97,7 +97,7 @@ const TabunganPage = () => {
   // Transactions in santri_tabungan are already approved/completed (they're actual transactions, not requests)
   const calculatedSaldo = useMemo(() => {
     if (!transactions || transactions.length === 0) return 0;
-
+    
     // All transactions in santri_tabungan are already approved/completed
     // Calculate saldo from all transactions
     return transactions.reduce((acc, tx) => {
@@ -115,7 +115,7 @@ const TabunganPage = () => {
       console.error('TabunganPage: santriId is missing');
       return;
     }
-
+    
     loadSaldo();
     loadTransactions();
     loadWithdrawRequests();
@@ -147,7 +147,7 @@ const TabunganPage = () => {
       const { data, error } = await listTransaksi(santriId, 1, 100); // Load more to calculate saldo accurately
       if (error) throw error;
       setTransactions(data || []);
-
+      
       // Always recalculate saldo from transactions to ensure consistency
       // Use the latest transaction's saldo_sesudah if available, otherwise calculate
       if (data && data.length > 0) {
@@ -351,7 +351,7 @@ const TabunganPage = () => {
       {withdrawRequests.length > 0 && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Status Permohonan</h2>
-
+          
           <div className="space-y-3">
             {withdrawRequests.map((req) => (
               <div key={req.id} className="border rounded-lg p-4 bg-white hover:bg-gray-50/50 transition-colors">
@@ -373,7 +373,7 @@ const TabunganPage = () => {
                     {getStatusBadge(req.status)}
                   </div>
                 </div>
-
+                
                 {req.alasan_admin && (
                   <div className={cn(
                     "mt-3 pt-3 border-t",
@@ -387,7 +387,7 @@ const TabunganPage = () => {
                     </p>
                   </div>
                 )}
-
+                
                 {req.approved_at && (
                   <div className="mt-2 pt-2 border-t">
                     <p className="text-xs text-muted-foreground">
@@ -404,7 +404,7 @@ const TabunganPage = () => {
       {/* Riwayat Transaksi - Judul DI LUAR Card/Table */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold">Riwayat Transaksi</h2>
-
+        
         <Card>
           <CardHeader>
             <div className="flex justify-end">

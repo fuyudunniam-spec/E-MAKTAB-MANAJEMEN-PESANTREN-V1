@@ -11,14 +11,14 @@ import DonationChartsSection from '@/components/dashboard/donasi/DonationChartsS
 import DonationHistory from '@/components/dashboard/donasi/DonationHistory';
 import HajatHariIni from '@/components/dashboard/donasi/HajatHariIni';
 import DonationFormDialog from '@/components/donasi/DonationFormDialog';
-import DonasiReports from '@/components/koperasi/DonasiReports';
+import DonasiReports from '@/components/DonasiReports';
 import DonationDetailModal from '@/components/dashboard/donasi/DonationDetailModal';
 import DonationReceipt from '@/components/dashboard/donasi/DonationReceipt';
 
 // Import services
-import {
-  getDonasiDashboardStats,
-  getDonationMonthlyData,
+import { 
+  getDonasiDashboardStats, 
+  getDonationMonthlyData, 
   getDonationCategoryData,
   type DonationStats,
   type DonationMonthlyData,
@@ -59,13 +59,13 @@ interface Donation {
 const DonasiDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
+  
   // Data states
   const [statistics, setStatistics] = useState<DonationStats | null>(null);
   const [donations, setDonations] = useState<Donation[]>([]);
   const [monthlyData, setMonthlyData] = useState<DonationMonthlyData[]>([]);
   const [categoryData, setCategoryData] = useState<DonationCategoryData[]>([]);
-
+  
   // UI states
   const [showNewDonationDialog, setShowNewDonationDialog] = useState(false);
   const [showReportsDialog, setShowReportsDialog] = useState(false);
@@ -83,7 +83,7 @@ const DonasiDashboard: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-
+      
       // Load all data in parallel
       const [stats, monthly, category, donationsData] = await Promise.all([
         getDonasiDashboardStats(),
@@ -91,12 +91,12 @@ const DonasiDashboard: React.FC = () => {
         getDonationCategoryData(),
         loadDonations()
       ]);
-
+      
       setStatistics(stats);
       setMonthlyData(monthly);
       setCategoryData(category);
       setDonations(donationsData);
-
+      
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Gagal memuat data donasi');
@@ -227,7 +227,7 @@ const DonasiDashboard: React.FC = () => {
         });
 
       if (error) throw error;
-
+      
       // Only show success message if actually posted
       if (data && data.message) {
         if (data.amount > 0) {
@@ -249,20 +249,20 @@ const DonasiDashboard: React.FC = () => {
   const handleDeleteDonation = async (donation: Donation) => {
     // Delete diaktifkan untuk semua kategori donasi
     // Tidak ada lagi pembatasan berdasarkan posted_to_stock_at
-
+    
     const confirmed = window.confirm(
       `Apakah Anda yakin ingin menghapus donasi dari ${donation.donor_name}?`
     );
-
+    
     if (confirmed) {
       try {
         const { error } = await supabase
           .from('donations')
           .delete()
           .eq('id', donation.id);
-
+        
         if (error) throw error;
-
+        
         toast.success('Donasi berhasil dihapus');
         await loadData();
       } catch (error: any) {
@@ -296,8 +296,8 @@ const DonasiDashboard: React.FC = () => {
   const totals = {
     totalDonation: selectedDonor
       ? filteredDonations
-        .filter(d => d.donation_type === 'cash')
-        .reduce((sum, d) => sum + (d.cash_amount || 0), 0)
+          .filter(d => d.donation_type === 'cash')
+          .reduce((sum, d) => sum + (d.cash_amount || 0), 0)
       : statistics?.totalDonation || 0,
     donorCount: statistics?.totalDonors || 0
   };
@@ -310,13 +310,13 @@ const DonasiDashboard: React.FC = () => {
           <div>
             <h1 className="text-3xl font-light tracking-tight text-gray-900">Donasi</h1>
           </div>
-
+          
           {/* Action Buttons - Grouped and Clean seperti KeuanganV3 */}
           <div className="flex items-center gap-2 flex-wrap justify-end ml-auto">
             {/* Primary Actions */}
             <div className="flex items-center gap-2 flex-shrink-0">
-              <Button
-                size="sm"
+              <Button 
+                size="sm" 
                 onClick={handleAddDonation}
                 className="bg-gray-900 hover:bg-gray-800 text-white shadow-sm whitespace-nowrap text-xs sm:text-sm"
               >
@@ -324,7 +324,7 @@ const DonasiDashboard: React.FC = () => {
                 <span className="hidden sm:inline">Tambah Donasi</span>
               </Button>
             </div>
-
+            
             {/* Secondary Actions */}
             <div className="flex items-center gap-2 border-l border-gray-200 pl-2 flex-shrink-0">
               <Button
@@ -372,7 +372,7 @@ const DonasiDashboard: React.FC = () => {
 
       {/* Section 2: Summary Cards - Menggunakan komponen yang sudah ada */}
       {statistics && (
-        <DonationSummaryCards
+        <DonationSummaryCards 
           stats={{
             totalDonation: statistics.totalDonation,
             donationBulanIni: statistics.donationBulanIni,
@@ -390,7 +390,7 @@ const DonasiDashboard: React.FC = () => {
       )}
 
       {/* Section 3: Charts Section - Menggunakan komponen yang sudah ada */}
-      <DonationChartsSection
+      <DonationChartsSection 
         monthlyData={monthlyData}
         categoryData={categoryData}
         selectedDonorName={selectedDonor || undefined}
@@ -413,7 +413,7 @@ const DonasiDashboard: React.FC = () => {
       />
 
       {/* Section 5: Donation History - Menggunakan komponen yang sudah ada */}
-      <DonationHistory
+      <DonationHistory 
         donations={filteredDonations as any}
         selectedDonorName={selectedDonor || undefined}
         onClearFilter={handleClearFilter}

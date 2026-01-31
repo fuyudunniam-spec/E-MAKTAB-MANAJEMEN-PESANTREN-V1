@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Home, UserCheck, UserPlus } from 'lucide-react';
-import ModuleHeader from '@/components/layout/ModuleHeader';
+import ModuleHeader from '@/components/ModuleHeader';
 
 const DashboardSantri = () => {
   const tabs = [
@@ -14,7 +14,7 @@ const DashboardSantri = () => {
   return (
     <div>
       <ModuleHeader title="Dashboard Santri" tabs={tabs} />
-
+      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

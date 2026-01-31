@@ -21,9 +21,9 @@ import SummaryCards from '@/components/dashboard/SummaryCards';
 import SimpleKoperasiSummaryCards from './components/SimpleKoperasiSummaryCards';
 import ChartsSection from '@/components/dashboard/ChartsSection';
 import RiwayatTransaksi from '@/components/dashboard/RiwayatTransaksi';
-import TransactionDetailModal from '@/components/koperasi/TransactionDetailModal';
-import TransactionEditModal from '@/components/koperasi/TransactionEditModal';
-import EditTanggalTransferDonasiDialog from '@/components/koperasi/EditTanggalTransferDonasiDialog';
+import TransactionDetailModal from '@/components/TransactionDetailModal';
+import TransactionEditModal from '@/components/TransactionEditModal';
+import EditTanggalTransferDonasiDialog from '@/components/EditTanggalTransferDonasiDialog';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay, subMonths, format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,7 +38,7 @@ const KeuanganUnifiedPage: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
+  
   // Data states
   const [statistics, setStatistics] = useState<any>(null);
   const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
@@ -46,15 +46,15 @@ const KeuanganUnifiedPage: React.FC = () => {
   const [monthlyData, setMonthlyData] = useState<any[]>([]);
   const [categoryDataPemasukan, setCategoryDataPemasukan] = useState<any[]>([]);
   const [categoryDataPengeluaran, setCategoryDataPengeluaran] = useState<any[]>([]);
-
+  
   // Period summary states (simplified)
   const [periodSummary, setPeriodSummary] = useState({
     pemasukan: 0,
     pengeluaran: 0,
     labaRugi: 0
   });
-
-
+  
+  
   // Real cash balance state (exclude closed months)
   const [realCashBalance, setRealCashBalance] = useState<number>(0);
   const [realCashBalanceDetails, setRealCashBalanceDetails] = useState<{
@@ -66,7 +66,7 @@ const KeuanganUnifiedPage: React.FC = () => {
     totalPemasukanBulanTerakhir: 0,
     totalPengeluaran: 0
   });
-
+  
   // UI states
   const [showForm, setShowForm] = useState(false);
   const [showFormPemasukan, setShowFormPemasukan] = useState(false);
@@ -79,7 +79,7 @@ const KeuanganUnifiedPage: React.FC = () => {
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [selectedAccountFilter, setSelectedAccountFilter] = useState<string | undefined>(undefined);
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(undefined);
-
+  
   // Date filter state - untuk statistik dan riwayat transaksi
   // Simplified: hanya 'all' atau 'bulan' dengan pilihan bulan/tahun
   // Default: 'all' untuk menampilkan saldo akumulatif
@@ -112,8 +112,8 @@ const KeuanganUnifiedPage: React.FC = () => {
       return 'Keseluruhan';
     }
     // Format bulan yang dipilih
-    const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+                       'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
     return `${monthNames[selectedMonth - 1]} ${selectedYear}`;
   };
 
@@ -144,7 +144,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       const koperasiAccountIds = akunKas
         .filter(akun => akun.managed_by === 'koperasi' || akun.nama?.toLowerCase().includes('koperasi'))
         .map(akun => akun.id);
-
+      
       if (koperasiAccountIds.length === 0) {
         setRealCashBalance(0);
         setRealCashBalanceDetails({
@@ -154,15 +154,15 @@ const KeuanganUnifiedPage: React.FC = () => {
         });
         return;
       }
-
+      
       // Apply account filter if selected
-      const accountIdsToUse = selectedAccountFilter
+      const accountIdsToUse = selectedAccountFilter 
         ? [selectedAccountFilter]
         : koperasiAccountIds;
-
+      
       // Jika filter "all", hitung saldo kumulatif dari semua data
       if (dateFilter === 'all') {
-
+        
         // Get total pemasukan kumulatif (SEMUA pemasukan koperasi, termasuk manual input)
         const { data: pemasukanData } = await supabase
           .from('keuangan')
@@ -171,11 +171,11 @@ const KeuanganUnifiedPage: React.FC = () => {
           .eq('status', 'posted')
           .eq('source_module', 'koperasi')
           .in('akun_kas_id', accountIdsToUse);
-
+        
         const totalPemasukan = (pemasukanData || []).reduce(
           (sum, item) => sum + parseFloat(item.jumlah || 0), 0
         );
-
+        
         // Get total pengeluaran kumulatif (semua pengeluaran, exclude kewajiban/hutang)
         const [pengeluaranKeuangan, pengeluaranKoperasi] = await Promise.all([
           supabase
@@ -192,29 +192,29 @@ const KeuanganUnifiedPage: React.FC = () => {
             .eq('status', 'posted')
             .in('akun_kas_id', accountIdsToUse)
         ]);
-
+        
         // Combine dan filter biaya operasional
         const allPengeluaranData = [
           ...(pengeluaranKeuangan.data || []),
           ...(pengeluaranKoperasi.data || [])
         ];
-
+        
         // Filter biaya operasional (exclude kewajiban/hutang, TAPI INCLUDE transfer ke yayasan)
         const biayaOperasional = allPengeluaranData.filter(item => {
           const kategori = (item.kategori || '').toLowerCase();
           const subKategori = (item.sub_kategori || '').toLowerCase();
           const deskripsi = (item.deskripsi || '').toLowerCase();
-
+          
           // INCLUDE transfer ke yayasan sebagai pengeluaran
-          if (kategori === 'transfer ke yayasan' ||
-            subKategori === 'transfer ke yayasan' ||
-            deskripsi.includes('transfer ke yayasan') ||
-            deskripsi.includes('transfer laba/rugi')) {
+          if (kategori === 'transfer ke yayasan' || 
+              subKategori === 'transfer ke yayasan' ||
+              deskripsi.includes('transfer ke yayasan') ||
+              deskripsi.includes('transfer laba/rugi')) {
             return true;
           }
-
+          
           // Exclude hanya kewajiban/hutang
-          const isKewajiban =
+          const isKewajiban = 
             kategori === 'kewajiban' ||
             kategori === 'hutang ke yayasan' ||
             kategori.includes('kewajiban') ||
@@ -224,16 +224,16 @@ const KeuanganUnifiedPage: React.FC = () => {
             subKategori.includes('hutang') ||
             deskripsi.includes('kewajiban penjualan') ||
             deskripsi.includes('hutang ke yayasan');
-
+          
           return !isKewajiban;
         });
-
+        
         const totalPengeluaran = biayaOperasional.reduce(
           (sum, item) => sum + parseFloat(item.jumlah || 0), 0
         );
-
+        
         const cumulativeBalance = totalPemasukan - totalPengeluaran;
-
+        
         setRealCashBalance(cumulativeBalance);
         setRealCashBalanceDetails({
           lastIncomeMonth: null,
@@ -252,11 +252,11 @@ const KeuanganUnifiedPage: React.FC = () => {
           .in('akun_kas_id', accountIdsToUse)
           .order('tanggal', { ascending: false })
           .limit(1);
-
+        
         if (lastIncomeData && lastIncomeData.length > 0) {
           const lastIncomeDate = new Date(lastIncomeData[0].tanggal);
           const lastIncomeMonth = `${lastIncomeDate.getFullYear()}-${String(lastIncomeDate.getMonth() + 1).padStart(2, '0')}`;
-
+          
           // Get total pemasukan bulan terakhir (SEMUA pemasukan koperasi, termasuk manual input)
           const { data: pemasukanBulanTerakhir } = await supabase
             .from('keuangan')
@@ -267,11 +267,11 @@ const KeuanganUnifiedPage: React.FC = () => {
             .in('akun_kas_id', accountIdsToUse)
             .gte('tanggal', `${lastIncomeMonth}-01`)
             .lte('tanggal', `${lastIncomeMonth}-31`);
-
+          
           const totalPemasukanBulanTerakhir = (pemasukanBulanTerakhir || []).reduce(
             (sum, item) => sum + parseFloat(item.jumlah || 0), 0
           );
-
+          
           // Get total pengeluaran dari bulan terakhir hingga saat ini
           const { data: pengeluaranData } = await supabase
             .from('keuangan')
@@ -281,36 +281,36 @@ const KeuanganUnifiedPage: React.FC = () => {
             .eq('source_module', 'koperasi')
             .in('akun_kas_id', accountIdsToUse)
             .gte('tanggal', `${lastIncomeMonth}-01`);
-
+          
           const biayaOperasional = (pengeluaranData || []).filter(item => {
             const kategori = (item.kategori || '').toLowerCase();
             const subKategori = (item.sub_kategori || '').toLowerCase();
             const deskripsi = (item.deskripsi || '').toLowerCase();
-
-            if (kategori === 'transfer ke yayasan' ||
-              subKategori === 'transfer ke yayasan' ||
-              deskripsi.includes('transfer ke yayasan') ||
-              deskripsi.includes('transfer laba/rugi')) {
+            
+            if (kategori === 'transfer ke yayasan' || 
+                subKategori === 'transfer ke yayasan' ||
+                deskripsi.includes('transfer ke yayasan') ||
+                deskripsi.includes('transfer laba/rugi')) {
               return true;
             }
-
-            const isKewajiban =
+            
+            const isKewajiban = 
               kategori.includes('kewajiban') ||
               kategori.includes('hutang') ||
               subKategori.includes('kewajiban') ||
               subKategori.includes('hutang') ||
               deskripsi.includes('kewajiban') ||
               deskripsi.includes('hutang');
-
+            
             return !isKewajiban;
           });
-
+          
           const totalPengeluaran = biayaOperasional.reduce(
             (sum, item) => sum + parseFloat(item.jumlah || 0), 0
           );
-
+          
           const realBalance = totalPemasukanBulanTerakhir - totalPengeluaran;
-
+          
           setRealCashBalance(realBalance);
           setRealCashBalanceDetails({
             lastIncomeMonth: lastIncomeMonth,
@@ -329,7 +329,7 @@ const KeuanganUnifiedPage: React.FC = () => {
     } catch (error) {
       console.error('Error calculating real cash balance:', error);
       // Fallback to saldo_saat_ini if calculation fails
-      const fallbackBalance = selectedAccountId
+      const fallbackBalance = selectedAccountId 
         ? akunKas.find(akun => akun.id === selectedAccountId)?.saldo_saat_ini || 0
         : akunKas.filter(akun => akun.status === 'aktif').reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
       setRealCashBalance(fallbackBalance);
@@ -349,29 +349,29 @@ const KeuanganUnifiedPage: React.FC = () => {
       const { startDate, endDate } = getDateRange();
       const startDateStr = format(startDate, 'yyyy-MM-dd');
       const endDateStr = format(endDate, 'yyyy-MM-dd');
-
+      
       // Get akun kas koperasi untuk filter
       const koperasiAccountIds = akunKas
         .filter(akun => akun.managed_by === 'koperasi' || akun.nama?.toLowerCase().includes('koperasi'))
         .map(akun => akun.id);
-
+      
       if (koperasiAccountIds.length === 0) {
         console.log('[calculatePeriodSummary] No koperasi accounts found');
         setPeriodSummary({ pemasukan: 0, pengeluaran: 0, labaRugi: 0 });
         return;
       }
-
+      
       // Apply account filter if selected
-      const accountIdsToUse = selectedAccountFilter
+      const accountIdsToUse = selectedAccountFilter 
         ? [selectedAccountFilter]
         : koperasiAccountIds;
-
+      
       console.log('[calculatePeriodSummary] Filter:', {
         dateFilter,
         accountIds: accountIdsToUse,
         dateRange: dateFilter === 'all' ? 'ALL DATA' : `${startDateStr} - ${endDateStr}`
       });
-
+      
       // 1. Get total pemasukan dari riwayat transaksi (SEMUA pemasukan koperasi, termasuk manual input)
       // Ini memastikan data yang ditampilkan sinkron dengan riwayat transaksi yang sebenarnya
       let pemasukanQuery = supabase
@@ -381,24 +381,24 @@ const KeuanganUnifiedPage: React.FC = () => {
         .eq('status', 'posted')
         .eq('source_module', 'koperasi')
         .in('akun_kas_id', accountIdsToUse);
-
+      
       // Hanya filter tanggal jika bukan 'all'
       if (dateFilter !== 'all') {
         pemasukanQuery = pemasukanQuery
           .gte('tanggal', startDateStr)
           .lte('tanggal', endDateStr);
       }
-
+      
       const { data: pemasukanData, error: pemasukanError } = await pemasukanQuery;
-
+      
       if (pemasukanError) {
         console.error('[calculatePeriodSummary] Error fetching pemasukan:', pemasukanError);
       }
-
+      
       const totalPemasukan = (pemasukanData || []).reduce(
         (sum, item) => sum + parseFloat(item.jumlah || 0), 0
       );
-
+      
       // 2. Get total pengeluaran untuk periode (exclude kewajiban/hutang, TAPI INCLUDE transfer ke yayasan)
       // Transfer ke yayasan adalah pengeluaran yang valid dan harus dihitung
       // PASTIKAN: Filter berdasarkan akun kas koperasi yang sama dengan pemasukan
@@ -410,14 +410,14 @@ const KeuanganUnifiedPage: React.FC = () => {
         .eq('status', 'posted')
         .eq('source_module', 'koperasi')
         .in('akun_kas_id', accountIdsToUse);
-
+      
       let pengeluaranKoperasiQuery = supabase
         .from('keuangan_koperasi')
         .select('jumlah, kategori, sub_kategori, deskripsi, akun_kas_id')
         .eq('jenis_transaksi', 'Pengeluaran')
         .eq('status', 'posted')
         .in('akun_kas_id', accountIdsToUse);
-
+      
       // Hanya filter tanggal jika bukan 'all'
       if (dateFilter !== 'all') {
         pengeluaranKeuanganQuery = pengeluaranKeuanganQuery
@@ -427,18 +427,18 @@ const KeuanganUnifiedPage: React.FC = () => {
           .gte('tanggal', startDateStr)
           .lte('tanggal', endDateStr);
       }
-
+      
       const [pengeluaranKeuangan, pengeluaranKoperasi] = await Promise.all([
         pengeluaranKeuanganQuery,
         pengeluaranKoperasiQuery
       ]);
-
+      
       // Gabungkan data dari kedua tabel
       const allPengeluaranData = [
         ...(pengeluaranKeuangan.data || []),
         ...(pengeluaranKoperasi.data || [])
       ];
-
+      
       // Debug logging (hanya di development)
       if (process.env.NODE_ENV === 'development') {
         console.log('📊 Pengeluaran Data:', {
@@ -449,48 +449,48 @@ const KeuanganUnifiedPage: React.FC = () => {
           dateRange: { startDateStr, endDateStr }
         });
       }
-
+      
       // Filter out kewajiban/hutang (TAPI INCLUDE transfer ke yayasan dan transfer antar akun sebagai pengeluaran)
       // Transfer ke yayasan dan transfer antar akun adalah pengeluaran yang valid dan harus dihitung
       const biayaOperasional = allPengeluaranData.filter(item => {
         const kategori = (item.kategori || '').toLowerCase();
         const subKategori = (item.sub_kategori || '').toLowerCase();
         const deskripsi = (item.deskripsi || '').toLowerCase();
-
+        
         // INCLUDE transfer ke yayasan sebagai pengeluaran
-        if (kategori === 'transfer ke yayasan' ||
-          subKategori === 'transfer ke yayasan' ||
-          deskripsi.includes('transfer ke yayasan') ||
-          deskripsi.includes('transfer laba/rugi')) {
+        if (kategori === 'transfer ke yayasan' || 
+            subKategori === 'transfer ke yayasan' ||
+            deskripsi.includes('transfer ke yayasan') ||
+            deskripsi.includes('transfer laba/rugi')) {
           return true; // Include transfer ke yayasan
         }
-
+        
         // INCLUDE transfer antar akun sebagai pengeluaran (untuk transfer dari koperasi ke keuangan umum)
-        if (kategori === 'transfer antar akun' ||
-          subKategori === 'transfer antar akun' ||
-          deskripsi.includes('transfer ke ') && !deskripsi.includes('transfer ke yayasan')) {
+        if (kategori === 'transfer antar akun' || 
+            subKategori === 'transfer antar akun' ||
+            deskripsi.includes('transfer ke ') && !deskripsi.includes('transfer ke yayasan')) {
           return true; // Include transfer antar akun
         }
-
+        
         // Exclude hanya kewajiban/hutang (bukan transfer)
-        const isKewajiban =
+        const isKewajiban = 
           kategori.includes('kewajiban') ||
           kategori.includes('hutang') ||
           subKategori.includes('kewajiban') ||
           subKategori.includes('hutang') ||
           deskripsi.includes('kewajiban') ||
           deskripsi.includes('hutang');
-
+        
         return !isKewajiban;
       });
-
+      
       const totalPengeluaran = biayaOperasional.reduce(
         (sum, item) => sum + parseFloat(item.jumlah || 0), 0
       );
-
+      
       // 3. Calculate laba/rugi
       const labaRugi = totalPemasukan - totalPengeluaran;
-
+      
       setPeriodSummary({
         pemasukan: totalPemasukan,
         pengeluaran: totalPengeluaran,
@@ -511,7 +511,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       // Use recentTransactions which are already filtered correctly
       // This ensures chart data matches what's shown in transaction history
       const transactionsToUse = recentTransactions || [];
-
+      
       if (transactionsToUse.length === 0) {
         setMonthlyData([]);
         setCategoryDataPemasukan([]);
@@ -521,7 +521,7 @@ const KeuanganUnifiedPage: React.FC = () => {
 
       // Process monthly data from actual transactions
       const monthlyStats: { [key: string]: { pemasukan: number; pengeluaran: number } } = {};
-
+      
       // Get all unique months from transactions
       const monthSet = new Set<string>();
       transactionsToUse.forEach((tx: any) => {
@@ -539,7 +539,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       // Process transactions - use the same data as shown in history
       transactionsToUse.forEach((transaction: any) => {
         if (!transaction.tanggal) return;
-
+        
         const monthKey = transaction.tanggal.substring(0, 7);
         if (monthlyStats[monthKey]) {
           const jumlah = parseFloat(transaction.jumlah || 0);
@@ -554,12 +554,12 @@ const KeuanganUnifiedPage: React.FC = () => {
       // Convert to chart format - sorted chronologically
       const sortedEntries = Object.entries(monthlyStats)
         .sort(([a], [b]) => a.localeCompare(b));
-
+      
       const monthlyData = sortedEntries.map(([monthKey, stats]) => {
         const date = new Date(monthKey + '-01');
         const monthName = date.toLocaleDateString('id-ID', { month: 'short' });
         const formattedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-
+        
         return {
           month: formattedMonth,
           pemasukan: stats.pemasukan,
@@ -582,15 +582,15 @@ const KeuanganUnifiedPage: React.FC = () => {
         const kategori = (transaction.kategori || '').toLowerCase();
         const kategoriOriginal = transaction.kategori || 'Lainnya';
         const referensi = transaction.referensi || '';
-
+        
         // Determine if transaction is from yayasan or koperasi
-        const isFromYayasan =
+        const isFromYayasan = 
           kategori.includes('jasa pengelolaan') ||
           kategori.includes('bagi hasil yayasan') ||
           kategori.includes('penjualan inventaris yayasan') ||
           referensi.includes('transaksi_inventaris') ||
           referensi.includes('inventory_sale');
-
+        
         if (transaction.jenis_transaksi === 'Pemasukan') {
           if (isFromYayasan) {
             totalPemasukanYayasan += jumlah;
@@ -601,7 +601,7 @@ const KeuanganUnifiedPage: React.FC = () => {
           // Group pengeluaran by actual category
           // Normalize category names for better grouping
           let categoryKey = kategoriOriginal;
-
+          
           // Normalize common category names
           if (kategori.includes('transfer ke yayasan') || kategori.includes('transfer laba/rugi')) {
             categoryKey = 'Transfer ke Yayasan';
@@ -619,14 +619,14 @@ const KeuanganUnifiedPage: React.FC = () => {
             // Use original category name, capitalize first letter
             categoryKey = kategoriOriginal.charAt(0).toUpperCase() + kategoriOriginal.slice(1);
           }
-
+          
           pengeluaranByCategory[categoryKey] = (pengeluaranByCategory[categoryKey] || 0) + jumlah;
-
+          
           // Keep old logic for chart breakdown (Yayasan vs Koperasi)
-          const isTransferYayasan =
+          const isTransferYayasan = 
             kategori.includes('transfer ke yayasan') ||
             kategori.includes('transfer laba/rugi');
-
+          
           if (!isTransferYayasan) {
             if (isFromYayasan) {
               totalPengeluaranYayasan += jumlah;
@@ -657,7 +657,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       // Create category data for Pengeluaran - use actual categories
       const totalPengeluaran = Object.values(pengeluaranByCategory).reduce((sum, val) => sum + val, 0);
       const colors = ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316'];
-
+      
       const categoryDataPengeluaran = Object.entries(pengeluaranByCategory)
         .map(([categoryName, amount], index) => ({
           name: categoryName,
@@ -703,10 +703,10 @@ const KeuanganUnifiedPage: React.FC = () => {
       const startMonth = startDate.getMonth();
       const endYear = endDate.getFullYear();
       const endMonth = endDate.getMonth();
-
+      
       // Ensure start date is first day of the month
       startDate = new Date(startYear, startMonth, 1);
-
+      
       // Ensure end date is last day of the month
       endDate = new Date(endYear, endMonth + 1, 0);
 
@@ -746,26 +746,26 @@ const KeuanganUnifiedPage: React.FC = () => {
       const transactionsKoperasi = resultKoperasi.data || [];
       const transactionsKeuangan = resultKeuangan.data || [];
       const transactionMap = new Map();
-
+      
       transactionsKoperasi.forEach((tx: any) => {
         transactionMap.set(tx.id, tx);
       });
-
+      
       transactionsKeuangan.forEach((tx: any) => {
         transactionMap.set(tx.id, tx);
       });
-
+      
       const transactions = Array.from(transactionMap.values());
 
       // Process monthly data
       const monthlyStats: { [key: string]: { pemasukan: number; pengeluaran: number } } = {};
-
+      
       // Get all months in the range - ensure chronological order
       const currentMonth = new Date(startDate);
       currentMonth.setDate(1); // Start from first day of month
       const endMonthDate = new Date(endDate);
       endMonthDate.setDate(1); // Set to first day to ensure proper comparison
-
+      
       // Initialize all months in range with zero values
       const tempDate = new Date(currentMonth);
       while (tempDate <= endMonthDate) {
@@ -791,14 +791,14 @@ const KeuanganUnifiedPage: React.FC = () => {
       // Sort by monthKey (YYYY-MM format) to ensure chronological order
       const sortedEntries = Object.entries(monthlyStats)
         .sort(([a], [b]) => a.localeCompare(b));
-
+      
       // Convert to chart format with proper month labels
       const monthlyData = sortedEntries.map(([monthKey, stats]) => {
         const date = new Date(monthKey + '-01');
         // Format bulan dengan locale Indonesia (Jan, Feb, Mar, dll)
         const monthName = date.toLocaleDateString('id-ID', { month: 'short' });
         const formattedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-
+        
         return {
           month: formattedMonth,
           pemasukan: stats.pemasukan,
@@ -810,7 +810,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       // For Pemasukan (Income)
       let totalPemasukanYayasan = 0;
       let totalPemasukanKoperasi = 0;
-
+      
       // For Pengeluaran (Expenditure) - group by actual category
       const pengeluaranByCategory: { [key: string]: number } = {};
 
@@ -819,17 +819,17 @@ const KeuanganUnifiedPage: React.FC = () => {
         const kategori = (transaction.kategori || '').toLowerCase();
         const kategoriOriginal = transaction.kategori || 'Lainnya';
         const referensi = transaction.referensi || '';
-
+        
         // Determine if transaction is from yayasan or koperasi
         // Yayasan: transactions related to yayasan items, jasa pengelolaan, bagi hasil yayasan
         // Koperasi: transactions from koperasi sales, setor cash, etc.
-        const isFromYayasan =
+        const isFromYayasan = 
           kategori.includes('jasa pengelolaan') ||
           kategori.includes('bagi hasil yayasan') ||
           kategori.includes('penjualan inventaris yayasan') ||
           referensi.includes('transaksi_inventaris') ||
           referensi.includes('inventory_sale');
-
+        
         if (transaction.jenis_transaksi === 'Pemasukan') {
           if (isFromYayasan) {
             totalPemasukanYayasan += jumlah;
@@ -840,7 +840,7 @@ const KeuanganUnifiedPage: React.FC = () => {
           // Group pengeluaran by actual category
           // Normalize category names for better grouping
           let categoryKey = kategoriOriginal;
-
+          
           // Normalize common category names
           if (kategori.includes('transfer ke yayasan') || kategori.includes('transfer laba/rugi')) {
             categoryKey = 'Transfer ke Yayasan';
@@ -858,7 +858,7 @@ const KeuanganUnifiedPage: React.FC = () => {
             // Use original category name, capitalize first letter
             categoryKey = kategoriOriginal.charAt(0).toUpperCase() + kategoriOriginal.slice(1);
           }
-
+          
           pengeluaranByCategory[categoryKey] = (pengeluaranByCategory[categoryKey] || 0) + jumlah;
         }
       });
@@ -883,7 +883,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       // Create category data for Pengeluaran (Expenditure) - use actual categories
       const totalPengeluaran = Object.values(pengeluaranByCategory).reduce((sum, val) => sum + val, 0);
       const colors = ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316'];
-
+      
       const categoryDataPengeluaran = Object.entries(pengeluaranByCategory)
         .map(([categoryName, amount], index) => ({
           name: categoryName,
@@ -899,7 +899,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       // Silent fail for chart data - return empty arrays
       // Log only in development
       if (process.env.NODE_ENV === 'development') {
-
+         
         console.warn('Error loading chart data for date range:', error);
       }
       return { monthlyData: [], categoryDataPemasukan: [], categoryDataPengeluaran: [] };
@@ -917,19 +917,19 @@ const KeuanganUnifiedPage: React.FC = () => {
       if (koperasiAccountIds.length === 0) return [];
 
       const { startDate: filterStartDate, endDate: filterEndDate } = getDateRange();
-
+      
       // Query dari kedua tabel (sama seperti di loadData)
       let queryKoperasi = supabase
         .from('keuangan_koperasi')
         .select('*')
         .in('akun_kas_id', koperasiAccountIds);
-
+      
       let queryKeuangan = supabase
         .from('keuangan')
         .select('*')
         .eq('source_module', 'koperasi')
         .in('akun_kas_id', koperasiAccountIds);
-
+      
       // Hanya filter tanggal jika BUKAN 'all'
       // Untuk filter 'all', ambil semua data tanpa batasan tanggal
       if (dateFilter !== 'all') {
@@ -938,17 +938,17 @@ const KeuanganUnifiedPage: React.FC = () => {
         queryKoperasi = queryKoperasi.gte('tanggal', twelveMonthsAgo.toISOString().split('T')[0]);
         queryKeuangan = queryKeuangan.gte('tanggal', twelveMonthsAgo.toISOString().split('T')[0]);
       }
-
+      
       queryKoperasi = queryKoperasi
         .order('tanggal', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(dateFilter === 'all' ? 5000 : 1000); // Limit lebih tinggi untuk 'all'
-
+      
       queryKeuangan = queryKeuangan
         .order('tanggal', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(dateFilter === 'all' ? 5000 : 1000); // Limit lebih tinggi untuk 'all'
-
+      
       // Apply account filter if selected (sama dengan tabel riwayat)
       if (selectedAccountFilter) {
         queryKoperasi = queryKoperasi.eq('akun_kas_id', selectedAccountFilter);
@@ -967,11 +967,11 @@ const KeuanganUnifiedPage: React.FC = () => {
       const transactionsKoperasi = resultKoperasi.data || [];
       const transactionsKeuangan = resultKeuangan.data || [];
       const transactionMap = new Map();
-
+      
       transactionsKoperasi.forEach((tx: any) => {
         transactionMap.set(tx.id, tx);
       });
-
+      
       transactionsKeuangan.forEach((tx: any) => {
         if (!transactionMap.has(tx.id)) {
           transactionMap.set(tx.id, tx);
@@ -982,26 +982,26 @@ const KeuanganUnifiedPage: React.FC = () => {
 
       // Apply date filter (sama dengan tabel riwayat)
       // IMPORTANT: Untuk filter 'all', return semua transaksi tanpa filter tanggal
-      const filteredByDate = dateFilter === 'all'
+      const filteredByDate = dateFilter === 'all' 
         ? allTransactions // Return all transactions for 'all' filter
         : allTransactions.filter(tx => {
-          const txDate = new Date(tx.tanggal);
-          return txDate >= filterStartDate && txDate <= filterEndDate;
-        });
+            const txDate = new Date(tx.tanggal);
+            return txDate >= filterStartDate && txDate <= filterEndDate;
+          });
 
       // Get processed months for filtering (sama seperti di loadData)
       const { data: bagiHasilLogs } = await supabase
         .from('koperasi_bagi_hasil_log')
         .select('bulan, tahun, status')
         .eq('status', 'processed');
-
+      
       const processedMonths = new Set<string>();
       (bagiHasilLogs || []).forEach((log: any) => {
         if (log.bulan && log.tahun) {
           processedMonths.add(`${log.tahun}-${String(log.bulan).padStart(2, '0')}`);
         }
       });
-
+      
       const isDateProcessed = (date: string): boolean => {
         const txDate = new Date(date);
         const txYear = txDate.getFullYear();
@@ -1009,12 +1009,12 @@ const KeuanganUnifiedPage: React.FC = () => {
         const monthKey = `${txYear}-${txMonth}`;
         return processedMonths.has(monthKey);
       };
-
+      
       // Get yayasan penjualan IDs (sama seperti di loadData)
       const kopPenjualanIds = filteredByDate
         .filter(tx => tx.source_module === 'kop_penjualan' && tx.source_id)
         .map(tx => tx.source_id);
-
+      
       const yayasanPenjualanIds = new Set<string>();
       if (kopPenjualanIds.length > 0) {
         const { data: kopPenjualanDetails } = await supabase
@@ -1025,50 +1025,50 @@ const KeuanganUnifiedPage: React.FC = () => {
           `)
           .in('penjualan_id', kopPenjualanIds)
           .eq('kop_barang.owner_type', 'yayasan');
-
+        
         (kopPenjualanDetails || []).forEach((detail: any) => {
           yayasanPenjualanIds.add(detail.penjualan_id);
         });
       }
-
+      
       // Apply same filters as operational transactions in loadData
       const filteredTransactions = filteredByDate.filter(tx => {
         // Filter out liabilities
         const isLiability = tx.kategori === 'Hutang ke Yayasan' ||
-          tx.kategori === 'Kewajiban' ||
-          tx.referensi?.includes(':liability') ||
-          tx.deskripsi?.toLowerCase().includes('kewajiban');
+                           tx.kategori === 'Kewajiban' ||
+                           tx.referensi?.includes(':liability') ||
+                           tx.deskripsi?.toLowerCase().includes('kewajiban');
         if (isLiability) return false;
-
+        
         // Filter out inventory sales
         const isInventorySale = tx.kategori === 'Penjualan Inventaris' ||
-          tx.kategori === 'Penjualan Inventaris Yayasan' ||
-          tx.referensi?.startsWith('transaksi_inventaris:') ||
-          tx.referensi?.startsWith('inventory_sale:');
+                              tx.kategori === 'Penjualan Inventaris Yayasan' ||
+                              tx.referensi?.startsWith('transaksi_inventaris:') ||
+                              tx.referensi?.startsWith('inventory_sale:');
         if (isInventorySale) return false;
-
+        
         // Filter out unprocessed yayasan sales
-        if (tx.jenis_transaksi === 'Pemasukan' &&
-          tx.kategori === 'Penjualan' &&
-          tx.source_module === 'kop_penjualan' &&
-          tx.source_id &&
-          yayasanPenjualanIds.has(tx.source_id)) {
+        if (tx.jenis_transaksi === 'Pemasukan' && 
+            tx.kategori === 'Penjualan' &&
+            tx.source_module === 'kop_penjualan' &&
+            tx.source_id &&
+            yayasanPenjualanIds.has(tx.source_id)) {
           if (!isDateProcessed(tx.tanggal)) {
             return false;
           }
         }
-
+        
         // Filter out unprocessed Jasa Pengelolaan
-        if (tx.kategori === 'Jasa Pengelolaan' ||
-          tx.kategori === 'Jasa Pengelolaan Inventaris Yayasan') {
+        if (tx.kategori === 'Jasa Pengelolaan' || 
+            tx.kategori === 'Jasa Pengelolaan Inventaris Yayasan') {
           if (!isDateProcessed(tx.tanggal)) {
             return false;
           }
         }
-
+        
         return true;
       });
-
+      
       return filteredTransactions;
     } catch (error) {
       console.error('Error getting filtered transactions for summary:', error);
@@ -1080,7 +1080,7 @@ const KeuanganUnifiedPage: React.FC = () => {
     try {
       // Gunakan fungsi helper untuk mendapatkan filtered transactions yang sama dengan tabel riwayat
       const filteredTransactions = await getFilteredTransactionsForSummary();
-
+      
       if (filteredTransactions.length === 0 && !transactions) {
         setStatistics({
           pemasukan_bulan_ini: 0,
@@ -1096,7 +1096,7 @@ const KeuanganUnifiedPage: React.FC = () => {
 
       // Gunakan transactions yang diberikan jika ada, jika tidak gunakan filteredTransactions
       const transactionsToUse = transactions || filteredTransactions;
-
+      
       // Pemasukan: INCLUDE semua pemasukan termasuk setor cash dari keuangan
       const pemasukan = transactionsToUse
         .filter(tx => tx.jenis_transaksi === 'Pemasukan')
@@ -1104,26 +1104,26 @@ const KeuanganUnifiedPage: React.FC = () => {
           const jumlah = parseFloat(tx.jumlah || 0);
           return sum + jumlah;
         }, 0);
-
+      
       // Pengeluaran: EXCLUDE "Hutang ke Yayasan" dan liability entries
       // karena itu adalah kewajiban, bukan pengeluaran operasional
-      const pengeluaranTransactions = transactionsToUse.filter(tx =>
-        tx.jenis_transaksi === 'Pengeluaran' &&
-        tx.kategori !== 'Hutang ke Yayasan' &&
-        !tx.referensi?.includes(':liability')
+      const pengeluaranTransactions = transactionsToUse.filter(tx => 
+          tx.jenis_transaksi === 'Pengeluaran' &&
+          tx.kategori !== 'Hutang ke Yayasan' &&
+          !tx.referensi?.includes(':liability')
       );
-
+      
       const pengeluaran = pengeluaranTransactions
         .reduce((sum, tx) => sum + parseFloat(tx.jumlah || 0), 0);
-
+  
       const labaBersih = pemasukan - pengeluaran;
-
+      
       // Calculate trend (compare with previous period of same length)
       // Untuk filter 'all', tidak ada trend comparison (karena tidak ada periode sebelumnya yang jelas)
       let pemasukanTrend = 0;
       let pengeluaranTrend = 0;
       let labaBersihTrend = 0;
-
+      
       if (dateFilter !== 'all') {
         const { startDate: filterStartDate, endDate: filterEndDate } = getDateRange();
         const periodLength = Math.ceil((filterEndDate.getTime() - filterStartDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -1131,7 +1131,7 @@ const KeuanganUnifiedPage: React.FC = () => {
         prevPeriodStart.setDate(prevPeriodStart.getDate() - periodLength - 1);
         const prevPeriodEnd = new Date(filterStartDate);
         prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1);
-
+        
         const koperasiAccountIds = akunKas
           .filter(akun => akun.managed_by === 'koperasi' || akun.nama?.toLowerCase().includes('koperasi'))
           .map(akun => akun.id);
@@ -1144,7 +1144,7 @@ const KeuanganUnifiedPage: React.FC = () => {
           .gte('tanggal', prevPeriodStart.toISOString().split('T')[0])
           .lte('tanggal', prevPeriodEnd.toISOString().split('T')[0])
           .eq('status', 'posted');
-
+        
         let prevPeriodQueryKeuangan = supabase
           .from('keuangan')
           .select('*')
@@ -1153,80 +1153,80 @@ const KeuanganUnifiedPage: React.FC = () => {
           .gte('tanggal', prevPeriodStart.toISOString().split('T')[0])
           .lte('tanggal', prevPeriodEnd.toISOString().split('T')[0])
           .eq('status', 'posted');
-
+        
         if (selectedAccountFilter) {
           prevPeriodQueryKoperasi = prevPeriodQueryKoperasi.eq('akun_kas_id', selectedAccountFilter);
           prevPeriodQueryKeuangan = prevPeriodQueryKeuangan.eq('akun_kas_id', selectedAccountFilter);
         }
-
+        
         // Fetch both queries in parallel
         const [resultPrevKoperasi, resultPrevKeuangan] = await Promise.all([
           prevPeriodQueryKoperasi,
           prevPeriodQueryKeuangan
         ]);
-
+        
         // Combine and deduplicate (prioritaskan keuangan_koperasi)
         const prevTransactionsKoperasi = resultPrevKoperasi.data || [];
         const prevTransactionsKeuangan = resultPrevKeuangan.data || [];
         const prevTransactionMap = new Map();
-
+        
         prevTransactionsKoperasi.forEach((tx: any) => {
           prevTransactionMap.set(tx.id, tx);
         });
-
+        
         prevTransactionsKeuangan.forEach((tx: any) => {
           if (!prevTransactionMap.has(tx.id)) {
             prevTransactionMap.set(tx.id, tx);
           }
         });
-
+        
         const prevPeriodTransactions = Array.from(prevTransactionMap.values());
-
+        
         // Apply same filters as current period
         const filteredPrevTransactions = prevPeriodTransactions.filter(tx => {
           // Filter out liabilities
           const isLiability = tx.kategori === 'Hutang ke Yayasan' ||
-            tx.kategori === 'Kewajiban' ||
-            tx.referensi?.includes(':liability') ||
-            tx.deskripsi?.toLowerCase().includes('kewajiban');
+                             tx.kategori === 'Kewajiban' ||
+                             tx.referensi?.includes(':liability') ||
+                             tx.deskripsi?.toLowerCase().includes('kewajiban');
           if (isLiability) return false;
-
+          
           // Filter out inventory sales
           const isInventorySale = tx.kategori === 'Penjualan Inventaris' ||
-            tx.kategori === 'Penjualan Inventaris Yayasan' ||
-            tx.referensi?.startsWith('transaksi_inventaris:') ||
-            tx.referensi?.startsWith('inventory_sale:');
+                                tx.kategori === 'Penjualan Inventaris Yayasan' ||
+                                tx.referensi?.startsWith('transaksi_inventaris:') ||
+                                tx.referensi?.startsWith('inventory_sale:');
           if (isInventorySale) return false;
-
+          
           return true;
         });
-
+        
         const pemasukanPrevPeriod = filteredPrevTransactions
           .filter(tx => tx.jenis_transaksi === 'Pemasukan')
           .reduce((sum, tx) => sum + parseFloat(tx.jumlah || 0), 0);
-
+        
         const pengeluaranPrevPeriod = filteredPrevTransactions
-          .filter(tx =>
+          .filter(tx => 
             tx.jenis_transaksi === 'Pengeluaran' &&
             tx.kategori !== 'Hutang ke Yayasan' &&
             !tx.referensi?.includes(':liability')
           )
           .reduce((sum, tx) => sum + parseFloat(tx.jumlah || 0), 0);
-
-        pemasukanTrend = pemasukanPrevPeriod > 0
-          ? ((pemasukan - pemasukanPrevPeriod) / pemasukanPrevPeriod) * 100
+        
+        pemasukanTrend = pemasukanPrevPeriod > 0 
+          ? ((pemasukan - pemasukanPrevPeriod) / pemasukanPrevPeriod) * 100 
           : 0;
-
-        pengeluaranTrend = pengeluaranPrevPeriod > 0
-          ? ((pengeluaran - pengeluaranPrevPeriod) / pengeluaranPrevPeriod) * 100
+        
+        pengeluaranTrend = pengeluaranPrevPeriod > 0 
+          ? ((pengeluaran - pengeluaranPrevPeriod) / pengeluaranPrevPeriod) * 100 
           : 0;
-
+        
         const labaBersihPrevPeriod = pemasukanPrevPeriod - pengeluaranPrevPeriod;
-        labaBersihTrend = labaBersihPrevPeriod !== 0
-          ? ((labaBersih - labaBersihPrevPeriod) / Math.abs(labaBersihPrevPeriod)) * 100
+        labaBersihTrend = labaBersihPrevPeriod !== 0 
+          ? ((labaBersih - labaBersihPrevPeriod) / Math.abs(labaBersihPrevPeriod)) * 100 
           : 0;
       }
-
+      
       setStatistics({
         pemasukan_bulan_ini: pemasukan,
         pengeluaran_bulan_ini: pengeluaran,
@@ -1240,7 +1240,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       // Silent fail for statistics recalculation
       // Log only in development
       if (process.env.NODE_ENV === 'development') {
-
+         
         console.warn('Error recalculating statistics:', error);
       }
     }
@@ -1532,29 +1532,29 @@ const KeuanganUnifiedPage: React.FC = () => {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-
+      
       // Get accounts - FILTER UNTUK KOPERASI SAJA
       // Cari akun kas yang managed_by = 'koperasi' atau nama mengandung 'koperasi'
       const accounts = await AkunKasService.getAll();
-      const koperasiAccounts = accounts.filter(akun =>
-        akun.managed_by === 'koperasi' ||
+      const koperasiAccounts = accounts.filter(akun => 
+        akun.managed_by === 'koperasi' || 
         akun.nama?.toLowerCase().includes('koperasi')
       );
-
+      
       setAkunKas(koperasiAccounts);
-
+      
       // Calculate total saldo from ACTIVE koperasi accounts only
       const totalSaldoAllAccounts = koperasiAccounts
         .filter(akun => akun.status === 'aktif')
         .reduce((sum, akun) => sum + (akun.saldo_saat_ini || 0), 0);
-
+      
       // Update saldo kas koperasi - DISABLED karena tidak digunakan lagi
       // setSaldoKasKoperasi(totalSaldoAllAccounts);
-
+      
       // Get transactions from keuangan_koperasi table (NOT keuangan)
       // Filter untuk akun kas koperasi saja
       const koperasiAccountIds = koperasiAccounts.map(akun => akun.id);
-
+      
       if (koperasiAccountIds.length === 0) {
         setRecentTransactions([]);
         setStatistics({
@@ -1581,7 +1581,7 @@ const KeuanganUnifiedPage: React.FC = () => {
           akun_kas:akun_kas_id(nama, managed_by)
         `)
         .in('akun_kas_id', koperasiAccountIds);
-
+      
       let queryKeuangan = supabase
         .from('keuangan')
         .select(`
@@ -1590,7 +1590,7 @@ const KeuanganUnifiedPage: React.FC = () => {
         `)
         .eq('source_module', 'koperasi')
         .in('akun_kas_id', koperasiAccountIds);
-
+      
       // Only apply date limit if NOT 'all' filter (to improve performance)
       // For 'all', we'll fetch all data but may need to increase limit
       if (dateFilter !== 'all') {
@@ -1598,23 +1598,23 @@ const KeuanganUnifiedPage: React.FC = () => {
         queryKoperasi = queryKoperasi.gte('tanggal', twelveMonthsAgo.toISOString().split('T')[0]);
         queryKeuangan = queryKeuangan.gte('tanggal', twelveMonthsAgo.toISOString().split('T')[0]);
       }
-
+      
       queryKoperasi = queryKoperasi
         .order('tanggal', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(dateFilter === 'all' ? 5000 : 1000); // Higher limit for 'all' filter
-
+      
       queryKeuangan = queryKeuangan
         .order('tanggal', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(dateFilter === 'all' ? 5000 : 1000); // Higher limit for 'all' filter
-
+      
       // Apply account filter if selected
       if (selectedAccountFilter) {
         queryKoperasi = queryKoperasi.eq('akun_kas_id', selectedAccountFilter);
         queryKeuangan = queryKeuangan.eq('akun_kas_id', selectedAccountFilter);
       }
-
+      
       // Apply account filter if selected
       if (selectedAccountFilter) {
         queryKeuangan = queryKeuangan.eq('akun_kas_id', selectedAccountFilter);
@@ -1634,22 +1634,22 @@ const KeuanganUnifiedPage: React.FC = () => {
       // keuangan dengan source_module='koperasi' hanya untuk transaksi baru (seperti setor cash)
       const transactionsKoperasi = resultKoperasi.data || [];
       const transactionsKeuangan = resultKeuangan.data || [];
-
+      
       // Create a map to deduplicate by ID
       const transactionMap = new Map();
-
+      
       // Prioritaskan keuangan_koperasi - masukkan dulu
       transactionsKoperasi.forEach((tx: any) => {
         transactionMap.set(tx.id, tx);
       });
-
+      
       // Tambahkan dari keuangan hanya jika ID belum ada (untuk transaksi baru seperti setor cash)
       transactionsKeuangan.forEach((tx: any) => {
         if (!transactionMap.has(tx.id)) {
           transactionMap.set(tx.id, tx);
         }
       });
-
+      
       // Convert map back to array and sort
       const transactions = Array.from(transactionMap.values()).sort((a: any, b: any) => {
         const dateA = new Date(a.tanggal).getTime();
@@ -1659,13 +1659,13 @@ const KeuanganUnifiedPage: React.FC = () => {
         const createdB = new Date(b.created_at || 0).getTime();
         return createdB - createdA;
       });
-
+      
       // Filter transactions - hanya yang dari akun koperasi
       // Note: transactions sudah difilter untuk akun koperasi di query, jadi langsung gunakan
       let allTransactions = transactions.filter(tx => {
         const akunKas = Array.isArray(tx.akun_kas) ? tx.akun_kas[0] : tx.akun_kas;
         return koperasiAccountIds.includes(tx.akun_kas_id) &&
-          (akunKas?.managed_by === 'koperasi' || akunKas?.nama?.toLowerCase().includes('koperasi'));
+               (akunKas?.managed_by === 'koperasi' || akunKas?.nama?.toLowerCase().includes('koperasi'));
       });
 
       // Apply date filter to get filtered transactions for display
@@ -1679,7 +1679,7 @@ const KeuanganUnifiedPage: React.FC = () => {
         }
         return txDate >= startDate && txDate <= endDate;
       });
-
+      
       // Extract inventory transaction IDs from referensi and fetch catatan
       const inventoryTransactionIds = allTransactions
         .filter(t => t.referensi && typeof t.referensi === 'string' && t.referensi.startsWith('inventory_sale:'))
@@ -1690,19 +1690,19 @@ const KeuanganUnifiedPage: React.FC = () => {
         .filter(id => id !== null);
 
       // transaksi_inventaris removed - feature deprecated
-
+      
       // Filter out transactions that should not appear in operational transaction list:
       // 1. "Hutang ke Yayasan" - kewajiban/liability, bukan beban operasional
       // 2. "Penjualan Inventaris" - seharusnya diproses melalui Kalkulator HPP & Bagi Hasil
       // 3. "Pemasukan" dari penjualan item yayasan yang belum diproses di kalkulator bagi hasil
       // 4. "Jasa Pengelolaan" yang belum diproses di kalkulator bagi hasil
-
+      
       // Get all processed sales from koperasi_bagi_hasil_log
       const { data: bagiHasilLogs } = await supabase
         .from('koperasi_bagi_hasil_log')
         .select('bulan, tahun, status')
         .eq('status', 'processed');
-
+      
       // Create a set of processed month-year combinations
       const processedMonths = new Set<string>();
       (bagiHasilLogs || []).forEach((log: any) => {
@@ -1710,7 +1710,7 @@ const KeuanganUnifiedPage: React.FC = () => {
           processedMonths.add(`${log.tahun}-${String(log.bulan).padStart(2, '0')}`);
         }
       });
-
+      
       // Helper function to check if a date is within any processed month
       const isDateProcessed = (date: string): boolean => {
         const txDate = new Date(date);
@@ -1719,12 +1719,12 @@ const KeuanganUnifiedPage: React.FC = () => {
         const monthKey = `${txYear}-${txMonth}`;
         return processedMonths.has(monthKey);
       };
-
+      
       // Get all kop_penjualan IDs that contain yayasan items
       const kopPenjualanIds = allTransactions
         .filter(tx => tx.source_module === 'kop_penjualan' && tx.source_id)
         .map(tx => tx.source_id);
-
+      
       const yayasanPenjualanIds = new Set<string>();
       if (kopPenjualanIds.length > 0) {
         const { data: kopPenjualanDetails } = await supabase
@@ -1735,60 +1735,60 @@ const KeuanganUnifiedPage: React.FC = () => {
           `)
           .in('penjualan_id', kopPenjualanIds)
           .eq('kop_barang.owner_type', 'yayasan');
-
+        
         (kopPenjualanDetails || []).forEach((detail: any) => {
           yayasanPenjualanIds.add(detail.penjualan_id);
         });
       }
-
+      
       const operationalTransactions = allTransactions.filter(tx => {
         // Filter out liabilities
         const isLiability = tx.kategori === 'Hutang ke Yayasan' ||
-          tx.kategori === 'Kewajiban' ||
-          tx.referensi?.includes(':liability') ||
-          tx.deskripsi?.toLowerCase().includes('kewajiban');
+                           tx.kategori === 'Kewajiban' ||
+                           tx.referensi?.includes(':liability') ||
+                           tx.deskripsi?.toLowerCase().includes('kewajiban');
         if (isLiability) return false;
-
+        
         // Filter out inventory sales (transaksi_inventaris)
         const isInventorySale = tx.kategori === 'Penjualan Inventaris' ||
-          tx.kategori === 'Penjualan Inventaris Yayasan' ||
-          tx.referensi?.startsWith('transaksi_inventaris:') ||
-          tx.referensi?.startsWith('inventory_sale:');
+                              tx.kategori === 'Penjualan Inventaris Yayasan' ||
+                              tx.referensi?.startsWith('transaksi_inventaris:') ||
+                              tx.referensi?.startsWith('inventory_sale:');
         if (isInventorySale) return false;
-
+        
         // Filter out "Pemasukan" from kop_penjualan with yayasan items that haven't been processed
-        if (tx.jenis_transaksi === 'Pemasukan' &&
-          tx.kategori === 'Penjualan' &&
-          tx.source_module === 'kop_penjualan' &&
-          tx.source_id &&
-          yayasanPenjualanIds.has(tx.source_id)) {
+        if (tx.jenis_transaksi === 'Pemasukan' && 
+            tx.kategori === 'Penjualan' &&
+            tx.source_module === 'kop_penjualan' &&
+            tx.source_id &&
+            yayasanPenjualanIds.has(tx.source_id)) {
           // Check if this sale date is within a processed range
           if (!isDateProcessed(tx.tanggal)) {
             return false; // Hide unprocessed yayasan sales
           }
         }
-
+        
         // Filter out "Jasa Pengelolaan" that hasn't been processed
-        if (tx.kategori === 'Jasa Pengelolaan' ||
-          tx.kategori === 'Jasa Pengelolaan Inventaris Yayasan') {
+        if (tx.kategori === 'Jasa Pengelolaan' || 
+            tx.kategori === 'Jasa Pengelolaan Inventaris Yayasan') {
           // Check if this transaction date is within a processed range
           if (!isDateProcessed(tx.tanggal)) {
             return false; // Hide unprocessed Jasa Pengelolaan
           }
         }
-
+        
         return true;
       });
-
+      
       // Store filtered transactions for RiwayatTransaksi (it will filter based on dateFilter)
       setRecentTransactions(operationalTransactions);
-
+      
       // Load hak yayasan di kas - DISABLED karena tidak digunakan lagi
       // await loadHakYayasanDiKas();
-
+      
       // Calculate statistics will be done in recalculateStatistics function
       // We need to wait for state to update, so we'll call it in a separate effect
-
+      
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Gagal memuat data keuangan koperasi';
       toast.error(errorMessage);
@@ -1907,7 +1907,7 @@ const KeuanganUnifiedPage: React.FC = () => {
         minimumFractionDigits: 0,
       }).format(transaction.jumlah)}?`
     );
-
+    
     if (confirmed) {
       try {
         console.log('Attempting to delete transaction:', {
@@ -1920,7 +1920,7 @@ const KeuanganUnifiedPage: React.FC = () => {
         // Untuk transaksi pemasukan auto_posted, coba direct delete dulu (lebih langsung)
         // Jika direct delete gagal, baru coba RPC
         let deleteSuccess = false;
-
+        
         if (transaction.jenis_transaksi === 'Pemasukan' && transaction.auto_posted) {
           // Coba direct delete terlebih dahulu
           const { error: directDeleteError, data: deleteData } = await supabase
@@ -1928,11 +1928,11 @@ const KeuanganUnifiedPage: React.FC = () => {
             .delete()
             .eq('id', transaction.id)
             .select();
-
+          
           if (!directDeleteError) {
             deleteSuccess = true;
             console.log('✅ Direct delete berhasil', { deletedId: transaction.id, akun_kas_id: transaction.akun_kas_id });
-
+            
             // Update saldo akun kas
             if (transaction.akun_kas_id) {
               try {
@@ -1959,11 +1959,11 @@ const KeuanganUnifiedPage: React.FC = () => {
               akun_kas_id: transaction.akun_kas_id,
               source_module: transaction.source_module
             });
-
+            
             // Fallback: Coba dengan RPC jika ada
             try {
               const { error: rpcError } = await supabase.rpc('delete_keuangan_and_recalc', { p_keuangan_id: transaction.id });
-
+              
               if (!rpcError) {
                 deleteSuccess = true;
                 console.log('✅ RPC delete berhasil (fallback)');
@@ -1983,7 +1983,7 @@ const KeuanganUnifiedPage: React.FC = () => {
         } else {
           // Untuk transaksi non-auto-posted atau pengeluaran, gunakan RPC
           const { error } = await supabase.rpc('delete_keuangan_and_recalc', { p_keuangan_id: transaction.id });
-
+          
           if (error) {
             console.error('❌ RPC delete gagal:', error);
             toast.error(`Gagal menghapus transaksi: ${error.message}`);
@@ -1991,7 +1991,7 @@ const KeuanganUnifiedPage: React.FC = () => {
           }
           deleteSuccess = true;
         }
-
+        
         if (deleteSuccess) {
           toast.success('Transaksi berhasil dihapus');
           await loadData();
@@ -2023,7 +2023,7 @@ const KeuanganUnifiedPage: React.FC = () => {
     accountCount: akunKas.filter(akun => akun.status === 'aktif').length
   };
 
-  const currentSelectedAccount = selectedAccountId
+  const currentSelectedAccount = selectedAccountId 
     ? akunKas.find(akun => akun.id === selectedAccountId)
     : null;
 
@@ -2037,7 +2037,7 @@ const KeuanganUnifiedPage: React.FC = () => {
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Keuangan Koperasi</h1>
           </div>
-
+          
           {/* Action Buttons */}
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -2059,7 +2059,7 @@ const KeuanganUnifiedPage: React.FC = () => {
                 <span className="hidden sm:inline">Pemasukan</span>
               </Button>
             </div>
-
+            
             <div className="flex items-center gap-2 border-l border-gray-200 pl-2 flex-shrink-0">
               <Button
                 variant="ghost"
@@ -2092,8 +2092,8 @@ const KeuanganUnifiedPage: React.FC = () => {
               <Calendar className="h-4 w-4 text-gray-500" />
               <span>Periode</span>
             </div>
-            <Select
-              value={dateFilter}
+            <Select 
+              value={dateFilter} 
               onValueChange={(value) => {
                 setDateFilter(value);
                 if (value === 'bulan-ini') {
@@ -2151,9 +2151,9 @@ const KeuanganUnifiedPage: React.FC = () => {
             onEditAccount={() => toast.info('Edit akun kas melalui modul Keuangan Umum')}
             onDeleteAccount={() => toast.info('Hapus akun kas melalui modul Keuangan Umum')}
             onViewTransactions={handleSelectAccount}
-            onSetDefaultAccount={() => { }}
+            onSetDefaultAccount={() => {}}
           />
-        </div>
+            </div>
 
         {/* Total Balance Display */}
         <div>
@@ -2168,9 +2168,9 @@ const KeuanganUnifiedPage: React.FC = () => {
             onRequest={() => {
               toast.info('Fitur pengajuan dana akan segera tersedia');
             }}
-          />
-        </div>
-      </div>
+              />
+            </div>
+                  </div>
 
 
       {/* Section 2: Simple Summary Cards */}
@@ -2182,7 +2182,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       />
 
       {/* Section 3: Charts Section */}
-      <ChartsSection
+      <ChartsSection 
         monthlyData={monthlyData}
         categoryData={categoryDataPengeluaran}
         selectedAccountId={selectedAccountFilter}
@@ -2190,7 +2190,7 @@ const KeuanganUnifiedPage: React.FC = () => {
       />
 
       {/* Section 4: Riwayat Transaksi */}
-      <RiwayatTransaksi
+      <RiwayatTransaksi 
         transactions={recentTransactions}
         selectedAccountId={selectedAccountFilter}
         selectedAccountName={selectedAccountName}
@@ -2217,25 +2217,25 @@ const KeuanganUnifiedPage: React.FC = () => {
       />
 
       {/* Modal for Input Pengeluaran Koperasi */}
-      <FormPengeluaranKoperasi
-        isOpen={showForm}
-        onClose={() => setShowForm(false)}
-        onSuccess={handleFormSuccess}
+      <FormPengeluaranKoperasi 
+        isOpen={showForm} 
+        onClose={() => setShowForm(false)} 
+        onSuccess={handleFormSuccess} 
       />
 
       {/* Modal for Input Pemasukan Koperasi */}
-      <FormPemasukanKoperasi
-        isOpen={showFormPemasukan}
-        onClose={() => setShowFormPemasukan(false)}
-        onSuccess={handleFormSuccess}
+      <FormPemasukanKoperasi 
+        isOpen={showFormPemasukan} 
+        onClose={() => setShowFormPemasukan(false)} 
+        onSuccess={handleFormSuccess} 
       />
 
       {/* Modal for Penyesuaian Saldo */}
       <Dialog open={showFormPenyesuaianSaldo} onOpenChange={setShowFormPenyesuaianSaldo}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogHeader>
             <DialogTitle>Penyesuaian Saldo Akun Kas</DialogTitle>
-          </DialogHeader>
+        </DialogHeader>
           <FormPenyesuaianSaldo onSuccess={handleFormSuccess} />
         </DialogContent>
       </Dialog>
@@ -2289,7 +2289,7 @@ const KeuanganUnifiedPage: React.FC = () => {
         onSuccess={handleFormSuccess}
       />
 
-    </div>
+            </div>
   );
 };
 

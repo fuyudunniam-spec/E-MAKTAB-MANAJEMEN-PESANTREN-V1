@@ -60,7 +60,7 @@ import {
   type MasterSubKategoriPengeluaran,
   type MasterPilarLayanan,
 } from '@/services/masterDataKeuangan.service';
-import MappingSantriDialog from '@/modules/santri/components/MappingSantriDialog';
+import MappingSantriDialog from './MappingSantriDialog';
 
 // Wrapper untuk MappingSantriDialog dengan async initial data
 const MappingSantriDialogWrapper: React.FC<{
@@ -573,232 +573,233 @@ const KategoriPengeluaranTab: React.FC = () => {
             </div>
           ) : (
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12"></TableHead>
-                  <TableHead className="w-12">No</TableHead>
-                  <TableHead>Nama Kategori</TableHead>
-                  <TableHead>Jenis</TableHead>
-                  <TableHead>Pilar Layanan</TableHead>
-                  <TableHead>Sub Kategori</TableHead>
-                  <TableHead className="w-24">Status</TableHead>
-                  <TableHead className="w-32 text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredKategori.map((kategori, index) => {
-                  const isExpanded = expandedKategori.has(kategori.id);
-                  const subKategoriList = subKategoriQueries.data?.[kategori.id] || [];
-                  const subKategoriCount = subKategoriCountQuery.data?.[kategori.id] || 0;
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12"></TableHead>
+                    <TableHead className="w-12">No</TableHead>
+                    <TableHead>Nama Kategori</TableHead>
+                    <TableHead>Jenis</TableHead>
+                    <TableHead>Pilar Layanan</TableHead>
+                    <TableHead>Sub Kategori</TableHead>
+                    <TableHead className="w-24">Status</TableHead>
+                    <TableHead className="w-32 text-right">Aksi</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredKategori.map((kategori, index) => {
+                    const isExpanded = expandedKategori.has(kategori.id);
+                    const subKategoriList = subKategoriQueries.data?.[kategori.id] || [];
+                    const subKategoriCount = subKategoriCountQuery.data?.[kategori.id] || 0;
 
-                  return (
-                    <React.Fragment key={kategori.id}>
-                      <TableRow>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleToggleExpand(kategori.id)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <ChevronRight
-                              className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''
-                                }`}
-                            />
-                          </Button>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{index + 1}</TableCell>
-                        <TableCell className="font-medium">{kategori.nama}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={kategori.jenis === 'Pemasukan' ? 'default' : 'secondary'}
-                          >
-                            {kategori.jenis}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {kategori.pilar_layanan ? (
-                            <Badge variant="outline">{kategori.pilar_layanan.nama}</Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{subKategoriCount} sub kategori</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {kategori.aktif ? (
-                            <Badge variant="default" className="bg-green-500">
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Aktif
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary">
-                              <XCircle className="h-3 w-3 mr-1" />
-                              Non-Aktif
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleOpenKategoriForm(kategori)}>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit Kategori
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleOpenMapping('kategori', kategori.id, kategori.nama)}
-                              >
-                                <Users className="h-4 w-4 mr-2" />
-                                Mapping Santri
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleOpenSubKategoriForm(kategori)}
-                              >
-                                <Plus className="h-4 w-4 mr-2" />
-                                Tambah Sub Kategori
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleToggleAktif('kategori', kategori.id, kategori.aktif)}
-                              >
-                                {kategori.aktif ? (
-                                  <>
-                                    <XCircle className="h-4 w-4 mr-2" />
-                                    Nonaktifkan
-                                  </>
-                                ) : (
-                                  <>
-                                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                                    Aktifkan
-                                  </>
-                                )}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleDeleteClick('kategori', kategori.id, kategori.nama)}
-                                className="text-red-600 focus:text-red-600"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Hapus
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                      {isExpanded && subKategoriList.length > 0 && (
+                    return (
+                      <React.Fragment key={kategori.id}>
                         <TableRow>
-                          <TableCell colSpan={8} className="bg-muted/30 p-0">
-                            <div className="p-4 space-y-2">
-                              <div className="text-sm font-medium mb-3">Sub Kategori</div>
-                              <div className="space-y-2">
-                                {subKategoriList.map((subKategori) => (
-                                  <div
-                                    key={subKategori.id}
-                                    className="flex items-center justify-between p-3 bg-background border rounded-md"
-                                  >
-                                    <div className="flex-1">
-                                      <div className="font-medium">{subKategori.nama}</div>
-                                      <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
-                                        {subKategori.pilar_layanan && (
-                                          <Badge variant="outline" className="text-xs">
-                                            {subKategori.pilar_layanan.nama}
-                                          </Badge>
-                                        )}
-                                        {subKategori.deskripsi && (
-                                          <span>{subKategori.deskripsi}</span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {subKategori.aktif ? (
-                                        <Badge variant="default" className="bg-green-500 text-xs">
-                                          Aktif
-                                        </Badge>
-                                      ) : (
-                                        <Badge variant="secondary" className="text-xs">
-                                          Non-Aktif
-                                        </Badge>
-                                      )}
-                                      <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                          <Button variant="ghost" size="sm">
-                                            <MoreVertical className="h-4 w-4" />
-                                          </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                          <DropdownMenuItem
-                                            onClick={() =>
-                                              handleOpenSubKategoriForm(kategori, subKategori)
-                                            }
-                                          >
-                                            <Edit className="h-4 w-4 mr-2" />
-                                            Edit
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem
-                                            onClick={() =>
-                                              handleOpenMapping(
-                                                'sub_kategori',
-                                                subKategori.id,
-                                                subKategori.nama
-                                              )
-                                            }
-                                          >
-                                            <Users className="h-4 w-4 mr-2" />
-                                            Mapping Santri
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem
-                                            onClick={() =>
-                                              handleToggleAktif(
-                                                'sub_kategori',
-                                                subKategori.id,
-                                                subKategori.aktif
-                                              )
-                                            }
-                                          >
-                                            {subKategori.aktif ? (
-                                              <>
-                                                <XCircle className="h-4 w-4 mr-2" />
-                                                Nonaktifkan
-                                              </>
-                                            ) : (
-                                              <>
-                                                <CheckCircle2 className="h-4 w-4 mr-2" />
-                                                Aktifkan
-                                              </>
-                                            )}
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem
-                                            onClick={() =>
-                                              handleDeleteClick(
-                                                'sub_kategori',
-                                                subKategori.id,
-                                                subKategori.nama
-                                              )
-                                            }
-                                            className="text-red-600 focus:text-red-600"
-                                          >
-                                            <Trash2 className="h-4 w-4 mr-2" />
-                                            Hapus
-                                          </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                      </DropdownMenu>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleToggleExpand(kategori.id)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <ChevronRight
+                                className={`h-4 w-4 transition-transform ${
+                                  isExpanded ? 'rotate-90' : ''
+                                }`}
+                              />
+                            </Button>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+                          <TableCell className="font-medium">{kategori.nama}</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={kategori.jenis === 'Pemasukan' ? 'default' : 'secondary'}
+                            >
+                              {kategori.jenis}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {kategori.pilar_layanan ? (
+                              <Badge variant="outline">{kategori.pilar_layanan.nama}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{subKategoriCount} sub kategori</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {kategori.aktif ? (
+                              <Badge variant="default" className="bg-green-500">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Aktif
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary">
+                                <XCircle className="h-3 w-3 mr-1" />
+                                Non-Aktif
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleOpenKategoriForm(kategori)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit Kategori
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleOpenMapping('kategori', kategori.id, kategori.nama)}
+                                >
+                                  <Users className="h-4 w-4 mr-2" />
+                                  Mapping Santri
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleOpenSubKategoriForm(kategori)}
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Tambah Sub Kategori
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleToggleAktif('kategori', kategori.id, kategori.aktif)}
+                                >
+                                  {kategori.aktif ? (
+                                    <>
+                                      <XCircle className="h-4 w-4 mr-2" />
+                                      Nonaktifkan
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                                      Aktifkan
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteClick('kategori', kategori.id, kategori.nama)}
+                                  className="text-red-600 focus:text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Hapus
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                        {isExpanded && subKategoriList.length > 0 && (
+                          <TableRow>
+                            <TableCell colSpan={8} className="bg-muted/30 p-0">
+                              <div className="p-4 space-y-2">
+                                <div className="text-sm font-medium mb-3">Sub Kategori</div>
+                                <div className="space-y-2">
+                                  {subKategoriList.map((subKategori) => (
+                                    <div
+                                      key={subKategori.id}
+                                      className="flex items-center justify-between p-3 bg-background border rounded-md"
+                                    >
+                                      <div className="flex-1">
+                                        <div className="font-medium">{subKategori.nama}</div>
+                                        <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
+                                          {subKategori.pilar_layanan && (
+                                            <Badge variant="outline" className="text-xs">
+                                              {subKategori.pilar_layanan.nama}
+                                            </Badge>
+                                          )}
+                                          {subKategori.deskripsi && (
+                                            <span>{subKategori.deskripsi}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        {subKategori.aktif ? (
+                                          <Badge variant="default" className="bg-green-500 text-xs">
+                                            Aktif
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="secondary" className="text-xs">
+                                            Non-Aktif
+                                          </Badge>
+                                        )}
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="sm">
+                                              <MoreVertical className="h-4 w-4" />
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end">
+                                            <DropdownMenuItem
+                                              onClick={() =>
+                                                handleOpenSubKategoriForm(kategori, subKategori)
+                                              }
+                                            >
+                                              <Edit className="h-4 w-4 mr-2" />
+                                              Edit
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                              onClick={() =>
+                                                handleOpenMapping(
+                                                  'sub_kategori',
+                                                  subKategori.id,
+                                                  subKategori.nama
+                                                )
+                                              }
+                                            >
+                                              <Users className="h-4 w-4 mr-2" />
+                                              Mapping Santri
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                              onClick={() =>
+                                                handleToggleAktif(
+                                                  'sub_kategori',
+                                                  subKategori.id,
+                                                  subKategori.aktif
+                                                )
+                                              }
+                                            >
+                                              {subKategori.aktif ? (
+                                                <>
+                                                  <XCircle className="h-4 w-4 mr-2" />
+                                                  Nonaktifkan
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                                                  Aktifkan
+                                                </>
+                                              )}
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                              onClick={() =>
+                                                handleDeleteClick(
+                                                  'sub_kategori',
+                                                  subKategori.id,
+                                                  subKategori.nama
+                                                )
+                                              }
+                                              className="text-red-600 focus:text-red-600"
+                                            >
+                                              <Trash2 className="h-4 w-4 mr-2" />
+                                              Hapus
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </TableBody>
+              </Table>
           )}
         </CardContent>
       </Card>

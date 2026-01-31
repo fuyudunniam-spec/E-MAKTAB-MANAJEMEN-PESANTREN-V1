@@ -18,7 +18,7 @@ vi.mock('sonner', () => ({
 }));
 
 // Mock ModuleHeader component
-vi.mock('@/components/layout/ModuleHeader', () => ({
+vi.mock('@/components/ModuleHeader', () => ({
   default: () => <div>Module Header</div>
 }));
 
