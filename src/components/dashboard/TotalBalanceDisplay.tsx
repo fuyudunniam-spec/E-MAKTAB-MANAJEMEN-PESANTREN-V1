@@ -9,15 +9,18 @@ interface TotalBalanceDisplayProps {
   totalBalance: number;
   accountCount: number;
   selectedAccount?: AkunKas | null;
+  hutangKeYayasan?: number; // NEW: Amount to be deposited to Yayasan
   onTransfer?: () => void;
   onRequest?: () => void;
   onViewAllAccounts?: () => void;
 }
 
+
 const TotalBalanceDisplay: React.FC<TotalBalanceDisplayProps> = ({
   totalBalance,
   accountCount,
   selectedAccount,
+  hutangKeYayasan = 0,
   onTransfer,
   onRequest,
   onViewAllAccounts
@@ -53,9 +56,9 @@ const TotalBalanceDisplay: React.FC<TotalBalanceDisplayProps> = ({
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Saldo</h2>
             {selectedAccount && onViewAllAccounts && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={onViewAllAccounts}
                 className="text-xs text-gray-500 hover:text-gray-900 h-7 px-2"
               >
@@ -70,26 +73,26 @@ const TotalBalanceDisplay: React.FC<TotalBalanceDisplayProps> = ({
               {formatCurrency(totalBalance)}
             </div>
             <p className="text-xs text-gray-500">
-              {selectedAccount 
-                ? `Saldo dari ${selectedAccount.nama}` 
+              {selectedAccount
+                ? `Saldo dari ${selectedAccount.nama}`
                 : `Dari ${accountCount} akun aktif`}
             </p>
           </div>
 
           {/* Action Buttons */}
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="flex-1 text-xs border-gray-200 hover:bg-gray-50 text-gray-700"
               onClick={onTransfer}
             >
               <ArrowUpRight className="h-3.5 w-3.5 mr-1.5" />
               Transfer
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="flex-1 text-xs border-gray-200 hover:bg-gray-50 text-gray-700"
               onClick={onRequest}
             >
@@ -99,6 +102,37 @@ const TotalBalanceDisplay: React.FC<TotalBalanceDisplayProps> = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* Hutang ke Yayasan Breakdown (if applicable) */}
+      {hutangKeYayasan > 0 && (
+        <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+          <div className="text-xs font-medium text-amber-700 uppercase tracking-wide mb-3">
+            Breakdown Saldo
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Milik Koperasi</span>
+              <span className="text-sm font-semibold text-green-700">
+                {formatCurrency(totalBalance - hutangKeYayasan)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Hutang ke Yayasan</span>
+              <span className="text-sm font-semibold text-amber-700">
+                {formatCurrency(hutangKeYayasan)}
+              </span>
+            </div>
+            <div className="border-t border-amber-200 pt-2 mt-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-700">Total</span>
+                <span className="text-sm font-bold text-gray-900">
+                  {formatCurrency(totalBalance)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 gap-3">
@@ -110,7 +144,7 @@ const TotalBalanceDisplay: React.FC<TotalBalanceDisplayProps> = ({
             Akun Aktif
           </div>
         </div>
-        
+
         <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
           <div className="text-xl font-semibold text-gray-900 mb-0.5">
             {selectedAccount ? '1' : accountCount}
@@ -123,5 +157,6 @@ const TotalBalanceDisplay: React.FC<TotalBalanceDisplayProps> = ({
     </div>
   );
 };
+
 
 export default TotalBalanceDisplay;

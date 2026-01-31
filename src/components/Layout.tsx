@@ -163,25 +163,14 @@ const SidebarContent = () => {
       icon: Store,
       items: [
         { icon: LayoutDashboard, label: 'Dashboard Koperasi', path: '/koperasi' },
-        { icon: Package, label: 'Master Data', path: '/koperasi/master' },
+        { icon: Package, label: 'Produk & Stok', path: '/koperasi/master' },
         { icon: CreditCard, label: 'Kasir/POS', path: '/koperasi/kasir' },
-        { icon: Warehouse, label: 'Inventaris Koperasi', path: '/koperasi/inventaris' },
-        { icon: ShoppingCart, label: 'Penjualan', path: '/koperasi/penjualan' },
-        { icon: TruckIcon, label: 'Pembelian', path: '/koperasi/pembelian', dividerBefore: true },
-        {
-          icon: DollarSign,
-          label: 'Keuangan Koperasi',
-          path: '/koperasi/keuangan',
-          subItems: [
-            { icon: BarChart3, label: 'Dashboard Keuangan', path: '/koperasi/keuangan/dashboard' },
-            { icon: FileText, label: 'Transaksi Keuangan', path: '/koperasi/keuangan' },
-            { icon: Coins, label: 'Operasional', path: '/koperasi/keuangan/operasional' },
-            { icon: Calculator, label: 'Kelola HPP & Bagi Hasil', path: '/koperasi/keuangan/kelola-hpp' }
-          ]
-        },
-        { icon: FileBarChart, label: 'Laporan', path: '/koperasi/laporan', dividerBefore: true }
+        { icon: ShoppingCart, label: 'Riwayat Penjualan', path: '/koperasi/penjualan' },
+        { icon: DollarSign, label: 'Keuangan', path: '/koperasi/keuangan' },
+        { icon: FileBarChart, label: 'Laporan', path: '/koperasi/laporan' }
       ]
     },
+
     {
       title: 'KELOLA USER',
       icon: Users,
@@ -341,24 +330,24 @@ const SidebarContent = () => {
   }, [location.pathname]);
 
   return (
-    <div className="flex flex-col h-full bg-white border-r border-gray-200">
-      {/* Header with Logo - Larger, No Card */}
-      <div className="flex-shrink-0 p-6 border-b border-gray-200">
+    <div className="flex flex-col h-full bg-sidebar border-r border-sidebar-border text-sidebar-foreground">
+      {/* Header with Logo - Dark Theme */}
+      <div className="flex-shrink-0 p-6 border-b border-sidebar-border bg-sidebar">
         <div className="flex flex-col items-center gap-3">
-          {/* Logo Al-Bisri - Lebih Besar */}
-          <div className="flex-shrink-0">
+          {/* Logo Al-Bisri */}
+          <div className="flex-shrink-0 bg-white/10 p-2 rounded-full backdrop-blur-sm">
             <img
               src="/kop-albisri.png"
               alt="Logo Al-Bisri"
-              className="w-24 h-24 object-contain"
+              className="w-20 h-20 object-contain drop-shadow-md"
             />
           </div>
           {/* Text */}
           <div className="text-center">
-            <h1 className="text-sm font-bold text-gray-900 leading-tight">
+            <h1 className="text-sm font-bold text-[#FDFBF7] font-heading tracking-wide">
               Pesantren Anak Yatim Al-Bisri
             </h1>
-            <p className="text-xs text-gray-600 leading-tight mt-1">
+            <p className="text-xs text-[#FDFBF7]/70 mt-1 font-light">
               Sistem Manajemen Pesantren dan LKSA
             </p>
           </div>
@@ -376,20 +365,20 @@ const SidebarContent = () => {
               <button
                 onClick={() => toggleSection(section.title)}
                 className={cn(
-                  "w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors",
-                  "hover:bg-gray-100 group"
+                  "w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors border border-transparent",
+                  "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group"
                 )}
               >
                 <div className="flex items-center gap-2">
-                  <section.icon className="w-4 h-4 text-gray-500" />
-                  <span className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <section.icon className="w-4 h-4 text-[#FDFBF7]/70" />
+                  <span className="text-xs font-bold text-[#FDFBF7] uppercase tracking-widest">
                     {section.title}
                   </span>
                 </div>
                 {isExpanded ? (
-                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                  <ChevronDown className="w-4 h-4 text-[#FDFBF7]/60" />
                 ) : (
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                  <ChevronRight className="w-4 h-4 text-[#FDFBF7]/60" />
                 )}
               </button>
 
@@ -410,8 +399,8 @@ const SidebarContent = () => {
                             className={cn(
                               "w-full justify-start gap-3 h-9 text-sm",
                               (isActive(item.path || '') || isSubmenuActive(item.subItems))
-                                ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-medium"
-                                : "text-gray-700 hover:bg-gray-100"
+                                ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-semibold"
+                                : "text-[#FDFBF7]/90 hover:bg-sidebar-accent hover:text-white"
                             )}
                             onClick={() => {
                               if (item.path) {
@@ -439,8 +428,8 @@ const SidebarContent = () => {
                                   className={cn(
                                     "w-full justify-start gap-3 h-8 text-sm",
                                     isActive(subItem.path || '')
-                                      ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-medium"
-                                      : "text-gray-600 hover:bg-gray-100"
+                                      ? "text-sidebar-primary-foreground font-semibold pl-2 border-l-2 border-sidebar-primary"
+                                      : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
                                   )}
                                   onClick={() => subItem.path && navigate(subItem.path)}
                                 >
@@ -458,8 +447,8 @@ const SidebarContent = () => {
                           className={cn(
                             "w-full justify-start gap-3 h-9 text-sm",
                             isActive(item.path || '')
-                              ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary font-medium"
-                              : "text-gray-700 hover:bg-gray-100"
+                              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-semibold"
+                              : "text-[#FDFBF7]/90 hover:bg-sidebar-accent hover:text-white"
                           )}
                           onClick={() => item.path && navigate(item.path)}
                         >
@@ -475,14 +464,15 @@ const SidebarContent = () => {
                     </React.Fragment>
                   ))}
                 </div>
-              )}
+              )
+              }
             </div>
           );
         })}
-      </nav>
+      </nav >
 
       {/* User Info & Logout */}
-      <div className="flex-shrink-0 border-t border-gray-200 bg-gray-50">
+      < div className="flex-shrink-0 border-t border-sidebar-border bg-sidebar/50" >
         <div className="p-4">
           <div className="flex items-center gap-3 mb-3">
             <Avatar className="w-8 h-8 flex-shrink-0">
@@ -492,7 +482,7 @@ const SidebarContent = () => {
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
+              <p className="text-sm font-medium text-[#FDFBF7] truncate">
                 {user?.name || user?.email?.split('@')[0] || 'User'}
               </p>
               <div className="flex items-center gap-1">
@@ -516,8 +506,8 @@ const SidebarContent = () => {
             <span>Logout</span>
           </Button>
         </div>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
 
@@ -631,7 +621,7 @@ const Layout = ({ children }: LayoutProps) => {
   const isSantri = authUser?.role === 'santri';
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-background flex">
       {/* Mobile sidebar overlay - Hidden for santri */}
       {!isSantri && sidebarOpen && (
         <div className="fixed inset-0 z-[100] lg:hidden">
@@ -707,7 +697,7 @@ const Layout = ({ children }: LayoutProps) => {
         </div>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto bg-gray-50">
+        <main className="flex-1 overflow-y-auto bg-background transition-colors">
           <div className="py-4 sm:py-6">
             <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
               {children}

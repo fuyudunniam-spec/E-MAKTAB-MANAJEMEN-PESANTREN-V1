@@ -119,11 +119,11 @@ export class AkunKasService {
         .eq('nama', 'Bank Operasional')
         .eq('status', 'aktif')
         .single();
-      
+
       if (fallbackError && fallbackError.code !== 'PGRST116') {
         throw new Error(`Gagal mendapatkan akun kas default: ${fallbackError.message}`);
       }
-      
+
       return fallbackData;
     }
 
@@ -215,7 +215,7 @@ export class AkunKasService {
           // If deleted account exists, restore it
           if (fallbackData && fallbackData.length > 0) {
             const deletedAccount = fallbackData[0];
-            
+
             // If setting as default, unset other defaults first
             if (data.is_default) {
               await supabase
@@ -254,7 +254,7 @@ export class AkunKasService {
         // If deleted account exists, restore it instead of creating new
         if (existingDeleted && existingDeleted.length > 0) {
           const deletedAccount = existingDeleted[0];
-          
+
           // If setting as default, unset other defaults first
           if (data.is_default) {
             await supabase
@@ -335,7 +335,7 @@ export class AkunKasService {
       .single();
 
     if (error) throw error;
-    
+
     // Recalculate saldo_saat_ini after updating akun kas
     try {
       const { error: recalculateError } = await supabase.rpc('ensure_akun_kas_saldo_correct');
@@ -345,7 +345,7 @@ export class AkunKasService {
     } catch (recalculateErr) {
       console.warn('Error recalculating saldo after akun kas update:', recalculateErr);
     }
-    
+
     return result;
   }
 
@@ -390,7 +390,7 @@ export class AkunKasService {
       .neq('managed_by', 'tabungan');
 
     if (error) throw error;
-    
+
     const total = data?.reduce((sum, account) => sum + (account.saldo_saat_ini || 0), 0) || 0;
     return total;
   }
@@ -405,21 +405,25 @@ export class AkunKasService {
   }> {
     const { data, error } = await supabase
       .from('akun_kas')
-      .select('nama, saldo_saat_ini')
-      .eq('status', 'aktif')
-      .neq('managed_by', 'tabungan');
+      .select('nama, saldo_saat_ini, tipe, managed_by')
+      .eq('status', 'aktif');
 
     if (error) throw error;
-    
-    const operationalAccounts = ['Bank Operasional', 'Bank Pembangunan'];
+
+    // Calculate Operational (Kas & Bank, excluding Tabungan managed accounts)
     const totalOperational = data
-      ?.filter(account => operationalAccounts.includes(account.nama))
+      ?.filter(account => account.tipe !== 'Tabungan' && account.managed_by !== 'tabungan')
       .reduce((sum, account) => sum + (account.saldo_saat_ini || 0), 0) || 0;
-    
-    const totalTabunganSantri = 0;
-    
+
+    // Calculate Tabungan Santri (Type Tabungan OR managed_by tabungan)
+    const totalTabunganSantri = data
+      ?.filter(account => account.tipe === 'Tabungan' || account.managed_by === 'tabungan')
+      .reduce((sum, account) => sum + (account.saldo_saat_ini || 0), 0) || 0;
+
+    // Grand Total is Liquidity (Operational + Savings held)
+    // Note: Savings is a liability, but it is part of Liquid Assets held by Pesantren
     const grandTotal = totalOperational + totalTabunganSantri;
-    
+
     return {
       totalOperational,
       totalTabunganSantri,
@@ -436,7 +440,7 @@ export class AkunKasService {
       .select('saldo_saat_ini');
 
     if (error) throw error;
-    
+
     const total = data?.reduce((sum, account) => sum + (account.saldo_saat_ini || 0), 0) || 0;
     return total;
   }
