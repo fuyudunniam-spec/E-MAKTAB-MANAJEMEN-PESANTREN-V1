@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ShoppingCart, Plus, DollarSign, TrendingUp, Search, Edit, Trash2, Eye, Package } from 'lucide-react';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   listInventory, 

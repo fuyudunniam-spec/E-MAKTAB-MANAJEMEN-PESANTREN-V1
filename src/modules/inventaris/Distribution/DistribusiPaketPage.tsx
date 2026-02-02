@@ -48,7 +48,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 import {
   listPaketSembako,
   getPaketSembakoWithKomponen,
@@ -960,4 +960,5 @@ const DistribusiPaketPage = () => {
 };
 
 export default DistribusiPaketPage;
+
 

@@ -6,7 +6,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Download, FileText, Calendar as CalendarIcon, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ReportFormatter, PeriodFilter } from '../../utils/export/reportFormatter';
+import { ReportFormatter, PeriodFilter } from '@/utils/export/reportFormatter';
 
 interface DetailedReportsProps {
   onExportPDF?: (reportType: string, period?: PeriodFilter) => void;

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 import ItemList from './components/ItemList';
 import StockOpname from './components/StockOpname';
 import StockExpiryTable from './components/StockExpiryTable';
@@ -255,3 +255,4 @@ const InventarisMasterPage = () => {
 };
 
 export default InventarisMasterPage;
+

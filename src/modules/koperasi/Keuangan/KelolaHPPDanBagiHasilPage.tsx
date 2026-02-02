@@ -38,8 +38,8 @@ import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, st
 import { id as localeId } from 'date-fns/locale';
 import SkemaBagiHasilPage from './SkemaBagiHasilPage';
 import ProfitSharingBreakdown from './components/ProfitSharingBreakdown';
-import RiwayatTransaksi from '@/components/dashboard/RiwayatTransaksi';
-import TransactionDetailModal from '@/components/TransactionDetailModal';
+import RiwayatTransaksi from '@/components/dashboard/keuangan/RiwayatTransaksi';
+import TransactionDetailModal from '@/components/koperasi/TransactionDetailModal';
 import { addKeuanganKoperasiTransaction } from '@/services/keuanganKoperasi.service';
 import type { MonthlySummary } from '@/types/koperasi.types';
 
@@ -2170,3 +2170,4 @@ const KelolaHPPDanBagiHasilPage = () => {
 };
 
 export default KelolaHPPDanBagiHasilPage;
+

@@ -15,14 +15,14 @@ import FormPengeluaranKoperasi from './components/FormPengeluaranKoperasi';
 import FormPemasukanKoperasi from './components/FormPemasukanKoperasi';
 import FormPenyesuaianSaldo from '@/components/FormPenyesuaianSaldo';
 import TransferAkunKasDialog from './components/TransferAkunKasDialog';
-import StackedAccountCards from '@/components/dashboard/StackedAccountCards';
-import TotalBalanceDisplay from '@/components/dashboard/TotalBalanceDisplay';
-import SummaryCards from '@/components/dashboard/SummaryCards';
+import StackedAccountCards from '@/components/dashboard/keuangan/StackedAccountCards';
+import TotalBalanceDisplay from '@/components/dashboard/keuangan/TotalBalanceDisplay';
+import SummaryCards from '@/components/dashboard/keuangan/SummaryCards';
 import SimpleKoperasiSummaryCards from './components/SimpleKoperasiSummaryCards';
-import ChartsSection from '@/components/dashboard/ChartsSection';
-import RiwayatTransaksi from '@/components/dashboard/RiwayatTransaksi';
-import TransactionDetailModal from '@/components/TransactionDetailModal';
-import TransactionEditModal from '@/components/TransactionEditModal';
+import ChartsSection from '@/components/dashboard/keuangan/ChartsSection';
+import RiwayatTransaksi from '@/components/dashboard/keuangan/RiwayatTransaksi';
+import TransactionDetailModal from '@/components/koperasi/TransactionDetailModal';
+import TransactionEditModal from '@/components/koperasi/TransactionEditModal';
 import EditTanggalTransferDonasiDialog from '@/components/EditTanggalTransferDonasiDialog';
 import { startOfMonth, endOfMonth, startOfDay, endOfDay, subMonths, format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
@@ -2294,3 +2294,4 @@ const KeuanganUnifiedPage: React.FC = () => {
 };
 
 export default KeuanganUnifiedPage;
+

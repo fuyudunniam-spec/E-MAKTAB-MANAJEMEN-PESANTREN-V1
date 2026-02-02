@@ -23,7 +23,7 @@ import {
   ArrowLeft,
   ArrowRight,
 } from 'lucide-react';
-import { AkunKas } from '../../services/akunKas.service';
+import { AkunKas } from '@/services/akunKas.service';
 
 interface StackedAccountCardsProps {
   accounts: AkunKas[];

@@ -23,7 +23,7 @@ import {
   KoperasiFormData
 } from '@/services/koperasi.service';
 import { toast } from 'sonner';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 
 const MasterProdukPage = () => {
   const navigate = useNavigate();
@@ -379,6 +379,7 @@ const MasterProdukPage = () => {
 };
 
 export default MasterProdukPage;
+
 
 
 

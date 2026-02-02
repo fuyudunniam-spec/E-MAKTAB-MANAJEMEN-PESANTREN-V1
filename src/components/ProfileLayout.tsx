@@ -30,8 +30,6 @@ import { AkademikSemesterService } from '@/services/akademikSemester.service';
 import { TagihanService } from '@/services/tagihan.service';
 import SettingsPanel from "@/components/SettingsPanel";
 import { toast } from 'sonner';
-import SantriProgressTracking from "@/components/SantriProgressTracking";
-
 interface SantriDataLocal {
   id: string;
   id_santri?: string;

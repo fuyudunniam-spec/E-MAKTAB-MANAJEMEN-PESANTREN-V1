@@ -4,8 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense, type ReactNode } from "react";
-import Layout from "./components/Layout";
-import ErrorBoundary from "./components/ErrorBoundary";
+import Layout from "@/components/layout/AppLayout";
+import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
 const RouteFallback = () => (
@@ -37,8 +37,8 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const SantriOnboarding = lazy(() => import("@/modules/santri/pages/admin/SantriOnboarding"));
 const SantriAccountManagement = lazy(() => import("@/modules/santri/pages/admin/SantriAccountManagement"));
 const ChangePassword = lazy(() => import("./pages/ChangePassword"));
-const ProfileLayout = lazy(() => import("./components/ProfileLayout"));
-const ProfileRedirect = lazy(() => import("./components/ProfileRedirect"));
+const ProfileLayout = lazy(() => import("@/components/layout/ProfileLayout"));
+const ProfileRedirect = lazy(() => import("@/components/layout/ProfileRedirect"));
 const InformasiPage = lazy(() => import("@/modules/santri/pages/profile/InformasiPage"));
 const AkademikPage = lazy(() => import("@/modules/santri/pages/profile/AkademikPage"));
 const KeuanganPage = lazy(() => import("@/modules/santri/pages/profile/KeuanganPage"));

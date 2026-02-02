@@ -5,8 +5,8 @@ import { PieChart, RefreshCw, Calendar, DollarSign, AlertCircle, CheckCircle2, W
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import ProfitSharingBreakdown from './components/ProfitSharingBreakdown';
-import RiwayatTransaksi from '@/components/dashboard/RiwayatTransaksi';
-import TransactionDetailModal from '@/components/TransactionDetailModal';
+import RiwayatTransaksi from '@/components/dashboard/keuangan/RiwayatTransaksi';
+import TransactionDetailModal from '@/components/koperasi/TransactionDetailModal';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, format, startOfDay, endOfDay } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
@@ -568,3 +568,4 @@ const BagiHasilPage = () => {
 };
 
 export default BagiHasilPage;
+

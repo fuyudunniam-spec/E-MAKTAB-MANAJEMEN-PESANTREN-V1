@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, Clock, Users } from 'lucide-react';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 
 const DashboardAdmin = () => {
   const tabs = [
@@ -53,3 +53,4 @@ const DashboardAdmin = () => {
 };
 
 export default DashboardAdmin;
+

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Package, Store, ChefHat, HandHeart, TrendingUp, ArrowRight, Download, Calendar, BarChart3 } from 'lucide-react';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 import { TransferFormDialog } from './components/TransferFormDialog';
 import { TransferHistoryList } from './components/TransferHistoryList';
 import { TransferDashboardSummary } from './components/TransferDashboardSummary';
@@ -365,3 +365,4 @@ export default function TransferInventarisPage() {
     </div>
   );
 }
+

@@ -6,11 +6,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { RefreshCw, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { PenyaluranBantuanService, PenyaluranFilters } from '@/services/penyaluranBantuan.service';
-import SummaryCards from '@/components/dashboard/SummaryCards';
-import ChartsSection from '@/components/dashboard/ChartsSection';
+import SummaryCards from '@/components/dashboard/keuangan/SummaryCards';
+import ChartsSection from '@/components/dashboard/keuangan/ChartsSection';
 import { loadChartData } from '@/services/keuanganChart.service';
 import TopRecipientsChart from './components/TopRecipientsChart';
-import RiwayatTransaksi from '@/components/dashboard/RiwayatTransaksi';
+import RiwayatTransaksi from '@/components/dashboard/keuangan/RiwayatTransaksi';
 import FilterBar from './components/FilterBar';
 import RealisasiLayananSantriTab from './components/RealisasiLayananSantriTab';
 import { getFinancialStatsByDateRange } from '@/services/keuangan.service';
@@ -400,4 +400,5 @@ const RiwayatPenyaluranBantuanPage: React.FC = () => {
 };
 
 export default RiwayatPenyaluranBantuanPage;
+
 

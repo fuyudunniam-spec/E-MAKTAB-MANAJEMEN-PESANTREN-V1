@@ -35,7 +35,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 import {
   getDistributionTransactions,
   createDistributionTransaction,
@@ -834,3 +834,4 @@ const DistribusiPage = () => {
 };
 
 export default DistribusiPage;
+

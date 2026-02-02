@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 import DonationItemsModal from '@/components/dashboard/inventaris/DonationItemsModal';
 import RiwayatTransaksiInventaris from '@/components/dashboard/inventaris/RiwayatTransaksiInventaris';
 import InventorySummaryCards from '@/components/dashboard/inventaris/InventorySummaryCards';
@@ -690,3 +690,4 @@ const InventarisDashboard: React.FC = () => {
 };
 
 export default InventarisDashboard;
+

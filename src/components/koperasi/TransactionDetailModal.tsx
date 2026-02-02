@@ -251,16 +251,15 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
             const hasAlokasi = Array.isArray(alokasiSantri) && alokasiSantri.length > 0;
             
             // Debug log untuk melihat data alokasi
-            if ((transaction.kategori === 'Pendidikan Formal' || 
-                 transaction.kategori === 'Bantuan Langsung Yayasan' ||
-                 transaction.kategori === 'Operasional dan Konsumsi Santri') && 
-                !hasAlokasi) {
-              console.warn('[TransactionDetailModal] Expected alokasi but not found:', {
-                keuangan_id: transaction.id,
-                kategori: transaction.kategori,
-                alokasi_santri: alokasiSantri
-              });
-            }
+            // if ((transaction.kategori === 'Pendidikan Formal' || 
+            //      transaction.kategori === 'Bantuan Langsung Yayasan' ||
+            //      transaction.kategori === 'Operasional dan Konsumsi Santri') && 
+            //     !hasAlokasi) {
+            //   console.debug('[TransactionDetailModal] Info: Transaksi kategori alokasi tanpa detail alokasi (normal jika data lama):', {
+            //     keuangan_id: transaction.id,
+            //     kategori: transaction.kategori
+            //   });
+            // }
             
             return hasAlokasi;
           })() && (

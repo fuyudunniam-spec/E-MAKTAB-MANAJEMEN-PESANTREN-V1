@@ -8,15 +8,15 @@ import { RefreshCw, Plus, FileText, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Import new dashboard components
-import SummaryCards from '@/components/dashboard/SummaryCards';
-import ChartsSection from '@/components/dashboard/ChartsSection';
+import SummaryCards from '@/components/dashboard/keuangan/SummaryCards';
+import ChartsSection from '@/components/dashboard/keuangan/ChartsSection';
 import SaldoPerAkun from '../components/SaldoPerAkun';
-import RiwayatTransaksi from '@/components/dashboard/RiwayatTransaksi';
-import TransactionDetailModal from '@/components/TransactionDetailModal';
-import TransactionEditModal from '@/components/TransactionEditModal';
+import RiwayatTransaksi from '@/components/dashboard/keuangan/RiwayatTransaksi';
+import TransactionDetailModal from '@/components/koperasi/TransactionDetailModal';
+import TransactionEditModal from '@/components/koperasi/TransactionEditModal';
 import EditTanggalTransferDonasiDialog from '../components/EditTanggalTransferDonasiDialog';
-import StackedAccountCards from '@/components/dashboard/StackedAccountCards';
-import TotalBalanceDisplay from '@/components/dashboard/TotalBalanceDisplay';
+import StackedAccountCards from '@/components/dashboard/keuangan/StackedAccountCards';
+import TotalBalanceDisplay from '@/components/dashboard/keuangan/TotalBalanceDisplay';
 
 // Transaction type for this component
 interface Transaction {
@@ -73,7 +73,7 @@ import {
 import FormPengeluaranRinci from '../components/FormPengeluaranRinci';
 import FormPemasukanManual from '../components/FormPemasukanManual';
 import FormPenyesuaianSaldo from '../components/FormPenyesuaianSaldo';
-import ExportPDFDialogV3 from '@/components/ExportPDFDialogV3';
+import ExportPDFDialogV3 from '@/components/ui/ExportPDFDialogV3';
 
 const KeuanganV3: React.FC = () => {
   const [sp] = useSearchParams();

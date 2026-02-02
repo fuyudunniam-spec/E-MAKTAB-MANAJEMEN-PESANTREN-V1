@@ -43,7 +43,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 import {
   listPaketSembako,
   getPaketSembakoWithKomponen,
@@ -632,4 +632,5 @@ const MasterPaketPage = () => {
 };
 
 export default MasterPaketPage;
+
 

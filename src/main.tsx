@@ -15,6 +15,22 @@ window.addEventListener('error', (event) => {
     event.preventDefault();
     return false;
   }
+
+  // SHOW ERROR ON SCREEN for "Blank App" debugging
+  const msg = event.error?.message || event.message || 'Unknown Error';
+  if (!document.getElementById('root')?.hasChildNodes()) {
+     const errorDiv = document.createElement('div');
+     errorDiv.style.padding = '20px';
+     errorDiv.style.color = 'red';
+     errorDiv.style.fontFamily = 'monospace';
+     errorDiv.style.zIndex = '9999';
+     errorDiv.style.position = 'fixed';
+     errorDiv.style.top = '0';
+     errorDiv.style.left = '0';
+     errorDiv.style.background = 'white';
+     errorDiv.innerHTML = `<h1>Startup Error</h1><pre>${msg}</pre>`;
+     document.body.appendChild(errorDiv);
+  }
 });
 
 window.addEventListener('unhandledrejection', (event) => {
@@ -27,6 +43,22 @@ window.addEventListener('unhandledrejection', (event) => {
     console.warn('Extension promise rejection caught and ignored:', event.reason?.message || 'inject.js rejection');
     event.preventDefault();
     return false;
+  }
+  
+  // SHOW ERROR ON SCREEN for "Blank App" debugging
+  const msg = event.reason?.message || event.reason || 'Unknown Promise Error';
+  if (!document.getElementById('root')?.hasChildNodes()) {
+     const errorDiv = document.createElement('div');
+     errorDiv.style.padding = '20px';
+     errorDiv.style.color = 'red';
+     errorDiv.style.fontFamily = 'monospace';
+     errorDiv.style.zIndex = '9999';
+     errorDiv.style.position = 'fixed';
+     errorDiv.style.top = '0';
+     errorDiv.style.left = '0';
+     errorDiv.style.background = 'white';
+     errorDiv.innerHTML = `<h1>Startup Error (Promise)</h1><pre>${msg}</pre>`;
+     document.body.appendChild(errorDiv);
   }
 });
 

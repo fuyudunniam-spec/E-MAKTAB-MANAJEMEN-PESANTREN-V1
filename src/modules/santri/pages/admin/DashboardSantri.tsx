@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Home, UserCheck, UserPlus } from 'lucide-react';
-import ModuleHeader from '@/components/ModuleHeader';
+import ModuleHeader from '@/components/layout/ModuleHeader';
 
 const DashboardSantri = () => {
   const tabs = [
@@ -65,3 +65,4 @@ const DashboardSantri = () => {
 };
 
 export default DashboardSantri;
+
