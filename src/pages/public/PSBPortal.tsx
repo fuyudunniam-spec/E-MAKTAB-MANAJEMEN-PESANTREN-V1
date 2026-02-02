@@ -23,11 +23,15 @@ import {
     Package, // Added from instruction snippet
     Check, // Added from instruction snippet
     ChevronRight, // Added from instruction snippet
-    LogIn // Added from instruction snippet
+    LogIn, // Added from instruction snippet
+    Edit2 // Added for Edit button
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { toast } from 'sonner';
 
 // Import Native Components
@@ -50,6 +54,7 @@ const PSBPortal = () => {
     const [waliData, setWaliData] = useState<WaliData[]>([]);
     const [formSantriData, setFormSantriData] = useState<any>({});
     const [errorState, setErrorState] = useState<string | null>(null);
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
 
     useEffect(() => {
         // Handle auth state once loading is finished
@@ -114,54 +119,121 @@ const PSBPortal = () => {
         }
     };
 
+    const generateIdSantri = async (kategori: string, angkatan: string) => {
+        let kategoriCode = 'SN'; // Default
+        if (kategori.includes('Binaan Mukim')) kategoriCode = 'BM';
+        else if (kategori.includes('Binaan Non-Mukim')) kategoriCode = 'BN';
+        else if (kategori.includes('Reguler')) kategoriCode = 'RG';
+        else if (kategori.includes('Mahasiswa')) kategoriCode = 'MH';
+        else if (kategori.includes('Santri TPO')) kategoriCode = 'TP';
+
+        const yearStr = angkatan.length === 4 ? angkatan.slice(-2) : new Date().getFullYear().toString().slice(-2);
+        const prefix = `${kategoriCode}${yearStr}`;
+
+        // Fetch last sequence from DB
+        const { data } = await supabase
+            .from('santri')
+            .select('id_santri')
+            .ilike('id_santri', `${prefix}%`)
+            .order('id_santri', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        let nextSequence = 1;
+        if (data?.id_santri) {
+            const lastSequenceStr = data.id_santri.slice(-4);
+            const lastSequence = parseInt(lastSequenceStr, 10);
+            if (!isNaN(lastSequence)) {
+                nextSequence = lastSequence + 1;
+            }
+        }
+
+        return `${prefix}${nextSequence.toString().padStart(4, '0')}`;
+    };
+
     const handleProgramSelect = async (programId: string) => {
         if (!user?.id) return;
+        
+        // Draft Mode: Tidak langsung simpan ke database
+        const timestamp = Date.now();
+        const angkatan = new Date().getFullYear().toString();
+        
+        // Generate ID properly with async await
+        const idSantri = await generateIdSantri(programId, angkatan);
+        
+        const draftSantriData = {
+            user_id: user.id,
+            nama_lengkap: user.name || user.email?.split('@')[0] || 'Calon Santri',
+            status_santri: 'Calon',
+            status_approval: 'pending',
+            kategori: programId, 
+            id_santri: idSantri,
+            
+            // Default values
+            nisn: `TMP${timestamp}`,
+            nik: `NIK${timestamp}`, 
+            jenis_kelamin: 'Laki-laki',
+            tempat_lahir: '',
+            tanggal_lahir: '',
+            alamat: '',
+            no_whatsapp: '',
+            agama: 'Islam',
+            status_sosial: 'Lengkap',
+            kewarganegaraan: 'Indonesia',
+            
+            tipe_pembayaran: programId.includes('Binaan') ? 'Subsidi Penuh' : 'Bayar Sendiri',
+            angkatan: angkatan,
+            created_at: new Date().toISOString()
+        };
+
+        setSantriData(draftSantriData);
+        setFormSantriData(draftSantriData);
+        setWaliData([{
+            nama_lengkap: '',
+            hubungan_keluarga: 'Ayah',
+            no_whatsapp: '',
+            alamat: '',
+            is_utama: true,
+        }]);
+        
+        setShowProgramSelection(false);
+        toast.info("Program dipilih. Silakan lengkapi data diri Anda.");
+    };
+
+    const handleResetProgram = async () => {
+        // Jika belum ada ID (masih draft), cukup reset state lokal
+        if (!santriData?.id) {
+            setSantriData(null);
+            setFormSantriData({});
+            setWaliData([]);
+            setShowProgramSelection(true);
+            setCurrentStep('info');
+            setShowResetConfirm(false);
+            return;
+        }
+        
+        // Jika sudah tersimpan di DB, hapus record
         setSaving(true);
         try {
-            console.log("Creating initial santri record for program:", programId);
-            const timestamp = Date.now();
-            
-            const newSantriData = {
-                user_id: user.id,
-                nama_lengkap: user.name || user.email?.split('@')[0] || 'Calon Santri',
-                status_santri: 'Calon',
-                status_approval: 'pending',
-                kategori: programId, // Use selected program ID
-                // Default values for required fields
-                nisn: `TMP${timestamp}`,
-                nik: `NIK${timestamp}`, 
-                jenis_kelamin: 'Laki-laki',
-                tempat_lahir: '-',
-                tanggal_lahir: new Date().toISOString().split('T')[0],
-                alamat: '-',
-                tipe_pembayaran: programId.includes('Binaan') ? 'Bantuan Yayasan' : 'Mandiri',
-                angkatan: new Date().getFullYear().toString(),
-                created_at: new Date().toISOString()
-            };
-
-            const { data: newSantri, error: createError } = await supabase
+            const { error } = await supabase
                 .from('santri')
-                .insert(newSantriData)
-                .select()
-                .single();
+                .delete()
+                .eq('id', santriData.id);
 
-            if (createError) throw createError;
+            if (error) throw error;
 
-            setSantriData(newSantri);
-            setFormSantriData(newSantri);
-            setWaliData([{
-                nama_lengkap: '',
-                hubungan_keluarga: 'Ayah',
-                no_whatsapp: '',
-                alamat: '',
-                is_utama: true,
-            }]);
+            toast.success("Program berhasil direset. Silakan pilih program baru.");
             
-            setShowProgramSelection(false);
-            toast.success("Program berhasil dipilih! Silakan lengkapi data diri.");
+            setSantriData(null);
+            setFormSantriData({});
+            setWaliData([]);
+            setShowProgramSelection(true);
+            setCurrentStep('info');
+            setShowResetConfirm(false);
+            
         } catch (error: any) {
-            console.error('Error creating santri:', error);
-            toast.error(`Gagal memilih program: ${error.message}`);
+            console.error('Error resetting program:', error);
+            toast.error(`Gagal mereset program: ${error.message}`);
         } finally {
             setSaving(false);
         }
@@ -171,23 +243,53 @@ const PSBPortal = () => {
         setSaving(true);
         setErrorState(null);
         try {
+            // Validate required fields
+            if (!formSantriData.nama_lengkap?.trim()) throw new Error("Nama Lengkap wajib diisi");
+            if (!formSantriData.jenis_kelamin) throw new Error("Jenis Kelamin wajib dipilih");
+            if (!formSantriData.nik?.trim()) throw new Error("NIK wajib diisi");
+            if (!formSantriData.tempat_lahir?.trim()) throw new Error("Tempat Lahir wajib diisi");
+            if (!formSantriData.tanggal_lahir) throw new Error("Tanggal Lahir wajib diisi");
+            if (!formSantriData.alamat?.trim()) throw new Error("Alamat wajib diisi");
+            
+            // Clean up data before sending
+            const cleanData = { ...formSantriData };
+            
+            // Remove empty strings for date fields to avoid DB errors
+            if (cleanData.tanggal_lahir === '') cleanData.tanggal_lahir = null;
+            if (cleanData.tanggal_masuk === '') cleanData.tanggal_masuk = null;
+            
+            // Ensure numeric fields are numbers or null
+            if (cleanData.anak_ke === '') cleanData.anak_ke = null;
+            if (cleanData.jumlah_saudara === '') cleanData.jumlah_saudara = null;
+
+            // INSERT (Create) jika belum punya ID
             if (!santriData?.id) {
-                toast.error("Santri ID tidak ditemukan.");
-                return;
+                const { data: newSantri, error: createError } = await supabase
+                    .from('santri')
+                    .insert(cleanData)
+                    .select()
+                    .single();
+
+                if (createError) throw createError;
+
+                setSantriData(newSantri);
+                setFormSantriData(newSantri); 
+                toast.success('Data diri berhasil disimpan! Pendaftaran Anda telah dibuat.');
+            } else {
+                // UPDATE jika sudah ada ID
+                const { error } = await supabase
+                    .from('santri')
+                    .update(cleanData)
+                    .eq('id', santriData.id);
+
+                if (error) throw error;
+                toast.success('Data diri berhasil diperbarui!');
             }
 
-            const { error } = await supabase
-                .from('santri')
-                .update(formSantriData)
-                .eq('id', santriData.id);
-
-            if (error) throw error;
-
-            toast.success('Data diri berhasil disimpan!');
             setCurrentStep('wali');
         } catch (error: any) {
             console.error('Error saving personal info:', error);
-            toast.error(`Gagal menyimpan data diri: ${error.message}`);
+            toast.error(`Gagal menyimpan data: ${error.message}`);
         } finally {
             setSaving(false);
         }
@@ -274,12 +376,44 @@ const PSBPortal = () => {
         );
     }
 
+    const handleStatusSosialChange = async (value: string) => {
+        if (!santriData?.id) return;
+        
+        // Update local state immediately for UI responsiveness
+        setFormSantriData(prev => ({ ...prev, status_sosial: value }));
+        setSantriData(prev => ({ ...prev, status_sosial: value }));
+
+        try {
+            const { error } = await supabase
+                .from('santri')
+                .update({ status_sosial: value })
+                .eq('id', santriData.id);
+
+            if (error) throw error;
+            toast.success(`Status berhasil diubah menjadi ${value}`);
+        } catch (error) {
+            console.error('Error updating status:', error);
+            toast.error('Gagal mengubah status');
+            // Revert on error
+            setFormSantriData(prev => ({ ...prev, status_sosial: santriData.status_sosial }));
+            setSantriData(prev => ({ ...prev, status_sosial: santriData.status_sosial }));
+        }
+    };
+
     const steps = [
         { id: 'info', label: 'Data Diri', icon: User },
         { id: 'wali', label: 'Data Orang Tua', icon: Users },
         { id: 'documents', label: 'Berkas Wajib', icon: FileText },
         { id: 'status', label: 'Status Pengajuan', icon: Clock },
     ];
+
+    const canAccessStep = (stepId: string) => {
+        if (stepId === 'info') return true;
+        if (stepId === 'wali') return !!santriData?.id;
+        if (stepId === 'documents') return !!santriData?.id && waliData.length > 0;
+        if (stepId === 'status') return !!santriData?.id && waliData.length > 0; // Loose check for status
+        return false;
+    };
 
     return (
         <PSBLayout>
@@ -302,9 +436,23 @@ const PSBPortal = () => {
                                         <span className="text-sm font-medium animate-pulse">Menyiapkan data pendaftaran...</span>
                                     </div>
                                 ) : (
-                                    <div className="text-slate-400 font-medium flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                        ID Pendaftar: <span className="text-white font-bold">{santriData?.id_santri || 'TERDAFTAR'}</span>
+                                    <div className="flex flex-col items-start gap-1">
+                                        <div className="text-slate-400 font-medium flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                            ID Pendaftar: <span className="text-white font-bold">{santriData?.id_santri || 'TERDAFTAR'}</span>
+                                        </div>
+                                        
+                                        {!dataLoading && santriData?.status_approval === 'pending' && (
+                                            <div className="mt-1">
+                                                <button 
+                                                    onClick={() => setShowResetConfirm(true)}
+                                                    className="text-xs font-medium text-slate-400 hover:text-gold-500 transition-colors flex items-center gap-1 group"
+                                                >
+                                                    <AlertCircle className="w-3 h-3 group-hover:text-gold-500" />
+                                                    Salah pilih program? <span className="underline underline-offset-2">Ubah Program</span>
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -332,27 +480,38 @@ const PSBPortal = () => {
                                         {steps.map((step, i) => {
                                             const isActive = currentStep === step.id;
                                             const isPast = steps.findIndex(s => s.id === currentStep) > i;
+                                            const isAccessible = canAccessStep(step.id);
+                                            
                                             return (
                                                 <button
                                                     key={step.id}
-                                                    onClick={() => setCurrentStep(step.id as any)}
+                                                    onClick={() => isAccessible && setCurrentStep(step.id as any)}
+                                                    disabled={!isAccessible}
                                                     className={`
-                                                        w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold text-sm
+                                                        w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold text-sm text-left
                                                         ${isActive
                                                             ? 'bg-royal-950 text-white shadow-lg shadow-royal-950/20'
                                                             : isPast
-                                                                ? 'text-green-600 bg-green-50'
-                                                                : 'text-slate-500 hover:bg-slate-100'
+                                                                ? 'text-green-600 bg-green-50 hover:bg-green-100'
+                                                                : isAccessible 
+                                                                    ? 'text-slate-500 hover:bg-slate-100'
+                                                                    : 'text-slate-300 cursor-not-allowed opacity-60'
                                                         }
                                                     `}
                                                 >
                                                     <div className={`
-                                                        w-8 h-8 rounded-xl flex items-center justify-center transition-all
-                                                        ${isActive ? 'bg-gold-500 text-royal-950' : 'bg-slate-100'}
+                                                        w-8 h-8 rounded-xl flex items-center justify-center transition-all flex-shrink-0
+                                                        ${isActive ? 'bg-gold-500 text-royal-950' : isPast ? 'bg-green-100' : 'bg-slate-100'}
                                                     `}>
                                                         {isPast ? <CheckCircle2 className="w-5 h-5" /> : <step.icon className="w-4 h-4" />}
                                                     </div>
                                                     {step.label}
+                                                    {/* Lock Icon for inaccessible steps */}
+                                                    {!isAccessible && !isPast && !isActive && (
+                                                        <div className="ml-auto">
+                                                            <div className="w-2 h-2 rounded-full bg-slate-300" />
+                                                        </div>
+                                                    )}
                                                 </button>
                                             );
                                         })}
@@ -579,6 +738,40 @@ const PSBPortal = () => {
                                     {/* DOCUMENTS STEP */}
                                     {currentStep === 'documents' && (
                                         <div className="space-y-8 py-6">
+                                            {/* Status Selection - Only for Binaan */}
+                                            {santriData?.kategori?.includes('Binaan') && (
+                                                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6">
+                                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                                        <div>
+                                                            <h3 className="text-lg font-bold text-royal-950 flex items-center gap-2">
+                                                                <Package className="w-5 h-5 text-blue-600" />
+                                                                Status Santri
+                                                            </h3>
+                                                            <p className="text-slate-500 text-sm mt-1">
+                                                                Pilih status yang sesuai untuk menyesuaikan dokumen wajib.
+                                                            </p>
+                                                        </div>
+                                                        <div className="w-full md:w-64">
+                                                            <Select 
+                                                                value={santriData.status_sosial || 'Lengkap'}
+                                                                onValueChange={handleStatusSosialChange}
+                                                            >
+                                                                <SelectTrigger className="bg-white h-12 rounded-xl border-slate-200 focus:ring-2 focus:ring-blue-500/20 font-medium">
+                                                                    <SelectValue placeholder="Pilih Status" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="Lengkap">Lengkap (Umum)</SelectItem>
+                                                                    <SelectItem value="Yatim">Yatim</SelectItem>
+                                                                    <SelectItem value="Piatu">Piatu</SelectItem>
+                                                                    <SelectItem value="Yatim Piatu">Yatim Piatu</SelectItem>
+                                                                    <SelectItem value="Dhuafa">Dhuafa</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <DokumenSantriTab
                                                 santriId={santriData?.id}
                                                 santriData={{
@@ -588,6 +781,7 @@ const PSBPortal = () => {
                                                 }}
                                                 isBantuanRecipient={santriData?.kategori?.includes('Binaan') || false}
                                                 mode="edit"
+                                                isPSB={true}
                                             />
                                             <div className="flex justify-between pt-8 border-t">
                                                 <Button variant="ghost" onClick={() => setCurrentStep('wali')} className="rounded-2xl font-bold">Kembali</Button>
@@ -608,6 +802,25 @@ const PSBPortal = () => {
                     </div>
                 </div>
             </div>
+
+            <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Ubah Program Pilihan?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Tindakan ini akan <strong>menghapus data pendaftaran Anda saat ini</strong> (ID: {santriData?.id_santri}) dan mengembalikan Anda ke halaman pemilihan program.
+                            <br/><br/>
+                            Data yang sudah diisi (Biodata, Wali, Dokumen) akan hilang permanen.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleResetProgram} className="bg-red-600 hover:bg-red-700 text-white">
+                            Ya, Reset & Ubah Program
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </PSBLayout>
     );
 };

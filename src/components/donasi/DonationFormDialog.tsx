@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import DonorSearch from '@/components/donor/DonorSearch';
 import DonorFormDialog from '@/components/donor/DonorFormDialog';
 import { DonorService, type DonorSearchResult } from '@/services/donor.service';
-import SantriSearch from '@/components/santri/SantriSearch';
+import SantriSearch from '@/modules/santri/components/SantriSearch';
 import { SemesterSyncService } from '@/services/semesterSync.service';
 import { AkademikSemesterService, type Semester } from '@/services/akademikSemester.service';
 import { Progress } from '@/components/ui/progress';

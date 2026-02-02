@@ -12,7 +12,7 @@ export type KategoriSantri =
 
 export type StatusSosial = 'Yatim' | 'Piatu' | 'Yatim Piatu' | 'Dhuafa' | 'Lengkap';
 
-export type TipePembayaran = 'Mandiri' | 'Bantuan Yayasan';
+export type TipePembayaran = 'Mandiri' | 'Bantuan Yayasan' | 'Subsidi Penuh' | 'Subsidi Sebagian' | 'Bayar Sendiri';
 
 export type StatusSantri = 'Aktif' | 'Non-Aktif' | 'Alumni';
 
@@ -169,6 +169,9 @@ export interface DokumenData {
   status_verifikasi?: string;
   nama_file?: string;
   path_file?: string;
+  tipe_file?: string;
+  ukuran_file?: number;
+  url?: string;
 }
 
 // For approval workflow

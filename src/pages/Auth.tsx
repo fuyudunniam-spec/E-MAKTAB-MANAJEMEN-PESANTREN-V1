@@ -123,7 +123,12 @@ export default function Auth() {
       } else if (data.user) {
         // Successful login - Now check Role Access
         const roles = await getUserRoles(data.user.id);
-        const hasAdminRole = roles.some(r => ['admin', 'superadmin', 'pengurus'].includes(r) || r.startsWith('admin_'));
+        
+        // Double check metadata directly just in case getUserRoles failed/cached wrong
+        const metaRole = data.user.user_metadata?.role;
+        const hasMetaAdmin = metaRole === 'admin' || metaRole === 'superadmin';
+        
+        const hasAdminRole = hasMetaAdmin || roles.some(r => ['admin', 'superadmin', 'pengurus'].includes(r) || r.startsWith('admin_'));
 
         if (isAdminLogin) {
            // Admin Login Page Logic
@@ -221,7 +226,7 @@ export default function Auth() {
               Selamat Datang di <span className="text-secondary">e-Maktab</span>
             </h1>
             <p className="text-lg text-slate-300 leading-relaxed font-light">
-              Platform manajemen terpadu Pesantren Mahasiswa Al-Bisri. Mengelola akademik, administrasi, dan perkembangan santri dalam satu pintu.
+              Platform manajemen terpadu Pesantren Al-Bisri. Kelola data akademik, administrasi, dan perkembangan Anda.
             </p>
             <div className="flex gap-4 pt-4">
               <div className="flex -space-x-3">

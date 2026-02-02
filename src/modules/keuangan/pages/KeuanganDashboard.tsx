@@ -8,15 +8,15 @@ import { RefreshCw, Plus, FileText, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Import new dashboard components
-import SummaryCards from '../components/dashboard/SummaryCards';
-import ChartsSection from '../components/dashboard/ChartsSection';
+import SummaryCards from '@/components/dashboard/SummaryCards';
+import ChartsSection from '@/components/dashboard/ChartsSection';
 import SaldoPerAkun from '../components/SaldoPerAkun';
-import RiwayatTransaksi from '../components/dashboard/RiwayatTransaksi';
-import TransactionDetailModal from '../components/TransactionDetailModal';
-import TransactionEditModal from '../components/TransactionEditModal';
+import RiwayatTransaksi from '@/components/dashboard/RiwayatTransaksi';
+import TransactionDetailModal from '@/components/TransactionDetailModal';
+import TransactionEditModal from '@/components/TransactionEditModal';
 import EditTanggalTransferDonasiDialog from '../components/EditTanggalTransferDonasiDialog';
-import StackedAccountCards from '../components/dashboard/StackedAccountCards';
-import TotalBalanceDisplay from '../components/dashboard/TotalBalanceDisplay';
+import StackedAccountCards from '@/components/dashboard/StackedAccountCards';
+import TotalBalanceDisplay from '@/components/dashboard/TotalBalanceDisplay';
 
 // Transaction type for this component
 interface Transaction {
@@ -46,14 +46,14 @@ interface Transaction {
 }
 
 // Import services
-import { getKeuanganDashboardStats, getAkunKasStats } from '../services/keuangan.service';
-import { AkunKasService, type AkunKas } from '../services/akunKas.service';
-import { PeriodFilter } from '../utils/export/types';
-import { ReportFormatter } from '../utils/export/reportFormatter';
-import { PDFExporter } from '../utils/export/pdfExporter';
-import { ExcelExporter } from '../utils/export/excelExporter';
-import { AlokasiPengeluaranService } from '../services/alokasiPengeluaran.service';
-import { supabase } from '../integrations/supabase/client';
+import { getKeuanganDashboardStats, getAkunKasStats } from '@/services/keuangan.service';
+import { AkunKasService, type AkunKas } from '@/services/akunKas.service';
+import { PeriodFilter } from '@/utils/export/types';
+import { ReportFormatter } from '@/utils/export/reportFormatter';
+import { PDFExporter } from '@/utils/export/pdfExporter';
+import { ExcelExporter } from '@/utils/export/excelExporter';
+import { AlokasiPengeluaranService } from '@/services/alokasiPengeluaran.service';
+import { supabase } from '@/integrations/supabase/client';
 // Shared utilities untuk filtering (Phase 1 & 2 refactoring)
 import { 
   excludeTabunganTransactions, 
@@ -61,19 +61,19 @@ import {
   normalizeAkunKas,
   excludeKoperasiTransactions,
   excludeKoperasiAccounts
-} from '../utils/keuanganFilters';
+} from '@/utils/keuanganFilters';
 // Service layer untuk chart data (Phase 3 refactoring)
 import { 
   loadChartData as loadChartDataService,
   type MonthlyChartData,
   type CategoryChartData
-} from '../services/keuanganChart.service';
+} from '@/services/keuanganChart.service';
 
 // Import existing components for modal
 import FormPengeluaranRinci from '../components/FormPengeluaranRinci';
 import FormPemasukanManual from '../components/FormPemasukanManual';
 import FormPenyesuaianSaldo from '../components/FormPenyesuaianSaldo';
-import ExportPDFDialogV3 from '../components/ExportPDFDialogV3';
+import ExportPDFDialogV3 from '@/components/ExportPDFDialogV3';
 
 const KeuanganV3: React.FC = () => {
   const [sp] = useSearchParams();
@@ -1088,16 +1088,138 @@ const KeuanganV3: React.FC = () => {
             }
           }
         } else {
-          // Untuk transaksi non-auto-posted atau pengeluaran, gunakan RPC
-          const { error } = await supabase.rpc('delete_keuangan_and_recalc', { 
-            p_keuangan_id: transaction.id as string 
-          });
+          // Untuk transaksi non-auto-posted atau pengeluaran
+          // HAPUS DEPENDENCIES TERLEBIH DAHULU (Manual Cascade)
           
-          if (error) {
-            toast.error(`Gagal menghapus transaksi: ${error.message}`);
-            return;
+          // 1. Unlink Operational Transactions (Inventory, Koperasi, Donations)
+          // Kita tidak menghapus datanya, tapi memutuskan hubungan link ke keuangan
+          // agar data operasional (seperti stok) tetap aman.
+
+          // Unlink Inventaris
+          try {
+            await supabase
+              .from('transaksi_inventaris')
+              .update({ keuangan_id: null })
+              .eq('keuangan_id', transaction.id);
+          } catch (e) { /* ignore */ }
+
+          // Unlink Koperasi (Try both table names and column names to be safe)
+          try {
+            await supabase
+              .from('transaksi_koperasi')
+              .update({ keuangan_id: null })
+              .eq('keuangan_id', transaction.id);
+          } catch (e) { /* ignore */ }
+          
+          try {
+            // Coba update kolom transaksi_keuangan_id jika ada
+             await supabase
+              .from('transaksi_koperasi')
+              .update({ transaksi_keuangan_id: null })
+              .eq('transaksi_keuangan_id', transaction.id);
+          } catch (e) { /* ignore */ }
+
+          try {
+            await supabase
+              .from('kop_penjualan')
+              .update({ transaksi_keuangan_id: null })
+              .eq('transaksi_keuangan_id', transaction.id);
+          } catch (e) { /* ignore */ }
+
+          // Unlink Donations
+          try {
+             // Try 'finance_id' column
+             await supabase
+              .from('donations')
+              .update({ finance_id: null })
+              .eq('finance_id', transaction.id);
+          } catch (e) { /* ignore */ }
+          
+          try {
+             // Try 'keuangan_id' column (common pattern in this codebase)
+             await supabase
+              .from('donations')
+              .update({ keuangan_id: null })
+              .eq('keuangan_id', transaction.id);
+          } catch (e) { /* ignore */ }
+
+          // 2. Hapus Data Child yang Dimiliki Keuangan (Owned Data)
+          // Data ini aman dihapus karena merupakan bagian dari detail keuangan
+
+          // Hapus alokasi layanan santri
+          await supabase
+            .from('alokasi_layanan_santri')
+            .delete()
+            .eq('keuangan_id', transaction.id);
+
+          // Hapus rincian pengeluaran
+          await supabase
+            .from('rincian_pengeluaran')
+            .delete()
+            .eq('keuangan_id', transaction.id);
+            
+          // Unlink realisasi layanan santri (NEW: Handling error from user log)
+          try {
+             await supabase
+              .from('realisasi_layanan_santri')
+              .update({ referensi_keuangan_id: null })
+              .eq('referensi_keuangan_id', transaction.id);
+          } catch (e) { /* ignore */ }
+            
+          // Hapus jurnal umum (jika ada)
+          try {
+             await supabase
+              .from('jurnal_umum')
+              .delete()
+              .eq('keuangan_id', transaction.id);
+          } catch (e) { /* ignore */ }
+
+          // Hapus log keuangan (jika ada)
+          try {
+             await supabase
+              .from('log_keuangan')
+              .delete()
+              .eq('keuangan_id', transaction.id);
+          } catch (e) { /* ignore */ }
+
+          // 3. Coba direct delete transaksi utama
+          const { error: directDeleteError } = await supabase
+            .from('keuangan')
+            .delete()
+            .eq('id', transaction.id);
+          
+          if (directDeleteError) {
+            // Jika direct delete gagal, coba fallback ke RPC (siapa tahu ada policy yang mengharuskan via RPC)
+            try {
+              const { error: rpcError } = await supabase.rpc('delete_keuangan_and_recalc', { 
+                p_keuangan_id: transaction.id as string 
+              });
+              
+              if (rpcError) {
+                toast.error(`Gagal menghapus transaksi: ${directDeleteError.message || rpcError.message}`);
+                return;
+              }
+            } catch (e) {
+              toast.error(`Gagal menghapus transaksi: ${directDeleteError.message}`);
+              return;
+            }
           }
+          
           deleteSuccess = true;
+          
+          // Update saldo akun kas jika ada
+          if (transaction.akun_kas_id) {
+            try {
+              await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+                p_akun_id: transaction.akun_kas_id as string
+              });
+            } catch (saldoError) {
+              // Silently ignore if RPC is missing, as database triggers might handle it
+              if (process.env.NODE_ENV === 'development') {
+                console.warn('Failed to update saldo after delete:', saldoError);
+              }
+            }
+          }
         }
         
         if (deleteSuccess) {

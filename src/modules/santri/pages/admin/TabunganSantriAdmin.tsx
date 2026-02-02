@@ -7,13 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { 
-  Wallet, 
-  TrendingUp, 
-  TrendingDown, 
-  Search, 
+import {
+  Wallet,
+  TrendingUp,
+  TrendingDown,
+  Search,
   Filter,
-  Plus, 
+  Plus,
   Minus,
   Users,
   RefreshCw,
@@ -24,16 +24,16 @@ import {
   FileText,
   AlertCircle
 } from "lucide-react";
-import { TabunganSantriService } from '@/services/tabunganSantri.service';
-import { SaldoTabunganSantri, TabunganStats } from '@/types/tabungan.types';
+import { TabunganSantriService, type TabunganStats } from '@/modules/santri/services/tabunganSantri.service';
+import { SaldoTabunganSantri } from '@/types/tabungan.types';
 import { useToast } from '@/hooks/use-toast';
-import { FormSetorMassal } from '@/components/TabunganSantri/FormSetorMassal';
-import { FormTarikMassal } from '@/components/TabunganSantri/FormTarikMassal';
-import { FormSetor } from '@/components/TabunganSantri/FormSetor';
-import { FormTarik } from '@/components/TabunganSantri/FormTarik';
-import { RiwayatTabungan } from '@/components/TabunganSantri/RiwayatTabungan';
-import PermohonanPenarikan from './Keuangan/PermohonanPenarikan';
-import LaporanTabungan from './LaporanTabungan';
+import { FormSetorMassal } from '@/modules/santri/components/TabunganSantri/FormSetorMassal';
+import { FormTarikMassal } from '@/modules/santri/components/TabunganSantri/FormTarikMassal';
+import { FormSetor } from '../../components/TabunganSantri/FormSetor';
+import { FormTarik } from '../../components/TabunganSantri/FormTarik';
+import { RiwayatTabungan } from '@/modules/santri/components/TabunganSantri/RiwayatTabungan';
+import PermohonanPenarikan from '@/modules/keuangan/pages/PermohonanPenarikan';
+import LaporanTabungan from '@/modules/santri/pages/admin/LaporanTabungan';
 
 const formatRupiah = (amount: number) => {
   return new Intl.NumberFormat('id-ID', {
@@ -49,7 +49,7 @@ const TabunganSantriAdmin = () => {
   const santriIdParam = searchParams.get('santriId');
   const santriNameParam = searchParams.get('santriName');
   const viewParam = (searchParams.get('view') as 'riwayat' | 'withdraw' | null) || null;
-  
+
   const [santriList, setSantriList] = useState<SaldoTabunganSantri[]>([]);
   const [stats, setStats] = useState<TabunganStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,13 +57,13 @@ const TabunganSantriAdmin = () => {
   const [filterKategori, setFilterKategori] = useState<string>('');
   const [showSetorMassal, setShowSetorMassal] = useState(false);
   const [showTarikMassal, setShowTarikMassal] = useState(false);
-  
+
   // Individual operations states
   const [selectedSantriSetor, setSelectedSantriSetor] = useState<{ id: string; name: string } | null>(null);
   const [selectedSantriTarik, setSelectedSantriTarik] = useState<{ id: string; name: string; saldo: number } | null>(null);
   const [selectedSantriHistory, setSelectedSantriHistory] = useState<{ id: string; name: string } | null>(null);
   const [preselectHandled, setPreselectHandled] = useState(false);
-  
+
   const { toast } = useToast();
 
   const loadData = async () => {
@@ -125,12 +125,12 @@ const TabunganSantriAdmin = () => {
 
   const filteredSantri = santriList.filter(santri => {
     const matchesSearch = santri.santri.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         santri.santri.id_santri?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         santri.santri.nisn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         santri.santri.kelas?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+      santri.santri.id_santri?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      santri.santri.nisn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      santri.santri.kelas?.toLowerCase().includes(searchTerm.toLowerCase());
+
     const matchesKategori = !filterKategori || santri.santri.kategori === filterKategori;
-    
+
     return matchesSearch && matchesKategori;
   });
 
@@ -162,7 +162,7 @@ const TabunganSantriAdmin = () => {
     setSelectedSantriTarik(null);
     loadData();
     toast({
-      title: 'Berhasil', 
+      title: 'Berhasil',
       description: 'Penarikan berhasil disimpan'
     });
   };
@@ -311,9 +311,9 @@ const TabunganSantriAdmin = () => {
                       <SelectItem value="Mahasiswa">Mahasiswa</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button 
-                    onClick={handleRefresh} 
-                    variant="ghost" 
+                  <Button
+                    onClick={handleRefresh}
+                    variant="ghost"
                     size="sm"
                     className="text-gray-600 hover:text-gray-900 hover:bg-gray-50 flex-shrink-0"
                   >
@@ -373,8 +373,8 @@ const TabunganSantriAdmin = () => {
                   ) : (
                     <div className="space-y-3">
                       {filteredSantri.map((santri) => (
-                        <div 
-                          key={santri.santri_id} 
+                        <div
+                          key={santri.santri_id}
                           className="flex items-center justify-between p-4 rounded-lg border border-gray-200 bg-white hover:shadow-md transition-all hover:border-gray-300"
                         >
                           <div className="flex items-start gap-4 flex-1 min-w-0">
@@ -397,13 +397,12 @@ const TabunganSantriAdmin = () => {
                           <div className="flex items-center gap-4 flex-shrink-0">
                             <div className="text-right">
                               <div className="font-bold text-lg text-gray-900">{formatRupiah(santri.saldo)}</div>
-                              <Badge 
-                                variant={santri.saldo > 0 ? 'default' : 'secondary'} 
-                                className={`mt-1 text-xs ${
-                                  santri.saldo > 0 
-                                    ? 'bg-green-100 text-green-700 hover:bg-green-100' 
-                                    : 'bg-gray-100 text-gray-600'
-                                }`}
+                              <Badge
+                                variant={santri.saldo > 0 ? 'default' : 'secondary'}
+                                className={`mt-1 text-xs ${santri.saldo > 0
+                                  ? 'bg-green-100 text-green-700 hover:bg-green-100'
+                                  : 'bg-gray-100 text-gray-600'
+                                  }`}
                               >
                                 {santri.saldo > 0 ? 'Aktif' : 'Belum Ada Tabungan'}
                               </Badge>
@@ -425,14 +424,14 @@ const TabunganSantriAdmin = () => {
                                   <p>Setor Tabungan</p>
                                 </TooltipContent>
                               </Tooltip>
-                              
+
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
-                                    onClick={() => setSelectedSantriTarik({ 
-                                      id: santri.santri_id, 
+                                    onClick={() => setSelectedSantriTarik({
+                                      id: santri.santri_id,
                                       name: santri.santri.nama_lengkap,
-                                      saldo: santri.saldo 
+                                      saldo: santri.saldo
                                     })}
                                     variant="outline"
                                     size="sm"
@@ -446,7 +445,7 @@ const TabunganSantriAdmin = () => {
                                   <p>{santri.saldo <= 0 ? 'Saldo tidak mencukupi' : 'Tarik Tabungan'}</p>
                                 </TooltipContent>
                               </Tooltip>
-                              
+
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
@@ -462,7 +461,7 @@ const TabunganSantriAdmin = () => {
                                   <p>Lihat Riwayat Transaksi</p>
                                 </TooltipContent>
                               </Tooltip>
-                              
+
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
@@ -548,4 +547,3 @@ const TabunganSantriAdmin = () => {
 };
 
 export default TabunganSantriAdmin;
-

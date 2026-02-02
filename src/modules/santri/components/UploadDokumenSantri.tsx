@@ -19,7 +19,8 @@ import {
   Download,
   Trash2,
   RefreshCw,
-  Percent
+  Percent,
+  Loader2
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -255,13 +256,13 @@ const UploadDokumenSantri: React.FC<UploadDokumenSantriProps> = ({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'Diverifikasi':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-50 text-green-700 border-green-200 border';
       case 'Belum Diverifikasi':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-amber-50 text-amber-700 border-amber-200 border';
       case 'Ditolak':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-50 text-red-700 border-red-200 border';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-slate-50 text-slate-700 border-slate-200 border';
     }
   };
 
@@ -349,86 +350,111 @@ const UploadDokumenSantri: React.FC<UploadDokumenSantriProps> = ({
           const isUploading = uploadingFiles[req.kode];
 
           return (
-            <Card key={req.kode} className="relative">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <span>{req.nama}</span>
+            <div key={req.kode} className="flex flex-col gap-2 p-4 border rounded-xl bg-white shadow-sm hover:shadow-md transition-all">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {req.nama}
+                  {req.kategori === 'wajib' && <span className="text-red-500 ml-1">*</span>}
+                </Label>
+                {uploadedDoc && (
                   <Badge 
-                    variant={req.kategori === 'wajib' ? 'destructive' : req.kategori === 'kondisional' ? 'secondary' : 'outline'}
-                    className="text-xs"
+                    variant="outline" 
+                    className={`gap-1 text-[10px] px-2 h-5 ${getStatusBadge(uploadedDoc.status_verifikasi)}`}
                   >
-                    {req.kategori}
+                    {getStatusIcon(uploadedDoc.status_verifikasi)}
+                    {uploadedDoc.status_verifikasi === 'Diverifikasi' ? 'Valid' : uploadedDoc.status_verifikasi === 'Ditolak' ? 'Ditolak' : 'Pending'}
                   </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {/* Status Dokumen */}
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input 
+                    readOnly 
+                    value={uploadedDoc ? (uploadedDoc.nama_file || "File terupload") : ""} 
+                    placeholder={uploadedDoc ? "" : `Upload ${req.nama}...`}
+                    className={`h-10 text-sm ${uploadedDoc ? 'bg-slate-50 text-slate-700 font-medium' : 'bg-white'}`}
+                  />
+                  {!uploadedDoc && (
+                    <div className="absolute inset-0 opacity-0 cursor-pointer">
+                      <input
+                        type="file"
+                        className="w-full h-full cursor-pointer"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        disabled={isUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) uploadFile(req.kode, file);
+                          e.target.value = '';
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+
                 {uploadedDoc ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(uploadedDoc.status_verifikasi)}
-                      <Badge className={getStatusBadge(uploadedDoc.status_verifikasi)}>
-                        {uploadedDoc.status_verifikasi}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-gray-600 truncate">{uploadedDoc.nama_file}</p>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => previewDocument(uploadedDoc)}
-                      >
-                        <Eye className="w-3 h-3 mr-1" />
-                        Preview
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setVerificationDialog(uploadedDoc)}
-                      >
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Verifikasi
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => deleteDocument(uploadedDoc.id!)}
-                      >
-                        <Trash2 className="w-3 h-3 mr-1" />
-                      </Button>
-                    </div>
-                  </div>
+                  <>
+                    <Button 
+                      variant="default" 
+                      className="bg-slate-800 hover:bg-slate-700 h-10 px-4"
+                      onClick={() => previewDocument(uploadedDoc)}
+                    >
+                      Lihat
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10 shrink-0 border-blue-200 text-blue-600 hover:bg-blue-50"
+                      onClick={() => setVerificationDialog(uploadedDoc)}
+                      title="Verifikasi"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="h-10 w-10 shrink-0"
+                      onClick={() => deleteDocument(uploadedDoc.id!)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </>
                 ) : (
-                  <div className="text-center py-4">
-                    <FileText className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                    <p className="text-sm text-gray-500 mb-3">Belum diupload</p>
-                    <Input
+                  <Button 
+                    className="bg-blue-600 hover:bg-blue-700 h-10 px-6 shrink-0 relative overflow-hidden"
+                    disabled={isUploading}
+                  >
+                    {isUploading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload
+                      </>
+                    )}
+                    <input
                       type="file"
+                      className="absolute inset-0 opacity-0 cursor-pointer"
                       accept=".pdf,.jpg,.jpeg,.png"
+                      disabled={isUploading}
                       onChange={(e) => {
-                        console.log('File input changed:', e.target.files);
                         const file = e.target.files?.[0];
-                        if (file) {
-                          console.log('File selected:', { name: file.name, size: file.size, type: file.type });
-                          uploadFile(req.kode, file);
-                        } else {
-                          console.log('No file selected');
-                        }
-                        // Reset input value to allow selecting the same file again
+                        if (file) uploadFile(req.kode, file);
                         e.target.value = '';
                       }}
-                      disabled={uploadingFiles[req.kode]}
-                      className="text-xs"
                     />
-                  </div>
+                  </Button>
                 )}
-
-                {/* Format Info */}
-                <p className="text-xs text-gray-500 text-center">
-                  Format: {req.format} (Max 10MB)
-                </p>
-              </CardContent>
-            </Card>
+              </div>
+              
+              <p className="text-[10px] text-slate-400">
+                {uploadedDoc ? (
+                  <>Size: {(uploadedDoc.ukuran_file ? (uploadedDoc.ukuran_file / 1024).toFixed(0) : 0)} KB • Type: {uploadedDoc.tipe_file?.split('/')[1]?.toUpperCase() || 'FILE'}</>
+                ) : (
+                  `Format: ${req.format} (Max 10MB)`
+                )}
+              </p>
+            </div>
           );
         })}
       </div>

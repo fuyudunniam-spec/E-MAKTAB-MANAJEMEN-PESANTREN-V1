@@ -4,7 +4,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Root as VisuallyHidden } from "@radix-ui/react-visually-hidden";
-import { Camera, Save, X, Award, User, Users, GraduationCap, Activity, FileText, AlertCircle } from "lucide-react";
+import { Camera, Save, X, Award, User, Users, GraduationCap, Activity, FileText, AlertCircle, ArrowLeft } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { getSafeAvatarUrl } from '@/utils/url.utils';
@@ -110,6 +111,8 @@ const SantriFormWizard: React.FC<SantriFormWizardProps> = ({ santriId, onClose, 
   const [dokumenData, setDokumenData] = useState<DokumenData[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<{ [key: string]: boolean }>({});
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>('');
+
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Load existing data for edit mode
   useEffect(() => {
@@ -386,9 +389,8 @@ const SantriFormWizard: React.FC<SantriFormWizardProps> = ({ santriId, onClose, 
   const handleKategoriSelect = (kategori: KategoriSantri) => {
     setSelectedKategori(kategori);
     setSantriData(prev => ({ ...prev, kategori }));
-    if (!kategori.includes('Binaan')) {
-      setTimeout(() => setActiveTab('personal'), 300);
-    }
+    // Immediately switch to personal tab (main form)
+    setActiveTab('personal');
   };
 
   const handleSubKategoriSelect = (subKategori: 'Mukim' | 'Non-Mukim') => {
@@ -396,7 +398,15 @@ const SantriFormWizard: React.FC<SantriFormWizardProps> = ({ santriId, onClose, 
     const finalKategori = `Binaan ${subKategori}` as KategoriSantri;
     setSelectedKategori(finalKategori);
     setSantriData(prev => ({ ...prev, kategori: finalKategori }));
-    setTimeout(() => setActiveTab('personal'), 300);
+    // Immediately switch to personal tab (main form)
+    setActiveTab('personal');
+  };
+
+  const handleResetKategori = () => {
+    setSelectedKategori('');
+    setSelectedSubKategori('');
+    setActiveTab('kategori');
+    setShowResetConfirm(false);
   };
 
   const generateIdSantri = (kategori: string, angkatan: string) => {
@@ -693,34 +703,18 @@ const SantriFormWizard: React.FC<SantriFormWizardProps> = ({ santriId, onClose, 
   const getTabs = () => {
     const tabs = [];
 
-    // For edit mode, skip kategori tab and show only relevant tabs
-    if (santriId) {
-      tabs.push({ id: 'personal', label: 'Personal', icon: User });
-      tabs.push({ id: 'wali', label: 'Wali', icon: Users });
+    // Always start with Personal info in the sidebar
+    tabs.push({ id: 'personal', label: 'Personal', icon: User });
+    tabs.push({ id: 'wali', label: 'Wali', icon: Users });
 
-      if (isMukim) {
-        tabs.push(
-          { id: 'pendidikan', label: 'Pendidikan', icon: GraduationCap },
-          { id: 'kesehatan', label: 'Kesehatan', icon: Activity }
-        );
-      }
-
-      tabs.push({ id: 'dokumen', label: 'Dokumen', icon: FileText });
-    } else {
-      // For new registration, show kategori first
-      tabs.push({ id: 'kategori', label: 'Kategori', icon: Award });
-      tabs.push({ id: 'personal', label: 'Personal', icon: User });
-      tabs.push({ id: 'wali', label: 'Wali', icon: Users });
-
-      if (isMukim) {
-        tabs.push(
-          { id: 'pendidikan', label: 'Pendidikan', icon: GraduationCap },
-          { id: 'kesehatan', label: 'Kesehatan', icon: Activity }
-        );
-      }
-
-      tabs.push({ id: 'dokumen', label: 'Dokumen', icon: FileText });
+    if (isMukim) {
+      tabs.push(
+        { id: 'pendidikan', label: 'Pendidikan', icon: GraduationCap },
+        { id: 'kesehatan', label: 'Kesehatan', icon: Activity }
+      );
     }
+
+    tabs.push({ id: 'dokumen', label: 'Dokumen', icon: FileText });
 
     return tabs;
   };
@@ -746,6 +740,9 @@ const SantriFormWizard: React.FC<SantriFormWizardProps> = ({ santriId, onClose, 
 
   const tabs = getTabs();
 
+  // Mode Setup: Jika belum ada kategori yang dipilih (dan bukan edit mode), tampilkan KategoriStep saja
+  const isSetupMode = !santriId && !selectedKategori;
+
   return (
     <Dialog open={true} onOpenChange={(open) => {
       if (!open && !isLoading) onClose();
@@ -762,7 +759,37 @@ const SantriFormWizard: React.FC<SantriFormWizardProps> = ({ santriId, onClose, 
               <p className="text-muted-foreground">Memuat data santri...</p>
             </div>
           </div>
+        ) : isSetupMode ? (
+          // SETUP MODE: Full screen category selection
+          <div className="bg-slate-50 h-[90vh] flex flex-col items-center justify-center p-6 overflow-y-auto">
+            <div className="max-w-4xl w-full space-y-8">
+              <div className="text-center space-y-2">
+                <div className="inline-flex items-center justify-center p-3 bg-blue-100 rounded-full mb-4">
+                  <Award className="w-8 h-8 text-blue-600" />
+                </div>
+                <h2 className="text-3xl font-bold text-slate-900">Pilih Kategori Santri</h2>
+                <p className="text-slate-500 text-lg max-w-2xl mx-auto">
+                  Silakan pilih kategori santri terlebih dahulu untuk menyesuaikan formulir pendaftaran dan persyaratan dokumen.
+                </p>
+              </div>
+
+              <KategoriStep
+                selectedKategori={selectedKategori}
+                selectedSubKategori={selectedSubKategori}
+                onKategoriSelect={handleKategoriSelect}
+                onSubKategoriSelect={handleSubKategoriSelect}
+              />
+              
+              <div className="flex justify-center mt-8">
+                <Button variant="ghost" onClick={onClose} className="text-slate-500 hover:text-slate-700">
+                  <X className="w-4 h-4 mr-2" />
+                  Batal
+                </Button>
+              </div>
+            </div>
+          </div>
         ) : (
+          // FORM MODE: Sidebar layout
           <div className="bg-gradient-to-br from-slate-50 to-blue-50/30">
             <div className="flex h-[90vh]">
               {/* Sidebar */}
@@ -792,13 +819,25 @@ const SantriFormWizard: React.FC<SantriFormWizardProps> = ({ santriId, onClose, 
                       className="hidden"
                       onChange={handlePhotoUpload}
                     />
-                    <div className="mt-3">
-                      <h3 className="text-base font-semibold text-slate-800 truncate max-w-[200px]">
+                    <div className="mt-3 w-full">
+                      <h3 className="text-base font-semibold text-slate-800 truncate">
                         {santriData.nama_lengkap || 'Nama Santri'}
                       </h3>
-                      <p className="text-xs text-slate-500 truncate max-w-[200px]">
-                        {santriData.kategori || 'Pilih Kategori'}
-                      </p>
+                      
+                      {/* Editable Category Badge */}
+                      <div className="flex items-center justify-center gap-1 mt-1 group cursor-pointer" onClick={() => !santriId && setShowResetConfirm(true)} title={!santriId ? "Klik untuk mengubah kategori" : ""}>
+                        <div className={`px-2 py-0.5 rounded-full text-xs font-medium border flex items-center gap-1
+                          ${selectedKategori?.includes('Binaan') ? 'bg-green-50 text-green-700 border-green-200' : 
+                            selectedKategori === 'Mahasiswa' ? 'bg-purple-50 text-purple-700 border-purple-200' : 
+                            'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                          {selectedKategori || 'Pilih Kategori'}
+                        </div>
+                        {!santriId && (
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <ArrowLeft className="w-3 h-3 text-slate-400" />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -811,7 +850,7 @@ const SantriFormWizard: React.FC<SantriFormWizardProps> = ({ santriId, onClose, 
                     <Progress value={getProgress()} className="h-2" />
                   </div>
 
-                  {/* Navigation - toned down, text-only */}
+                  {/* Navigation */}
                   <div className="space-y-1">
                     {tabs.map((tab) => (
                       <button
@@ -825,12 +864,13 @@ const SantriFormWizard: React.FC<SantriFormWizardProps> = ({ santriId, onClose, 
                               : 'opacity-50 cursor-not-allowed text-slate-400 border-transparent'
                           }`}
                       >
-                        <span className="text-sm font-medium">{tab.label}</span>
+                        <div className="flex items-center gap-3">
+                          <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-primary' : 'text-slate-500'}`} />
+                          <span className="text-sm font-medium">{tab.label}</span>
+                        </div>
                       </button>
                     ))}
                   </div>
-
-                  {/* Minimal sidebar: remove loud info boxes for cleaner UI */}
                 </div>
               </aside>
 
@@ -838,14 +878,7 @@ const SantriFormWizard: React.FC<SantriFormWizardProps> = ({ santriId, onClose, 
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="flex-1 overflow-y-auto p-6">
                   <div className="space-y-6">
-                    {activeTab === 'kategori' && (
-                      <KategoriStep
-                        selectedKategori={selectedKategori}
-                        selectedSubKategori={selectedSubKategori}
-                        onKategoriSelect={handleKategoriSelect}
-                        onSubKategoriSelect={handleSubKategoriSelect}
-                      />
-                    )}
+                    {/* KategoriStep removed from main content area as it is now in Setup Mode */}
 
                     {activeTab === 'personal' && (
                       <PersonalStep
@@ -885,6 +918,11 @@ const SantriFormWizard: React.FC<SantriFormWizardProps> = ({ santriId, onClose, 
                         uploadingFiles={uploadingFiles}
                         onFileSelect={handleFileSelect}
                         onFileRemove={handleFileRemove}
+                        currentKategori={selectedKategori || santriData.kategori}
+                        currentStatus={santriData.status_sosial}
+                        onConfigChange={() => {
+                          setActiveTab('kategori');
+                        }}
                       />
                     )}
                   </div>
@@ -925,9 +963,28 @@ const SantriFormWizard: React.FC<SantriFormWizardProps> = ({ santriId, onClose, 
           </div>
         )}
       </DialogContent>
+      
+      {/* Reset Category Confirmation Dialog */}
+      <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ubah Kategori Santri?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Mengubah kategori akan <strong>mereset semua persyaratan dokumen</strong> dan validasi form yang telah Anda isi. 
+              <br/><br/>
+              Apakah Anda yakin ingin mengganti kategori dari <strong>{selectedKategori}</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetKategori} className="bg-red-600 hover:bg-red-700">
+              Ya, Ubah Kategori
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };
 
 export default SantriFormWizard;
-

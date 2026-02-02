@@ -19,6 +19,7 @@ export interface DocumentFile {
   nama_dokumen: string;
   nama_file?: string;
   path_file?: string;
+  url?: string;
   ukuran_file?: number;
   tipe_file?: string;
   status_verifikasi: 'Belum Diverifikasi' | 'Diverifikasi' | 'Ditolak';

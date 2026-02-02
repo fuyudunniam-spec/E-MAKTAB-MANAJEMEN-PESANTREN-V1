@@ -150,11 +150,18 @@ export function AdminSidebar() {
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarHeader className="border-b border-border p-4">
         <NavLink to="/cms" className="flex items-center gap-2">
-          <div className="p-2 bg-primary rounded-lg">
-            <BookOpen className="h-5 w-5 text-primary-foreground" />
+          <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full">
+            <img 
+              src="/kop-albisri.png" 
+              alt="Logo" 
+              className="h-full w-full object-cover scale-150" 
+            />
           </div>
           {!isCollapsed && (
-            <span className="font-semibold text-foreground">Admin An-Nur</span>
+            <div className="flex flex-col">
+               <span className="font-bold text-sm leading-none text-foreground">Pesantren Anak Yatim Al-Bisri</span>
+               <span className="text-[10px] text-muted-foreground">Sistem Manajemen Pesantren dan LKSA</span>
+            </div>
           )}
         </NavLink>
       </SidebarHeader>

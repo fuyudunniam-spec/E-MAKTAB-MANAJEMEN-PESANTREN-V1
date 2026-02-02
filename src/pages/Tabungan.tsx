@@ -23,11 +23,11 @@ import {
 import { TabunganSantriService } from '@/services/tabunganSantri.service';
 import { SaldoTabunganSantri, TabunganStats } from '@/types/tabungan.types';
 import { useToast } from '@/hooks/use-toast';
-import { FormSetorMassal } from '@/components/TabunganSantri/FormSetorMassal';
-import { FormTarikMassal } from '@/components/TabunganSantri/FormTarikMassal';
-import { FormSetor } from '@/components/TabunganSantri/FormSetor';
-import { FormTarik } from '@/components/TabunganSantri/FormTarik';
-import { RiwayatTabungan } from '@/components/TabunganSantri/RiwayatTabungan';
+import { FormSetorMassal } from '@/modules/santri/components/TabunganSantri/FormSetorMassal';
+import { FormTarikMassal } from '@/modules/santri/components/TabunganSantri/FormTarikMassal';
+import { FormSetor } from '@/modules/santri/components/TabunganSantri/FormSetor';
+import { FormTarik } from '@/modules/santri/components/TabunganSantri/FormTarik';
+import { RiwayatTabungan } from '@/modules/santri/components/TabunganSantri/RiwayatTabungan';
 
 const formatRupiah = (amount: number) => {
   return new Intl.NumberFormat('id-ID', {

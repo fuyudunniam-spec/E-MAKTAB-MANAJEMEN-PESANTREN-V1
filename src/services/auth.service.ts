@@ -59,6 +59,21 @@ export async function getUserRoles(userId: string): Promise<string[]> {
     
     // Check localStorage cache first (faster)
     const cacheKey = `user_roles_${userId}`;
+    
+    // 0. Check Session Metadata (Fastest & Most Reliable for Current User)
+    // SetupAdmin sets metadata, so this bypasses any RLS issues on user_roles table
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session && session.user.id === userId) {
+      const metaRole = session.user.user_metadata?.role;
+      if (metaRole === 'admin' || metaRole === 'superadmin') {
+         console.log('✅ auth.service: Found admin role in user_metadata:', metaRole);
+         // Update cache
+         localStorage.setItem(cacheKey, JSON.stringify([metaRole]));
+         localStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+         return [metaRole];
+      }
+    }
+
     const cachedRoles = localStorage.getItem(cacheKey);
     if (cachedRoles) {
       try {

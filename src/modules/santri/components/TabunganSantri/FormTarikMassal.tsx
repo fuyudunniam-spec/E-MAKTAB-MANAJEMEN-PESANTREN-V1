@@ -23,7 +23,7 @@ import {
   Calendar,
   Wallet
 } from 'lucide-react';
-import { tabunganSantriService } from '@/modules/santri/services/tabunganSantri.service';
+import { TabunganSantriService } from '@/modules/santri/services/tabunganSantri.service';
 import { AkunKasService, AkunKas } from '@/services/akunKas.service';
 import { SaldoTabunganSantri, TarikMassalResult } from '@/types/tabungan.types';
 import { useToast } from '@/hooks/use-toast';
@@ -63,7 +63,7 @@ export const FormTarikMassal: React.FC<FormTarikMassalProps> = ({
   const loadSantriList = async () => {
     try {
       setLoadingSantri(true);
-      const data = await tabunganSantriService.getSantriWithSaldo();
+      const data = await TabunganSantriService.getAllSaldoTabungan();
       // Filter hanya santri yang memiliki saldo > 0
       const santriWithSaldo = data.filter(santri => santri.saldo > 0);
       setSantriList(santriWithSaldo);
@@ -168,7 +168,7 @@ export const FormTarikMassal: React.FC<FormTarikMassalProps> = ({
       // 1. Create transaksi tabungan untuk setiap santri
       const tabunganIds: string[] = [];
       for (const santriId of selectedSantri) {
-        const tabunganId = await tabunganSantriService.tarikTabungan({
+        const tabunganId = await TabunganSantriService.tarikTabungan({
           santri_id: santriId,
           nominal: nominal,
           deskripsi: formData.deskripsi || `Penarikan massal dari ${santriList.find(s => s.santri_id === santriId)?.santri.nama_lengkap || 'Santri'}`,

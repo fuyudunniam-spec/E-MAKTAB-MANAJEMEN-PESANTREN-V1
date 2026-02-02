@@ -247,6 +247,16 @@ export class ProfileHelper {
       );
     }
 
+    // Payment proof for Reguler and Mahasiswa
+    const paymentDocuments: DocumentRequirement[] = [
+      {
+        jenis_dokumen: 'Bukti Pembayaran Pendaftaran',
+        required: true,
+        description: 'Upload bukti transfer biaya pendaftaran',
+        category: ['Reguler', 'Mahasiswa']
+      }
+    ];
+
     // Combine documents based on category
     let requiredDocuments = [...baseDocuments];
 
@@ -254,6 +264,9 @@ export class ProfileHelper {
       requiredDocuments = [...requiredDocuments, ...binaanDocuments, ...statusDocuments];
     } else if (kategori === 'Binaan Non-Mukim') {
       requiredDocuments = [...requiredDocuments, ...statusDocuments];
+    } else if (kategori === 'Reguler' || kategori === 'Mahasiswa') {
+      // Add payment proof only for paid categories
+      requiredDocuments = [...requiredDocuments, ...paymentDocuments];
     }
 
     return requiredDocuments;

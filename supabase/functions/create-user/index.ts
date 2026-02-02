@@ -63,16 +63,31 @@ Deno.serve(async (req: Request) => {
       return createCorsResponse({ error: 'Unauthorized', details: authError?.message }, 401);
     }
 
-    // Check if user is admin
-    const { data: roles, error: rolesError } = await supabaseClient
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin');
+    // Check if user is admin (via user_roles OR user_metadata)
+    // First check metadata (bypass RLS/missing role record)
+    const metaRole = user.user_metadata?.role;
+    const isMetaAdmin = metaRole === 'admin' || metaRole === 'superadmin';
+    
+    let isAdmin = isMetaAdmin;
+    
+    if (!isAdmin) {
+      // Fallback: Check user_roles table
+      const { data: roles, error: rolesError } = await supabaseClient
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin');
 
-    if (rolesError || !roles || roles.length === 0) {
+      if (!rolesError && roles && roles.length > 0) {
+        isAdmin = true;
+      } else if (rolesError) {
+         console.error('[create-user] Error checking roles:', rolesError);
+      }
+    }
+
+    if (!isAdmin) {
       console.error('[create-user] User is not admin');
-      return createCorsResponse({ error: 'Forbidden: Admin access required', details: rolesError?.message }, 403);
+      return createCorsResponse({ error: 'Forbidden: Admin access required' }, 403);
     }
 
     // Parse request body

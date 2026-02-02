@@ -281,28 +281,7 @@ const PersonalStep: React.FC<PersonalStepProps> = ({
         )}
 
 
-        {/* Status Sosial - Only for Binaan */}
-        {isBinaan && (
-          <div className="pt-6 border-t border-slate-100">
-            <Label className="text-sm font-semibold text-slate-700 mb-3 block">
-              Status Sosial <span className="text-red-500">*</span>
-            </Label>
-            <Select 
-              value={santriData.status_sosial}
-              onValueChange={(value: StatusSosial) => onChange({ status_sosial: value })}
-            >
-              <SelectTrigger className="bg-white border-slate-200 focus:ring-2 focus:ring-blue-500/20">
-                <SelectValue placeholder="Pilih status sosial" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Yatim">Yatim</SelectItem>
-                <SelectItem value="Piatu">Piatu</SelectItem>
-                <SelectItem value="Yatim Piatu">Yatim Piatu</SelectItem>
-                <SelectItem value="Dhuafa">Dhuafa</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        {/* Status Sosial moved to Document Upload section as per user request */}
 
         {/* Additional fields for Binaan Mukim */}
         {isMukim && (
