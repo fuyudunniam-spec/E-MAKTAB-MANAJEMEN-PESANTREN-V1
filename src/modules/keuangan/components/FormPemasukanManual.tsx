@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, TrendingUp } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { AkunKasService, AkunKas } from '@/services/akunKas.service';
+import { AkunKasService, AkunKas } from '@/modules/keuangan/services/akunKas.service';
 import { toast } from 'sonner';
 
 interface FormPemasukanManualProps {

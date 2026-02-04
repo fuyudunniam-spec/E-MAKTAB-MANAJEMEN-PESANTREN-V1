@@ -12,7 +12,7 @@ import { RefreshCw, Plus, Download, Loader2, Calculator, FileText, ChevronDown, 
 import { toast } from 'sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { LayananSantriService, type PilarLayanan } from '@/modules/santri/services/layananSantri.service';
-import { MasterDataKeuanganService, type MasterPilarLayanan } from '@/services/masterDataKeuangan.service';
+import { MasterDataKeuanganService, type MasterPilarLayanan } from '@/modules/keuangan/services/masterDataKeuangan.service';
 import { formatCurrency } from '@/utils/formatCurrency';
 import { format, subMonths, startOfYear, endOfYear, startOfMonth, endOfMonth } from 'date-fns';
 import { id } from 'date-fns/locale';

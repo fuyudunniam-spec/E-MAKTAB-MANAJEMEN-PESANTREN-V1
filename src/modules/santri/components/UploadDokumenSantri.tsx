@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { DocumentService, DocumentRequirement, DocumentFile } from '@/services/document.service';
+import { DocumentService, DocumentRequirement, DocumentFile } from '@/modules/santri/services/document.service';
 
 // Use types from DocumentService
 type LocalDocumentRequirement = {

@@ -1,6 +1,6 @@
 // Santri Data Validator - Validates cross-module data consistency
 import { supabase } from "@/integrations/supabase/client";
-import { ProfileHelper } from "@/utils/profile.helper";
+import { ProfileHelper } from "@/modules/santri/utils/profile.helper";
 
 export interface ValidationResult {
   isValid: boolean;

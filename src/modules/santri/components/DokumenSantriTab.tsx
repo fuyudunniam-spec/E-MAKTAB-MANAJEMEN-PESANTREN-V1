@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { DocumentService } from '@/services/document.service';
+import { DocumentService } from '@/modules/santri/services/document.service';
 import DocumentPreviewDialog from '@/components/common/DocumentPreviewDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 

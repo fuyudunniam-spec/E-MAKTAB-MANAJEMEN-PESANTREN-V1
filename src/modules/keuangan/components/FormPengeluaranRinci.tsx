@@ -23,9 +23,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { AkunKasService, AkunKas } from '@/services/akunKas.service';
-import { AlokasiPengeluaranService } from '@/services/alokasiPengeluaran.service';
-import { MasterDataKeuanganService, type MasterKategoriPengeluaran, type MasterSubKategoriPengeluaran } from '@/services/masterDataKeuangan.service';
+import { AkunKasService, AkunKas } from '@/modules/keuangan/services/akunKas.service';
+import { AlokasiPengeluaranService } from '@/modules/keuangan/services/alokasiPengeluaran.service';
+import { MasterDataKeuanganService, type MasterKategoriPengeluaran, type MasterSubKategoriPengeluaran } from '@/modules/keuangan/services/masterDataKeuangan.service';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 

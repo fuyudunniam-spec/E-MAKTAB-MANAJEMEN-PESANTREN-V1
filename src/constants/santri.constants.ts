@@ -17,7 +17,7 @@ import {
   TIPE_PEMBAYARAN,
   JENIS_KELAMIN,
   AGAMA
-} from '@/types/santri.types';
+} from '@/modules/santri/types/santri.types';
 
 // ============================================
 // DROPDOWN OPTIONS

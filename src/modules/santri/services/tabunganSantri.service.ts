@@ -10,7 +10,7 @@ import {
   TarikMassalResult,
   TabunganStats,
   TabunganFilter
-} from '@/types/tabungan.types';
+} from '@/modules/keuangan/types/tabungan.types';
 
 export class TabunganSantriService {
   // Get saldo tabungan santri

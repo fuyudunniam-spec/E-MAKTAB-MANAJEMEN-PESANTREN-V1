@@ -15,11 +15,11 @@ import {
   BarChart3,
   GraduationCap
 } from 'lucide-react';
-import { SetoranHarianService } from '@/services/setoranHarian.service';
-import { AkademikNilaiService, Nilai } from '@/services/akademikNilai.service';
-import { AkademikKelasService } from '@/services/akademikKelas.service';
-import { AkademikAgendaService } from '@/services/akademikAgenda.service';
-import { AkademikSemesterService } from '@/services/akademikSemester.service';
+import { SetoranHarianService } from '@/modules/akademik/services/setoranHarian.service';
+import { AkademikNilaiService, Nilai } from '@/modules/akademik/services/akademikNilai.service';
+import { AkademikKelasService } from '@/modules/akademik/services/akademikKelas.service';
+import { AkademikAgendaService } from '@/modules/akademik/services/akademikAgenda.service';
+import { AkademikSemesterService } from '@/modules/akademik/services/akademikSemester.service';
 import { supabase } from '@/integrations/supabase/client';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -151,7 +151,7 @@ const SantriProgressTracking: React.FC<SantriProgressTrackingProps> = ({ santriI
           setJadwalKelas(agendas);
 
           // Load pertemuan untuk mendapatkan tanggal & waktu
-          const { AkademikPertemuanService } = await import('@/services/akademikPertemuan.service');
+          const { AkademikPertemuanService } = await import('@/modules/akademik/services/akademikPertemuan.service');
           const pertemuan = await AkademikPertemuanService.listPertemuan({
             kelasId: kelas.id,
           });

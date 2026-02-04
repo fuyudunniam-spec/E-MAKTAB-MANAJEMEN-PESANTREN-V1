@@ -19,7 +19,7 @@ import {
   getAutoPostedSummary, 
   reconcileAutoPostedTransactions,
   getOrphanedKeuangan 
-} from '@/services/keuangan.service';
+} from '@/modules/keuangan/services/keuangan.service';
 
 interface DoubleEntryMonitorProps {
   showDetails?: boolean;

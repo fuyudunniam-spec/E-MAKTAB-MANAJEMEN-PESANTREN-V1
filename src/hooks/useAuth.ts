@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User as SupabaseUser, Session } from "@supabase/supabase-js";
-import { getUserRoles, getUserProfile, getUserPrimaryRole } from "@/services/auth.service";
+import { getUserRoles, getUserProfile, getUserPrimaryRole } from "@/modules/auth/services/auth.service";
 import { canAccessModule, canAccessModuleWithUser, canPerformAction, type AppRole } from "@/utils/permissions";
 import { logger } from "@/utils/logger";
 

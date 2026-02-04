@@ -23,85 +23,85 @@ const SuspenseOnly = ({ children }: { children: ReactNode }) => (
 );
 
 // Route-level lazy loading to keep initial bundle small
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const SantriEnhanced = lazy(() => import("@/modules/santri/pages/admin/SantriEnhanced"));
-const Monitoring = lazy(() => import("./pages/Monitoring"));
-const TabunganRouter = lazy(() => import("./pages/TabunganRouter"));
-const TabunganSantriAdmin = lazy(() => import("@/modules/santri/pages/admin/TabunganSantriAdmin"));
-const LaporanTabungan = lazy(() => import("@/modules/santri/pages/admin/LaporanTabungan"));
-const DonasiDashboard = lazy(() => import("./pages/DonasiDashboard"));
-const MasterDonatur = lazy(() => import("./pages/MasterDonatur"));
-const Auth = lazy(() => import("./pages/Auth"));
-const AdminSetupPage = lazy(() => import("./pages/SetupAdmin"));
+const Dashboard = lazy(() => import("@/modules/user-management/pages/Dashboard"));
+const SantriEnhanced = lazy(() => import("@/modules/santri/admin/pages/SantriEnhanced"));
+const Monitoring = lazy(() => import("@/modules/user-management/pages/Monitoring"));
+const TabunganSantriAdmin = lazy(() => import("@/modules/santri/admin/pages/TabunganSantriAdmin"));
+const LaporanTabungan = lazy(() => import("@/modules/santri/admin/pages/LaporanTabungan"));
+const DonasiDashboard = lazy(() => import("@/modules/donasi/admin/pages/DonasiDashboard"));
+const MasterDonatur = lazy(() => import("@/modules/donasi/admin/pages/MasterDonatur"));
+const Auth = lazy(() => import("@/modules/auth/pages/Auth"));
+const AdminSetupPage = lazy(() => import("@/modules/user-management/pages/SetupAdmin"));
 const NotFound = lazy(() => import("./pages/NotFound"));
-const SantriOnboarding = lazy(() => import("@/modules/santri/pages/admin/SantriOnboarding"));
-const SantriAccountManagement = lazy(() => import("@/modules/santri/pages/admin/SantriAccountManagement"));
-const ChangePassword = lazy(() => import("./pages/ChangePassword"));
+const SantriOnboarding = lazy(() => import("@/modules/santri/admin/pages/SantriOnboarding"));
+const SantriAccountManagement = lazy(() => import('@/modules/santri/admin/pages/SantriAccountManagement'));
+const ChangePassword = lazy(() => import("@/modules/auth/pages/ChangePassword"));
 const ProfileLayout = lazy(() => import("@/components/layout/ProfileLayout"));
 const ProfileRedirect = lazy(() => import("@/components/layout/ProfileRedirect"));
-const InformasiPage = lazy(() => import("@/modules/santri/pages/profile/InformasiPage"));
-const AkademikPage = lazy(() => import("@/modules/santri/pages/profile/AkademikPage"));
-const KeuanganPage = lazy(() => import("@/modules/santri/pages/profile/KeuanganPage"));
-const TabunganPage = lazy(() => import("@/modules/santri/pages/profile/TabunganPage"));
-const LayananPage = lazy(() => import("@/modules/santri/pages/profile/LayananPage"));
-const DokumenPage = lazy(() => import("@/modules/santri/pages/profile/DokumenPage"));
-const TagihanSantri = lazy(() => import("@/modules/santri/pages/admin/TagihanSantri"));
-const DashboardSantri = lazy(() => import("@/modules/santri/pages/admin/DashboardSantri"));
-const TabunganSantriMy = lazy(() => import("@/modules/santri/pages/portal/TabunganSantriMy"));
+const InformasiPage = lazy(() => import("@/modules/santri/portal/pages/InformasiPage"));
+const AkademikPage = lazy(() => import("@/modules/santri/portal/pages/AkademikPage"));
+const KeuanganPage = lazy(() => import("@/modules/santri/portal/pages/KeuanganPage"));
+const TabunganPage = lazy(() => import("@/modules/santri/portal/pages/TabunganPage"));
+const LayananPage = lazy(() => import("@/modules/santri/portal/pages/LayananPage"));
+const DokumenPage = lazy(() => import("@/modules/santri/portal/pages/DokumenPage"));
+const TagihanSantri = lazy(() => import("@/modules/santri/admin/pages/TagihanSantri"));
+const DashboardSantri = lazy(() => import("@/modules/santri/admin/pages/DashboardSantri"));
+const TabunganSantriMy = lazy(() => import("@/modules/santri/portal/pages/TabunganSantriMy"));
 
 // Public Website Imports
-const PSBPage = lazy(() => import("./pages/public/PSBPage"));
-const PSBPortal = lazy(() => import("./pages/public/PSBPortal"));
-const PSBAuth = lazy(() => import("./pages/public/PSBAuth"));
+const PSBPage = lazy(() => import("@/modules/psb/public/pages/PSBPage"));
+const PSBPortal = lazy(() => import("@/modules/psb/public/pages/PSBPortal"));
+const PSBAuth = lazy(() => import("@/modules/psb/public/pages/PSBAuth"));
 
 // Admin Website Imports - Removed unused imports
 
 
 // Lazy imports for module dashboards
-const DashboardAkademik = lazy(() => import('./modules/akademik/DashboardAkademik'));
-const MasterKelasPage = lazy(() => import('./modules/akademik/MasterKelasPage'));
-const PloatingKelasSimple = lazy(() => import('./modules/akademik/PloatingKelasSimple'));
-const KelasPage = lazy(() => import('./modules/akademik/KelasPage'));
-const SemesterManagementPage = lazy(() => import('./modules/akademik/SemesterManagementPage'));
-const PresensiKelasPage = lazy(() => import('./modules/akademik/PresensiKelasPage'));
-const SetoranHarianPage = lazy(() => import('./modules/akademik/SetoranHarianPage'));
-const PerizinanSantriPage = lazy(() => import('@/modules/santri/pages/admin/PerizinanSantriPage'));
-const JurnalPertemuanPage = lazy(() => import('./modules/akademik/JurnalPertemuanPage'));
-const PertemuanPage = lazy(() => import('./modules/akademik/PertemuanPage'));
-const DashboardPengajar = lazy(() => import('./modules/akademik/DashboardPengajar'));
-const ProfilPengajarPage = lazy(() => import('./modules/akademik/ProfilPengajarPage'));
-const InputNilaiPage = lazy(() => import('./modules/akademik/InputNilaiPage'));
-const RapotPage = lazy(() => import('./modules/akademik/RapotPage'));
-const UserManagementPage = lazy(() => import('./modules/admin/UserManagementPage'));
+const DashboardAkademik = lazy(() => import('@/modules/akademik/admin/pages/DashboardAkademik'));
+const MasterKelasPage = lazy(() => import('@/modules/akademik/admin/pages/MasterKelasPage'));
+const PloatingKelasSimple = lazy(() => import('@/modules/akademik/admin/pages/PloatingKelasSimple'));
+const KelasPage = lazy(() => import('@/modules/akademik/admin/pages/KelasPage'));
+const SemesterManagementPage = lazy(() => import('@/modules/akademik/admin/pages/SemesterManagementPage'));
+const PresensiKelasPage = lazy(() => import('@/modules/akademik/guru/pages/PresensiKelasPage'));
+const SetoranHarianPage = lazy(() => import('@/modules/akademik/guru/pages/SetoranHarianPage'));
+const PerizinanSantriPage = lazy(() => import('@/modules/akademik/admin/pages/PerizinanSantriPage'));
+const JurnalPertemuanPage = lazy(() => import('@/modules/akademik/guru/pages/JurnalPertemuanPage'));
+const PertemuanPage = lazy(() => import('@/modules/akademik/guru/pages/PertemuanPage'));
+const DashboardPengajar = lazy(() => import('@/modules/akademik/guru/pages/DashboardPengajar'));
+const ProfilPengajarPage = lazy(() => import('@/modules/akademik/admin/pages/ProfilPengajarPage'));
+const InputNilaiPage = lazy(() => import('@/modules/akademik/guru/pages/InputNilaiPage'));
+const RapotPage = lazy(() => import('@/modules/akademik/guru/pages/RapotPage'));
+const UserManagementPage = lazy(() => import('@/modules/user-management/pages/UserManagementPage'));
+// SantriAccountManagement is already declared above, removing duplicate declaration
 
 // Lazy imports for inventory modules
-const InventarisMasterPage = lazy(() => import('./modules/inventaris/MasterData/InventarisMasterPage'));
-const PenjualanPage = lazy(() => import('./modules/inventaris/Sales/PenjualanPage'));
-const DistribusiPage = lazy(() => import('./modules/inventaris/Distribution/DistribusiPage'));
-const DistribusiPaketPage = lazy(() => import('./modules/inventaris/Distribution/DistribusiPaketPage'));
-const MasterPaketPage = lazy(() => import('./modules/inventaris/Distribution/MasterPaketPage'));
-const RiwayatInventarisYayasanPage = lazy(() => import('./modules/inventaris/Transactions/RiwayatInventarisYayasanPage'));
-const KeuanganAuditPage = lazy(() => import('@/modules/keuangan/pages/KeuanganAuditPage'));
-const KeuanganV3 = lazy(() => import('@/modules/keuangan/pages/KeuanganDashboard'));
-const RiwayatPenyaluranBantuanPage = lazy(() => import('./modules/keuangan/PenyaluranBantuan/RiwayatPenyaluranBantuanPage'));
-const MasterDataKeuanganPage = lazy(() => import('./modules/keuangan/MasterData/MasterDataKeuanganPage'));
-const InventarisDashboard = lazy(() => import('@/modules/inventaris/pages/DashboardInventaris'));
+const InventarisMasterPage = lazy(() => import('@/modules/inventaris/admin/features/MasterData/InventarisMasterPage'));
+const PenjualanPage = lazy(() => import('@/modules/inventaris/admin/features/Sales/PenjualanPage'));
+const DistribusiPage = lazy(() => import('@/modules/inventaris/admin/features/Distribution/DistribusiPage'));
+const DistribusiPaketPage = lazy(() => import('@/modules/inventaris/admin/features/Distribution/DistribusiPaketPage'));
+const MasterPaketPage = lazy(() => import('@/modules/inventaris/admin/features/Distribution/MasterPaketPage'));
+const RiwayatInventarisYayasanPage = lazy(() => import('@/modules/inventaris/admin/features/Transactions/RiwayatInventarisYayasanPage'));
+const KeuanganAuditPage = lazy(() => import('@/modules/keuangan/admin/pages/KeuanganAuditPage'));
+const KeuanganV3 = lazy(() => import('@/modules/keuangan/admin/pages/KeuanganDashboard'));
+const RiwayatPenyaluranBantuanPage = lazy(() => import('@/modules/keuangan/admin/features/PenyaluranBantuan/RiwayatPenyaluranBantuanPage'));
+const MasterDataKeuanganPage = lazy(() => import('@/modules/keuangan/admin/features/MasterData/MasterDataKeuanganPage'));
+const InventarisDashboard = lazy(() => import('@/modules/inventaris/admin/pages/DashboardInventaris'));
 
 // Lazy imports for koperasi modules
-const DashboardKoperasi = lazy(() => import('./modules/koperasi/Dashboard/DashboardKoperasi'));
-const MasterProdukPage = lazy(() => import('./modules/koperasi/MasterData/MasterProdukPage'));
-const SupplierPage = lazy(() => import('./modules/koperasi/MasterData/SupplierPage'));
-const KasirPage = lazy(() => import('./modules/koperasi/Kasir/KasirPage'));
-const StockKoperasiPage = lazy(() => import('./modules/koperasi/Inventaris/StockKoperasiPage'));
-const TransferInventarisPage = lazy(() => import('./modules/koperasi/Transfer/TransferInventarisPage'));
-const RiwayatPenjualanPage = lazy(() => import('./modules/koperasi/Penjualan/RiwayatPenjualanPage'));
-const PembelianPage = lazy(() => import('./modules/koperasi/Pembelian/PembelianPage'));
-const KeuanganKoperasiPage = lazy(() => import('./modules/koperasi/Keuangan/KeuanganUnifiedPage'));
-const KeuanganDashboardKoperasi = lazy(() => import('./modules/koperasi/Keuangan/KeuanganDashboard'));
-const KeuanganPembelianPage = lazy(() => import('./modules/koperasi/Keuangan/KeuanganUnifiedPage'));
-const KeuanganOperasionalPage = lazy(() => import('./modules/koperasi/Keuangan/KeuanganUnifiedPage'));
-const KelolaHPPDanBagiHasilPage = lazy(() => import('./modules/koperasi/Keuangan/KelolaHPPDanBagiHasilPage'));
-const LaporanKoperasiPage = lazy(() => import('./modules/koperasi/Laporan/LaporanKoperasiPage'));
+const DashboardKoperasi = lazy(() => import('@/modules/koperasi/admin/pages/DashboardKoperasi'));
+const MasterProdukPage = lazy(() => import('@/modules/koperasi/admin/features/MasterData/MasterProdukPage'));
+const SupplierPage = lazy(() => import('@/modules/koperasi/admin/features/MasterData/SupplierPage'));
+const KasirPage = lazy(() => import('@/modules/koperasi/pos/Kasir/KasirPage'));
+const StockKoperasiPage = lazy(() => import('@/modules/koperasi/admin/features/Inventaris/StockKoperasiPage'));
+const TransferInventarisPage = lazy(() => import('@/modules/koperasi/admin/features/Transfer/TransferInventarisPage'));
+const RiwayatPenjualanPage = lazy(() => import('@/modules/koperasi/admin/features/Penjualan/RiwayatPenjualanPage'));
+const PembelianPage = lazy(() => import('@/modules/koperasi/admin/features/Pembelian/PembelianPage'));
+const KeuanganKoperasiPage = lazy(() => import('@/modules/koperasi/admin/features/Keuangan/KeuanganUnifiedPage'));
+const KeuanganDashboardKoperasi = lazy(() => import('@/modules/koperasi/admin/features/Keuangan/KeuanganDashboard'));
+const KeuanganPembelianPage = lazy(() => import('@/modules/koperasi/admin/features/Keuangan/KeuanganUnifiedPage'));
+const KeuanganOperasionalPage = lazy(() => import('@/modules/koperasi/admin/features/Keuangan/KeuanganUnifiedPage'));
+const KelolaHPPDanBagiHasilPage = lazy(() => import('@/modules/koperasi/admin/features/Keuangan/KelolaHPPDanBagiHasilPage'));
+const LaporanKoperasiPage = lazy(() => import('@/modules/koperasi/admin/features/Laporan/LaporanKoperasiPage'));
 
 const queryClient = new QueryClient();
 
@@ -359,11 +359,7 @@ const App = () => (
                   <Monitoring />
                 </WithLayout>
               } />
-              <Route path="/tabungan" element={
-                <WithLayout>
-                  <TabunganRouter />
-                </WithLayout>
-              } />
+              <Route path="/tabungan" element={<Navigate to="/tabungan-santri" replace />} />
               <Route path="/tabungan-santri" element={
                 <WithLayout>
                   <TabunganSantriAdmin />

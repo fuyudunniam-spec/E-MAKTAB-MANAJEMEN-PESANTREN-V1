@@ -22,15 +22,15 @@ import {
   Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { formatRupiah } from "@/utils/inventaris.utils";
+import { formatRupiah } from "@/modules/inventaris/utils/inventaris.utils";
 import { getSafeAvatarUrl } from '@/utils/url.utils';
 import { cn } from "@/lib/utils";
 import { TabunganSantriService } from '@/modules/santri/services/tabunganSantri.service';
-import { AkademikSemesterService } from '@/services/akademikSemester.service';
-import { TagihanService } from '@/services/tagihan.service';
-import SettingsPanel from "@/modules/santri/components/SantriSettingsPanel";
+import { AkademikSemesterService } from '@/modules/akademik/services/akademikSemester.service';
+import { TagihanService } from '@/modules/keuangan/services/tagihan.service';
+import SettingsPanel from "@/modules/santri/admin/components/SantriSettingsPanel";
 import { toast } from 'sonner';
-import SantriProgressTracking from "@/components/SantriProgressTracking";
+import SantriProgressTracking from "@/modules/santri/components/SantriProgressTracking";
 
 interface SantriDataLocal {
   id: string;

@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { formatRupiah } from '@/utils/inventaris.utils';
+import { formatRupiah } from '@/modules/inventaris/utils/inventaris.utils';
 import DistribusiSantriBinaan from './DistribusiSantriBinaan';
 
 interface TagihanSummary {

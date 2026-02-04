@@ -9,7 +9,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { MasterDataKeuanganService } from '@/services/masterDataKeuangan.service';
+import { MasterDataKeuanganService } from './masterDataKeuangan.service';
 
 // PilarLayanan is now a string (kode from master_data_keuangan table)
 // Old enum values: 'pendidikan_formal' | 'pendidikan_pesantren' | 'asrama_konsumsi' | 'bantuan_langsung'
