@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { AkunKasService, AkunKas } from '@/modules/keuangan/services/akunKas.service';
 import { addKeuanganKoperasiTransaction } from '@/modules/koperasi/services/keuanganKoperasi.service';
-import { KATEGORI_PEMASUKAN } from '../../constants';
+import { KATEGORI_PEMASUKAN } from '@/modules/koperasi/constants';
 import { formatCurrencyFromString, parseCurrencyString } from '@/utils/formatCurrency';
 
 interface FormPemasukanKoperasiProps {
@@ -40,12 +40,12 @@ const FormPemasukanKoperasi: React.FC<FormPemasukanKoperasiProps> = ({ isOpen, o
     try {
       const accounts = await AkunKasService.getAll();
       // Filter hanya akun kas koperasi: managed_by = 'koperasi' atau nama mengandung 'koperasi'
-      const koperasiAccounts = accounts.filter(acc => 
-        acc.status === 'aktif' && 
+      const koperasiAccounts = accounts.filter(acc =>
+        acc.status === 'aktif' &&
         (acc.managed_by === 'koperasi' || acc.nama?.toLowerCase().includes('koperasi'))
       );
       setAkunKasOptions(koperasiAccounts);
-      
+
       // Set default Kas Koperasi
       const kasKoperasi = koperasiAccounts.find(acc => acc.nama === 'Kas Koperasi');
       if (kasKoperasi) {
@@ -61,7 +61,7 @@ const FormPemasukanKoperasi: React.FC<FormPemasukanKoperasiProps> = ({ isOpen, o
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!tanggal || !kategori || !jumlah || !akunKasId) {
       toast.error('Mohon lengkapi semua field yang wajib diisi');
       return;
@@ -98,7 +98,7 @@ const FormPemasukanKoperasi: React.FC<FormPemasukanKoperasiProps> = ({ isOpen, o
         // Silent fail - saldo will be recalculated on next transaction
         // Log only in development
         if (process.env.NODE_ENV === 'development') {
-           
+
           console.warn('Warning ensuring saldo correct:', saldoError);
         }
       }

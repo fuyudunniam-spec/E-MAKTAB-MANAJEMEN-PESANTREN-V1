@@ -9,7 +9,7 @@ import { koperasiService } from "@/modules/koperasi/services/koperasi.service";
 import { toast } from "sonner";
 import type { KasirCartItem } from "@/modules/koperasi/types/koperasi.types";
 import ReceiptNota from "./ReceiptNota";
-import { TOAST_DURATION, PAYMENT_QUICK_AMOUNT_INCREMENT } from '../../constants';
+import { TOAST_DURATION, PAYMENT_QUICK_AMOUNT_INCREMENT } from '@/modules/koperasi/constants';
 
 interface PaymentDialogProps {
   open: boolean;
@@ -52,20 +52,20 @@ export default function PaymentDialog({
       const produkList = await koperasiService.getProduk({ is_active: true });
       const stokErrors: string[] = [];
       const produkNotFound: string[] = [];
-      
+
       for (const item of cart) {
         // Skip validasi untuk produk yang sudah dihapus (data historis)
         if (item.is_deleted_product) {
           continue;
         }
-        
+
         const produk = produkList.find(p => p.id === item.produk_id);
         if (!produk) {
           // Produk tidak ditemukan dan bukan produk yang sudah dihapus (seharusnya tidak terjadi)
           produkNotFound.push(item.nama_produk);
           continue;
         }
-        
+
         // Untuk edit mode, stok sudah di-restore, jadi kita hanya perlu validasi untuk item baru
         // atau perubahan jumlah yang melebihi stok tersedia
         if (!editingPenjualanId) {
@@ -85,20 +85,20 @@ export default function PaymentDialog({
           }
         }
       }
-      
+
       // Error jika ada produk yang tidak ditemukan (kecuali yang sudah ditandai sebagai deleted)
       if (produkNotFound.length > 0) {
         throw new Error(`Produk tidak ditemukan:\n${produkNotFound.join('\n')}\n\nProduk ini mungkin sudah dihapus dari database. Silakan hapus item ini dari keranjang.`);
       }
-      
+
       // Error jika stok tidak mencukupi
       if (stokErrors.length > 0) {
         throw new Error(`Stok tidak mencukupi:\n${stokErrors.join('\n')}`);
       }
-      
+
       // Format tanggal sebagai date only (YYYY-MM-DD), bukan datetime
       const tanggal = new Date().toISOString().split('T')[0];
-      
+
       // Jika sedang edit, gunakan updatePenjualan, jika tidak gunakan createPenjualan
       if (editingPenjualanId) {
         // Filter out produk yang sudah dihapus dari items yang akan di-insert
@@ -115,7 +115,7 @@ export default function PaymentDialog({
             sumber_modal_id: item.sumber_modal_id,
             price_type: item.price_type || 'ecer',
           }));
-        
+
         // Jika semua item adalah produk yang sudah dihapus, error
         if (itemsToSave.length === 0 && cart.length > 0) {
           const deletedNames = deletedProducts.map(p => p.nama_produk).join(', ');
@@ -124,7 +124,7 @@ export default function PaymentDialog({
             `Transaksi dengan produk yang sudah dihapus tidak dapat diubah. Silakan hapus transaksi ini atau hubungi administrator.`
           );
         }
-        
+
         // Jika ada produk yang sudah dihapus, tampilkan warning
         if (deletedProducts.length > 0) {
           const deletedNames = deletedProducts.map(p => p.nama_produk).join(', ');
@@ -132,7 +132,7 @@ export default function PaymentDialog({
           // Note: We don't show toast here because the save will still succeed
           // The user was already warned when loading the edit data
         }
-        
+
         return koperasiService.updatePenjualan(editingPenjualanId, {
           tanggal: tanggal,
           shift_id: shiftId || undefined,
@@ -151,7 +151,7 @@ export default function PaymentDialog({
         const isHutang = statusPembayaran === 'hutang';
         const jumlahBayarFinal = isHutang ? jumlahBayar : (metodeBayar === 'cash' ? jumlahBayar : total);
         const sisaHutang = isHutang ? (total - jumlahBayarFinal) : 0;
-        
+
         return koperasiService.createPenjualan({
           no_penjualan: undefined, // Trigger akan generate otomatis
           tanggal: tanggal,
@@ -181,7 +181,7 @@ export default function PaymentDialog({
     },
     onSuccess: async (result) => {
       toast.success(editingPenjualanId ? 'Penjualan berhasil diperbarui' : 'Transaksi berhasil');
-      
+
       // Invalidate queries untuk refresh data di modul penjualan
       queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-list'] });
       queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-stats'] });
@@ -190,7 +190,7 @@ export default function PaymentDialog({
       queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan-cicilan-summary'] });
       queryClient.invalidateQueries({ queryKey: ['koperasi-penjualan'] });
       queryClient.invalidateQueries({ queryKey: ['unified-sales-history'] });
-      
+
       // Fetch detail penjualan untuk receipt
       try {
         const penjualanId = result?.id || editingPenjualanId;
@@ -199,10 +199,10 @@ export default function PaymentDialog({
             penjualanId,
             'kop_penjualan'
           );
-          
+
           // Get penjualan header data
           const penjualanHeader = await koperasiService.getPenjualanById(penjualanId);
-          
+
           if (detail && penjualanHeader) {
             setReceiptData({
               penjualan: {
@@ -232,11 +232,11 @@ export default function PaymentDialog({
         // Continue with normal flow if receipt fetch fails
         // Log only in development
         if (process.env.NODE_ENV === 'development') {
-           
+
           console.warn('Error fetching receipt data (non-critical):', error);
         }
       }
-      
+
       onSuccess();
       onClose();
       resetForm();
@@ -418,9 +418,8 @@ export default function PaymentDialog({
                 </div>
 
                 {jumlahBayar > 0 && (
-                  <div className={`p-3 rounded ${
-                    kembalian >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-                  }`}>
+                  <div className={`p-3 rounded ${kembalian >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                    }`}>
                     <div className="flex justify-between font-semibold">
                       <span>Kembalian:</span>
                       <span>Rp {kembalian.toLocaleString('id-ID')}</span>
@@ -443,7 +442,7 @@ export default function PaymentDialog({
               <Button
                 onClick={handleSubmit}
                 disabled={
-                  createPenjualanMutation.isPending || 
+                  createPenjualanMutation.isPending ||
                   (statusPembayaran === 'lunas' && metodeBayar === 'cash' && jumlahBayar < total) ||
                   (statusPembayaran === 'hutang' && jumlahBayar >= total)
                 }
