@@ -44,17 +44,17 @@ const TransparansiPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-stone-50 font-body selection:bg-gold-200 selection:text-royal-950">
       <PublicNavbar />
-      
+
       {/* HEADER */}
       <header className="bg-royal-900 text-white pt-16 pb-32 relative overflow-hidden rounded-b-[4rem]">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "url('https://www.transparenttextures.com/patterns/arabesque.png')" }}></div>
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gold-500/20 rounded-full blur-[100px] translate-x-1/2 -translate-y-1/2"></div>
-        
+
         <div className="max-w-7xl mx-auto px-6 relative z-10 text-center">
-          <span className="text-gold-400 font-bold uppercase tracking-[0.2em] text-xs mb-4 block">Akuntabilitas Akademis</span>
-          <h1 className="text-4xl md:text-6xl font-display mb-6">Laporan Investasi Ilmu</h1>
+          <span className="text-gold-400 font-bold uppercase tracking-[0.2em] text-xs mb-4 block">Transparansi & Akuntabilitas</span>
+          <h1 className="text-4xl md:text-6xl font-display mb-6">Laporan Keuangan Pesantren</h1>
           <p className="text-royal-200 text-lg max-w-2xl mx-auto font-light">
-            Transparansi pengelolaan dana wakaf untuk pengembangan kurikulum, riset, dan beasiswa kader ulama.
+            Transparansi pengelolaan dana pesantren secara akuntabel, profesional, dan dapat dipertanggungjawabkan.
           </p>
         </div>
       </header>
@@ -63,32 +63,35 @@ const TransparansiPage: React.FC = () => {
       <main className="max-w-7xl mx-auto px-6 -mt-20 relative z-20 pb-24">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          {/* Total Saldo */}
           <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-stone-100 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-24 h-24 bg-gold-100 rounded-bl-[4rem] -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
             <div className="relative z-10">
-              <p className="text-xs text-stone-500 font-bold uppercase tracking-widest mb-2">Aset Wakaf Produktif</p>
+              <p className="text-xs text-stone-500 font-bold uppercase tracking-widest mb-2">Total Aset Keuangan</p>
               <h3 className="text-4xl font-display text-royal-900 mb-2">{formatNumber(impactData?.totalAset || 0)}</h3>
               <div className="flex items-center gap-2 text-green-600 text-sm font-bold bg-green-50 w-fit px-2 py-1 rounded-lg">
-                <TrendingUp className="w-4 h-4" /> Realtime Data
+                <TrendingUp className="w-4 h-4" /> Saldo Aktif
               </div>
             </div>
           </div>
 
+          {/* Pemasukan */}
           <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-stone-100 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-royal-100 rounded-bl-[4rem] -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+            <div className="absolute top-0 right-0 w-24 h-24 bg-green-100 rounded-bl-[4rem] -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
             <div className="relative z-10">
-              <p className="text-xs text-stone-500 font-bold uppercase tracking-widest mb-2">Dana Beasiswa & Riset</p>
-              <h3 className="text-4xl font-display text-royal-900 mb-2">{formatNumber(impactData?.totalPenyaluran || 0)}</h3>
-              <p className="text-sm text-stone-400">Total Penyaluran Akumulatif</p>
+              <p className="text-xs text-stone-500 font-bold uppercase tracking-widest mb-2">Pemasukan Bulan Ini</p>
+              <h3 className="text-4xl font-display text-royal-900 mb-2">{formatNumber(impactData?.totalPemasukan || 0)}</h3>
+              <p className="text-sm text-stone-400">Total Penerimaan</p>
             </div>
           </div>
 
+          {/* Pengeluaran */}
           <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-stone-100 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-stone-100 rounded-bl-[4rem] -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+            <div className="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-bl-[4rem] -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
             <div className="relative z-10">
-              <p className="text-xs text-stone-500 font-bold uppercase tracking-widest mb-2">Kader Dibina</p>
-              <h3 className="text-4xl font-display text-royal-900 mb-2">{impactData?.totalPenerima || 0} Santri</h3>
-              <p className="text-sm text-stone-400">Jenjang Takhassus & Ma'had Aly</p>
+              <p className="text-xs text-stone-500 font-bold uppercase tracking-widest mb-2">Pengeluaran Bulan Ini</p>
+              <h3 className="text-4xl font-display text-royal-900 mb-2">{formatNumber(impactData?.totalPenyaluran || 0)}</h3>
+              <p className="text-sm text-stone-400">Total Penggunaan Dana</p>
             </div>
           </div>
         </div>
@@ -117,7 +120,7 @@ const TransparansiPage: React.FC = () => {
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip 
+                  <Tooltip
                     contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
                     formatter={(value) => [`${value}%`, 'Persentase']}
                   />
@@ -140,8 +143,8 @@ const TransparansiPage: React.FC = () => {
           {/* Allocation Chart */}
           <div className="lg:col-span-2 bg-white p-8 rounded-[2rem] shadow-sm border border-stone-200">
             <div className="flex justify-between items-center mb-6">
-              <h4 className="font-display text-xl text-royal-900">Grafik Penyaluran Dana Pendidikan</h4>
-              <span className="text-xs font-bold text-royal-800 bg-royal-50 px-3 py-1 rounded-full">Akumulatif (Jutaan Rp)</span>
+              <h4 className="font-display text-xl text-royal-900">Arus Kas Bulanan</h4>
+              <span className="text-xs font-bold text-royal-800 bg-royal-50 px-3 py-1 rounded-full">Pemasukan vs Pengeluaran</span>
             </div>
             <div className="w-full h-[350px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -149,12 +152,18 @@ const TransparansiPage: React.FC = () => {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
                   <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, family: 'Cormorant Garamond' }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, family: 'Cormorant Garamond' }} />
-                  <Tooltip 
+                  <Tooltip
                     cursor={{ fill: '#f8fafc' }}
                     contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
-                    formatter={(value) => [`Rp ${value} Jt`, 'Penyaluran']}
+                    formatter={(value) => [`Rp ${value} Jt`, 'Nominal']}
                   />
-                  <Bar dataKey="amount" fill="#166534" radius={[8, 8, 0, 0]} barSize={20} />
+                  <Bar dataKey="amount" radius={[4, 4, 0, 0]} >
+                    {
+                      (impactData?.allocationTrend || []).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.type === 'Pemasukan' ? '#10b981' : '#ef4444'} />
+                      ))
+                    }
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -164,7 +173,7 @@ const TransparansiPage: React.FC = () => {
         {/* REALIZATION TRACKER */}
         <div className="mb-12">
           <h4 className="font-display text-2xl text-royal-900 mb-6 flex items-center gap-3">
-            <span className="w-2 h-8 bg-gold-400 rounded-full"></span> Realisasi Program Strategis
+            <span className="w-2 h-8 bg-gold-400 rounded-full"></span> Realisasi Program & Alokasi
           </h4>
 
           <div className="grid md:grid-cols-2 gap-6">
@@ -183,8 +192,8 @@ const TransparansiPage: React.FC = () => {
                     <div className={`${prog.status === 'Selesai' ? 'bg-green-600' : 'bg-gold-400'} h-2.5 rounded-full transition-all duration-1000`} style={{ width: `${prog.progress}%` }}></div>
                   </div>
                   <div className="flex justify-between text-xs font-bold text-stone-400">
-                    <span>Realisasi: {formatNumber(prog.progress * prog.budget / 100)}</span>
-                    <span>Target {prog.targetDate}</span>
+                    <span>Realisasi: {formatCurrency(prog.budget)}</span>
+                    <span>Status: {prog.targetDate}</span>
                   </div>
                 </div>
               </div>
@@ -195,7 +204,7 @@ const TransparansiPage: React.FC = () => {
         {/* RECENT TRANSACTIONS TABLE */}
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-stone-200 overflow-hidden">
           <div className="p-8 border-b border-stone-100 flex justify-between items-center">
-            <h4 className="font-display text-xl text-royal-900">Arus Kas Wakaf</h4>
+            <h4 className="font-display text-xl text-royal-900">Riwayat Transaksi Terkini</h4>
             <button className="text-xs font-bold text-gold-600 hover:text-royal-900 uppercase tracking-wider">Laporan Detail</button>
           </div>
           <div className="overflow-x-auto">
@@ -215,11 +224,13 @@ const TransparansiPage: React.FC = () => {
                     <td className="px-8 py-4 font-mono text-stone-500">{new Date(row.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
                     <td className="px-8 py-4 font-bold text-royal-900">{row.description}</td>
                     <td className="px-8 py-4">
-                      <span className="px-2 py-1 rounded-md text-xs font-bold bg-royal-50 text-royal-700 border border-royal-100">
+                      <span className={`px-2 py-1 rounded-md text-xs font-bold border ${row.type === 'Pemasukan' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
                         {row.category}
                       </span>
                     </td>
-                    <td className="px-8 py-4 text-right font-mono font-bold">{formatCurrency(row.amount)}</td>
+                    <td className={`px-8 py-4 text-right font-mono font-bold ${row.type === 'Pemasukan' ? 'text-green-600' : 'text-red-600'}`}>
+                      {row.type === 'Pengeluaran' ? '-' : '+'} {formatCurrency(row.amount)}
+                    </td>
                     <td className="px-8 py-4 text-center">
                       <span className="text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-bold">
                         {row.status}
