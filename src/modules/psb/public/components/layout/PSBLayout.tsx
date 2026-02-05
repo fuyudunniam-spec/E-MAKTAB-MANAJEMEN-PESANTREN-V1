@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { PSBHeader } from "./PSBHeader";
-import { Footer } from "./Footer";
+import { Footer } from "@/components/layout/Footer";
 
 interface PSBLayoutProps {
   children: ReactNode;

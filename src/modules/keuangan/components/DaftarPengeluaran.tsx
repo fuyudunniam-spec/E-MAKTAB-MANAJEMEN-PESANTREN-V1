@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { 
+import {
   Search,
   Filter,
   Download,
@@ -19,7 +19,7 @@ import {
   Users,
   FileText
 } from 'lucide-react';
-import { supabase } from '../integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { AkunKasService, AkunKas } from '../services/akunKas.service';
 import { toast } from 'sonner';
 
@@ -38,7 +38,7 @@ const DaftarPengeluaran: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedItem, setSelectedItem] = useState<KeuanganWithDetails | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  
+
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     startDate: '',
@@ -79,7 +79,7 @@ const DaftarPengeluaran: React.FC = () => {
         `)
         .eq('jenis_transaksi', 'Pengeluaran')
         .order('tanggal', { ascending: false });
-      
+
       if (error) throw error;
       // Filter hanya pengeluaran dan map alokasi_santri
       const pengeluaranData = result
@@ -133,7 +133,7 @@ const DaftarPengeluaran: React.FC = () => {
     // Search filter
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch =
         item.deskripsi?.toLowerCase().includes(searchLower) ||
         item.kategori?.toLowerCase().includes(searchLower) ||
         item.referensi?.toLowerCase().includes(searchLower);
@@ -169,12 +169,12 @@ const DaftarPengeluaran: React.FC = () => {
     // Selalu fetch alokasi santri secara terpisah untuk memastikan data ter-update
     // karena mungkin ada masalah dengan nested query di Supabase
     let alokasiSantri: any[] = [];
-    
+
     try {
       // Fetch alokasi santri secara terpisah untuk kategori yang seharusnya punya alokasi
-      if (item.kategori === 'Pendidikan Formal' || 
-          item.kategori === 'Bantuan Langsung Yayasan' ||
-          item.kategori === 'Operasional dan Konsumsi Santri') {
+      if (item.kategori === 'Pendidikan Formal' ||
+        item.kategori === 'Bantuan Langsung Yayasan' ||
+        item.kategori === 'Operasional dan Konsumsi Santri') {
         const { data: alokasiData, error: alokasiError } = await supabase
           .from('alokasi_layanan_santri')
           .eq('sumber_alokasi', 'manual')
@@ -193,7 +193,7 @@ const DaftarPengeluaran: React.FC = () => {
             )
           `)
           .eq('keuangan_id', item.id);
-        
+
         if (!alokasiError && alokasiData) {
           alokasiSantri = alokasiData;
           console.log('[DaftarPengeluaran] Fetched alokasi santri:', {
@@ -214,7 +214,7 @@ const DaftarPengeluaran: React.FC = () => {
       // Fallback ke data dari item jika error
       alokasiSantri = item.alokasi_santri || [];
     }
-    
+
     // Debug log untuk melihat data alokasi saat view detail
     console.log('[DaftarPengeluaran] View detail:', {
       keuangan_id: item.id,
@@ -223,7 +223,7 @@ const DaftarPengeluaran: React.FC = () => {
       alokasi_length: alokasiSantri?.length || 0,
       original_alokasi: item.alokasi_santri
     });
-    
+
     setSelectedItem({
       ...item,
       alokasi_santri: alokasiSantri
@@ -239,7 +239,7 @@ const DaftarPengeluaran: React.FC = () => {
         .from('keuangan')
         .delete()
         .eq('id', id);
-      
+
       if (error) throw error;
       toast.success('Transaksi berhasil dihapus');
       await loadData();
@@ -270,7 +270,7 @@ const DaftarPengeluaran: React.FC = () => {
     a.download = `pengeluaran_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
-    
+
     toast.success('Data berhasil diekspor');
   };
 
@@ -336,7 +336,7 @@ const DaftarPengeluaran: React.FC = () => {
                 className="h-9"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Tanggal Mulai</label>
               <Input
@@ -346,7 +346,7 @@ const DaftarPengeluaran: React.FC = () => {
                 className="h-9"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Tanggal Akhir</label>
               <Input
@@ -356,7 +356,7 @@ const DaftarPengeluaran: React.FC = () => {
                 className="h-9"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Kategori</label>
               <Select value={filters.kategori} onValueChange={(value) => handleFilterChange('kategori', value)}>
@@ -373,7 +373,7 @@ const DaftarPengeluaran: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Akun Kas</label>
               <Select value={filters.akun_kas_id} onValueChange={(value) => handleFilterChange('akun_kas_id', value)}>
@@ -479,7 +479,7 @@ const DaftarPengeluaran: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Detail Pengeluaran</DialogTitle>
           </DialogHeader>
-          
+
           {selectedItem && (
             <div className="space-y-6">
               {/* Basic Info */}
@@ -543,11 +543,11 @@ const DaftarPengeluaran: React.FC = () => {
               {(() => {
                 const alokasiSantri = selectedItem.alokasi_santri || [];
                 const hasAlokasi = Array.isArray(alokasiSantri) && alokasiSantri.length > 0;
-                
+
                 // Debug untuk kategori yang seharusnya punya alokasi
-                if ((selectedItem.kategori === 'Pendidikan Formal' || 
-                     selectedItem.kategori === 'Bantuan Langsung Yayasan') && 
-                    !hasAlokasi) {
+                if ((selectedItem.kategori === 'Pendidikan Formal' ||
+                  selectedItem.kategori === 'Bantuan Langsung Yayasan') &&
+                  !hasAlokasi) {
                   console.warn('[DaftarPengeluaran] Expected alokasi but not found:', {
                     keuangan_id: selectedItem.id,
                     kategori: selectedItem.kategori,
@@ -555,39 +555,39 @@ const DaftarPengeluaran: React.FC = () => {
                     alokasi_pengeluaran_santri: (selectedItem as any).alokasi_pengeluaran_santri
                   });
                 }
-                
+
                 return hasAlokasi;
               })() && (
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Alokasi Santri</h4>
-                  <div className="border rounded-md">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Santri</TableHead>
-                          <TableHead>ID Santri</TableHead>
-                          <TableHead>Jenis Bantuan</TableHead>
-                          <TableHead>Periode</TableHead>
-                          <TableHead className="text-right">Nominal</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(selectedItem.alokasi_santri || []).map((alloc: any, index: number) => (
-                          <TableRow key={alloc.id || index}>
-                            <TableCell>{alloc.santri?.nama_lengkap || 'Tidak Diketahui'}</TableCell>
-                            <TableCell>{alloc.santri?.id_santri || alloc.santri?.nisn || '-'}</TableCell>
-                            <TableCell>{alloc.jenis_bantuan || '-'}</TableCell>
-                            <TableCell>{alloc.periode || '-'}</TableCell>
-                            <TableCell className="text-right font-medium">
-                              {formatCurrency(alloc.nominal_alokasi || 0)}
-                            </TableCell>
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Alokasi Santri</h4>
+                    <div className="border rounded-md">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Santri</TableHead>
+                            <TableHead>ID Santri</TableHead>
+                            <TableHead>Jenis Bantuan</TableHead>
+                            <TableHead>Periode</TableHead>
+                            <TableHead className="text-right">Nominal</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {(selectedItem.alokasi_santri || []).map((alloc: any, index: number) => (
+                            <TableRow key={alloc.id || index}>
+                              <TableCell>{alloc.santri?.nama_lengkap || 'Tidak Diketahui'}</TableCell>
+                              <TableCell>{alloc.santri?.id_santri || alloc.santri?.nisn || '-'}</TableCell>
+                              <TableCell>{alloc.jenis_bantuan || '-'}</TableCell>
+                              <TableCell>{alloc.periode || '-'}</TableCell>
+                              <TableCell className="text-right font-medium">
+                                {formatCurrency(alloc.nominal_alokasi || 0)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
           )}
         </DialogContent>

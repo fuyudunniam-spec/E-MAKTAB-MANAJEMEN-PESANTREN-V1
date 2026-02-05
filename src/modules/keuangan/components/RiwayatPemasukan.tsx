@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { 
+import {
   Download,
   Filter,
   RefreshCw,
@@ -12,7 +12,7 @@ import {
   DollarSign,
   TrendingUp
 } from 'lucide-react';
-import { supabase } from '../integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface IncomeHistoryEntry {
@@ -34,9 +34,9 @@ const getIncomeHistory = async (): Promise<IncomeHistoryEntry[]> => {
     `)
     .eq('jenis_transaksi', 'Pemasukan')
     .order('tanggal', { ascending: false });
-  
+
   if (error) throw error;
-  
+
   return data?.map(item => ({
     ...item,
     akun_kas_nama: item.akun_kas?.nama || 'Kas Utama'
@@ -48,7 +48,7 @@ const RiwayatPemasukan: React.FC = () => {
   const [filteredHistory, setFilteredHistory] = useState<IncomeHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // Filter states
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -96,7 +96,7 @@ const RiwayatPemasukan: React.FC = () => {
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(item => 
+      filtered = filtered.filter(item =>
         item.deskripsi.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }

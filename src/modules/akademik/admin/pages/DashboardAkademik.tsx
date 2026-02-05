@@ -5,9 +5,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { FilterBar } from '@/modules/akademik/components/dashboard/FilterBar';
-import { KPIStatCard } from '@/modules/akademik/components/dashboard/KPIStatCard';
-import { TaskQueue, TaskItem } from '@/modules/akademik/components/dashboard/TaskQueue';
+import { FilterBar } from '@/modules/akademik/components/dashboard/akademik/FilterBar';
+import { KPIStatCard } from '@/modules/akademik/components/dashboard/akademik/KPIStatCard';
+import { TaskQueue, TaskItem } from '@/modules/akademik/components/dashboard/akademik/TaskQueue';
 import {
   Calendar,
   Users,
@@ -119,7 +119,7 @@ const DashboardAkademik: React.FC = () => {
       try {
         const allSemesters = await AkademikSemesterService.listSemester();
         setSemesters(allSemesters);
-        
+
         // Set active semester as default
         const activeSemester = allSemesters.find(s => s.is_aktif) || allSemesters[0] || null;
         setSelectedSemester(activeSemester);
@@ -145,7 +145,7 @@ const DashboardAkademik: React.FC = () => {
       // Filter kelas by semester
       const allKelas = await AkademikKelasService.listKelas();
       const kelasInSemester = allKelas.filter(k => k.semester_id === selectedSemester.id);
-      
+
       // Filter by domain (Madin)
       const filteredKelas = kelasInSemester.filter(k => k.program === 'Madin');
 
@@ -170,7 +170,7 @@ const DashboardAkademik: React.FC = () => {
         aktifOnly: false, // Include all untuk hitung total
         semesterId: selectedSemester.id,
       });
-      const agendasInSemester = allAgendas.filter(a => 
+      const agendasInSemester = allAgendas.filter(a =>
         a.kelas && kelasIds.includes(a.kelas.id)
       );
       const agendasAktif = agendasInSemester.filter(a => a.aktif !== false);
@@ -180,7 +180,7 @@ const DashboardAkademik: React.FC = () => {
         startDate: semesterStart,
         endDate: semesterEnd,
       });
-      const pertemuanInSemester = allPertemuan.filter(p => 
+      const pertemuanInSemester = allPertemuan.filter(p =>
         p.kelas?.semester_id === selectedSemester.id
       );
       const pertemuanSelesai = pertemuanInSemester.filter(p => p.status === 'Selesai');
@@ -200,7 +200,7 @@ const DashboardAkademik: React.FC = () => {
       const agendaAktif = agendasAktif.length;
       const kelasAktif = filteredKelas.length;
       const pertemuanSelesaiCount = pertemuanSelesai.length;
-      
+
       // Calculate presensi percent
       let presensiPercent = 0;
       if (pertemuanSelesaiCount > 0) {
@@ -208,7 +208,7 @@ const DashboardAkademik: React.FC = () => {
           .from('absensi_madin')
           .select('pertemuan_id')
           .in('pertemuan_id', pertemuanSelesaiIds);
-        
+
         const pertemuanWithAbsensi = new Set((absensiData || []).map(a => a.pertemuan_id));
         const pertemuanWithAbsensiCount = pertemuanWithAbsensi.size;
         presensiPercent = (pertemuanWithAbsensiCount / pertemuanSelesaiCount) * 100;
@@ -224,7 +224,7 @@ const DashboardAkademik: React.FC = () => {
           // Skip if error
         }
       }
-      
+
       // Hitung persentase nilai published dan locked
       const nilaiPublished = nilaiList.filter(n => n.status_nilai === 'Published');
       const nilaiLocked = nilaiList.filter(n => n.status_nilai === 'Locked');
@@ -242,7 +242,7 @@ const DashboardAkademik: React.FC = () => {
 
       // Build Task Queue
       const taskItems: TaskItem[] = [];
-      
+
       // 1. Agenda belum generate pertemuan
       for (const agenda of agendasAktif) {
         const pertemuanForAgenda = pertemuanInSemester.filter(p => p.agenda_id === agenda.id);
@@ -267,9 +267,9 @@ const DashboardAkademik: React.FC = () => {
           .from('absensi_madin')
           .select('pertemuan_id')
           .in('pertemuan_id', pertemuanSelesaiIds);
-        
+
         const pertemuanWithAbsensi = new Set((absensiForPertemuan || []).map(a => a.pertemuan_id));
-        
+
         for (const pertemuan of pertemuanSelesai) {
           if (pertemuan.id && !pertemuanWithAbsensi.has(pertemuan.id)) {
             taskItems.push({
@@ -350,14 +350,14 @@ const DashboardAkademik: React.FC = () => {
 
       // Sort tasks by priority
       const priorityOrder = { high: 0, medium: 1, low: 2 };
-      taskItems.sort((a, b) => 
+      taskItems.sort((a, b) =>
         (priorityOrder[a.priority || 'low']) - (priorityOrder[b.priority || 'low'])
       );
       setTasks(taskItems.slice(0, 20));
 
       // Build Kelas Table Data
       const kelasRows: KelasTableRow[] = [];
-      
+
       for (const kelas of filteredKelas) {
         // Get jadwal untuk kelas ini
         const jadwalKelas = agendasInSemester.filter(a => a.kelas?.id === kelas.id);
@@ -366,8 +366,8 @@ const DashboardAkademik: React.FC = () => {
         // Calculate pertemuan percent untuk kelas
         const pertemuanKelas = pertemuanInSemester.filter(p => p.kelas_id === kelas.id);
         const pertemuanSelesaiKelas = pertemuanKelas.filter(p => p.status === 'Selesai');
-        const pertemuanSelesaiPercent = pertemuanKelas.length > 0 
-          ? (pertemuanSelesaiKelas.length / pertemuanKelas.length) * 100 
+        const pertemuanSelesaiPercent = pertemuanKelas.length > 0
+          ? (pertemuanSelesaiKelas.length / pertemuanKelas.length) * 100
           : 0;
 
         // Calculate presensi percent untuk kelas
@@ -379,7 +379,7 @@ const DashboardAkademik: React.FC = () => {
               .from('absensi_madin')
               .select('pertemuan_id')
               .in('pertemuan_id', selesaiIds);
-            
+
             const pertemuanWithAbsensi = new Set((absensiData || []).map(a => a.pertemuan_id));
             presensiPercentKelas = (pertemuanWithAbsensi.size / pertemuanSelesaiKelas.length) * 100;
           }
@@ -391,7 +391,7 @@ const DashboardAkademik: React.FC = () => {
           const nilaiKelas = await AkademikNilaiService.listNilai(kelas.id, selectedSemester.id);
           if (nilaiKelas.length > 0) {
             const allPublished = nilaiKelas.every(n => n.status_nilai === 'Published');
-            const allLockedOrPublished = nilaiKelas.every(n => 
+            const allLockedOrPublished = nilaiKelas.every(n =>
               n.status_nilai === 'Locked' || n.status_nilai === 'Published'
             );
             if (allPublished) {
@@ -420,13 +420,13 @@ const DashboardAkademik: React.FC = () => {
               .filter(p => p.status === 'Selesai')
               .map(p => p.id)
               .filter(Boolean) as string[];
-            
+
             if (selesaiIds.length > 0) {
               const { data: absensiData } = await supabase
                 .from('absensi_madin')
                 .select('pertemuan_id')
                 .in('pertemuan_id', selesaiIds);
-              
+
               const pertemuanWithAbsensi = new Set((absensiData || []).map(a => a.pertemuan_id));
               presensiPercentJadwal = (pertemuanWithAbsensi.size / pertemuanSelesaiCount) * 100;
             }
@@ -440,7 +440,7 @@ const DashboardAkademik: React.FC = () => {
             });
             if (nilai.length > 0) {
               const allPublished = nilai.every(n => n.status_nilai === 'Published');
-              const allLockedOrPublished = nilai.every(n => 
+              const allLockedOrPublished = nilai.every(n =>
                 n.status_nilai === 'Locked' || n.status_nilai === 'Published'
               );
               if (allPublished) {
@@ -508,8 +508,8 @@ const DashboardAkademik: React.FC = () => {
 
   // Toggle expand kelas
   const toggleExpandKelas = (kelasId: string) => {
-    setKelasTableData(prev => prev.map(row => 
-      row.kelas.id === kelasId 
+    setKelasTableData(prev => prev.map(row =>
+      row.kelas.id === kelasId
         ? { ...row, expanded: !row.expanded }
         : row
     ));

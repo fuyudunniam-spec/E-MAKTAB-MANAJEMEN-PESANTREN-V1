@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Donation } from '@/modules/donasi/components/dashboard/DonationHistory';
+import { Donation } from '@/modules/donasi/components/dashboard/donasi/DonationHistory';
 import { supabase } from '@/integrations/supabase/client';
 
 interface DonationReceiptProps {
@@ -75,7 +75,7 @@ const DonationReceipt: React.FC<DonationReceiptProps> = ({ donation, onClose }) 
     if (nomorBukti) {
       return nomorBukti;
     }
-    
+
     // Fallback: generate dari ID donasi
     const date = new Date(donation.donation_date);
     const year = date.getFullYear();

@@ -7,10 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Search, 
-  Filter, 
-  Download, 
+import {
+  Search,
+  Filter,
+  Download,
   Calendar,
   TrendingUp,
   TrendingDown,
@@ -20,8 +20,8 @@ import {
   Users,
   ArrowLeft
 } from 'lucide-react';
-import { TabunganSantriService } from '@/services/tabunganSantri.service';
-import { TabunganSantriWithSantri, TabunganFilter, TabunganStats } from '@/types/tabungan.types';
+import { TabunganSantriService } from '@/modules/santri/services/tabunganSantri.service';
+import { TabunganSantriWithSantri, TabunganFilter, TabunganStats } from '@/modules/keuangan/types/tabungan.types';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 
@@ -198,7 +198,7 @@ const LaporanTabungan: React.FC<LaporanTabunganProps> = ({ hideBackButton = fals
               <div className="text-xl font-bold text-foreground">{formatCurrency(stats.total_saldo)}</div>
             </CardContent>
           </Card>
-          
+
           <Card className="border-border bg-gradient-card">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Transaksi</CardTitle>
@@ -409,10 +409,10 @@ const LaporanTabungan: React.FC<LaporanTabunganProps> = ({ hideBackButton = fals
                   </TableBody>
                 </Table>
               </div>
-              
+
               {/* Load More Button */}
               <div className="flex justify-center mt-6">
-                <Button 
+                <Button
                   onClick={handleLoadMore}
                   variant="outline"
                 >

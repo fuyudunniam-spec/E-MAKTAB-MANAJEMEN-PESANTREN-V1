@@ -1,4 +1,4 @@
-import { supabase } from '../integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface AlokasiPengeluaranSantri {
   id: string;
@@ -139,7 +139,7 @@ export class AlokasiPengeluaranService {
       .order('periode', { ascending: false });
 
     if (error) throw error;
-    
+
     // Aggregate by santri and period
     const aggregateMap = new Map<string, AkumulasiBantuanSantri>();
     (data || []).forEach((item: any) => {
@@ -162,8 +162,8 @@ export class AlokasiPengeluaranService {
         acc.jenis_bantuan_list.push(item.jenis_bantuan);
       }
     });
-    
-    return Array.from(aggregateMap.values()).sort((a, b) => 
+
+    return Array.from(aggregateMap.values()).sort((a, b) =>
       b.periode_bulan.localeCompare(a.periode_bulan)
     );
   }
@@ -186,7 +186,7 @@ export class AlokasiPengeluaranService {
       .order('periode', { ascending: false });
 
     if (error) throw error;
-    
+
     // Aggregate by period
     const aggregateMap = new Map<string, AkumulasiBantuanSantri>();
     (data || []).forEach((item: any) => {
@@ -209,8 +209,8 @@ export class AlokasiPengeluaranService {
         acc.jenis_bantuan_list.push(item.jenis_bantuan);
       }
     });
-    
-    return Array.from(aggregateMap.values()).sort((a, b) => 
+
+    return Array.from(aggregateMap.values()).sort((a, b) =>
       b.periode_bulan.localeCompare(a.periode_bulan)
     );
   }
@@ -233,7 +233,7 @@ export class AlokasiPengeluaranService {
       .order('nominal_alokasi', { ascending: false });
 
     if (error) throw error;
-    
+
     // Aggregate by santri
     const aggregateMap = new Map<string, AkumulasiBantuanSantri>();
     (data || []).forEach((item: any) => {
@@ -256,8 +256,8 @@ export class AlokasiPengeluaranService {
         acc.jenis_bantuan_list.push(item.jenis_bantuan);
       }
     });
-    
-    return Array.from(aggregateMap.values()).sort((a, b) => 
+
+    return Array.from(aggregateMap.values()).sort((a, b) =>
       b.total_bantuan - a.total_bantuan
     );
   }
@@ -419,7 +419,7 @@ export class AlokasiPengeluaranService {
     allocations: AlokasiPengeluaranSantri[];
   }> {
     const allocations = await this.getByKeuanganId(keuangan_id);
-    
+
     const total_allocation = allocations.reduce((sum, alloc) => sum + alloc.nominal_alokasi, 0);
     const total_santri = allocations.length;
 
@@ -439,7 +439,7 @@ export class AlokasiPengeluaranService {
     jenis_bantuan_list: string[];
     allocations: AlokasiPengeluaranSantri[];
   }> {
-    const allocations = periode 
+    const allocations = periode
       ? await this.getBySantriIdAndPeriod(santri_id, periode)
       : await this.getBySantriId(santri_id);
 
@@ -490,9 +490,9 @@ export class AlokasiPengeluaranService {
   /**
    * Get available santri for allocation
    */
-  static async getAvailableSantri(): Promise<{ 
-    id: string; 
-    nama_lengkap: string; 
+  static async getAvailableSantri(): Promise<{
+    id: string;
+    nama_lengkap: string;
     nisn: string;
     id_santri: string;
     program?: string;
@@ -515,7 +515,7 @@ export class AlokasiPengeluaranService {
       .order('nama_lengkap', { ascending: true });
 
     if (error) throw error;
-    
+
     // Transform data to include kelas info
     return (data || []).map(item => {
       const aktif = (item.kelas || []).find((k: any) => k.status_kelas === 'Aktif') || item.kelas?.[0];
@@ -543,20 +543,20 @@ export class AlokasiPengeluaranService {
     unique_periods: string[];
     top_beneficiaries: Array<{ santri_id: string; nama_lengkap: string; total_bantuan: number }>;
   }> {
-      const { data, error } = await supabase
-        .from('alokasi_layanan_santri')
-        .select(`
+    const { data, error } = await supabase
+      .from('alokasi_layanan_santri')
+      .select(`
           *,
           santri!inner(nama_lengkap)
         `)
-        .eq('sumber_alokasi', 'manual');
+      .eq('sumber_alokasi', 'manual');
 
     if (error) throw error;
 
     const allocations = data || [];
     const total_allocations = allocations.length;
     const total_amount = allocations.reduce((sum, alloc) => sum + alloc.nominal_alokasi, 0);
-    
+
     const unique_santri = new Set(allocations.map(alloc => alloc.santri_id)).size;
     const unique_periods = [...new Set(allocations.map(alloc => alloc.periode))];
 
@@ -629,19 +629,21 @@ export class AlokasiPengeluaranService {
     if (error) throw error;
 
     // Group by santri and calculate totals
-    const santriTotals: { [key: string]: {
-      id_santri: string;
-      nama_lengkap: string;
-      program: string;
-      total_bantuan: number;
-      jumlah_alokasi: number;
-    } } = {};
+    const santriTotals: {
+      [key: string]: {
+        id_santri: string;
+        nama_lengkap: string;
+        program: string;
+        total_bantuan: number;
+        jumlah_alokasi: number;
+      }
+    } = {};
 
     (data || []).forEach((allocationItem: any) => {
       const santri = allocationItem.santri;
       if (!santri || !santri.id) return;
-      
-      const kelasAktif = Array.isArray(santri.kelas) 
+
+      const kelasAktif = Array.isArray(santri.kelas)
         ? santri.kelas.find((k: any) => k.status_kelas === 'Aktif') || santri.kelas[0]
         : null;
       const program = kelasAktif

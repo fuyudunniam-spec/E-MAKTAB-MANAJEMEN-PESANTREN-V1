@@ -5,7 +5,7 @@ import { PieChart, RefreshCw, Calendar, DollarSign, AlertCircle, CheckCircle2, W
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import ProfitSharingBreakdown from './components/ProfitSharingBreakdown';
-import RiwayatTransaksi from '@/modules/keuangan/admin/components/dashboard/RiwayatTransaksi';
+import RiwayatTransaksi from '@/modules/keuangan/admin/components/dashboard/keuangan/RiwayatTransaksi';
 import TransactionDetailModal from '@/modules/koperasi/components/TransactionDetailModal';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, format, startOfDay, endOfDay } from 'date-fns';
@@ -37,7 +37,7 @@ const BagiHasilPage = () => {
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [dateFilter, setDateFilter] = useState<string>('bulan-ini');
   const [kasKoperasiId, setKasKoperasiId] = useState<string | null>(null);
-  
+
   // Monthly summary state
   const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary[]>([]);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -217,7 +217,7 @@ const BagiHasilPage = () => {
       if (error) throw error;
 
       toast.success('Pembayaran berhasil diproses');
-      
+
       // Reload data
       await Promise.all([
         loadMonthlySummaries(),
@@ -312,7 +312,7 @@ const BagiHasilPage = () => {
       </div>
 
       {/* Profit Sharing Breakdown */}
-      <ProfitSharingBreakdown 
+      <ProfitSharingBreakdown
         startDate={getDateRange().startDate}
         endDate={getDateRange().endDate}
       />
@@ -361,7 +361,7 @@ const BagiHasilPage = () => {
                 </TableHeader>
                 <TableBody>
                   {monthlySummaries.map((summary) => (
-                    <TableRow 
+                    <TableRow
                       key={summary.id}
                       className={summary.status === 'unpaid' && summary.bagian_yayasan > 0 ? 'bg-amber-50 hover:bg-amber-100' : ''}
                     >
@@ -395,7 +395,7 @@ const BagiHasilPage = () => {
                         )}
                       </TableCell>
                       <TableCell className="text-center text-sm text-gray-600">
-                        {summary.tanggal_bayar 
+                        {summary.tanggal_bayar
                           ? format(new Date(summary.tanggal_bayar), 'd MMM yyyy', { locale: localeId })
                           : '-'
                         }
@@ -472,7 +472,7 @@ const BagiHasilPage = () => {
               Pastikan data pembayaran sudah benar sebelum melanjutkan
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedSummary && (
             <div className="space-y-4 py-4">
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
