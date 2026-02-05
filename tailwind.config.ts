@@ -59,25 +59,25 @@ export default {
         },
         // Palet Isyraq An-Nur: Deep Navy & Gold
         royal: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
+          50: '#f0fdf4',
+          100: '#dcfce7',
           200: '#bae6fd',
           300: '#7dd3fc',
           400: '#38bdf8',
           500: '#0ea5e9',
           600: '#0284c7',
           700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
-          950: '#082f49', // Warna Utama (Deep Navy)
-          brand: '#0f172a' // Slate 900 untuk kontras
+          800: '#166534',
+          900: '#14532d',
+          950: '#052e16',
+          brand: '#0f172a'
         },
         gold: {
           50: '#fffbeb',
           100: '#fef9c3',
           200: '#fde68a',
           300: '#fcd34d',
-          400: '#d4af37', // Emas Klasik
+          400: '#d4af37',
           500: '#b4941f',
           600: '#8c7318',
           700: '#b45309',
@@ -85,7 +85,7 @@ export default {
           900: '#78350f',
           950: '#451a03',
         },
-        paper: '#F8FAFC', // Slate-50 (Putih Sejuk)
+        paper: '#FAFAF9',
       },
       fontFamily: {
         heading: ["Cinzel", "serif"],
@@ -135,12 +135,27 @@ export default {
             opacity: "1"
           }
         },
+        marquee: {
+          '0%': { transform: 'translateX(0%)' },
+          '100%': { transform: 'translateX(-100%)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        sparkle: {
+          '0%, 100%': { transform: 'scale(0)', opacity: "0" },
+          '50%': { transform: 'scale(1)', opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.4s ease-out",
         "slide-in": "slide-in 0.3s ease-out",
+        marquee: 'marquee 40s linear infinite',
+        float: 'float 3s ease-in-out infinite',
+        sparkle: 'sparkle 4s infinite',
       },
       backgroundImage: {
         'gradient-primary': 'var(--gradient-primary)',

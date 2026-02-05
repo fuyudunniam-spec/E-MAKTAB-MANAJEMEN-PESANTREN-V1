@@ -511,7 +511,7 @@ export class AlokasiPengeluaranService {
           status_kelas
         )
       `)
-      .eq('status', 'Aktif')
+      .eq('status_santri', 'Aktif')
       .order('nama_lengkap', { ascending: true });
 
     if (error) throw error;

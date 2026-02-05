@@ -1,11 +1,11 @@
-import { supabase } from '../integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface Santri {
   id: string;
   nama_lengkap: string;
   nisn: string;
   id_santri: string;
-  status: string;
+  status_santri: string;
   created_at: string;
   updated_at: string;
 }
@@ -13,13 +13,13 @@ export interface Santri {
 export interface CreateSantriData {
   nama_lengkap: string;
   nisn: string;
-  status?: string;
+  status_santri?: string;
 }
 
 export interface UpdateSantriData {
   nama_lengkap?: string;
   nisn?: string;
-  status?: string;
+  status_santri?: string;
 }
 
 export class SantriService {
@@ -30,12 +30,12 @@ export class SantriService {
   static async getActive(): Promise<Santri[]> {
     const { data, error } = await supabase
       .from('santri')
-      .select('id, nama_lengkap, id_santri, kategori, status, created_at, updated_at')
-      .eq('status', 'Aktif')
+      .select('id, nama_lengkap, id_santri, kategori, status_santri, created_at, updated_at')
+      .eq('status_santri', 'Aktif')
       .order('nama_lengkap');
 
     if (error) throw error;
-    return data || [];
+    return data as unknown as Santri[];
   }
 
   /**
@@ -45,11 +45,11 @@ export class SantriService {
   static async getAll(): Promise<Santri[]> {
     const { data, error } = await supabase
       .from('santri')
-      .select('id, nama_lengkap, id_santri, kategori, status, created_at, updated_at')
+      .select('id, nama_lengkap, id_santri, kategori, status_santri, created_at, updated_at')
       .order('nama_lengkap');
 
     if (error) throw error;
-    return data || [];
+    return data as unknown as Santri[];
   }
 
   /**
@@ -63,7 +63,7 @@ export class SantriService {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as unknown as Santri;
   }
 
   /**
@@ -74,13 +74,13 @@ export class SantriService {
       .from('santri')
       .insert([{
         ...data,
-        status: data.status || 'Aktif',
+        status_santri: data.status_santri || 'Aktif',
       }])
       .select()
       .single();
 
     if (error) throw error;
-    return result;
+    return result as unknown as Santri;
   }
 
   /**
@@ -95,7 +95,7 @@ export class SantriService {
       .single();
 
     if (error) throw error;
-    return result;
+    return result as unknown as Santri;
   }
 
   /**
@@ -118,12 +118,12 @@ export class SantriService {
   static async search(query: string): Promise<Santri[]> {
     const { data, error } = await supabase
       .from('santri')
-      .select('id, nama_lengkap, id_santri, kategori, status, created_at, updated_at')
+      .select('id, nama_lengkap, id_santri, kategori, status_santri, created_at, updated_at')
       .or(`nama_lengkap.ilike.%${query}%,id_santri.ilike.%${query}%`)
-      .eq('status', 'Aktif')
+      .eq('status_santri', 'Aktif')
       .order('nama_lengkap');
 
     if (error) throw error;
-    return data || [];
+    return data as unknown as Santri[];
   }
 }

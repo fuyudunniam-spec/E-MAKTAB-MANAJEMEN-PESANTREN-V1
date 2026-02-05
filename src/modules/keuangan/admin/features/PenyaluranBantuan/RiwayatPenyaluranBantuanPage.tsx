@@ -6,11 +6,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { RefreshCw, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { PenyaluranBantuanService, PenyaluranFilters } from '@/modules/keuangan/services/penyaluranBantuan.service';
-import SummaryCards from '@/modules/keuangan/admin/components/dashboard/SummaryCards';
-import ChartsSection from '@/modules/keuangan/admin/components/dashboard/ChartsSection';
+import SummaryCards from '@/modules/keuangan/admin/components/dashboard/keuangan/SummaryCards';
+import ChartsSection from '@/modules/keuangan/admin/components/dashboard/keuangan/ChartsSection';
 import { loadChartData } from '@/modules/keuangan/services/keuanganChart.service';
 import TopRecipientsChart from './components/TopRecipientsChart';
-import RiwayatTransaksi from '@/modules/keuangan/admin/components/dashboard/RiwayatTransaksi';
+import RiwayatTransaksi from '@/modules/keuangan/admin/components/dashboard/keuangan/RiwayatTransaksi';
 import FilterBar from './components/FilterBar';
 import RealisasiLayananSantriTab from './components/RealisasiLayananSantriTab';
 import { getFinancialStatsByDateRange } from '@/modules/keuangan/services/keuangan.service';
@@ -45,7 +45,7 @@ const RiwayatPenyaluranBantuanPage: React.FC = () => {
         const { data, error } = await supabase
           .from('santri')
           .select('id, nama_lengkap')
-          .eq('status', 'Aktif')
+          .eq('status_santri', 'Aktif')
           .order('nama_lengkap', { ascending: true })
           .limit(100);
 

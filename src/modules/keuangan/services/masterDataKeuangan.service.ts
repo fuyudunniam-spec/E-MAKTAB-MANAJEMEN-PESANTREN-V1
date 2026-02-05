@@ -1469,7 +1469,7 @@ export class MasterDataKeuanganService {
         .from('santri')
         .select('id, nama_lengkap, id_santri')
         .eq('kategori', 'Binaan Mukim')
-        .eq('status', 'Aktif')
+        .eq('status_santri', 'Aktif')
         .order('nama_lengkap', { ascending: true });
 
       if (error) throw error;
@@ -1486,18 +1486,18 @@ export class MasterDataKeuanganService {
   static async searchSantriForMapping(filters?: {
     search?: string;
     kategori?: string;
-    status?: string;
+    status_santri?: string;
   }): Promise<Array<{
     id: string;
     nama_lengkap: string;
     id_santri?: string;
     kategori: string;
-    status: string;
+    status_santri: string;
   }>> {
     try {
       let query = supabase
         .from('santri')
-        .select('id, nama_lengkap, id_santri, kategori, status')
+        .select('id, nama_lengkap, id_santri, kategori, status_santri')
         .order('nama_lengkap', { ascending: true });
 
       if (filters?.search) {
@@ -1510,8 +1510,8 @@ export class MasterDataKeuanganService {
         query = query.eq('kategori', filters.kategori);
       }
 
-      if (filters?.status && filters.status !== 'Semua') {
-        query = query.eq('status', filters.status);
+      if (filters?.status_santri && filters.status_santri !== 'Semua') {
+        query = query.eq('status_santri', filters.status_santri);
       }
 
       const { data, error } = await query;
@@ -1522,7 +1522,7 @@ export class MasterDataKeuanganService {
         nama_lengkap: item.nama_lengkap,
         id_santri: item.id_santri || undefined,
         kategori: item.kategori || '',
-        status: item.status || '',
+        status_santri: item.status_santri || '',
       }));
     } catch (error) {
       console.error('Error searching santri for mapping:', error);

@@ -289,9 +289,9 @@ export class TabunganSantriService {
         nisn,
         kelas,
         kategori,
-        status
+        status_santri
       `)
-      .eq('status', 'Aktif')
+      .eq('status_santri', 'Aktif')
       .order('nama_lengkap');
 
     if (santriError) {

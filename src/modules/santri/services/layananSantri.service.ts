@@ -9,7 +9,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { MasterDataKeuanganService } from './masterDataKeuangan.service';
+import { MasterDataKeuanganService } from '@/modules/keuangan/services/masterDataKeuangan.service';
 
 // PilarLayanan is now a string (kode from master_data_keuangan table)
 // Old enum values: 'pendidikan_formal' | 'pendidikan_pesantren' | 'asrama_konsumsi' | 'bantuan_langsung'
@@ -274,7 +274,7 @@ export class LayananSantriService {
       const { data, error } = await supabase
         .from('santri')
         .select('id')
-        .eq('status', 'Aktif')
+        .eq('status_santri', 'Aktif')
         .or('kategori.ilike.%Binaan Mukim%,kategori.ilike.%Mukim Binaan%')
         .lte('created_at', endDate.toISOString()); // Santri yang sudah ada sebelum/saat akhir periode
 
@@ -912,7 +912,7 @@ export class LayananSantriService {
       const { data: santriList, error: santriError } = await supabase
         .from('santri')
         .select('id')
-        .eq('status', 'Aktif')
+        .eq('status_santri', 'Aktif')
         .or('kategori.ilike.%Binaan Mukim%,kategori.ilike.%Mukim Binaan%')
         .lte('created_at', endDate.toISOString());
 
@@ -1035,7 +1035,7 @@ export class LayananSantriService {
       const { data: allSantri, error: santriError } = await supabase
         .from('santri')
         .select('id, nama_lengkap, id_santri, nisn, kategori')
-        .eq('status', 'Aktif')
+        .eq('status_santri', 'Aktif')
         .or('kategori.ilike.%Binaan Mukim%,kategori.ilike.%Mukim Binaan%')
         .lte('created_at', endDate.toISOString())
         .order('nama_lengkap', { ascending: true });

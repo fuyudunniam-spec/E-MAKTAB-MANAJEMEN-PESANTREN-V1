@@ -8,15 +8,15 @@ import { RefreshCw, Plus, FileText, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Import new dashboard components
-import SummaryCards from '@/modules/keuangan/admin/components/dashboard/SummaryCards';
-import ChartsSection from '@/modules/keuangan/admin/components/dashboard/ChartsSection';
-import SaldoPerAkun from '../components/SaldoPerAkun';
-import RiwayatTransaksi from '@/modules/keuangan/admin/components/dashboard/RiwayatTransaksi';
+import SummaryCards from '@/modules/keuangan/admin/components/dashboard/keuangan/SummaryCards';
+import ChartsSection from '@/modules/keuangan/admin/components/dashboard/keuangan/ChartsSection';
+import SaldoPerAkun from '../../components/SaldoPerAkun';
+import RiwayatTransaksi from '@/modules/keuangan/admin/components/dashboard/keuangan/RiwayatTransaksi';
 import TransactionDetailModal from '@/modules/koperasi/components/TransactionDetailModal';
 import TransactionEditModal from '@/modules/koperasi/components/TransactionEditModal';
-import EditTanggalTransferDonasiDialog from '../components/EditTanggalTransferDonasiDialog';
-import StackedAccountCards from '@/modules/keuangan/admin/components/dashboard/StackedAccountCards';
-import TotalBalanceDisplay from '@/modules/keuangan/admin/components/dashboard/TotalBalanceDisplay';
+import EditTanggalTransferDonasiDialog from '../../components/EditTanggalTransferDonasiDialog';
+import StackedAccountCards from '@/modules/keuangan/admin/components/dashboard/keuangan/StackedAccountCards';
+import TotalBalanceDisplay from '@/modules/keuangan/admin/components/dashboard/keuangan/TotalBalanceDisplay';
 
 // Transaction type for this component
 interface Transaction {
@@ -70,9 +70,9 @@ import {
 } from '@/modules/keuangan/services/keuanganChart.service';
 
 // Import existing components for modal
-import FormPengeluaranRinci from '../components/FormPengeluaranRinci';
-import FormPemasukanManual from '../components/FormPemasukanManual';
-import FormPenyesuaianSaldo from '../components/FormPenyesuaianSaldo';
+import FormPengeluaranRinci from '../../components/FormPengeluaranRinci';
+import FormPemasukanManual from '../../components/FormPemasukanManual';
+import FormPenyesuaianSaldo from '../../components/FormPenyesuaianSaldo';
 import ExportPDFDialogV3 from '@/components/ui/ExportPDFDialogV3';
 
 const KeuanganV3: React.FC = () => {

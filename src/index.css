@@ -1,51 +1,22 @@
-/* Import print styles */
 @import './styles/print.css';
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Cinzel:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Fix for ARIA accessibility issues with Dialog components */
-@layer base {
-
-  /* Ensure dialog content is never aria-hidden when it has focus */
-  [data-radix-dialog-content][aria-hidden="true"]:has(:focus) {
-    aria-hidden: false !important;
-  }
-
-  /* Remove aria-hidden from any focused element or its ancestors */
-  [aria-hidden="true"]:has(:focus),
-  [aria-hidden="true"]:has(:focus-within) {
-    aria-hidden: false !important;
-  }
-
-  /* Ensure dialog content is accessible when open */
-  [data-radix-dialog-content][data-state="open"] {
-    aria-hidden: false !important;
-  }
-}
-
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
 @layer base {
   :root {
     /* Deep Navy - Primary Brand Color */
     --primary: 204 80% 16%;
-    /* #082f49 */
     --primary-foreground: 210 40% 98%;
 
     /* Paper White - Main Background */
     --background: 210 40% 98%;
-    /* #F8FAFC */
     --foreground: 204 80% 10%;
-    /* Very Dark Navy for text */
 
     /* Card & Surfaces */
     --card: 0 0% 100%;
-    /* Pure White for depth against Paper White */
     --card-foreground: 204 80% 16%;
 
     --popover: 0 0% 100%;
@@ -53,7 +24,6 @@ All colors MUST be HSL.
 
     /* Secondary - Gold/Accent for warmth */
     --secondary: 46 65% 52%;
-    /* #d4af37 */
     --secondary-foreground: 204 80% 16%;
 
     --muted: 210 40% 96%;
@@ -71,7 +41,7 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
 
-    /* Sidebar Variables - Always Dark/Navy */
+    /* Sidebar Variables */
     --sidebar-background: 204 80% 16%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 210 40% 98%;
@@ -81,119 +51,71 @@ All colors MUST be HSL.
     --sidebar-border: 204 80% 20%;
     --sidebar-ring: 46 65% 52%;
 
-    /* Custom gradients - Subtler now */
-    --gradient-primary: linear-gradient(135deg, hsl(204 80% 16%), hsl(204 80% 24%));
-    --gradient-hero: linear-gradient(135deg, hsl(204 80% 16%) 0%, hsl(204 80% 24%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 40% 98%));
-
-    /* Shadows - Flatter, more elegant */
-    --shadow-soft: 0 2px 4px -1px hsl(204 80% 16% / 0.04);
-    --shadow-medium: 0 4px 6px -1px hsl(204 80% 16% / 0.08);
-    --shadow-strong: 0 10px 15px -3px hsl(204 80% 16% / 0.12);
-
-    /* Animations */
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
     /* Fonts */
-    --font-heading: 'Playfair Display', serif;
-    --font-body: 'Inter', sans-serif;
+    --font-heading: 'Cinzel', serif;
+    --font-body: 'Cormorant Garamond', serif;
+    --font-display: 'Cinzel', serif;
   }
 
-  /* Dark mode is just a slightly deeper version of the primary theme, 
-     but user asked for Paper White background specifically. 
-     We will keep dark mode variables but align them with the new palette identity if needed.
-     For now, assuming "Light Mode" with Paper White is the main request. 
-     We'll adjust dark mode to be a "Night in the Forest" theme. */
   .dark {
     --background: 162 48% 10%;
     --foreground: 40 33% 98%;
-
     --card: 162 48% 13%;
     --card-foreground: 40 33% 98%;
-
     --popover: 162 48% 13%;
     --popover-foreground: 40 33% 98%;
-
     --primary: 162 48% 40%;
-    /* Lighter green for visibility */
     --primary-foreground: 0 0% 100%;
-
     --secondary: 35 92% 55%;
     --secondary-foreground: 0 0% 100%;
-
     --muted: 162 30% 20%;
     --muted-foreground: 162 20% 70%;
-
     --accent: 162 30% 20%;
     --accent-foreground: 40 33% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 100%;
-
     --border: 162 30% 20%;
     --input: 162 30% 20%;
     --ring: 162 48% 40%;
-
-    /* Sidebar stays similar in dark mode */
-    --sidebar-background: 162 48% 8%;
-    --sidebar-foreground: 40 33% 98%;
-    --sidebar-primary: 162 48% 40%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 162 48% 15%;
-    --sidebar-accent-foreground: 40 33% 98%;
-    --sidebar-border: 162 30% 20%;
-    --sidebar-ring: 35 92% 55%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
 
   body {
-    @apply bg-background text-foreground font-body;
+    @apply bg-background text-foreground font-body antialiased;
   }
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
+  h1, h2, h3, h4, h5, h6 {
     @apply font-heading tracking-tight;
   }
 }
 
-/* Custom Scrollbar Styles */
 @layer utilities {
-
-  /* Thin scrollbar */
-  .scrollbar-thin {
-    scrollbar-width: thin;
+  .royal-pattern {
+    background-color: #FAFAF9;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23166534' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2V6h4V4h-4zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   }
 
-  /* Webkit scrollbar styling */
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  .glass-panel-dark {
+    background: rgba(20, 83, 45, 0.95);
+    color: white;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 20px 40px -10px rgba(20, 83, 45, 0.3);
   }
 
-  .scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
-    background-color: rgb(209 213 219);
-    border-radius: 3px;
+  .btn-glow:hover {
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
+    transform: translateY(-2px);
   }
 
-  .scrollbar-thumb-gray-400:hover::-webkit-scrollbar-thumb:hover {
-    background-color: rgb(156 163 175);
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 
-  .scrollbar-track-transparent::-webkit-scrollbar-track {
-    background-color: transparent;
-  }
-
-  /* Smooth scrolling */
-  .scrollbar-thin {
-    scroll-behavior: smooth;
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }

@@ -52,6 +52,10 @@ const TabunganSantriMy = lazy(() => import("@/modules/santri/portal/pages/Tabung
 const PSBPage = lazy(() => import("@/modules/psb/public/pages/PSBPage"));
 const PSBPortal = lazy(() => import("@/modules/psb/public/pages/PSBPortal"));
 const PSBAuth = lazy(() => import("@/modules/psb/public/pages/PSBAuth"));
+const LandingPage = lazy(() => import("@/modules/public-website/pages/LandingPage"));
+const TransparansiPage = lazy(() => import("@/modules/public-website/pages/TransparansiPage"));
+const AboutUsPage = lazy(() => import("@/modules/public-website/pages/AboutUsPage"));
+const DonasiPage = lazy(() => import("@/modules/public-website/pages/DonasiPage"));
 
 // Admin Website Imports - Removed unused imports
 
@@ -120,10 +124,13 @@ const App = () => (
               <Route path="/pms/secure-gate" element={<SuspenseOnly><Auth /></SuspenseOnly>} />
               
               {/* Public Website Routes */}
-              <Route path="/" element={<SuspenseOnly><PSBPage /></SuspenseOnly>} />
+              <Route path="/" element={<SuspenseOnly><LandingPage /></SuspenseOnly>} />
+              <Route path="/transparansi" element={<SuspenseOnly><TransparansiPage /></SuspenseOnly>} />
+              <Route path="/tentang-kami" element={<SuspenseOnly><AboutUsPage /></SuspenseOnly>} />
+              <Route path="/donasi" element={<SuspenseOnly><DonasiPage /></SuspenseOnly>} />
               
               {/* PSB Portal Routes */}
-              <Route path="/psb" element={<Navigate to="/" replace />} />
+              <Route path="/psb" element={<SuspenseOnly><PSBPage /></SuspenseOnly>} />
               <Route path="/psb/register" element={<SuspenseOnly><PSBAuth /></SuspenseOnly>} />
               <Route path="/psb/portal" element={<SuspenseOnly><PSBPortal /></SuspenseOnly>} />
               <Route path="/psb/auth" element={<SuspenseOnly><PSBAuth /></SuspenseOnly>} />
