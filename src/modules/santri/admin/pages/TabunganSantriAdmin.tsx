@@ -27,11 +27,11 @@ import {
 import { TabunganSantriService, type TabunganStats } from '@/modules/santri/services/tabunganSantri.service';
 import { SaldoTabunganSantri } from '@/types/tabungan.types';
 import { useToast } from '@/hooks/use-toast';
-import { FormSetorMassal } from '@/modules/santri/components/TabunganSantri/FormSetorMassal';
-import { FormTarikMassal } from '@/modules/santri/components/TabunganSantri/FormTarikMassal';
-import { FormSetor } from '../../components/TabunganSantri/FormSetor';
-import { FormTarik } from '../../components/TabunganSantri/FormTarik';
-import { RiwayatTabungan } from '@/modules/santri/components/TabunganSantri/RiwayatTabungan';
+import { FormSetorMassal } from '../components/TabunganSantri/FormSetorMassal';
+import { FormTarikMassal } from '../components/TabunganSantri/FormTarikMassal';
+import { FormSetor } from '../components/TabunganSantri/FormSetor';
+import { FormTarik } from '../components/TabunganSantri/FormTarik';
+import { RiwayatTabungan } from '../components/TabunganSantri/RiwayatTabungan';
 import PermohonanPenarikan from '@/modules/keuangan/admin/pages/PermohonanPenarikan';
 import LaporanTabungan from '@/modules/santri/admin/pages/LaporanTabungan';
 
