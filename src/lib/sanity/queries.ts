@@ -8,7 +8,8 @@ export const LANDING_PAGE_QUERY = groq`{
   "testimonials": *[_type == "testimonial"]
 }`
 
-export const NEWS_QUERY = groq`*[_type == "news"] | order(publishedAt desc) [0...3] {
+export const NEWS_QUERY = groq`*[_type == "news"] | order(publishedAt desc) [0...6] {
+  _id,
   title,
   slug,
   publishedAt,
@@ -19,8 +20,9 @@ export const NEWS_QUERY = groq`*[_type == "news"] | order(publishedAt desc) [0..
 
 // About Us Page Queries
 export const ABOUT_PAGE_QUERY = groq`{
-  "team": *[_type == "teamMember"] | order(order asc) {
+  "team": *[_type == "teamMember" && showInAboutPage == true] | order(order asc) {
     name,
+
     role,
     description,
     photo,

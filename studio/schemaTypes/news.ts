@@ -65,6 +65,34 @@ export default defineType({
             title: 'Author',
             type: 'reference',
             to: [{ type: 'teamMember' }]
+        }),
+        // SEO Fields
+        defineField({
+            name: 'metaDescription',
+            title: 'Meta Description',
+            type: 'text',
+            rows: 3,
+            description: 'SEO meta description (optimal: 150-160 characters)',
+            validation: (rule) => rule.max(160).warning('Meta description should be under 160 characters')
+        }),
+        defineField({
+            name: 'metaKeywords',
+            title: 'Meta Keywords',
+            type: 'array',
+            of: [{ type: 'string' }],
+            description: 'SEO keywords for this article',
+            options: {
+                layout: 'tags'
+            }
+        }),
+        defineField({
+            name: 'ogImage',
+            title: 'Open Graph Image',
+            type: 'image',
+            description: 'Optional custom image for social media sharing (if different from main image)',
+            options: {
+                hotspot: true
+            }
         })
 
     ],

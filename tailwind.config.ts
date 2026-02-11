@@ -102,6 +102,8 @@ export default {
         sans: ["Cormorant Garamond", "serif"],
         jakarta: ['"Plus Jakarta Sans"', 'sans-serif'],
         playfair: ['"Playfair Display"', 'serif'],
+        lora: ['"Lora"', 'serif'],
+        merriweather: ['"Merriweather"', 'serif'],
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -19,6 +19,35 @@ export const SanityService = {
         return await client.fetch(NEWS_QUERY)
     },
 
+    getNewsDetail: async (slug: string) => {
+        const query = `*[_type == "news" && slug.current == $slug][0]{
+            title,
+            mainImage,
+            publishedAt,
+            excerpt,
+            "author": author->{
+                name, 
+                role, 
+                photo, 
+                description,
+                socialLinks
+            },
+            category,
+            "content": body,
+            "readingTime": round(length(pt::text(body)) / 5 / 180 + 1) + " Menit Baca",
+            metaKeywords,
+            ogImage,
+            "relatedPosts": *[_type == "news" && slug.current != $slug] | order(publishedAt desc)[0...3]{
+                title,
+                publishedAt,
+                "slug": slug.current,
+                mainImage,
+                category
+            }
+        }`;
+        return await client.fetch(query, { slug })
+    },
+
     getAboutPageData: async () => {
         return await client.fetch(ABOUT_PAGE_QUERY)
     },

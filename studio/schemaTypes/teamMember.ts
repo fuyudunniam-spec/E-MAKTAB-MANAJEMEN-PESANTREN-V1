@@ -59,7 +59,15 @@ export default defineType({
             name: 'scopusId',
             title: 'Scopus ID',
             type: 'string'
+        }),
+        defineField({
+            name: 'showInAboutPage',
+            title: 'Show in Organization Structure (About Us)',
+            type: 'boolean',
+            initialValue: true,
+            description: 'If disabled, this person will still be available as an Author but won\'t appear in the About Page carousel.'
         })
+
 
     ],
     orderings: [

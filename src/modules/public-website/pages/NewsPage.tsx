@@ -3,69 +3,23 @@ import { Search, ArrowRight, Play, HeartHandshake, ChevronLeft, ChevronRight, Bo
 import { Link } from 'react-router-dom';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
+import { useQuery } from '@tanstack/react-query';
+import { SanityService } from '../services/sanity.service';
 
 const NewsPage: React.FC = () => {
+    const { data: postsData } = useQuery({
+        queryKey: ['news-list'],
+        queryFn: SanityService.getNews
+    });
+
+    const posts = postsData || [];
+    const featuredPost = posts.length > 0 ? posts[0] : null;
+    const regularPosts = posts.length > 0 ? posts.slice(1) : [];
+
     useEffect(() => {
         window.scrollTo(0, 0);
     }, []);
 
-    const posts = [
-        {
-            id: 1,
-            date: "20 Okt 2024",
-            category: "Prestasi",
-            title: "Santri Al-Bisri Raih Juara 1 MHQ Nasional 2024",
-            excerpt: "Ananda Fatih berhasil menyisihkan 300 peserta dari seluruh Indonesia dalam kategori Hafalan 30 Juz Beserta Tafsir.",
-            image: "https://images.unsplash.com/photo-1585036156171-384164a8c675?q=80&w=800&auto=format&fit=crop",
-            slug: "santri-al-bisri-juara-nasional"
-        },
-        {
-            id: 2,
-            date: "18 Okt 2024",
-            category: "Laporan Wakaf",
-            title: "Panen Raya Padi Organik: Bukti Kemandirian Pangan",
-            excerpt: "Hasil panen dari sawah wakaf meningkat 20% berkat penerapan teknologi irigasi tetes yang dikembangkan santri.",
-            image: "https://images.unsplash.com/photo-1625246333195-58197bd47d26?q=80&w=800&auto=format&fit=crop",
-            slug: "panen-raya-padi-organik"
-        },
-        {
-            id: 3,
-            date: "15 Okt 2024",
-            category: "Opini",
-            title: "Urgensi Fiqih Muamalah di Era Digital",
-            excerpt: "Bagaimana hukum transaksi crypto dan e-wallet? Simak kajian mendalam dari tim riset Pesantren Al-Bisri.",
-            image: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop",
-            slug: "urgensi-fiqih-muamalah"
-        },
-        {
-            id: 4,
-            date: "10 Okt 2024",
-            category: "Program",
-            title: "Soft Launching Digital Library",
-            excerpt: "Akses ribuan kitab kuning digital kini tersedia untuk publik. Wujud nyata digitalisasi turats pesantren.",
-            image: "https://images.unsplash.com/photo-1505664194779-8beaceb93744?q=80&w=800&auto=format&fit=crop",
-            slug: "soft-launching-digital-library"
-        },
-        {
-            id: 5,
-            date: "05 Okt 2024",
-            category: "Kunjungan",
-            title: "Studi Banding Kemenag Jawa Timur",
-            excerpt: "Kunjungan untuk meninjau kurikulum kewirausahaan santri yang menjadi percontohan nasional.",
-            image: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?q=80&w=800&auto=format&fit=crop",
-            slug: "studi-banding-kemenag"
-        },
-        {
-            id: 6,
-            date: "01 Okt 2024",
-            category: "Video",
-            title: "Dokumenter: Sehari di Asrama Al-Bisri",
-            excerpt: "Mengintip keseharian santri mulai dari shalat tahajud, kajian kitab, hingga kegiatan ekstrakurikuler.",
-            image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=800&auto=format&fit=crop",
-            isVideo: true,
-            slug: "dokumenter-sehari-di-asrama"
-        }
-    ];
 
     return (
         <div className="min-h-screen bg-paper font-jakarta selection:bg-gold-200 selection:text-navy-950">
@@ -95,33 +49,42 @@ const NewsPage: React.FC = () => {
             <main className="max-w-7xl mx-auto px-6 py-20 lg:py-24">
 
                 {/* Featured Post (Big Card) */}
-                <Link to="/berita/transformasi-pendidikan" className="group block relative rounded-[2.5rem] overflow-hidden shadow-2xl mb-20 aspect-[4/3] md:aspect-[21/9]">
-                    <img src="https://images.unsplash.com/photo-1542816417-0983c9c9ad53?q=80&w=2000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover transition duration-1000 group-hover:scale-105" alt="Featured News" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-navy-950/95 via-navy-950/50 to-transparent"></div>
+                {featuredPost && (
+                    <Link to={`/berita/${featuredPost.slug?.current}`} className="group block relative rounded-[2.5rem] overflow-hidden shadow-2xl mb-20 aspect-[4/3] md:aspect-[21/9]">
+                        <img
+                            src={featuredPost.mainImage ? SanityService.imageUrl(featuredPost.mainImage) : "https://placehold.co/1200x600?text=Featured+News"}
+                            className="absolute inset-0 w-full h-full object-cover transition duration-1000 group-hover:scale-105"
+                            alt={featuredPost.title}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-navy-950/95 via-navy-950/50 to-transparent"></div>
 
-                    <div className="absolute bottom-0 left-0 p-8 md:p-16 w-full md:w-3/4">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-gold text-navy-950 text-[10px] font-bold uppercase tracking-wider mb-6">
-                            <span className="w-1.5 h-1.5 rounded-full bg-navy-950"></span> Headline
+                        <div className="absolute bottom-0 left-0 p-8 md:p-16 w-full md:w-3/4">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-gold text-navy-950 text-[10px] font-bold uppercase tracking-wider mb-6">
+                                <span className="w-1.5 h-1.5 rounded-full bg-navy-950"></span> Headline
+                            </div>
+                            <h2 className="text-3xl md:text-5xl font-display text-white mb-6 leading-tight group-hover:text-gold-200 transition duration-300">
+                                {featuredPost.title}
+                            </h2>
+                            <p className="text-slate-300 text-sm md:text-lg line-clamp-2 mb-8 font-light leading-relaxed max-w-2xl">
+                                {featuredPost.excerpt}
+                            </p>
+                            <span className="text-accent-gold text-xs font-bold uppercase tracking-widest flex items-center gap-3 group-hover:gap-6 transition-all">
+                                Baca Selengkapnya <ArrowRight className="w-4 h-4" />
+                            </span>
                         </div>
-                        <h2 className="text-3xl md:text-5xl font-display text-white mb-6 leading-tight group-hover:text-gold-200 transition duration-300">
-                            Transformasi Pendidikan Pesantren di Era Digital: Peluang & Tantangan
-                        </h2>
-                        <p className="text-slate-300 text-sm md:text-lg line-clamp-2 mb-8 font-light leading-relaxed max-w-2xl">
-
-                            Sebuah refleksi akhir tahun tentang bagaimana Al-Bisri mengadopsi teknologi tanpa kehilangan akar tradisi turats. Ditulis oleh Dr. H. Muhammad Ilham.
-                        </p>
-                        <span className="text-accent-gold text-xs font-bold uppercase tracking-widest flex items-center gap-3 group-hover:gap-6 transition-all">
-                            Baca Selengkapnya <ArrowRight className="w-4 h-4" />
-                        </span>
-                    </div>
-                </Link>
+                    </Link>
+                )}
 
                 {/* Latest Posts Grid - Clean & Minimalist */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-16">
-                    {posts.map((post) => (
-                        <Link to={`/berita/${post.slug}`} key={post.id} className="group cursor-pointer block">
+                    {regularPosts.map((post: any) => (
+                        <Link to={`/berita/${post.slug?.current}`} key={post._id} className="group cursor-pointer block">
                             <div className="aspect-[4/3] rounded-2xl overflow-hidden relative mb-6">
-                                <img src={post.image} className="w-full h-full object-cover transition duration-700 group-hover:scale-110 grayscale/[0.1] group-hover:grayscale-0" alt={post.title} />
+                                <img
+                                    src={post.mainImage ? SanityService.imageUrl(post.mainImage) : "https://placehold.co/800x600?text=Kabar+Al-Bisri"}
+                                    className="w-full h-full object-cover transition duration-700 group-hover:scale-110 grayscale/[0.1] group-hover:grayscale-0"
+                                    alt={post.title}
+                                />
                                 {post.isVideo && (
                                     <div className="absolute inset-0 bg-royal-950/30 flex items-center justify-center group-hover:bg-royal-950/20 transition">
                                         <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white border border-white/30 group-hover:scale-110 transition duration-300">
@@ -135,7 +98,9 @@ const NewsPage: React.FC = () => {
                             </div>
                             <div className="pr-4">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <span className="text-xs text-accent-gold font-bold uppercase tracking-widest">{post.date}</span>
+                                    <span className="text-xs text-accent-gold font-bold uppercase tracking-widest">
+                                        {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                                    </span>
                                 </div>
                                 <h3 className="text-xl font-display text-navy-950 mb-3 leading-snug group-hover:text-accent-gold transition duration-300 line-clamp-2">
                                     {post.title}
