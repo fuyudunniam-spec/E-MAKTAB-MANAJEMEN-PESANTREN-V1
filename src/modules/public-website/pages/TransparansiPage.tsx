@@ -157,14 +157,16 @@ const TransparansiPage: React.FC = () => {
               <h1 className="font-display text-4xl lg:text-6xl leading-tight mb-6">
                 Jejak Kebaikan & <br /><span className="text-gold-500 italic font-serif">Realisasi Amanah.</span>
               </h1>
-              <p className="text-royal-200 font-light max-w-xl text-lg leading-relaxed">
+              <p className="text-slate-300 font-light max-w-xl text-lg leading-relaxed">
+
                 Setiap rupiah yang Anda titipkan bertransformasi menjadi ilmu yang bermanfaat, makanan yang bergizi, dan senyum anak-anak yatim.
               </p>
             </div>
 
             {/* Elegant Filter */}
             <div className="flex flex-col gap-2 w-full md:w-auto">
-              <label className="text-[10px] uppercase tracking-widest text-royal-400 font-bold">Periode Laporan</label>
+              <label className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Periode Laporan</label>
+
               <div className="flex items-center bg-white/5 border border-white/10 p-1 rounded-lg backdrop-blur-sm w-full md:w-auto">
                 <div className="relative flex-1 md:flex-none">
                   <select
@@ -188,7 +190,8 @@ const TransparansiPage: React.FC = () => {
             <div className="border-l-2 border-gold-500/30 pl-6 py-2">
               <div className="flex items-center gap-3 mb-2">
                 <Layers className="w-4 h-4 text-gold-500" />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-royal-400">Total Aset Wakaf</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Aset Wakaf</p>
+
               </div>
               <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.totalAset || 0)}</h3>
             </div>
@@ -196,8 +199,9 @@ const TransparansiPage: React.FC = () => {
             {/* Card 2 */}
             <div className="border-l-2 border-gold-500/30 pl-6 py-2">
               <div className="flex items-center gap-3 mb-2">
-                <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-royal-400">Amanah Diterima</p>
+                <ArrowDownLeft className="w-4 h-4 text-gold-500" />
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Amanah Diterima</p>
+
               </div>
               <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.yearTotalPemasukan || 0)}</h3>
             </div>
@@ -205,11 +209,13 @@ const TransparansiPage: React.FC = () => {
             {/* Card 3 */}
             <div className="border-l-2 border-gold-500/30 pl-6 py-2">
               <div className="flex items-center gap-3 mb-2">
-                <ArrowUpRight className="w-4 h-4 text-rose-500" />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-royal-400">Penyaluran Manfaat</p>
+                <ArrowUpRight className="w-4 h-4 text-gold-500" />
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Penyaluran Manfaat</p>
+
               </div>
               <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.totalPenyaluran || 0)}</h3>
             </div>
+
           </div>
         </div>
       </header>
@@ -299,8 +305,9 @@ const TransparansiPage: React.FC = () => {
                   <span className="text-xs font-bold text-gold-600 bg-gold-50 px-2 py-1 rounded-full">{prog.progress}%</span>
                 </div>
                 <div className="w-full bg-stone-100 h-1.5 rounded-full mb-4 overflow-hidden">
-                  <div className="bg-royal-950 h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${prog.progress}%` }}></div>
+                  <div className="bg-gold-500 h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${prog.progress}%` }}></div>
                 </div>
+
                 <p className="text-xs text-stone-500 font-light leading-relaxed mb-4 min-h-[40px]">
                   {prog.description}
                 </p>
@@ -341,7 +348,8 @@ const TransparansiPage: React.FC = () => {
                 </thead>
                 <tbody className="text-sm bg-white">
                   {(impactData?.recentTransactions || []).map((row, i) => (
-                    <tr key={i} className={`border-b border-stone-50 transition-colors group ${row.type === 'Pemasukan' ? 'hover:bg-emerald-50/10' : 'hover:bg-stone-50'}`}>
+                    <tr key={i} className={`border-b border-stone-50 transition-colors group ${row.type === 'Pemasukan' ? 'hover:bg-gold-50/10' : 'hover:bg-stone-50'}`}>
+
                       <td className="p-6 font-medium text-stone-500">
                         {new Date(row.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                       </td>
@@ -354,19 +362,22 @@ const TransparansiPage: React.FC = () => {
                         )}
                       </td>
                       <td className="p-6">
-                        <span className={`text-[10px] uppercase tracking-wider border px-3 py-1 rounded-full font-bold ${row.type === 'Pemasukan' ? 'text-emerald-700 border-emerald-200 bg-emerald-50' : 'text-stone-500 border-stone-200 bg-stone-50'}`}>
+                        <span className={`text-[10px] uppercase tracking-wider border px-3 py-1 rounded-full font-bold ${row.type === 'Pemasukan' ? 'text-gold-700 border-gold-200 bg-gold-50' : 'text-stone-500 border-stone-200 bg-stone-50'}`}>
                           {row.category}
                         </span>
                       </td>
-                      <td className={`p-6 text-right font-display text-lg ${row.type === 'Pemasukan' ? 'text-emerald-700 font-bold' : 'text-royal-900'}`}>
+
+                      <td className={`p-6 text-right font-display text-lg ${row.type === 'Pemasukan' ? 'text-gold-700 font-bold' : 'text-royal-900'}`}>
                         {row.type === 'Pemasukan' ? '+' : '-'} {formatCurrency(row.amount)}
                       </td>
+
                       <td className="p-6 text-center">
                         {row.type === 'Pemasukan' ? (
-                          <div className="flex items-center justify-center w-8 h-8 bg-emerald-50 rounded-full mx-auto text-emerald-700">
+                          <div className="flex items-center justify-center w-8 h-8 bg-gold-50 rounded-full mx-auto text-gold-700">
                             <ArrowDownLeft className="w-4 h-4" />
                           </div>
                         ) : (
+
                           <div className="flex items-center justify-center w-8 h-8 bg-stone-100 rounded-full mx-auto text-stone-400">
                             <Check className="w-4 h-4" />
                           </div>

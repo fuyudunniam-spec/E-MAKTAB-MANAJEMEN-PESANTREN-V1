@@ -35,7 +35,32 @@ export default defineType({
             title: 'Order',
             type: 'number',
             initialValue: 0
+        }),
+        defineField({
+            name: 'socialLinks',
+            title: 'Social Media Links',
+            type: 'array',
+            of: [
+                {
+                    type: 'object',
+                    fields: [
+                        { name: 'platform', title: 'Platform', type: 'string' },
+                        { name: 'url', title: 'URL', type: 'url' }
+                    ]
+                }
+            ]
+        }),
+        defineField({
+            name: 'googleScholarUrl',
+            title: 'Google Scholar URL',
+            type: 'url'
+        }),
+        defineField({
+            name: 'scopusId',
+            title: 'Scopus ID',
+            type: 'string'
         })
+
     ],
     orderings: [
         {

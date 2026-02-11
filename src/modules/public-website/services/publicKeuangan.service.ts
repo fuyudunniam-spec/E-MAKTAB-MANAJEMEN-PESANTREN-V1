@@ -79,8 +79,10 @@ export const getPublicImpactData = async (params?: { month?: number; year?: numb
 };
 
 const mapRpcToImpactData = (stats: any, params?: { month?: number; year?: number }): PublicImpactData => {
-  const predefinedColors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
+  // Luxury Palette: Royal(Navy), Gold, Slate, Stone, Muted Blue
+  const predefinedColors = ['#020617', '#d4af37', '#94a3b8', '#e7e5e4', '#64748b'];
   const targetYear = params?.year || new Date().getFullYear();
+
 
   // 1. Map Recent Tx
   const allTransactions = (stats.recentTransactions || []).map((h: any) => {

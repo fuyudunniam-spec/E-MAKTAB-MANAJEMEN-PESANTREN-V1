@@ -18,18 +18,23 @@ const AboutUsPage: React.FC = () => {
     queryFn: SanityService.getAboutPageData
   });
 
-  const team = sanityData?.team || [
-    { name: 'KH. Ahmad Bisri, Lc. MA', role: 'Pengasuh Pesantren', description: 'Alumni Universitas Al-Azhar Kairo dengan spesialisasi Fiqih Muamalah.', img: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=400&auto=format&fit=crop' },
-    { name: 'Dr. H. Muhammad Ilham', role: 'Direktur Pendidikan', description: 'Doktor Manajemen Pendidikan Islam, fokus pada pengembangan kurikulum riset.', img: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=400&auto=format&fit=crop' },
-    { name: 'H. Yusuf Mansur, SE', role: 'Ketua Yayasan', description: 'Profesional di bidang keuangan syariah dan pengembangan wakaf produktif.', img: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop' },
-  ];
+  // Debug: Log data to console
+  useEffect(() => {
+    console.log("Sanity Data (About):", sanityData);
+  }, [sanityData]);
 
-  const facilities = sanityData?.facilities || [
-    { name: 'Asrama Putra/Putri', description: 'Kapasitas 500 Santri', img: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=600&auto=format&fit=crop' },
-    { name: 'Perpustakaan Digital', description: 'Akses Kitab & Jurnal', img: 'https://images.unsplash.com/photo-1505664194779-8beaceb93744?q=80&w=600&auto=format&fit=crop' },
-    { name: 'Lab Komputer', description: 'Pusat Riset & Multimedia', img: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop' },
-    { name: 'Greenhouse Wakaf', description: 'Laboratorium Alam', img: 'https://images.unsplash.com/photo-1625246333195-58197bd47d26?q=80&w=600&auto=format&fit=crop' },
-  ];
+  const team = sanityData?.team || [];
+  // Disable fallback temporarily to verify Sanity connection if needed, 
+  // but for production safety we keep it empty array instead of stale data?
+  // User wants to see *updates*, so fallback to stale data hides the problem.
+  // I will make it empty array default so if sanity is empty, it shows nothing (proving connection)
+  // OR better: keep the static data ONLY if sanity completely fails (undefined), but if it returns empty array, show empty.
+
+  // Actually, the user says "masih belum sinkron". 
+  // It might be caching.
+
+
+  const facilities = sanityData?.facilities || [];
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -55,9 +60,10 @@ const AboutUsPage: React.FC = () => {
             Penjaga Tradisi, <br />
             <span className="italic text-accent-gold font-serif">Pembangun Peradaban</span>
           </h1>
-          <p className="text-lg md:text-xl text-royal-200 leading-relaxed max-w-2xl mx-auto font-light">
+          <p className="text-lg md:text-xl text-slate-300 leading-relaxed max-w-2xl mx-auto font-light">
             Al-Bisri adalah perwujudan dari cita-cita luhur untuk mengangkat derajat umat melalui pendidikan yang berkarakter, mandiri, dan berwawasan global.
           </p>
+
         </div>
       </header>
 

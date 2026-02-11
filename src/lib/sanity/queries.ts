@@ -19,7 +19,16 @@ export const NEWS_QUERY = groq`*[_type == "news"] | order(publishedAt desc) [0..
 
 // About Us Page Queries
 export const ABOUT_PAGE_QUERY = groq`{
-  "team": *[_type == "teamMember"] | order(order asc),
+  "team": *[_type == "teamMember"] | order(order asc) {
+    name,
+    role,
+    description,
+    photo,
+    order,
+    socialLinks,
+    googleScholarUrl,
+    scopusId
+  },
   "facilities": *[_type == "facility"],
   "milestones": *[_type == "milestone"] | order(year desc)
 }`

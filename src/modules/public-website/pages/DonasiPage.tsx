@@ -175,9 +175,10 @@ const DonasiPage: React.FC = () => {
                 ) : (
                   <div className="divide-y divide-stone-100 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                     {[
-                      { initial: 'HA', name: 'Hamba Allah', type: 'Wakaf Kurikulum', amount: 'Rp 10.000.000', color: 'bg-gold-100 text-gold-600', msg: 'Semoga lahir ulama-ulama besar dari Al-Bisri yang mencerahkan umat.' },
-                      { initial: 'DR', name: 'Dr. Rahmat Sp.A', type: 'Beasiswa Kader', amount: 'Rp 1.500.000', color: 'bg-blue-100 text-blue-600', msg: 'Untuk biaya kitab santri takhassus. Mohon doanya.' },
-                      { initial: 'SN', name: 'Siti Nurhaliza', type: 'Pusat Studi', amount: 'Rp 500.000', color: 'bg-green-100 text-green-600', msg: 'Sedekah subuh untuk almarhum ayah.' },
+                      { initial: 'HA', name: 'Hamba Allah', type: 'Wakaf Kurikulum', amount: 'Rp 10.000.000', color: 'bg-gold-50 text-gold-600', msg: 'Semoga lahir ulama-ulama besar dari Al-Bisri yang mencerahkan umat.' },
+                      { initial: 'DR', name: 'Dr. Rahmat Sp.A', type: 'Beasiswa Kader', amount: 'Rp 1.500.000', color: 'bg-royal-50 text-royal-700', msg: 'Untuk biaya kitab santri takhassus. Mohon doanya.' },
+                      { initial: 'SN', name: 'Siti Nurhaliza', type: 'Pusat Studi', amount: 'Rp 500.000', color: 'bg-gold-50 text-gold-600', msg: 'Sedekah subuh untuk almarhum ayah.' },
+
                     ].map((d, i) => (
                       <div key={i} className="py-6 first:pt-0">
                         <div className="flex justify-between items-start mb-2">
@@ -298,8 +299,9 @@ const DonasiPage: React.FC = () => {
                 </button>
 
                 <div className="flex items-center justify-center gap-2 text-[10px] text-stone-400 font-bold uppercase tracking-widest">
-                  <ShieldCheck className="w-3 h-3 text-green-500" /> Secure Payment via WhatsApp
+                  <ShieldCheck className="w-3 h-3 text-gold-500" /> Secure Payment via WhatsApp
                 </div>
+
               </form>
             </div>
           </div>

@@ -59,6 +59,13 @@ export default defineType({
                     { title: 'Kegiatan', value: 'kegiatan' }
                 ]
             }
+        }),
+        defineField({
+            name: 'author',
+            title: 'Author',
+            type: 'reference',
+            to: [{ type: 'teamMember' }]
         })
+
     ],
 })

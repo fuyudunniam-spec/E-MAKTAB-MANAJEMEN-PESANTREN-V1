@@ -161,8 +161,9 @@ const NewsDetailPage: React.FC = () => {
                                             <img src={item.image} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" alt={item.title} />
                                         </div>
                                         <div>
-                                            <span className="text-[10px] bg-royal-50 text-royal-700 px-2 py-0.5 rounded-full font-bold uppercase mb-2 inline-block">Berita</span>
+                                            <span className="text-[10px] bg-gold-50 text-gold-700 px-2 py-0.5 rounded-full font-bold uppercase mb-2 inline-block">Berita</span>
                                             <h4 className="font-display font-bold text-navy-950 leading-tight group-hover:text-accent-gold transition mb-2">
+
                                                 {item.title}
                                             </h4>
                                             <span className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">{item.date}</span>
@@ -177,7 +178,8 @@ const NewsDetailPage: React.FC = () => {
                             <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "url('https://www.transparenttextures.com/patterns/arabesque.png')" }}></div>
                             <div className="relative z-10">
                                 <h4 className="font-display text-2xl mb-2">Berlangganan</h4>
-                                <p className="text-sm text-royal-200/80 mb-6 font-light">Dapatkan intisari kajian dan berita terbaru setiap minggu.</p>
+                                <p className="text-sm text-slate-300 mb-6 font-light">Dapatkan intisari kajian dan berita terbaru setiap minggu.</p>
+
                                 <input type="email" placeholder="Alamat Email" className="w-full bg-white/10 border border-white/20 rounded-full px-5 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-gold-500 mb-4 transition" />
                                 <button className="w-full py-3 bg-accent-gold text-navy-950 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-white transition">
                                     Daftar

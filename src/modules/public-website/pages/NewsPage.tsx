@@ -106,7 +106,8 @@ const NewsPage: React.FC = () => {
                         <h2 className="text-3xl md:text-5xl font-display text-white mb-6 leading-tight group-hover:text-gold-200 transition duration-300">
                             Transformasi Pendidikan Pesantren di Era Digital: Peluang & Tantangan
                         </h2>
-                        <p className="text-royal-100 text-sm md:text-lg line-clamp-2 mb-8 font-light leading-relaxed max-w-2xl">
+                        <p className="text-slate-300 text-sm md:text-lg line-clamp-2 mb-8 font-light leading-relaxed max-w-2xl">
+
                             Sebuah refleksi akhir tahun tentang bagaimana Al-Bisri mengadopsi teknologi tanpa kehilangan akar tradisi turats. Ditulis oleh Dr. H. Muhammad Ilham.
                         </p>
                         <span className="text-accent-gold text-xs font-bold uppercase tracking-widest flex items-center gap-3 group-hover:gap-6 transition-all">
@@ -172,7 +173,8 @@ const NewsPage: React.FC = () => {
                                 <HeartHandshake className="w-10 h-10" />
                             </div>
                             <h3 className="font-display text-4xl lg:text-5xl mb-6">Dukung Peradaban Ilmu</h3>
-                            <p className="text-royal-200/80 mb-10 leading-relaxed text-lg font-light max-w-xl mx-auto">
+                            <p className="text-slate-300 mb-10 leading-relaxed text-lg font-light max-w-xl mx-auto">
+
                                 Jadilah bagian dari gerakan mencetak 1000 ulama dan teknokrat muslim masa depan.
                             </p>
                             <Link to="/donasi" className="inline-flex items-center px-10 py-5 bg-accent-gold text-navy-950 rounded-full font-bold text-sm uppercase tracking-[0.2em] hover:bg-white hover:text-navy-950 transition-all duration-300 shadow-xl hover:shadow-2xl">
