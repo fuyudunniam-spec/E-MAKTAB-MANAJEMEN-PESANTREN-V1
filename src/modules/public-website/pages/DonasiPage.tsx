@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Check, Globe, Feather, ArrowRight, BookOpen, GraduationCap, Building2 } from 'lucide-react';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
+import { useQuery } from '@tanstack/react-query';
+import { SanityService } from '../services/sanity.service';
 
-const programs = [
+const defaultPrograms = [
   {
     id: 'kader',
     title: 'Beasiswa Kader Ulama',
@@ -37,7 +39,20 @@ const programs = [
 ];
 
 const DonasiPage: React.FC = () => {
+  const { data: sanityData } = useQuery({
+    queryKey: ['donationPage'],
+    queryFn: SanityService.getDonationPageData
+  });
+
+  const programs = sanityData?.programs || defaultPrograms;
   const [selectedProgram, setSelectedProgram] = useState(programs[0]);
+
+  useEffect(() => {
+    if (sanityData?.programs && sanityData.programs.length > 0) {
+      setSelectedProgram(sanityData.programs[0]);
+    }
+  }, [sanityData]);
+
   const [amount, setAmount] = useState<number>(0);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -53,19 +68,19 @@ const DonasiPage: React.FC = () => {
     e.preventDefault();
     const displayName = hideName ? name + " (Mohon disamarkan)" : name;
     const formattedAmount = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
-    
+
     const message = `Assalamu'alaikum Admin Al-Bisri,%0A%0ABismillah, saya ingin berpartisipasi dalam *Investasi Peradaban*:%0A%0A📚 Program: *${selectedProgram.title}*%0A💰 Komitmen Wakaf: *${formattedAmount}*%0A👤 Nama Wakif: *${displayName}*%0A📝 Pesan/Doa: ${doa || "-"}%0A%0AMohon panduan untuk penyaluran dana wakaf ini. Terima kasih.`;
-    
+
     window.open(`https://wa.me/6281234567890?text=${message}`, '_blank');
   };
 
   return (
     <div className="min-h-screen bg-stone-50 font-body selection:bg-gold-200 selection:text-royal-950">
       <PublicNavbar />
-      
+
       <main className="max-w-7xl mx-auto px-6 py-12">
         <div className="grid lg:grid-cols-12 gap-12">
-          
+
           {/* LEFT COLUMN: PROGRAMS */}
           <div className="lg:col-span-7 space-y-10">
             <div>
@@ -77,55 +92,58 @@ const DonasiPage: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              {programs.map((p) => (
-                <label key={p.id} className="cursor-pointer block group">
-                  <input 
-                    type="radio" 
-                    name="program" 
-                    className="hidden peer" 
-                    checked={selectedProgram.id === p.id}
-                    onChange={() => setSelectedProgram(p)}
-                  />
-                  <div className="border-2 border-stone-200 rounded-[2rem] p-6 transition-all duration-300 relative overflow-hidden bg-white hover:border-gold-400 peer-checked:border-royal-900 peer-checked:bg-royal-50/30 peer-checked:shadow-lg">
-                    <div className="flex gap-6">
-                      <div className="w-24 h-24 rounded-xl overflow-hidden shrink-0 bg-stone-200 relative">
-                        <img src={p.img} className="w-full h-full object-cover" alt={p.title} />
-                        <div className="absolute inset-0 bg-royal-900/20"></div>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start mb-2">
-                          <h3 className="font-display text-xl text-royal-900 font-bold group-hover:text-gold-600 transition">
-                            {p.title}
-                          </h3>
-                          <div className={`w-6 h-6 bg-royal-900 text-white rounded-full flex items-center justify-center transition-all transform ${selectedProgram.id === p.id ? 'scale-100 opacity-100' : 'scale-50 opacity-0'}`}>
-                            <Check className="w-4 h-4" />
+              {programs.map((p: any) => {
+                const progress = p.target ? Math.round((p.collected / p.target) * 100) : p.progress || 0;
+                return (
+                  <label key={p.id || p._id} className="cursor-pointer block group">
+                    <input
+                      type="radio"
+                      name="program"
+                      className="hidden peer"
+                      checked={selectedProgram.id === p.id || selectedProgram._id === p._id}
+                      onChange={() => setSelectedProgram(p)}
+                    />
+                    <div className="border-2 border-stone-200 rounded-[2rem] p-6 transition-all duration-300 relative overflow-hidden bg-white hover:border-gold-400 peer-checked:border-royal-900 peer-checked:bg-royal-50/30 peer-checked:shadow-lg">
+                      <div className="flex gap-6">
+                        <div className="w-24 h-24 rounded-xl overflow-hidden shrink-0 bg-stone-200 relative">
+                          <img src={p.image?.asset ? SanityService.imageUrl(p.image) : p.img} className="w-full h-full object-cover" alt={p.title} />
+                          <div className="absolute inset-0 bg-royal-900/20"></div>
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start mb-2">
+                            <h3 className="font-display text-xl text-royal-900 font-bold group-hover:text-gold-600 transition">
+                              {p.title}
+                            </h3>
+                            <div className={`w-6 h-6 bg-royal-900 text-white rounded-full flex items-center justify-center transition-all transform ${selectedProgram.id === p.id || selectedProgram._id === p._id ? 'scale-100 opacity-100' : 'scale-50 opacity-0'}`}>
+                              <Check className="w-4 h-4" />
+                            </div>
                           </div>
-                        </div>
-                        <p className="text-sm text-stone-500 mb-4 line-clamp-2">{p.desc}</p>
-                        <div className="w-full bg-stone-100 rounded-full h-2 mb-2">
-                          <div className="bg-gold-400 h-2 rounded-full" style={{ width: `${p.progress}%` }}></div>
-                        </div>
-                        <div className="flex justify-between text-xs font-bold text-stone-400 uppercase tracking-wider">
-                          <span>Dukungan: {p.current}</span>
-                          <span>Target: {p.target}</span>
+                          <p className="text-sm text-stone-500 mb-4 line-clamp-2">{p.description || p.desc}</p>
+                          <div className="w-full bg-stone-100 rounded-full h-2 mb-2">
+                            <div className="bg-gold-400 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
+                          </div>
+                          <div className="flex justify-between text-xs font-bold text-stone-400 uppercase tracking-wider">
+                            <span>Dukungan: {p.current || (p.collected ? `Rp ${p.collected.toLocaleString('id-ID')}` : '-')}</span>
+                            <span>Target: {p.targetString || (typeof p.target === 'number' ? `Rp ${p.target.toLocaleString('id-ID')}` : p.target)}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </label>
-              ))}
+                  </label>
+                );
+              })}
             </div>
 
             {/* INFO TABS */}
             <div className="bg-white rounded-[2rem] border border-stone-200 overflow-hidden shadow-sm">
               <div className="flex border-b border-stone-100">
-                <button 
+                <button
                   onClick={() => setActiveTab('updates')}
                   className={`flex-1 py-4 text-center text-sm font-bold uppercase tracking-wider transition ${activeTab === 'updates' ? 'border-b-2 border-gold-500 text-royal-900 bg-stone-50' : 'text-stone-400 hover:bg-stone-50'}`}
                 >
                   Laporan Dampak
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveTab('donors')}
                   className={`flex-1 py-4 text-center text-sm font-bold uppercase tracking-wider transition ${activeTab === 'donors' ? 'border-b-2 border-gold-500 text-royal-900 bg-stone-50' : 'text-stone-400 hover:bg-stone-50'}`}
                 >
@@ -198,7 +216,7 @@ const DonasiPage: React.FC = () => {
                   <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">Nominal Investasi</label>
                   <div className="grid grid-cols-3 gap-3 mb-4">
                     {[100000, 500000, 1000000].map((amt) => (
-                      <button 
+                      <button
                         key={amt}
                         type="button"
                         onClick={() => setAmount(amt)}
@@ -210,8 +228,8 @@ const DonasiPage: React.FC = () => {
                   </div>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-royal-900 font-bold">Rp</span>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       value={amount || ''}
                       onChange={(e) => setAmount(Number(e.target.value))}
                       className="w-full bg-stone-50 border border-stone-200 rounded-xl py-3 pl-12 font-bold text-royal-900 focus:outline-none focus:border-royal-900 focus:ring-1 focus:ring-royal-900 transition"
@@ -224,8 +242,8 @@ const DonasiPage: React.FC = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Nama Wakif</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       className="w-full bg-white border border-stone-200 rounded-xl py-3 px-4 font-medium text-royal-900 focus:outline-none focus:border-gold-400 transition"
@@ -235,8 +253,8 @@ const DonasiPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Kontak (WhatsApp)</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       className="w-full bg-white border border-stone-200 rounded-xl py-3 px-4 font-medium text-royal-900 focus:outline-none focus:border-gold-400 transition"
@@ -250,7 +268,7 @@ const DonasiPage: React.FC = () => {
                   <label className="block text-xs font-bold text-gold-700 uppercase tracking-wider mb-2 flex items-center gap-2">
                     <Feather className="w-4 h-4" /> Pesan / Hajat Khusus
                   </label>
-                  <textarea 
+                  <textarea
                     rows={3}
                     value={doa}
                     onChange={(e) => setDoa(e.target.value)}
@@ -258,8 +276,8 @@ const DonasiPage: React.FC = () => {
                     placeholder="Semoga menjadi amal jariyah ilmu yang bermanfaat..."
                   ></textarea>
                   <div className="mt-2 flex items-center gap-2">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       id="hideName"
                       checked={hideName}
                       onChange={(e) => setHideName(e.target.checked)}
@@ -269,7 +287,7 @@ const DonasiPage: React.FC = () => {
                   </div>
                 </div>
 
-                <button 
+                <button
                   type="submit"
                   className="w-full py-4 bg-royal-900 text-white rounded-full shadow-lg hover:bg-royal-800 transition transform hover:-translate-y-1 relative overflow-hidden group"
                 >

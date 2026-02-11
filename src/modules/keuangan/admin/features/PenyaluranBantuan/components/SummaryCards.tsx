@@ -14,7 +14,7 @@ interface SummaryCardsProps {
     jumlah_transaksi: number;
     by_kategori: {
       'Bantuan Langsung Yayasan': number;
-      'Operasional dan Konsumsi Santri': number;
+      'Asrama dan Konsumsi Santri': number;
       'Pendidikan Formal': number;
       'Pendidikan Pesantren': number;
       'Operasional Yayasan': number;
@@ -73,7 +73,7 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ statistics, loading = false
     {
       title: 'Pendidikan',
       value: formatCurrency(
-        statistics.by_kategori['Pendidikan Formal'] + 
+        statistics.by_kategori['Pendidikan Formal'] +
         statistics.by_kategori['Pendidikan Pesantren']
       ),
       subtitle: `Formal: ${formatCurrency(statistics.by_kategori['Pendidikan Formal'])} • Pesantren: ${formatCurrency(statistics.by_kategori['Pendidikan Pesantren'])}`,

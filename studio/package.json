@@ -1,0 +1,41 @@
+{
+    "name": "studio",
+    "version": "1.0.0",
+    "description": "Sanity Studio for E-MAKTAB Manager",
+    "scripts": {
+        "dev": "sanity dev",
+        "start": "sanity start",
+        "build": "sanity build",
+        "deploy": "sanity deploy",
+        "deploy-graphql": "sanity graphql deploy"
+    },
+    "keywords": [
+        "sanity",
+        "cms",
+        "studio"
+    ],
+    "dependencies": {
+        "@sanity/icons": "^3.0.0",
+        "@sanity/ui": "^3.0.0",
+        "@sanity/vision": "^4.22.0",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+        "react-is": "^19.0.0",
+        "sanity": "^4.22.0",
+        "sanity-plugin-media": "^2.0.0",
+        "styled-components": "^6.1.0"
+    },
+    "devDependencies": {
+        "@sanity/eslint-config-studio": "^3.0.0",
+        "@types/react": "^19.0.0",
+        "eslint": "^8.6.0",
+        "prettier": "^3.0.0",
+        "typescript": "^5.0.0"
+    },
+    "prettier": {
+        "semi": false,
+        "printWidth": 100,
+        "bracketSpacing": false,
+        "singleQuote": true
+    }
+}

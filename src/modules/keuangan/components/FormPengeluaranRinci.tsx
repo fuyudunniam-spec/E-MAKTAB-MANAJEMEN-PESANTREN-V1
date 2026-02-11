@@ -10,10 +10,10 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { 
-  Plus, 
-  Trash2, 
-  Users, 
+import {
+  Plus,
+  Trash2,
+  Users,
   Calculator,
   Save,
   X,
@@ -87,7 +87,7 @@ const getAlokasiConfigHelper = (kategoriValue: string): {
       createLayananSantri: false,
       info: 'Pilih santri untuk tracking/audit di modul keuangan. Alokasi ini TIDAK akan muncul di tab "Laporan Layanan / Beasiswa Santri" di profil santri. Layanan periodik dicatat via Generate Layanan Periodik.'
     },
-    'Operasional dan Konsumsi Santri': {
+    'Asrama dan Konsumsi Santri': {
       autoPost: true,
       isPengeluaranRiil: true,
       tipeAlokasi: 'pengeluaran_riil',
@@ -117,7 +117,7 @@ const getAlokasiConfigHelper = (kategoriValue: string): {
       info: 'Tidak dialokasikan ke santri. Pengeluaran operasional yayasan (gaji, fasilitas, maintenance, dll).'
     }
   };
-  
+
   return configs[kategoriValue] || {
     autoPost: false,
     isPengeluaranRiil: true,
@@ -150,12 +150,12 @@ const getAlokasiConfigFromMasterData = async (
 
     if (mappingResult.mapping && mappingResult.mapping.aktif) {
       const mapping = mappingResult.mapping;
-      
+
       // 2. Konversi tipe_alokasi ke jenis_alokasi
       let jenis_alokasi = '';
       let perluPilihSantri = false;
       let createLayananSantri = false;
-      
+
       if (mapping.tipe_alokasi === 'seluruh_binaan_mukim') {
         jenis_alokasi = 'overhead';
         perluPilihSantri = false;
@@ -244,7 +244,7 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
   // Create main transaction
   // Try with is_pengeluaran_riil first, fallback if migration not applied
   let keuangan: any = null;
-  
+
   const insertDataBase = {
     tanggal: data.tanggal,
     jenis_transaksi: 'Pengeluaran',
@@ -257,7 +257,7 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
     jenis_alokasi: data.jenis_alokasi,
     status: 'posted'
   };
-  
+
   // Try insert with is_pengeluaran_riil if set
   if (data.is_pengeluaran_riil !== undefined) {
     const { data: keuanganWithField, error: errorWithField } = await supabase
@@ -265,7 +265,7 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
       .insert({ ...insertDataBase, is_pengeluaran_riil: data.is_pengeluaran_riil })
       .select()
       .single();
-    
+
     if (errorWithField && (errorWithField.message?.includes('is_pengeluaran_riil') || errorWithField.code === 'PGRST204')) {
       // Migration not applied, retry without field
       console.warn('[DEBUG] Migration not applied yet, retrying without is_pengeluaran_riil');
@@ -274,7 +274,7 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
         .insert(insertDataBase)
         .select()
         .single();
-      
+
       if (errorRetry) {
         console.error('[DEBUG] keuanganError (retry):', errorRetry);
         throw errorRetry;
@@ -293,40 +293,40 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
       .insert(insertDataBase)
       .select()
       .single();
-    
+
     if (errorNormal) {
       console.error('[DEBUG] keuanganError:', errorNormal);
       throw errorNormal;
     }
     keuangan = keuanganNormal;
   }
-  
+
   if (!keuangan) {
     throw new Error('Failed to create keuangan transaction');
   }
-  
+
   console.log('[DEBUG] keuangan created successfully:', keuangan);
-  
-      console.log('[DEBUG] keuangan created successfully:', keuangan);
-      
-      // REVISI v2: Ensure saldo akun kas is correct after transaction (per-account)
-      // Semua transaksi pengeluaran di tabel keuangan adalah pengeluaran riil (mengurangi saldo kas)
-      // Tidak ada lagi tracking_nominal yang tidak mengurangi saldo
-      try {
-        const { error: saldoError } = await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
-          p_akun_id: data.akun_kas_id
-        });
-        if (saldoError) {
-          console.warn('[DEBUG] Warning ensuring saldo correct (per-account):', saldoError);
-        } else {
-          console.log('[DEBUG] Saldo akun kas ensured correct (per-account)');
-        }
-      } catch (saldoErr) {
-        console.warn('[DEBUG] Error ensuring saldo correct (per-account):', saldoErr);
-      }
-      
-      // Refresh handled by parent pages (loadData/loadChartData). No full reload here.
-  
+
+  console.log('[DEBUG] keuangan created successfully:', keuangan);
+
+  // REVISI v2: Ensure saldo akun kas is correct after transaction (per-account)
+  // Semua transaksi pengeluaran di tabel keuangan adalah pengeluaran riil (mengurangi saldo kas)
+  // Tidak ada lagi tracking_nominal yang tidak mengurangi saldo
+  try {
+    const { error: saldoError } = await supabase.rpc('ensure_akun_kas_saldo_correct_for', {
+      p_akun_id: data.akun_kas_id
+    });
+    if (saldoError) {
+      console.warn('[DEBUG] Warning ensuring saldo correct (per-account):', saldoError);
+    } else {
+      console.log('[DEBUG] Saldo akun kas ensured correct (per-account)');
+    }
+  } catch (saldoErr) {
+    console.warn('[DEBUG] Error ensuring saldo correct (per-account):', saldoErr);
+  }
+
+  // Refresh handled by parent pages (loadData/loadChartData). No full reload here.
+
   // Create rincian items
   if (data.rincian_items.length > 0) {
     const rincianData = data.rincian_items.map(item => ({
@@ -337,14 +337,14 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
       harga_satuan: item.harga_satuan
       // total tidak perlu di-insert karena generated column
     }));
-    
+
     const { error: rincianError } = await supabase
       .from('rincian_pengeluaran')
       .insert(rincianData);
-    
+
     if (rincianError) throw rincianError;
   }
-  
+
   // REVISI v5: Gunakan master data keuangan untuk menentukan logika alokasi
   const masterConfig = await getAlokasiConfigFromMasterData(data.kategori, data.sub_kategori);
 
@@ -361,20 +361,20 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
     // Overhead: generate ledger ke semua santri binaan mukim
     const transaksiDate = new Date(data.tanggal);
     const periode = `${transaksiDate.getFullYear()}-${String(transaksiDate.getMonth() + 1).padStart(2, '0')}`;
-    
+
     // Get semua santri binaan mukim aktif
     const { data: santriBinaanMukim, error: santriError } = await supabase
       .from('santri')
       .select('id')
       .eq('kategori', 'Binaan Mukim')
       .eq('status_santri', 'Aktif');
-    
+
     if (santriError) {
       console.error('[ERROR] Failed to get santri binaan mukim:', santriError);
     } else if (santriBinaanMukim && santriBinaanMukim.length > 0) {
       // Hitung nominal per santri (total dibagi jumlah santri)
       const nominalPerSantri = data.jumlah / santriBinaanMukim.length;
-      
+
       // Delete existing entries for this keuangan_id
       const { error: deleteError } = await supabase
         .from('realisasi_layanan_santri')
@@ -382,11 +382,11 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
         .eq('referensi_keuangan_id', keuangan.id)
         .eq('pilar_layanan', pilar_layanan!)
         .eq('sumber_perhitungan', 'overhead');
-      
+
       if (deleteError) {
         console.error('[ERROR] Failed to delete existing overhead entries:', deleteError);
       }
-      
+
       // Create realisasi entries untuk semua santri binaan mukim
       const realisasiEntries = santriBinaanMukim.map(santri => ({
         santri_id: santri.id,
@@ -396,11 +396,11 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
         sumber_perhitungan: 'overhead' as const,
         referensi_keuangan_id: keuangan.id,
       }));
-      
+
       const { error: realisasiError } = await supabase
         .from('realisasi_layanan_santri')
         .insert(realisasiEntries);
-      
+
       if (realisasiError) {
         console.error(`[ERROR] Failed to create realisasi_layanan_santri for ${data.kategori} overhead:`, realisasiError);
       } else {
@@ -411,7 +411,7 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
     // Manual selection: create ledger untuk santri yang dipilih
     const transaksiDate = new Date(data.tanggal);
     const periode = `${transaksiDate.getFullYear()}-${String(transaksiDate.getMonth() + 1).padStart(2, '0')}`;
-    
+
     // Map rincian items untuk mencari rincian_id
     const rincianMap = new Map();
     if (data.rincian_items.length > 0) {
@@ -419,14 +419,14 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
         .from('rincian_pengeluaran')
         .select('id, nama_item')
         .eq('keuangan_id', keuangan.id);
-      
+
       if (insertedRincian) {
         insertedRincian.forEach(rincian => {
           rincianMap.set(rincian.nama_item, rincian.id);
         });
       }
     }
-    
+
     // Create alokasi_layanan_santri
     // Extract bulan and tahun from periode
     const periodeStr = data.alokasi_santri[0]?.periode || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
@@ -451,13 +451,13 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
       tipe_alokasi: item.tipe_alokasi || 'pengeluaran_riil',
       alokasi_ke: item.alokasi_ke || masterConfig.alokasi_ke || null
     }));
-    
+
     const { error: alokasiError } = await supabase
       .from('alokasi_layanan_santri')
       .insert(alokasiData);
-    
+
     if (alokasiError) throw alokasiError;
-    
+
     // Create realisasi_layanan_santri
     const { error: deleteError } = await supabase
       .from('realisasi_layanan_santri')
@@ -465,11 +465,11 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
       .eq('referensi_keuangan_id', keuangan.id)
       .eq('pilar_layanan', pilar_layanan)
       .eq('sumber_perhitungan', sumber_perhitungan);
-    
+
     if (deleteError) {
       console.error('[ERROR] Failed to delete existing realisasi entries:', deleteError);
     }
-    
+
     const realisasiEntries = alokasiData.map(alokasi => ({
       santri_id: alokasi.santri_id,
       periode: periode,
@@ -478,11 +478,11 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
       sumber_perhitungan: sumber_perhitungan as const,
       referensi_keuangan_id: keuangan.id,
     }));
-    
+
     const { error: realisasiError } = await supabase
       .from('realisasi_layanan_santri')
       .insert(realisasiEntries);
-    
+
     if (realisasiError) {
       console.error(`[ERROR] Failed to create realisasi_layanan_santri for ${data.kategori}:`, realisasiError);
     } else {
@@ -497,14 +497,14 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
         .from('rincian_pengeluaran')
         .select('id, nama_item')
         .eq('keuangan_id', keuangan.id);
-      
+
       if (insertedRincian) {
         insertedRincian.forEach(rincian => {
           rincianMap.set(rincian.nama_item, rincian.id);
         });
       }
     }
-    
+
     // Extract bulan and tahun from periode
     const periodeStr = data.alokasi_santri[0]?.periode || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
     const periodeParts = periodeStr.match(/(\d{4})-(\d{1,2})/);
@@ -528,16 +528,16 @@ const createKeuanganWithDetails = async (data: CreateKeuanganWithDetailsData) =>
       tipe_alokasi: item.tipe_alokasi || 'pengeluaran_riil',
       alokasi_ke: item.alokasi_ke || masterConfig.alokasi_ke || null
     }));
-    
+
     const { error: alokasiError } = await supabase
       .from('alokasi_layanan_santri')
       .insert(alokasiData);
-    
+
     if (alokasiError) throw alokasiError;
-    
+
     console.log(`[INFO] Alokasi santri created for ${data.kategori} (no ledger entry)`);
   }
-  
+
   return keuangan;
 };
 
@@ -596,7 +596,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
   // Options
   const [akunKasOptions, setAkunKasOptions] = useState<AkunKas[]>([]);
   const [santriOptions, setSantriOptions] = useState<SantriOption[]>([]);
-  
+
   // Master data keuangan
   const [kategoriOptions, setKategoriOptions] = useState<MasterKategoriPengeluaran[]>([]);
   const [subKategoriOptions, setSubKategoriOptions] = useState<MasterSubKategoriPengeluaran[]>([]);
@@ -611,13 +611,13 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
   const [batchNominal, setBatchNominal] = useState('');
   const [jumlahSantriBinaanMukim, setJumlahSantriBinaanMukim] = useState<number | null>(null);
   const [loadingJumlahSantri, setLoadingJumlahSantri] = useState(false);
-  
+
   // Range periode state
   const [useRangePeriode, setUseRangePeriode] = useState(false);
   const [periodeDari, setPeriodeDari] = useState('');
   const [periodeSampai, setPeriodeSampai] = useState('');
   const [nominalPerBulan, setNominalPerBulan] = useState('');
-  
+
   // Sub kategori combobox state
   const [subKategoriOpen, setSubKategoriOpen] = useState(false);
   const [subKategoriSearch, setSubKategoriSearch] = useState('');
@@ -632,7 +632,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
         .select('*', { count: 'exact', head: true })
         .eq('status_santri', 'Aktif')
         .or('kategori.ilike.%binaan%mukim%,kategori.ilike.%mukim%binaan%');
-      
+
       if (error) throw error;
       setJumlahSantriBinaanMukim(count || 0);
     } catch (error) {
@@ -681,7 +681,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
   // Auto-select santri berdasarkan mapping di master data
   const [lastMappingCheck, setLastMappingCheck] = useState<{ kategori: string; subKategori: string } | null>(null);
   const [isManualSelection, setIsManualSelection] = useState(false);
-  
+
   useEffect(() => {
     const loadSantriMapping = async () => {
       if (!kategori) {
@@ -691,11 +691,11 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
       }
 
       const currentCheck = { kategori, subKategori: subKategori || '' };
-      
+
       // Jika kategori atau sub kategori berubah, reset manual selection flag
-      if (lastMappingCheck && 
-          (lastMappingCheck.kategori !== currentCheck.kategori || 
-           lastMappingCheck.subKategori !== currentCheck.subKategori)) {
+      if (lastMappingCheck &&
+        (lastMappingCheck.kategori !== currentCheck.kategori ||
+          lastMappingCheck.subKategori !== currentCheck.subKategori)) {
         setIsManualSelection(false);
         // Clear alokasi santri saat kategori/subKategori berubah
         setAlokasiSantri([]);
@@ -703,9 +703,9 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
       }
 
       // Skip jika sudah pernah check mapping untuk kombinasi kategori+subKategori yang sama
-      if (lastMappingCheck && 
-          lastMappingCheck.kategori === currentCheck.kategori && 
-          lastMappingCheck.subKategori === currentCheck.subKategori) {
+      if (lastMappingCheck &&
+        lastMappingCheck.kategori === currentCheck.kategori &&
+        lastMappingCheck.subKategori === currentCheck.subKategori) {
         return;
       }
 
@@ -819,7 +819,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
 
       try {
         const masterConfig = await getAlokasiConfigFromMasterData(kategori, subKategori || undefined);
-        
+
         // Update jenis_alokasi berdasarkan master data
         if (masterConfig.jenis_alokasi !== jenisAlokasi) {
           setJenisAlokasi(masterConfig.jenis_alokasi);
@@ -844,7 +844,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
       }
 
       // Reset sub_kategori untuk kategori dengan dropdown (backward compatibility)
-      if (kategori === 'Operasional dan Konsumsi Santri') {
+      if (kategori === 'Asrama dan Konsumsi Santri') {
         if (subKategori && subKategori !== 'Konsumsi' && subKategori !== 'Operasional') {
           setSubKategori('');
         }
@@ -859,7 +859,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
           setSubKategori('');
         }
       }
-      
+
       // Reset range periode jika kategori bukan Pendidikan Formal
       if (kategori !== 'Pendidikan Formal') {
         setUseRangePeriode(false);
@@ -878,30 +878,30 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
     label: string;
     isCustom?: boolean;
   }
-  
+
   const getSubKategoriOptions = (kategoriValue: string): SubKategoriOption[] => {
     // Jika ada sub kategori dari master data, gunakan itu
     if (subKategoriOptions.length > 0) {
       const options: SubKategoriOption[] = subKategoriOptions
         .filter(sub => sub.aktif)
         .map(sub => ({ value: sub.nama, label: sub.nama }));
-      
+
       // Tambahkan opsi custom untuk menambah sub kategori baru
       options.push({ value: '', label: 'Tambah Sub Kategori Baru...', isCustom: true });
-      
+
       return options;
     }
-    
+
     // Fallback: ambil dari historical jika master data belum loaded
     const options: SubKategoriOption[] = historicalSubKategori
       .filter(sub => sub && sub.trim() !== '')
       .map(sub => ({ value: sub, label: sub }));
-    
+
     // Tambahkan opsi custom jika belum ada
     if (!options.some(opt => opt.value === 'Tambah Sub Kategori Baru...')) {
       options.push({ value: '', label: 'Tambah Sub Kategori Baru...', isCustom: true });
     }
-    
+
     return options;
   };
 
@@ -912,7 +912,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
         setHistoricalSubKategori([]);
         return;
       }
-      
+
       try {
         const { data, error } = await supabase
           .from('keuangan')
@@ -921,29 +921,29 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
           .not('sub_kategori', 'is', null)
           .neq('sub_kategori', '')
           .limit(50);
-        
+
         if (error) throw error;
-        
+
         const uniqueSubKategori = Array.from(
           new Set((data || []).map(item => item.sub_kategori).filter(Boolean))
         ).sort() as string[];
-        
+
         setHistoricalSubKategori(uniqueSubKategori);
       } catch (error) {
         console.error('Error loading historical sub kategori:', error);
         setHistoricalSubKategori([]);
       }
     };
-    
+
     loadHistoricalSubKategori();
   }, [kategori]);
 
   // Load kategori dari master data
   const { data: kategoriList } = useQuery({
     queryKey: ['master-kategori-pengeluaran-form'],
-    queryFn: () => MasterDataKeuanganService.getKategoriPengeluaran({ 
+    queryFn: () => MasterDataKeuanganService.getKategoriPengeluaran({
       jenis: 'Pengeluaran',
-      aktifOnly: true 
+      aktifOnly: true
     }),
   });
 
@@ -998,12 +998,12 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
         AkunKasService.getActive(),
         AlokasiPengeluaranService.getAvailableSantri(),
       ]);
-      
+
       // Sembunyikan akun yang dikelola modul Tabungan dari form keuangan
       const filteredAkun = (akunKas || []).filter((a: any) => a?.managed_by !== 'tabungan');
       setAkunKasOptions(filteredAkun as any);
       setSantriOptions(santri);
-      
+
       // Set default akun kas
       const defaultAkun = filteredAkun.find((akun: any) => akun.is_default);
       if (defaultAkun) {
@@ -1040,12 +1040,12 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
             // Validasi dan konversi ke number
             const jumlah = typeof updated.jumlah === 'string' ? parseFloat(updated.jumlah) || 0 : updated.jumlah;
             const hargaSatuan = typeof updated.harga_satuan === 'string' ? parseFloat(updated.harga_satuan) || 0 : updated.harga_satuan;
-            
+
             // Pastikan nilai positif
             updated.jumlah = Math.max(0, jumlah);
             updated.harga_satuan = Math.max(0, hargaSatuan);
             updated.total = updated.jumlah * updated.harga_satuan;
-            
+
             console.log(`[DEBUG] updateRincianItem: ${field}=${value}, jumlah=${updated.jumlah}, harga=${updated.harga_satuan}, total=${updated.total}`);
           }
           return updated;
@@ -1086,7 +1086,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
   const updateAlokasiSantri = (id: string, field: keyof AlokasiSantri, value: any) => {
     // Mark sebagai manual selection saat user mengubah alokasi
     setIsManualSelection(true);
-    
+
     setAlokasiSantri(items =>
       items.map(item => {
         if (item.id === id) {
@@ -1119,16 +1119,16 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
   const applyBatchNominal = () => {
     // Mark sebagai manual selection saat user mengubah nominal
     setIsManualSelection(true);
-    
+
     const nominalValue = parseFloat(batchNominal.replace(/[^\d]/g, '')) || 0;
     if (nominalValue <= 0) {
       toast.error('Nominal harus lebih dari 0');
       return;
     }
-    
+
     const totalAlokasi = nominalValue * alokasiSantri.length;
     const persentasePerSantri = 100 / alokasiSantri.length;
-    
+
     setAlokasiSantri(items =>
       items.map(item => ({
         ...item,
@@ -1136,7 +1136,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
         persentase_alokasi: persentasePerSantri,
       }))
     );
-    
+
     setShowNominalDialog(false);
     setBatchNominal('');
     toast.success(`Nominal ${formatCurrency(nominalValue)} diisi untuk semua ${alokasiSantri.length} santri (Total: ${formatCurrency(totalAlokasi)})`);
@@ -1145,7 +1145,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
   const removeAlokasiSantri = (id: string) => {
     // Mark sebagai manual selection saat user menghapus santri
     setIsManualSelection(true);
-    
+
     const allocation = alokasiSantri.find(a => a.id === id);
     if (allocation) {
       setSelectedSantriIds(ids => ids.filter(id => id !== allocation.santri_id));
@@ -1157,12 +1157,12 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
   const autoGenerateAllocationFromRincian = () => {
     // Mark sebagai manual selection saat user menggunakan auto-generate
     setIsManualSelection(true);
-    
+
     if (rincianItems.length === 0) {
       toast.error('Isi rincian item dulu');
       return;
     }
-    
+
     if (selectedSantriIds.length === 0) {
       toast.error('Pilih santri dulu');
       return;
@@ -1175,23 +1175,23 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
     const newAllocations: AlokasiSantri[] = [];
     const periode = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
     const jumlahSantri = selectedSantriIds.length;
-    
+
     selectedSantriIds.forEach(santriId => {
       const santri = santriOptions.find(s => s.id === santriId);
       if (!santri) return;
-      
+
       // Untuk setiap rincian item, buat alokasi terpisah
       rincianItems.forEach(rincian => {
         // Hitung nominal per santri untuk rincian ini
         // Jika jumlah rincian = jumlah santri, berarti 1:1
         // Jika jumlah rincian berbeda, bagi rata total rincian ke semua santri
-        const nominalPerSantri = rincian.jumlah === jumlahSantri 
+        const nominalPerSantri = rincian.jumlah === jumlahSantri
           ? rincian.harga_satuan  // 1:1 mapping
           : rincian.total / jumlahSantri; // Bagi rata
-        
+
         const totalRincian = rincianItems.reduce((sum, item) => sum + item.total, 0);
-        const persentase = totalRincian > 0 
-          ? (nominalPerSantri / totalRincian) * 100 
+        const persentase = totalRincian > 0
+          ? (nominalPerSantri / totalRincian) * 100
           : 0;
 
         newAllocations.push({
@@ -1212,9 +1212,9 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
 
     // Hitung total per santri untuk validasi
     const totalPerSantri = rincianItems.reduce((sum, item) => sum + item.total, 0) / jumlahSantri;
-    
+
     setAlokasiSantri(newAllocations);
-    
+
     toast.success(
       `✅ Alokasi otomatis dibuat!\n` +
       `${rincianItems.length} jenis bantuan × ${jumlahSantri} santri = ${newAllocations.length} alokasi\n` +
@@ -1226,10 +1226,10 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
   const autoSplitAllocation = () => {
     // Jika ada rincian items, gunakan total dari rincian
     // Jika tidak ada rincian items, minta input total
-    const totalAmount = rincianItems.length > 0 
+    const totalAmount = rincianItems.length > 0
       ? rincianItems.reduce((sum, item) => sum + item.total, 0)
       : 0;
-    
+
     if (totalAmount === 0 && alokasiSantri.length > 0) {
       // Jika tidak ada rincian items, gunakan total dari alokasi yang sudah ada
       const existingTotal = alokasiSantri.reduce((sum, alloc) => sum + (alloc.nominal_alokasi || 0), 0);
@@ -1246,12 +1246,12 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
         return;
       }
     }
-    
+
     if (totalAmount === 0) {
       toast.error('Tidak ada total untuk dibagi. Isi rincian item dulu atau isi nominal alokasi manual.');
       return;
     }
-    
+
     const amountPerSantri = totalAmount / alokasiSantri.length;
     const percentagePerSantri = 100 / alokasiSantri.length;
 
@@ -1262,7 +1262,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
         persentase_alokasi: percentagePerSantri,
       }))
     );
-    
+
     toast.success(`Total ${formatCurrency(totalAmount)} dibagi rata ke ${alokasiSantri.length} santri (${formatCurrency(amountPerSantri)} per santri)`);
   };
 
@@ -1272,13 +1272,13 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
       toast.error('Pilih santri dulu untuk membuat rincian item');
       return;
     }
-    
+
     const totalAlokasi = alokasiSantri.reduce((sum, alloc) => sum + (alloc.nominal_alokasi || 0), 0);
     if (totalAlokasi === 0) {
       toast.error('Isi nominal alokasi dulu');
       return;
     }
-    
+
     // Buat 1 rincian item dengan total dari alokasi
     const jenisBantuan = alokasiSantri[0]?.jenis_bantuan || subKategori || 'Bantuan Santri';
     const newItem: RincianItem = {
@@ -1290,7 +1290,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
       total: totalAlokasi,
       keterangan: `Otomatis dibuat dari alokasi ${alokasiSantri.length} santri`
     };
-    
+
     setRincianItems([newItem]);
     toast.success('Rincian item dibuat dari total alokasi santri');
   };
@@ -1300,16 +1300,16 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
       // Validasi dan konversi ke number
       const jumlah = typeof item.jumlah === 'string' ? parseFloat(item.jumlah) || 0 : item.jumlah;
       const hargaSatuan = typeof item.harga_satuan === 'string' ? parseFloat(item.harga_satuan) || 0 : item.harga_satuan;
-      
+
       // Pastikan nilai positif
       const validJumlah = Math.max(0, jumlah);
       const validHargaSatuan = Math.max(0, hargaSatuan);
       const itemTotal = validJumlah * validHargaSatuan;
-      
+
       console.log(`[DEBUG] Item: ${item.nama_item}, Jumlah: ${jumlah}->${validJumlah}, Harga: ${hargaSatuan}->${validHargaSatuan}, Total: ${itemTotal}`);
       return sum + itemTotal;
     }, 0);
-    
+
     // Pastikan total adalah integer positif
     const validTotal = Math.max(0, Math.round(total));
     console.log(`[DEBUG] calculateTotal() result: ${total}->${validTotal}`);
@@ -1322,15 +1322,15 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
     if (!tanggal) errors.push('Tanggal harus diisi');
     if (!kategori) errors.push('Kategori harus diisi');
     if (!akunKasId) errors.push('Akun kas harus dipilih');
-    
+
     // Get config berdasarkan kategori
     const config = kategori ? getAlokasiConfig(kategori) : null;
-    
+
     // Validasi rincian items
     if (rincianItems.length === 0) {
       errors.push('Minimal harus ada 1 rincian item');
     }
-    
+
     // Validasi berdasarkan kategori
     if (config) {
       if (config.autoPost) {
@@ -1347,7 +1347,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
       }
       // Operasional Yayasan: tidak perlu validasi alokasi santri
     }
-    
+
     rincianItems.forEach((item, index) => {
       if (!item.nama_item) errors.push(`Rincian ${index + 1}: Nama item harus diisi`);
       if (item.jumlah <= 0) errors.push(`Rincian ${index + 1}: Jumlah harus lebih dari 0`);
@@ -1361,7 +1361,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
         if (!alloc.periode) errors.push(`Alokasi ${index + 1}: Periode harus diisi`);
         if (alloc.nominal_alokasi <= 0) errors.push(`Alokasi ${index + 1}: Nominal alokasi harus lebih dari 0`);
       });
-      
+
       // Validasi: jika ada rincian items DAN alokasi santri, total harus sama
       if (rincianItems.length > 0) {
         const totalRincian = calculateTotal();
@@ -1394,10 +1394,10 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
       });
 
       // Hitung total: dari rincian items jika ada, atau dari alokasi santri
-      const totalAmount = rincianItems.length > 0 
-        ? calculateTotal() 
+      const totalAmount = rincianItems.length > 0
+        ? calculateTotal()
         : alokasiSantri.reduce((sum, alloc) => sum + (alloc.nominal_alokasi || 0), 0);
-      
+
       // Jika tidak ada rincian items tapi ada alokasi (hanya untuk langsung), buat rincian item otomatis
       let finalRincianItems = rincianItems;
       if (rincianItems.length === 0 && alokasiSantri.length > 0 && jenisAlokasi === 'langsung') {
@@ -1412,13 +1412,13 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
           keterangan: `Otomatis dibuat dari alokasi ${alokasiSantri.length} santri`
         }];
       }
-      
+
       // REVISI v5: Gunakan master data keuangan untuk menentukan config
       const masterConfig = await getAlokasiConfigFromMasterData(kategori, subKategori || undefined);
-      
+
       // Fallback ke hardcoded config untuk backward compatibility
       const config = kategori ? getAlokasiConfig(kategori) : null;
-      
+
       // REVISI v2: Alokasi hanya jika user eksplisit pilih santri (tidak ada auto-post)
       let finalAlokasiSantri = alokasiSantri;
       if (masterConfig.perluPilihSantri === false) {
@@ -1486,7 +1486,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
       };
 
       await createKeuanganWithDetails(formData);
-      
+
       // Reset form
       setTanggal(new Date().toISOString().split('T')[0]);
       setKategori('');
@@ -1526,7 +1526,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
   const generateBulanOptions = () => {
     const options: Array<{ value: string; label: string }> = [];
     const now = new Date();
-    
+
     // Generate dari 12 bulan lalu sampai 12 bulan ke depan
     for (let i = -12; i <= 12; i++) {
       const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
@@ -1534,36 +1534,36 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
       const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       options.push({ value, label: monthYear });
     }
-    
+
     return options;
   };
 
   // Generate list bulan dalam range
   const generateBulanInRange = (dari: string, sampai: string): string[] => {
     if (!dari || !sampai) return [];
-    
+
     const [tahunDari, bulanDari] = dari.split('-').map(Number);
     const [tahunSampai, bulanSampai] = sampai.split('-').map(Number);
-    
+
     const bulanList: string[] = [];
     let currentYear = tahunDari;
     let currentMonth = bulanDari;
-    
+
     while (
-      currentYear < tahunSampai || 
+      currentYear < tahunSampai ||
       (currentYear === tahunSampai && currentMonth <= bulanSampai)
     ) {
       const date = new Date(currentYear, currentMonth - 1, 1);
       const monthYear = date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
       bulanList.push(monthYear);
-      
+
       currentMonth++;
       if (currentMonth > 12) {
         currentMonth = 1;
         currentYear++;
       }
     }
-    
+
     return bulanList;
   };
 
@@ -1597,7 +1597,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
 
     // Generate alokasi untuk setiap santri × setiap bulan
     const newAllocations: AlokasiSantri[] = [];
-    
+
     selectedSantriIds.forEach(santriId => {
       const santri = santriOptions.find(s => s.id === santriId);
       if (!santri) return;
@@ -1669,8 +1669,8 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
             </div>
             <div className="space-y-2">
               <Label htmlFor="kategori">Kategori *</Label>
-              <Select 
-                value={kategori} 
+              <Select
+                value={kategori}
                 onValueChange={(value) => {
                   setKategori(value);
                   // Reset sub kategori saat kategori berubah
@@ -1696,8 +1696,8 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
                       <SelectItem value="Pendidikan Formal">
                         Pendidikan Formal
                       </SelectItem>
-                      <SelectItem value="Operasional dan Konsumsi Santri">
-                        Operasional & Konsumsi Santri
+                      <SelectItem value="Asrama dan Konsumsi Santri">
+                        Asrama & Konsumsi Santri
                       </SelectItem>
                       <SelectItem value="Bantuan Langsung Yayasan">
                         Bantuan Langsung Yayasan
@@ -1737,8 +1737,8 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0" align="start">
                   <Command>
-                    <CommandInput 
-                      placeholder="Cari atau ketik sub kategori..." 
+                    <CommandInput
+                      placeholder="Cari atau ketik sub kategori..."
                       value={subKategoriSearch}
                       onValueChange={setSubKategoriSearch}
                     />
@@ -1837,10 +1837,10 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
           {/* REVISI v2: Alokasi ke Santri - Hanya jika user eksplisit pilih santri */}
           {(() => {
             const config = kategori ? getAlokasiConfig(kategori) : null;
-            
+
             // REVISI v2: Tidak ada lagi auto-post, hanya tampilkan info untuk kategori yang perlu pilih santri
             if (!kategori) return null;
-            
+
             // Kategori yang tidak perlu alokasi (Operasional Yayasan, Pendidikan Pesantren)
             if (kategori === 'Operasional Yayasan') {
               return (
@@ -1854,7 +1854,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
                         Operasional Yayasan - Tidak Dialokasikan
                       </h4>
                       <p className="text-sm text-gray-700 dark:text-gray-300">
-                        Pengeluaran ini <strong>tidak dialokasikan ke santri</strong>. 
+                        Pengeluaran ini <strong>tidak dialokasikan ke santri</strong>.
                         Dicatat sebagai pengeluaran operasional yayasan dan akan mengurangi saldo kas.
                       </p>
                     </div>
@@ -1862,7 +1862,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
                 </div>
               );
             }
-            
+
             // REVISI v2: Pendidikan Pesantren tidak otomatis dialokasikan
             if (kategori === 'Pendidikan Pesantren') {
               return (
@@ -1893,7 +1893,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
                     <div className="flex items-center justify-between">
                       <Label className="text-base font-semibold">Alokasi ke Santri (Wajib)</Label>
                     </div>
-                    
+
                     {config && (
                       <div className="ml-6 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200">
                         <p className="text-xs text-blue-800 dark:text-blue-200">
@@ -1965,7 +1965,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
                 </div>
               );
             }
-            
+
             return null;
           })()}
 
@@ -1977,7 +1977,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
               <div>
                 <h3 className="text-lg font-semibold">Rincian Item</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {jenisAlokasi === 'langsung' && alokasiSantri.length > 0 
+                  {jenisAlokasi === 'langsung' && alokasiSantri.length > 0
                     ? 'Opsional - Bisa dibuat dari alokasi santri atau diisi manual'
                     : 'Wajib diisi untuk detail pengeluaran'}
                 </p>
@@ -2076,7 +2076,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
           {(() => {
             const config = kategori ? getAlokasiConfig(kategori) : null;
             const perluTampilkanAlokasi = config && config.perluPilihSantri && !config.autoPost;
-            
+
             if (!perluTampilkanAlokasi) return null;
 
             return (
@@ -2090,369 +2090,369 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
                       Isi rincian item dulu (SPP, Buku, dll), lalu pilih santri dan klik "Auto-Generate" untuk membuat alokasi detail per jenis bantuan.
                     </p>
                   </div>
-              <div className="flex gap-2 flex-wrap">
-                {selectedSantriIds.length > 0 && rincianItems.length > 0 && (
-                  <Button 
-                    variant="default" 
-                    size="sm" 
-                    onClick={autoGenerateAllocationFromRincian}
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    <Calculator className="h-4 w-4 mr-2" />
-                    Auto-Generate dari Rincian
-                  </Button>
-                )}
-                {selectedSantriIds.length > 0 && kategori === 'Pendidikan Formal' && (
-                  <Button 
-                    variant="default" 
-                    size="sm" 
-                    onClick={() => setUseRangePeriode(!useRangePeriode)}
-                    className="bg-sky-600 hover:bg-sky-700 text-white"
-                  >
-                    <Calendar className="h-4 w-4 mr-2" />
-                    {useRangePeriode ? 'Batal Range Periode' : 'Bayar Range Periode'}
-                  </Button>
-                )}
-                {alokasiSantri.length > 0 && (
-                  <>
-                    <Button variant="outline" size="sm" onClick={handleSetNominalForAll}>
-                      <Calculator className="h-4 w-4 mr-2" />
-                      Isi Nominal Semua
-                    </Button>
-                    {rincianItems.length > 0 && (
-                      <Button variant="outline" size="sm" onClick={autoSplitAllocation}>
+                  <div className="flex gap-2 flex-wrap">
+                    {selectedSantriIds.length > 0 && rincianItems.length > 0 && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={autoGenerateAllocationFromRincian}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
                         <Calculator className="h-4 w-4 mr-2" />
-                        Bagi Rata Total
+                        Auto-Generate dari Rincian
                       </Button>
                     )}
-                  </>
-                )}
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setShowSantriPicker(!showSantriPicker)}
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Pilih Santri
-                </Button>
-              </div>
-            </div>
-
-            {/* Range Periode Section */}
-            {useRangePeriode && kategori === 'Pendidikan Formal' && (
-              <Card className="mb-4 border-sky-200 bg-sky-50">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-sky-600" />
-                    Bayar SPP untuk Range Periode
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Pilih periode dari dan sampai, lalu isi nominal per bulan. Sistem akan otomatis membuat alokasi untuk semua bulan dalam range.
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Dari Periode</Label>
-                      <Select value={periodeDari} onValueChange={setPeriodeDari}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih bulan awal" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {generateBulanOptions().map(option => (
-                            <SelectItem 
-                              key={option.value} 
-                              value={option.value}
-                              disabled={periodeSampai ? option.value > periodeSampai : false}
-                            >
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Sampai Periode</Label>
-                      <Select value={periodeSampai} onValueChange={setPeriodeSampai}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih bulan akhir" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {generateBulanOptions().map(option => (
-                            <SelectItem 
-                              key={option.value} 
-                              value={option.value}
-                              disabled={periodeDari ? option.value < periodeDari : false}
-                            >
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>Nominal per Bulan</Label>
-                    <Input
-                      type="text"
-                      value={nominalPerBulan}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/[^\d]/g, '');
-                        setNominalPerBulan(value);
-                      }}
-                      placeholder="Contoh: 650000"
-                      className="text-lg"
-                    />
-                    {nominalPerBulan && periodeDari && periodeSampai && (
-                      <div className="p-3 bg-white rounded-md border border-sky-200">
-                        <div className="space-y-1 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Periode yang akan dibuat:</span>
-                            <span className="font-semibold">{generateBulanInRange(periodeDari, periodeSampai).length} bulan</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Santri yang dipilih:</span>
-                            <span className="font-semibold">{selectedSantriIds.length} santri</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Nominal per bulan:</span>
-                            <span className="font-semibold">{formatCurrency(parseFloat(nominalPerBulan) || 0)}</span>
-                          </div>
-                          <div className="pt-2 border-t border-sky-200 flex justify-between">
-                            <span className="font-semibold">Total Alokasi:</span>
-                            <span className="font-bold text-sky-700 text-lg">
-                              {formatCurrency(
-                                (parseFloat(nominalPerBulan) || 0) * 
-                                generateBulanInRange(periodeDari, periodeSampai).length * 
-                                selectedSantriIds.length
-                              )}
-                            </span>
-                          </div>
-                          {periodeDari && periodeSampai && (
-                            <div className="pt-2 border-t border-sky-200">
-                              <p className="text-xs text-muted-foreground mb-1">Bulan yang akan dibuat:</p>
-                              <p className="text-xs font-medium">
-                                {generateBulanInRange(periodeDari, periodeSampai).join(', ')}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                    {selectedSantriIds.length > 0 && kategori === 'Pendidikan Formal' && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => setUseRangePeriode(!useRangePeriode)}
+                        className="bg-sky-600 hover:bg-sky-700 text-white"
+                      >
+                        <Calendar className="h-4 w-4 mr-2" />
+                        {useRangePeriode ? 'Batal Range Periode' : 'Bayar Range Periode'}
+                      </Button>
                     )}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={generateAlokasiRangePeriode}
-                      disabled={!periodeDari || !periodeSampai || !nominalPerBulan || selectedSantriIds.length === 0}
-                      className="bg-sky-600 hover:bg-sky-700 text-white"
-                    >
-                      <Calculator className="h-4 w-4 mr-2" />
-                      Generate Alokasi untuk Range Periode
-                    </Button>
+                    {alokasiSantri.length > 0 && (
+                      <>
+                        <Button variant="outline" size="sm" onClick={handleSetNominalForAll}>
+                          <Calculator className="h-4 w-4 mr-2" />
+                          Isi Nominal Semua
+                        </Button>
+                        {rincianItems.length > 0 && (
+                          <Button variant="outline" size="sm" onClick={autoSplitAllocation}>
+                            <Calculator className="h-4 w-4 mr-2" />
+                            Bagi Rata Total
+                          </Button>
+                        )}
+                      </>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        setUseRangePeriode(false);
-                        setPeriodeDari('');
-                        setPeriodeSampai('');
-                        setNominalPerBulan('');
-                      }}
+                      onClick={() => setShowSantriPicker(!showSantriPicker)}
                     >
-                      Batal
+                      <Users className="h-4 w-4 mr-2" />
+                      Pilih Santri
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                </div>
 
-            {/* Santri Picker */}
-            {showSantriPicker && (
-              <Card className="mb-4">
-                <CardContent className="pt-4">
-                  {/* Search & Filter Bar */}
-                  <div className="flex gap-2 mb-3">
-                    <Input
-                      placeholder="Cari nama atau ID santri..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Select value={programFilter} onValueChange={(v) => setProgramFilter(v as any)}>
-                      <SelectTrigger className="w-40">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Semua</SelectItem>
-                        <SelectItem value="Mukim">Mukim</SelectItem>
-                        <SelectItem value="Non-Mukim">Non-Mukim</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Santri List */}
-                  <div className="max-h-64 overflow-y-auto border rounded-md">
-                    {santriOptions
-                      .filter(santri => {
-                        // Filter by search
-                        const matchSearch = !searchQuery || 
-                          santri.nama_lengkap?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          santri.id_santri?.toLowerCase().includes(searchQuery.toLowerCase());
-                        
-                        // Filter by program
-                        const matchProgram = programFilter === 'all' || 
-                          santri.program?.includes(programFilter);
-                        
-                        // Filter already selected
-                        const notSelected = !selectedSantriIds.includes(santri.id);
-                        
-                        return matchSearch && matchProgram && notSelected;
-                      })
-                      .map(santri => (
-                        <button
-                          key={santri.id}
-                          type="button"
-                          className="w-full px-4 py-3 text-left hover:bg-accent border-b last:border-0 transition-colors"
-                          onClick={() => addSantriToAllocation(santri.id)}
-                        >
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <div className="font-medium">{santri.nama_lengkap}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {santri.id_santri}
-                                {santri.program && ` • ${santri.program}`}
-                              </div>
-                            </div>
-                            <Plus className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        </button>
-                      ))}
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="w-full mt-2"
-                    onClick={() => setShowSantriPicker(false)}
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Tutup
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Alokasi List */}
-            {/* Group alokasi by santri untuk tampilan yang lebih rapi */}
-            {(() => {
-              // Group alokasi by santri_id
-              const groupedBySantri: { [key: string]: AlokasiSantri[] } = {};
-              alokasiSantri.forEach(alloc => {
-                if (!groupedBySantri[alloc.santri_id]) {
-                  groupedBySantri[alloc.santri_id] = [];
-                }
-                groupedBySantri[alloc.santri_id].push(alloc);
-              });
-
-              return Object.entries(groupedBySantri).map(([santriId, allocations]) => {
-                const firstAlloc = allocations[0];
-                const totalPerSantri = allocations.reduce((sum, a) => sum + (a.nominal_alokasi || 0), 0);
-                
-                return (
-                  <Card key={santriId} className="p-4 border-l-4 border-l-blue-500">
-                    <div className="mb-3 pb-2 border-b">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-semibold text-lg">{firstAlloc.nama_lengkap}</div>
-                          <div className="text-xs text-muted-foreground">
-                            ID Santri: {santriOptions.find(s => s.id === santriId)?.id_santri || firstAlloc.id_santri || ''}
-                          </div>
+                {/* Range Periode Section */}
+                {useRangePeriode && kategori === 'Pendidikan Formal' && (
+                  <Card className="mb-4 border-sky-200 bg-sky-50">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-sky-600" />
+                        Bayar SPP untuk Range Periode
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Pilih periode dari dan sampai, lalu isi nominal per bulan. Sistem akan otomatis membuat alokasi untuk semua bulan dalam range.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Dari Periode</Label>
+                          <Select value={periodeDari} onValueChange={setPeriodeDari}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Pilih bulan awal" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {generateBulanOptions().map(option => (
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value}
+                                  disabled={periodeSampai ? option.value > periodeSampai : false}
+                                >
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
-                        <div className="text-right">
-                          <div className="text-xs text-muted-foreground">Total Alokasi</div>
-                          <div className="font-bold text-blue-600">{formatCurrency(totalPerSantri)}</div>
+                        <div className="space-y-2">
+                          <Label>Sampai Periode</Label>
+                          <Select value={periodeSampai} onValueChange={setPeriodeSampai}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Pilih bulan akhir" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {generateBulanOptions().map(option => (
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value}
+                                  disabled={periodeDari ? option.value < periodeDari : false}
+                                >
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      {allocations.map((alloc, idx) => (
-                        <div key={alloc.id} className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 bg-muted/50 rounded-md">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Jenis Bantuan</Label>
-                            <Input
-                              value={alloc.jenis_bantuan}
-                              onChange={(e) => updateAlokasiSantri(alloc.id, 'jenis_bantuan', e.target.value)}
-                              placeholder="e.g., SPP SMA"
-                              className="h-8 text-sm"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Periode</Label>
-                            <Input
-                              value={alloc.periode}
-                              onChange={(e) => updateAlokasiSantri(alloc.id, 'periode', e.target.value)}
-                              placeholder="e.g., Januari 2025"
-                              className="h-8 text-sm"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Nominal</Label>
-                            <Input
-                              type="number"
-                              value={alloc.nominal_alokasi}
-                              onChange={(e) => updateAlokasiSantri(alloc.id, 'nominal_alokasi', parseFloat(e.target.value) || 0)}
-                              min="0"
-                              step="100"
-                              className="h-8 text-sm"
-                            />
-                            <div className="text-xs text-muted-foreground">
-                              {formatCurrency(alloc.nominal_alokasi)}
+
+                      <div className="space-y-2">
+                        <Label>Nominal per Bulan</Label>
+                        <Input
+                          type="text"
+                          value={nominalPerBulan}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/[^\d]/g, '');
+                            setNominalPerBulan(value);
+                          }}
+                          placeholder="Contoh: 650000"
+                          className="text-lg"
+                        />
+                        {nominalPerBulan && periodeDari && periodeSampai && (
+                          <div className="p-3 bg-white rounded-md border border-sky-200">
+                            <div className="space-y-1 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Periode yang akan dibuat:</span>
+                                <span className="font-semibold">{generateBulanInRange(periodeDari, periodeSampai).length} bulan</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Santri yang dipilih:</span>
+                                <span className="font-semibold">{selectedSantriIds.length} santri</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Nominal per bulan:</span>
+                                <span className="font-semibold">{formatCurrency(parseFloat(nominalPerBulan) || 0)}</span>
+                              </div>
+                              <div className="pt-2 border-t border-sky-200 flex justify-between">
+                                <span className="font-semibold">Total Alokasi:</span>
+                                <span className="font-bold text-sky-700 text-lg">
+                                  {formatCurrency(
+                                    (parseFloat(nominalPerBulan) || 0) *
+                                    generateBulanInRange(periodeDari, periodeSampai).length *
+                                    selectedSantriIds.length
+                                  )}
+                                </span>
+                              </div>
+                              {periodeDari && periodeSampai && (
+                                <div className="pt-2 border-t border-sky-200">
+                                  <p className="text-xs text-muted-foreground mb-1">Bulan yang akan dibuat:</p>
+                                  <p className="text-xs font-medium">
+                                    {generateBulanInRange(periodeDari, periodeSampai).join(', ')}
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Keterangan</Label>
-                            <Input
-                              value={alloc.keterangan || ''}
-                              onChange={(e) => updateAlokasiSantri(alloc.id, 'keterangan', e.target.value)}
-                              placeholder="Opsional"
-                              className="h-8 text-sm"
-                            />
-                          </div>
-                          <div className="flex items-end">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeAlokasiSantri(alloc.id)}
-                              className="text-red-600 hover:text-red-700"
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={generateAlokasiRangePeriode}
+                          disabled={!periodeDari || !periodeSampai || !nominalPerBulan || selectedSantriIds.length === 0}
+                          className="bg-sky-600 hover:bg-sky-700 text-white"
+                        >
+                          <Calculator className="h-4 w-4 mr-2" />
+                          Generate Alokasi untuk Range Periode
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setUseRangePeriode(false);
+                            setPeriodeDari('');
+                            setPeriodeSampai('');
+                            setNominalPerBulan('');
+                          }}
+                        >
+                          Batal
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Santri Picker */}
+                {showSantriPicker && (
+                  <Card className="mb-4">
+                    <CardContent className="pt-4">
+                      {/* Search & Filter Bar */}
+                      <div className="flex gap-2 mb-3">
+                        <Input
+                          placeholder="Cari nama atau ID santri..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Select value={programFilter} onValueChange={(v) => setProgramFilter(v as any)}>
+                          <SelectTrigger className="w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Semua</SelectItem>
+                            <SelectItem value="Mukim">Mukim</SelectItem>
+                            <SelectItem value="Non-Mukim">Non-Mukim</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Santri List */}
+                      <div className="max-h-64 overflow-y-auto border rounded-md">
+                        {santriOptions
+                          .filter(santri => {
+                            // Filter by search
+                            const matchSearch = !searchQuery ||
+                              santri.nama_lengkap?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              santri.id_santri?.toLowerCase().includes(searchQuery.toLowerCase());
+
+                            // Filter by program
+                            const matchProgram = programFilter === 'all' ||
+                              santri.program?.includes(programFilter);
+
+                            // Filter already selected
+                            const notSelected = !selectedSantriIds.includes(santri.id);
+
+                            return matchSearch && matchProgram && notSelected;
+                          })
+                          .map(santri => (
+                            <button
+                              key={santri.id}
+                              type="button"
+                              className="w-full px-4 py-3 text-left hover:bg-accent border-b last:border-0 transition-colors"
+                              onClick={() => addSantriToAllocation(santri.id)}
                             >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <div className="font-medium">{santri.nama_lengkap}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {santri.id_santri}
+                                    {santri.program && ` • ${santri.program}`}
+                                  </div>
+                                </div>
+                                <Plus className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            </button>
+                          ))}
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full mt-2"
+                        onClick={() => setShowSantriPicker(false)}
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Tutup
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Alokasi List */}
+                {/* Group alokasi by santri untuk tampilan yang lebih rapi */}
+                {(() => {
+                  // Group alokasi by santri_id
+                  const groupedBySantri: { [key: string]: AlokasiSantri[] } = {};
+                  alokasiSantri.forEach(alloc => {
+                    if (!groupedBySantri[alloc.santri_id]) {
+                      groupedBySantri[alloc.santri_id] = [];
+                    }
+                    groupedBySantri[alloc.santri_id].push(alloc);
+                  });
+
+                  return Object.entries(groupedBySantri).map(([santriId, allocations]) => {
+                    const firstAlloc = allocations[0];
+                    const totalPerSantri = allocations.reduce((sum, a) => sum + (a.nominal_alokasi || 0), 0);
+
+                    return (
+                      <Card key={santriId} className="p-4 border-l-4 border-l-blue-500">
+                        <div className="mb-3 pb-2 border-b">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-semibold text-lg">{firstAlloc.nama_lengkap}</div>
+                              <div className="text-xs text-muted-foreground">
+                                ID Santri: {santriOptions.find(s => s.id === santriId)?.id_santri || firstAlloc.id_santri || ''}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs text-muted-foreground">Total Alokasi</div>
+                              <div className="font-bold text-blue-600">{formatCurrency(totalPerSantri)}</div>
+                            </div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </Card>
-                );
-              });
-            })()}
 
-            {alokasiSantri.length > 0 && (
-              <div className="flex justify-end">
-                <Badge variant="outline" className="text-lg px-4 py-2">
-                  Total Alokasi: {formatCurrency(alokasiSantri.reduce((sum, alloc) => sum + alloc.nominal_alokasi, 0))}
-                </Badge>
+                        <div className="space-y-2">
+                          {allocations.map((alloc, idx) => (
+                            <div key={alloc.id} className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 bg-muted/50 rounded-md">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Jenis Bantuan</Label>
+                                <Input
+                                  value={alloc.jenis_bantuan}
+                                  onChange={(e) => updateAlokasiSantri(alloc.id, 'jenis_bantuan', e.target.value)}
+                                  placeholder="e.g., SPP SMA"
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Periode</Label>
+                                <Input
+                                  value={alloc.periode}
+                                  onChange={(e) => updateAlokasiSantri(alloc.id, 'periode', e.target.value)}
+                                  placeholder="e.g., Januari 2025"
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Nominal</Label>
+                                <Input
+                                  type="number"
+                                  value={alloc.nominal_alokasi}
+                                  onChange={(e) => updateAlokasiSantri(alloc.id, 'nominal_alokasi', parseFloat(e.target.value) || 0)}
+                                  min="0"
+                                  step="100"
+                                  className="h-8 text-sm"
+                                />
+                                <div className="text-xs text-muted-foreground">
+                                  {formatCurrency(alloc.nominal_alokasi)}
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Keterangan</Label>
+                                <Input
+                                  value={alloc.keterangan || ''}
+                                  onChange={(e) => updateAlokasiSantri(alloc.id, 'keterangan', e.target.value)}
+                                  placeholder="Opsional"
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                              <div className="flex items-end">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeAlokasiSantri(alloc.id)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    );
+                  });
+                })()}
+
+                {alokasiSantri.length > 0 && (
+                  <div className="flex justify-end">
+                    <Badge variant="outline" className="text-lg px-4 py-2">
+                      Total Alokasi: {formatCurrency(alokasiSantri.reduce((sum, alloc) => sum + alloc.nominal_alokasi, 0))}
+                    </Badge>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
             );
           })()}
-          
+
           {/* REVISI v2: Info untuk kategori - tidak ada lagi auto-post */}
           {/* REMOVED: Auto-post info section - tidak sesuai spec v2 */}
 

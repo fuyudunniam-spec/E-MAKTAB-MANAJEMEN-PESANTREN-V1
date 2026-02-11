@@ -59,18 +59,18 @@ export default {
         },
         // Palet Isyraq An-Nur: Deep Navy & Gold
         royal: {
-          50: '#f0fdf4',
-          100: '#dcfce7',
+          50: '#f0f9ff',
+          100: '#e0f2fe',
           200: '#bae6fd',
           300: '#7dd3fc',
           400: '#38bdf8',
           500: '#0ea5e9',
           600: '#0284c7',
           700: '#0369a1',
-          800: '#166534',
-          900: '#14532d',
-          950: '#052e16',
-          brand: '#0f172a'
+          800: '#075985',
+          900: '#082f49',
+          950: '#020617',
+          brand: '#082f49'
         },
         gold: {
           50: '#fffbeb',
@@ -86,12 +86,22 @@ export default {
           950: '#451a03',
         },
         paper: '#FAFAF9',
+        navy: {
+          800: '#1E293B',
+          900: '#0F172A',
+          950: '#020617',
+        },
+        subtle: '#94A3B8',
+        'accent-gold': '#B59461',
+        parchment: '#F5F5F0',
       },
       fontFamily: {
         heading: ["Cinzel", "serif"],
         body: ["Cormorant Garamond", "serif"],
         display: ["Cinzel", "serif"],
         sans: ["Cormorant Garamond", "serif"],
+        jakarta: ['"Plus Jakarta Sans"', 'sans-serif'],
+        playfair: ['"Playfair Display"', 'serif'],
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -153,7 +163,7 @@ export default {
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.4s ease-out",
         "slide-in": "slide-in 0.3s ease-out",
-        marquee: 'marquee 40s linear infinite',
+        marquee: 'marquee 150s linear infinite',
         float: 'float 3s ease-in-out infinite',
         sparkle: 'sparkle 4s infinite',
       },

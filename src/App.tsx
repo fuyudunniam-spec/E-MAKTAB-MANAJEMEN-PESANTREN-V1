@@ -56,6 +56,8 @@ const LandingPage = lazy(() => import("@/modules/public-website/pages/LandingPag
 const TransparansiPage = lazy(() => import("@/modules/public-website/pages/TransparansiPage"));
 const AboutUsPage = lazy(() => import("@/modules/public-website/pages/AboutUsPage"));
 const DonasiPage = lazy(() => import("@/modules/public-website/pages/DonasiPage"));
+const NewsPage = lazy(() => import("@/modules/public-website/pages/NewsPage"));
+const NewsDetailPage = lazy(() => import("@/modules/public-website/pages/NewsDetailPage"));
 
 // Admin Website Imports - Removed unused imports
 
@@ -119,16 +121,19 @@ const App = () => (
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/auth" element={<SuspenseOnly><Auth /></SuspenseOnly>} />
+              <Route path="/emaktab" element={<SuspenseOnly><Auth /></SuspenseOnly>} />
               <Route path="/setup-admin" element={<SuspenseOnly><AdminSetupPage /></SuspenseOnly>} />
               {/* SLICE UNIK UNTUK SUPERADMIN - Ganti 'secure-gate' dengan kata sandi url yang anda inginkan */}
               <Route path="/pms/secure-gate" element={<SuspenseOnly><Auth /></SuspenseOnly>} />
-              
+
               {/* Public Website Routes */}
               <Route path="/" element={<SuspenseOnly><LandingPage /></SuspenseOnly>} />
               <Route path="/transparansi" element={<SuspenseOnly><TransparansiPage /></SuspenseOnly>} />
               <Route path="/tentang-kami" element={<SuspenseOnly><AboutUsPage /></SuspenseOnly>} />
               <Route path="/donasi" element={<SuspenseOnly><DonasiPage /></SuspenseOnly>} />
-              
+              <Route path="/berita" element={<SuspenseOnly><NewsPage /></SuspenseOnly>} />
+              <Route path="/berita/:slug" element={<SuspenseOnly><NewsDetailPage /></SuspenseOnly>} />
+
               {/* PSB Portal Routes */}
               <Route path="/psb" element={<SuspenseOnly><PSBPage /></SuspenseOnly>} />
               <Route path="/psb/register" element={<SuspenseOnly><PSBAuth /></SuspenseOnly>} />
@@ -273,7 +278,7 @@ const App = () => (
               } />
 
               {/* Website Management Routes - Removed as per user request */}
-              
+
               {/* Academic Routes */}
               <Route path="/akademik" element={
                 <WithLayout>
@@ -324,7 +329,7 @@ const App = () => (
                 </WithLayout>
               } />
               <Route path="/akademik/rapot" element={<Navigate to="/akademik/nilai" replace />} />
-              
+
               <Route path="/administrasi" element={<Navigate to="/admin/users" replace />} />
 
               {/* Santri Routes */}
@@ -335,7 +340,7 @@ const App = () => (
               } />
               <Route path="/santri/add" element={<Navigate to="/santri" replace />} />
               <Route path="/santri/onboarding" element={<SuspenseOnly><SantriOnboarding /></SuspenseOnly>} />
-              
+
               <Route path="/santri/profile" element={
                 <WithLayout>
                   <ProfileRedirect />
@@ -395,7 +400,7 @@ const App = () => (
               <Route path="/inventaris-old" element={<Navigate to="/inventaris" replace />} />
               <Route path="/koperasi-old" element={<Navigate to="/koperasi" replace />} />
               <Route path="/keuangan" element={<Navigate to="/keuangan-v3" replace />} />
-              
+
               <Route path="/keuangan-v3" element={
                 <WithLayout>
                   <KeuanganV3 />

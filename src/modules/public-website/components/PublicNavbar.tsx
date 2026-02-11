@@ -1,44 +1,188 @@
-import React from 'react';
-import { UserPlus, Heart, Menu } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Menu, X, UserPlus, LogIn, Heart } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 
-const PublicNavbar: React.FC = () => {
+interface PublicNavbarProps {
+  theme?: 'landing' | 'light';
+}
+
+const PublicNavbar: React.FC<PublicNavbarProps> = ({ theme = 'landing' }) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const location = useLocation();
+
+  // Handle scroll effect
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 50) {
+        setScrolled(true);
+      } else {
+        setScrolled(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Lock body scroll when menu is open
+  useEffect(() => {
+    if (isMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMenuOpen]);
+
+  const closeMenu = () => setIsMenuOpen(false);
+
+  // Determine styles based on theme and scroll state
+  const isLightMode = theme === 'light' || scrolled;
+
+  // Text Colors
+  const textColorClass = isLightMode ? 'text-navy-900' : 'text-white';
+  const subTextColorClass = isLightMode ? 'text-navy-900/60' : 'text-white/60';
+  const hoverColorClass = 'text-accent-gold';
+  const borderColorClass = isLightMode ? 'border-navy-900/10' : 'border-white/10';
+  const glassClass = isLightMode
+    ? 'bg-white/90 backdrop-blur-md shadow-sm h-20'
+    : 'bg-transparent h-24';
+
   return (
-    <nav className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-stone-200 shadow-sm transition-all duration-300">
-      <div className="max-w-7xl mx-auto px-6 h-24 grid grid-cols-12 items-center gap-4">
-        <div className="col-span-6 lg:col-span-3 flex justify-start items-center gap-3">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 bg-royal-900 text-white rotate-45 flex items-center justify-center rounded-sm shadow-md group-hover:rotate-0 transition-transform duration-300">
-              <span className="font-display font-bold text-gold-400 text-lg -rotate-45 group-hover:rotate-0 transition-transform duration-300">A</span>
+    <>
+      {/* Progress Bar (Optional, keeps generic accent) */}
+      <div id="progress-bar" className="fixed top-0 left-0 h-[3px] bg-accent-gold z-[1001] w-0 transition-all duration-300"></div>
+
+      <nav
+        id="main-nav"
+        className={`fixed top-0 z-[100] w-full flex items-center transition-all duration-500 border-b ${borderColorClass} ${glassClass}`}
+      >
+        <div className="max-w-[1440px] mx-auto px-6 md:px-10 w-full flex justify-between items-center">
+
+          {/* Logo Section */}
+          <Link to="/" className="flex items-center gap-4 md:gap-5 group cursor-pointer z-50">
+            <div className="relative">
+              {!isLightMode && <div className="absolute inset-0 bg-white/10 blur-lg rounded-full transform scale-75 group-hover:scale-110 transition-transform duration-500"></div>}
+              <img src="/kop-albisri.png" alt="Logo Al-Bisri" className="h-10 w-auto md:h-12 relative z-10" />
             </div>
             <div className="flex flex-col">
-              <span className="font-display font-bold text-royal-900 tracking-widest text-lg leading-none">AL-BISRI</span>
-              <span className="text-[9px] text-gold-600 uppercase tracking-[0.25em] font-sans font-semibold">Institute</span>
+              <span className={`font-playfair text-lg md:text-xl tracking-[0.05em] font-bold leading-none ${textColorClass} group-hover:${hoverColorClass} transition-colors duration-300`}>
+                Pesantren Al-Bisri
+              </span>
+              <div className="flex flex-col md:flex-row md:items-center gap-0.5 md:gap-1 mt-1">
+                <span className={`text-[7px] md:text-[8px] ${subTextColorClass} font-medium uppercase tracking-[0.1em] font-jakarta`}>
+                  Under Supervision of
+                </span>
+                <span className="text-[7px] md:text-[8px] text-accent-gold font-bold uppercase tracking-[0.1em] font-jakarta">
+                  Pesantren Mahasiswa An-Nur
+                </span>
+              </div>
             </div>
           </Link>
-        </div>
-        
-        <div className="hidden lg:flex col-span-6 justify-center items-center gap-8">
-          <a href="#about" className="text-stone-600 hover:text-royal-900 text-sm uppercase tracking-widest font-bold transition border-b-2 border-transparent hover:border-gold-400 pb-1">Filosofi</a>
-          <a href="#elearning" className="text-stone-600 hover:text-royal-900 text-sm uppercase tracking-widest font-bold transition border-b-2 border-transparent hover:border-gold-400 pb-1">Academy</a>
-          <Link to="/transparansi" className="text-stone-600 hover:text-royal-900 text-sm uppercase tracking-widest font-bold transition border-b-2 border-transparent hover:border-gold-400 pb-1 text-gold-600">Wakaf</Link>
-          <a href="#news" className="text-stone-600 hover:text-royal-900 text-sm uppercase tracking-widest font-bold transition border-b-2 border-transparent hover:border-gold-400 pb-1">Berita</a>
-        </div>
-        
-        <div className="col-span-6 lg:col-span-3 flex justify-end items-center gap-4">
-          <Link to="/psb" className="hidden xl:flex items-center gap-2 text-stone-500 hover:text-royal-900 text-xs font-bold uppercase tracking-wider transition">
-            <UserPlus className="w-3 h-3" /> Daftar Santri
-          </Link>
-          <Link to="/donasi" className="group flex items-center gap-2 px-6 py-2.5 bg-royal-900 text-white text-sm uppercase tracking-widest font-semibold hover:bg-royal-800 transition shadow-lg shadow-royal-900/20 rounded-sm">
-            <span>Investasi Wakaf</span>
-            <Heart className="w-3 h-3 text-gold-400 fill-current group-hover:scale-110 transition-transform" />
-          </Link>
-          <button className="lg:hidden text-royal-900 p-2">
-            <Menu className="w-6 h-6" />
+
+          {/* Desktop Navigation */}
+          <div className={`hidden lg:flex items-center gap-8 xl:gap-12 text-[10px] font-bold uppercase tracking-[0.2em] font-jakarta ${isLightMode ? 'text-navy-900/70' : 'text-white/70'}`}>
+            <Link to="/tentang-kami" className={`hover:${hoverColorClass} transition-colors relative group`}>
+              Profil
+              <span className="absolute -bottom-2 left-0 w-0 h-[1px] bg-accent-gold transition-all duration-300 group-hover:w-full"></span>
+            </Link>
+            <Link to="/akademik" className={`hover:${hoverColorClass} transition-colors relative group`}>
+              Program
+              <span className="absolute -bottom-2 left-0 w-0 h-[1px] bg-accent-gold transition-all duration-300 group-hover:w-full"></span>
+            </Link>
+            <Link to="/transparansi" className={`hover:${hoverColorClass} transition-colors relative group`}>
+              Transparansi
+              <span className="absolute -bottom-2 left-0 w-0 h-[1px] bg-accent-gold transition-all duration-300 group-hover:w-full"></span>
+            </Link>
+
+            <div className={`h-4 w-[1px] mx-2 ${isLightMode ? 'bg-navy-900/20' : 'bg-white/20'}`}></div>
+
+            {/* Functional Links */}
+            <Link to="/psb" className={`hover:${hoverColorClass} transition-colors flex items-center gap-2 group`} title="Pendaftaran Santri Baru">
+              <UserPlus className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              <span className="hidden xl:inline">PSB</span>
+            </Link>
+            <Link to="/emaktab" className={`hover:${hoverColorClass} transition-colors flex items-center gap-2 group`} title="E-Maktab Login">
+              <LogIn className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              <span className="hidden xl:inline">Login</span>
+            </Link>
+
+            <Link
+              to="/donasi"
+              className="bg-accent-gold text-navy-950 px-6 py-3 rounded-sm hover:bg-navy-900 hover:text-white transition-all duration-300 font-extrabold tracking-widest hover:shadow-lg transform hover:-translate-y-0.5"
+            >
+              Donasi
+            </Link>
+          </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            className={`lg:hidden p-2 rounded-full transition-colors z-50 ${isLightMode ? 'text-navy-900 hover:bg-navy-50' : 'text-white hover:bg-white/10'}`}
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+          >
+            {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
+      </nav>
+
+      {/* Mobile Menu Overlay */}
+      <div
+        className={`fixed inset-0 z-[90] bg-navy-950/90 backdrop-blur-md transition-opacity duration-500 lg:hidden ${isMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+        onClick={closeMenu}
+      />
+
+      {/* Mobile Menu Content - Kept Dark for premium feel */}
+      <div
+        className={`fixed inset-y-0 right-0 z-[95] w-full max-w-[300px] bg-navy-900 border-l border-white/10 shadow-2xl transform transition-transform duration-500 ease-out lg:hidden ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+      >
+        <div className="flex flex-col h-full pt-28 pb-10 px-8 font-jakarta">
+          <div className="space-y-6">
+            <div>
+              <h5 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold mb-4">Navigasi Utama</h5>
+              <div className="flex flex-col gap-4">
+                <Link to="/" onClick={closeMenu} className="text-xl text-white font-playfair hover:text-accent-gold transition-colors">Beranda</Link>
+                <Link to="/tentang-kami" onClick={closeMenu} className="text-xl text-white font-playfair hover:text-accent-gold transition-colors">Profil & Sejarah</Link>
+                <Link to="/akademik" onClick={closeMenu} className="text-xl text-white font-playfair hover:text-accent-gold transition-colors">Program Pendidikan</Link>
+                <Link to="/transparansi" onClick={closeMenu} className="text-xl text-white font-playfair hover:text-accent-gold transition-colors">Transparansi</Link>
+                <Link to="/berita" onClick={closeMenu} className="text-xl text-white font-playfair hover:text-accent-gold transition-colors">Kabar Pesantren</Link>
+              </div>
+            </div>
+
+            <div className="h-[1px] w-full bg-white/10"></div>
+
+            <div>
+              <h5 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold mb-4">Akses Sistem</h5>
+              <div className="grid grid-cols-2 gap-3">
+                <Link to="/psb" onClick={closeMenu} className="flex flex-col items-center justify-center p-4 rounded-sm border border-white/10 hover:border-accent-gold/50 hover:bg-white/5 transition-all group">
+                  <UserPlus className="w-6 h-6 text-white mb-2 group-hover:text-accent-gold group-hover:scale-110 transition-all" />
+                  <span className="text-[10px] uppercase tracking-widest text-white/80">PSB Online</span>
+                </Link>
+                <Link to="/emaktab" onClick={closeMenu} className="flex flex-col items-center justify-center p-4 rounded-sm border border-white/10 hover:border-accent-gold/50 hover:bg-white/5 transition-all group">
+                  <LogIn className="w-6 h-6 text-white mb-2 group-hover:text-accent-gold group-hover:scale-110 transition-all" />
+                  <span className="text-[10px] uppercase tracking-widest text-white/80">E-Maktab</span>
+                </Link>
+              </div>
+            </div>
+
+            <div className="mt-auto pt-6">
+              <Link
+                to="/donasi"
+                onClick={closeMenu}
+                className="flex items-center justify-center gap-2 w-full py-4 bg-accent-gold text-navy-950 rounded-sm font-bold uppercase tracking-widest text-xs shadow-lg hover:bg-white transition-all transform active:scale-95"
+              >
+                <span>Salurkan Donasi</span>
+                <Heart className="w-3 h-3 fill-current" />
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
-    </nav>
+    </>
   );
 };
 

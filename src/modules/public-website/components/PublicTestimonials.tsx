@@ -1,48 +1,45 @@
 import React from 'react';
-import { Quote } from 'lucide-react';
-
-const testimonials = [
-  {
-    text: "Al-Bisri memberi saya rumah ketika saya kehilangan segalanya. Di sini saya belajar bahwa yatim bukan alasan untuk menyerah.",
-    author: "Ahmad Fikri",
-    role: "Alumni 2018",
-    img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop"
-  },
-  {
-    text: "Sistem transparansi wakafnya luar biasa. Saya mendapat laporan berkala tentang perkembangan pohon mangga wakaf saya.",
-    author: "Hj. Siti Aminah",
-    role: "Wakif Tetap",
-    img: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=200&auto=format&fit=crop"
-  },
-  {
-    text: "Lulus dari sini saya punya hafalan 30 Juz dan skill desain grafis. Sekarang saya merintis usaha percetakan sendiri.",
-    author: "Rudi Santoso",
-    role: "Santripreneur",
-    img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200&auto=format&fit=crop"
-  }
-];
 
 const PublicTestimonials: React.FC = () => {
+  const testimonials = [
+    {
+      quote: "Alhamdulillah, melihat perkembangan anak-anak di sini sangat mengharukan. Mereka tidak hanya hafal Qur'an, tapi juga punya adab yang sangat santun.",
+      name: "Hj. Fatimah",
+      role: "Donatur Tetap",
+      // avatar: "https://placehold.co/100x100/e2e8f0/64748b?text=HF" // Placeholder or empty div as per design
+    },
+    {
+      quote: "Transparansi laporan keuangan Al-Bisri membuat saya percaya. Setiap rupiah benar-benar terlihat dampaknya untuk pendidikan adik-adik yatim.",
+      name: "Bpk. Hendarman",
+      role: "Wali Santri",
+      // avatar: "https://placehold.co/100x100/e2e8f0/64748b?text=BH"
+    }
+  ];
+
   return (
-    <section className="py-24 bg-white relative overflow-hidden">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="text-center mb-16">
-          <span className="text-gold-600 font-bold uppercase tracking-widest text-xs">Suara Hati</span>
-          <h2 className="text-4xl font-display text-royal-900 mt-2">Kisah Penerima Manfaat</h2>
+    <section id="testimoni" className="py-24 lg:py-32 px-6 lg:px-10 bg-parchment">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-16 animate-fade-in">
+          <span className="text-accent-gold text-xs font-bold uppercase tracking-[0.3em] mb-4 block">Suara Hati</span>
+          <h2 className="font-playfair text-4xl lg:text-5xl text-navy-900">Apa Kata Mereka?</h2>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
-          {testimonials.map((t, i) => (
-            <div key={i} className="bg-stone-50 p-8 rounded-[2.5rem] relative hover:shadow-lg transition duration-500 flex flex-col justify-between h-full">
-              <div>
-                <Quote className="w-8 h-8 text-gold-400 mb-4 fill-current" />
-                <p className="text-stone-600 italic mb-6 leading-relaxed">"{t.text}"</p>
-              </div>
+        {/* Mobile Slider / Desktop Grid */}
+        <div className="mobile-slider md:grid-cols-2 lg:gap-10 animate-slide-in">
+          {testimonials.map((item, index) => (
+            <div key={index} className="bg-white p-10 shadow-sm border border-slate-100 relative min-h-[280px]">
+              <div className="text-accent-gold text-6xl font-serif absolute top-4 left-6 opacity-20">"</div>
+              <p className="text-slate-600 italic mb-6 relative z-10 font-light leading-relaxed">
+                {item.quote}
+              </p>
               <div className="flex items-center gap-4 mt-auto">
-                <img src={t.img} className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm" alt={t.author} />
+                <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center text-slate-400 font-bold overflow-hidden">
+                  {/* Placeholder Avatar */}
+                  <span className="text-xs">{item.name.charAt(0)}</span>
+                </div>
                 <div>
-                  <p className="font-bold text-royal-900 text-sm">{t.author}</p>
-                  <p className="text-xs text-stone-500 uppercase tracking-wider">{t.role}</p>
+                  <h5 className="text-navy-900 font-bold text-sm">{item.name}</h5>
+                  <p className="text-slate-400 text-[10px] uppercase tracking-wider">{item.role}</p>
                 </div>
               </div>
             </div>

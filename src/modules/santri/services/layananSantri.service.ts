@@ -303,7 +303,7 @@ export class LayananSantriService {
       // Map pilar layanan ke kategori keuangan
       const kategoriMapping: Record<PilarLayanan, string[]> = {
         pendidikan_pesantren: ['Pendidikan Pesantren'],
-        asrama_konsumsi: ['Operasional dan Konsumsi Santri'],
+        asrama_konsumsi: ['Asrama dan Konsumsi Santri'],
         pendidikan_formal: ['Pendidikan Formal'],
         bantuan_langsung: ['Bantuan Langsung Yayasan'],
       };
@@ -471,7 +471,7 @@ export class LayananSantriService {
         }
       });
 
-      return Array.from(santriMap.values()).sort((a, b) => 
+      return Array.from(santriMap.values()).sort((a, b) =>
         a.santri_nama.localeCompare(b.santri_nama)
       );
     } catch (error) {
@@ -495,7 +495,7 @@ export class LayananSantriService {
       // Map pilar layanan ke kategori keuangan
       const kategoriMapping: Record<PilarLayanan, string[]> = {
         pendidikan_pesantren: ['Pendidikan Pesantren'],
-        asrama_konsumsi: ['Operasional dan Konsumsi Santri'],
+        asrama_konsumsi: ['Asrama dan Konsumsi Santri'],
         pendidikan_formal: ['Pendidikan Formal'],
         bantuan_langsung: ['Bantuan Langsung Yayasan'],
       };
@@ -526,7 +526,7 @@ export class LayananSantriService {
 
         const total = (data || []).reduce((sum, item) => sum + (Number(item.jumlah) || 0), 0);
         const monthName = checkDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-        
+
         results.push({
           month: monthName,
           amount: total,
@@ -1044,7 +1044,7 @@ export class LayananSantriService {
 
       // Initialize summary map with all santri
       const summaryMap = new Map<string, RealisasiLayananSantriSummary>();
-      
+
       (allSantri || []).forEach(santri => {
         // Initialize pilar object with all pilar kodes
         const pilar: Record<string, number> = {};
@@ -1082,7 +1082,7 @@ export class LayananSantriService {
       (realisasiEntries || []).forEach(entry => {
         const santriId = entry.santri_id;
         const pilarKode = entry.pilar_layanan as string;
-        
+
         // Skip if santri not in our map (shouldn't happen, but safety check)
         if (!summaryMap.has(santriId)) {
           const santri = entry.santri as any;
@@ -1179,10 +1179,10 @@ export class LayananSantriService {
     try {
       // Fetch pilar layanan dari master_data_keuangan
       const pilarList = await MasterDataKeuanganService.getPilarLayanan(true); // aktifOnly = true
-      
+
       const [startYear, startMonth] = startPeriode.split('-').map(Number);
       const [endYear, endMonth] = endPeriode.split('-').map(Number);
-      
+
       const results: Array<{
         periode: string;
         pilar: Record<string, number>;
@@ -1197,9 +1197,9 @@ export class LayananSantriService {
       const months: string[] = [];
       let currentYear = startYear;
       let currentMonth = startMonth;
-      
+
       while (
-        currentYear < endYear || 
+        currentYear < endYear ||
         (currentYear === endYear && currentMonth <= endMonth)
       ) {
         months.push(`${currentYear}-${String(currentMonth).padStart(2, '0')}`);
@@ -1253,7 +1253,7 @@ export class LayananSantriService {
         (ledgerData || []).forEach(entry => {
           const nilai = Number(entry.nilai_layanan) || 0;
           const pilarKode = entry.pilar_layanan as string;
-          
+
           if (pilarKode && pilar.hasOwnProperty(pilarKode)) {
             pilar[pilarKode] = (pilar[pilarKode] || 0) + nilai;
           } else if (pilarKode) {
@@ -1267,7 +1267,7 @@ export class LayananSantriService {
         // Get unique kategori first, then map them to pilar
         const uniqueKategori = [...new Set((keuanganData || []).map(tx => tx.kategori).filter(Boolean))];
         const kategoriToPilarMap = new Map<string, string>();
-        
+
         // Map kategori to pilar_layanan_kode
         for (const kategori of uniqueKategori) {
           try {
@@ -1279,12 +1279,12 @@ export class LayananSantriService {
             console.warn(`Error mapping kategori "${kategori}" to pilar:`, error);
           }
         }
-        
+
         // Process keuangan transactions with mapped pilar
         (keuanganData || []).forEach(tx => {
           const nilai = Number(tx.jumlah) || 0;
           const pilarKode = kategoriToPilarMap.get(tx.kategori || '');
-          
+
           if (pilarKode) {
             if (pilar.hasOwnProperty(pilarKode)) {
               pilar[pilarKode] = (pilar[pilarKode] || 0) + nilai;
@@ -1320,7 +1320,7 @@ export class LayananSantriService {
               .filter(Boolean)
           )];
           const alokasiKategoriToPilarMap = new Map<string, string>();
-          
+
           // Map kategori to pilar_layanan_kode for alokasi
           for (const kategori of uniqueAlokasiKategori) {
             try {
@@ -1332,21 +1332,21 @@ export class LayananSantriService {
               console.warn(`Error mapping kategori "${kategori}" to pilar:`, error);
             }
           }
-          
+
           // Process alokasi with mapped pilar
           for (const alokasi of alokasiData) {
             const nilai = Number(alokasi.nominal_alokasi) || 0;
             // Handle keuangan yang bisa berupa object atau array
             const keuangan = Array.isArray(alokasi.keuangan) ? alokasi.keuangan[0] : alokasi.keuangan;
             const kategori = keuangan?.kategori;
-            
+
             // Pastikan tanggal transaksi masuk dalam bulan yang sedang diproses
             const txDate = keuangan?.tanggal;
             if (txDate) {
               const txDateObj = new Date(txDate);
               if (txDateObj >= startDate && txDateObj <= endDate) {
                 const pilarKode = alokasiKategoriToPilarMap.get(kategori || '');
-                
+
                 if (pilarKode) {
                   if (pilar.hasOwnProperty(pilarKode)) {
                     pilar[pilarKode] = (pilar[pilarKode] || 0) + nilai;
@@ -1368,7 +1368,7 @@ export class LayananSantriService {
           pilar,
           total,
         };
-        
+
         // Backward compatibility - map old hardcoded pilar if they exist
         if (pilar['pendidikan_formal'] !== undefined) result.pendidikan_formal = pilar['pendidikan_formal'];
         if (pilar['pendidikan_pesantren'] !== undefined) result.pendidikan_pesantren = pilar['pendidikan_pesantren'];

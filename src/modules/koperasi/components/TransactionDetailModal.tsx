@@ -50,14 +50,14 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
       'Draft': { color: 'bg-gray-100 text-gray-800', label: 'Draft' },
       'Cancelled': { color: 'bg-red-100 text-red-800', label: 'Cancelled' },
     };
-    
+
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig['Draft'];
     return <Badge className={config.color} variant="secondary">{config.label}</Badge>;
   };
 
   const getTransactionIcon = (jenis: string) => {
-    return jenis === 'Pemasukan' ? 
-      <DollarSign className="h-5 w-5 text-green-600" /> : 
+    return jenis === 'Pemasukan' ?
+      <DollarSign className="h-5 w-5 text-green-600" /> :
       <DollarSign className="h-5 w-5 text-red-600" />;
   };
 
@@ -68,9 +68,9 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
           <DialogTitle className="flex items-center gap-2">
             {getTransactionIcon(transaction.jenis_transaksi)}
             Detail Transaksi
-            <Badge 
-              className={transaction.jenis_transaksi === 'Pemasukan' 
-                ? 'bg-green-100 text-green-800' 
+            <Badge
+              className={transaction.jenis_transaksi === 'Pemasukan'
+                ? 'bg-green-100 text-green-800'
                 : 'bg-red-100 text-red-800'}
             >
               {transaction.jenis_transaksi}
@@ -94,25 +94,24 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                   <span className="text-sm text-muted-foreground">Tanggal:</span>
                   <span className="font-medium">{formatDate(transaction.tanggal)}</span>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">Akun:</span>
                   <span className="font-medium">{transaction.akun_kas_nama || 'Kas Utama'}</span>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">Jumlah:</span>
-                  <span className={`font-bold text-lg ${
-                    transaction.jenis_transaksi === 'Pemasukan' 
-                      ? 'text-green-600' 
+                  <span className={`font-bold text-lg ${transaction.jenis_transaksi === 'Pemasukan'
+                      ? 'text-green-600'
                       : 'text-red-600'
-                  }`}>
+                    }`}>
                     {formatCurrency(transaction.jumlah)}
                   </span>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">ID:</span>
@@ -143,15 +142,15 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                         {transaction.referensi}
                       </Badge>
                       {/* Badge ungu untuk semua transaksi donasi (lama dan baru) */}
-                      {(transaction.kategori === 'Donasi' || 
+                      {(transaction.kategori === 'Donasi' ||
                         transaction.kategori === 'Donasi Tunai' ||
                         transaction.referensi?.startsWith('donation:') ||
                         transaction.referensi?.startsWith('donasi:') ||
                         transaction.source_module === 'donasi') && (
-                        <Badge className="bg-purple-100 text-purple-800 text-xs">
-                          Dari Donasi
-                        </Badge>
-                      )}
+                          <Badge className="bg-purple-100 text-purple-800 text-xs">
+                            Dari Donasi
+                          </Badge>
+                        )}
                       {transaction.referensi.startsWith('inventory_sale:') && (
                         <Badge className="bg-blue-100 text-blue-800 text-xs">
                           Dari Penjualan Inventaris
@@ -249,52 +248,52 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
           {(() => {
             const alokasiSantri = transaction.alokasi_santri || [];
             const hasAlokasi = Array.isArray(alokasiSantri) && alokasiSantri.length > 0;
-            
+
             // Debug log untuk melihat data alokasi
             // if ((transaction.kategori === 'Pendidikan Formal' || 
             //      transaction.kategori === 'Bantuan Langsung Yayasan' ||
-            //      transaction.kategori === 'Operasional dan Konsumsi Santri') && 
+            //      transaction.kategori === 'Asrama dan Konsumsi Santri') && 
             //     !hasAlokasi) {
             //   console.debug('[TransactionDetailModal] Info: Transaksi kategori alokasi tanpa detail alokasi (normal jika data lama):', {
             //     keuangan_id: transaction.id,
             //     kategori: transaction.kategori
             //   });
             // }
-            
+
             return hasAlokasi;
           })() && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Alokasi ke Santri
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {(transaction.alokasi_santri || []).map((alokasi: any, index: number) => (
-                    <div key={alokasi.id || index} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                      <div>
-                        <p className="font-medium">{alokasi.santri?.nama_lengkap || 'Santri'}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {alokasi.santri?.id_santri || alokasi.santri?.nisn || '-'} {alokasi.jenis_bantuan ? `• ${alokasi.jenis_bantuan}` : ''}
-                        </p>
-                        {alokasi.periode && (
-                          <p className="text-xs text-muted-foreground mt-1">Periode: {alokasi.periode}</p>
-                        )}
-                        {alokasi.keterangan && (
-                          <p className="text-xs text-muted-foreground mt-1">{alokasi.keterangan}</p>
-                        )}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <User className="h-5 w-5" />
+                    Alokasi ke Santri
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {(transaction.alokasi_santri || []).map((alokasi: any, index: number) => (
+                      <div key={alokasi.id || index} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                        <div>
+                          <p className="font-medium">{alokasi.santri?.nama_lengkap || 'Santri'}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {alokasi.santri?.id_santri || alokasi.santri?.nisn || '-'} {alokasi.jenis_bantuan ? `• ${alokasi.jenis_bantuan}` : ''}
+                          </p>
+                          {alokasi.periode && (
+                            <p className="text-xs text-muted-foreground mt-1">Periode: {alokasi.periode}</p>
+                          )}
+                          {alokasi.keterangan && (
+                            <p className="text-xs text-muted-foreground mt-1">{alokasi.keterangan}</p>
+                          )}
+                        </div>
+                        <span className="font-semibold text-blue-600">
+                          {formatCurrency(alokasi.nominal_alokasi || 0)}
+                        </span>
                       </div>
-                      <span className="font-semibold text-blue-600">
-                        {formatCurrency(alokasi.nominal_alokasi || 0)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
           {/* Metadata */}
           <Card>
@@ -331,8 +330,8 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
             </Button>
           )}
           {onDelete && (
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={() => onDelete(transaction)}
             >
               <Trash2 className="h-4 w-4 mr-2" />

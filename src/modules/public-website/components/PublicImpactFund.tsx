@@ -1,120 +1,95 @@
 import React from 'react';
-import { BarChart2, GraduationCap, Sprout, Loader2 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart2, GraduationCap, Sprout, Loader2, BookOpen, Home, Briefcase } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { getPublicImpactData } from '../services/publicKeuangan.service';
+// Removed: PieChart, Pie, Cell, ResponsiveContainer, LegendRef, useQuery, getPublicImpactData
+
 
 const PublicImpactFund: React.FC = () => {
-  const { data: impactData, isLoading } = useQuery({
-    queryKey: ['public-impact-data'],
-    queryFn: getPublicImpactData
-  });
-
-  const formatNumber = (val: number) => {
-    if (val >= 1000000000) return `Rp ${(val / 1000000000).toFixed(1)} M`;
-    if (val >= 1000000) return `Rp ${(val / 1000000).toFixed(1)} Jt`;
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
-  };
-
-  if (isLoading) {
-    return (
-      <section className="py-32 bg-royal-900 text-white rounded-t-[4rem] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-gold-400" />
-      </section>
-    );
-  }
+  // Hardcoded pillars as requested
+  const pillars = [
+    {
+      id: 1,
+      title: "Pendidikan Formal",
+      icon: <GraduationCap className="w-8 h-8 text-gold-400" />,
+      desc: "Memfasilitasi akses pendidikan formal (SD - SMA) melalui beasiswa penuh bagi santri yatim dan dhuafa.",
+      stats: "Beasiswa Penuh"
+    },
+    {
+      id: 2,
+      title: "Pendidikan Pesantren",
+      icon: <BookOpen className="w-8 h-8 text-gold-400" />,
+      desc: "Kurikulum Diniyah, Tahfidz Al-Qur'an, dan kajian Kitab Kuning (Turats).",
+      stats: "Kurikulum Al-Azhar"
+    },
+    {
+      id: 3,
+      title: "Asrama & Konsumsi",
+      icon: <Home className="w-8 h-8 text-gold-400" />,
+      desc: "Menjamin tempat tinggal layak, makan bergizi, dan kesejahteraan harian santri.",
+      stats: "Layanan 24 Jam"
+    },
+    {
+      id: 4,
+      title: "Operasional Yayasan",
+      icon: <Briefcase className="w-8 h-8 text-gold-400" />,
+      desc: "Dukungan manajemen profesional untuk keberlanjutan takmir dan layanan umat.",
+      stats: "Manajemen Modern"
+    }
+  ];
 
   return (
     <section id="impact" className="py-32 relative bg-royal-900 text-white rounded-t-[4rem] -mt-10 z-20 overflow-hidden">
       <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "url('https://www.transparenttextures.com/patterns/arabesque.png')" }}></div>
-      
+
       <div className="max-w-7xl mx-auto px-6 relative z-10">
-        <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
-          <div className="max-w-2xl">
-            <span className="text-gold-400 text-xs font-bold uppercase tracking-widest mb-3 block">Transparansi Dana Wakaf</span>
-            <h2 className="text-4xl md:text-5xl font-display text-white mb-4">Laporan Penyaluran</h2>
-            <p className="text-royal-200 font-light text-lg">Melihat langsung bagaimana donasi Anda menjadi "darah" bagi pendidikan anak yatim.</p>
+        <div className="flex flex-col md:flex-row justify-between items-end mb-20 gap-8">
+          <div className="max-w-3xl">
+            <span className="text-gold-400 text-xs font-bold uppercase tracking-widest mb-3 block">Realisasi Layanan & Impact Funding</span>
+            <h2 className="text-4xl md:text-5xl font-display text-white mb-6">Pilar Layanan Pesantren</h2>
+            <p className="text-royal-200 font-light text-lg leading-relaxed">
+              Mewujudkan transparansi melalui dampak nyata. Setiap rupiah wakaf Anda dikonversi menjadi layanan pendidikan dan pengasuhan terbaik bagi yatim penghafal Qur'an.
+            </p>
           </div>
           <div>
-            <Link to="/transparansi" className="px-8 py-3 border border-white/20 text-white text-sm hover:bg-white hover:text-royal-900 transition flex items-center gap-2 uppercase tracking-wider rounded-full font-bold">
-              <BarChart2 className="w-4 h-4" /> Detail Transparansi
+            <Link to="/transparansi" className="px-8 py-4 border border-white/20 text-white text-sm hover:bg-gold-500 hover:border-gold-500 hover:text-royal-900 transition-all duration-300 flex items-center gap-3 uppercase tracking-wider rounded-full font-bold group shadow-lg hover:shadow-gold-500/20">
+              <BarChart2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              <span>Laporan Detail</span>
             </Link>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1 glass-panel-dark p-8 rounded-[2.5rem] border border-white/10 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/20 rounded-full blur-2xl"></div>
-            <h3 className="text-xl font-display font-bold text-white mb-6 text-center">Fokus Penyaluran</h3>
-            
-            <div className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={impactData?.sourceComposition || []}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {(impactData?.sourceComposition || []).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Legend 
-                    verticalAlign="bottom" 
-                    align="center"
-                    iconType="circle"
-                    formatter={(value) => <span className="text-[10px] uppercase font-display text-white/80">{value}</span>}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {pillars.map((item) => (
+            <div key={item.id} className="group relative bg-white/5 backdrop-blur-sm border border-white/10 p-8 rounded-[2rem] overflow-hidden hover:bg-white/10 transition-all duration-500 hover:-translate-y-2 h-full">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/10 rounded-full blur-2xl group-hover:bg-gold-500/20 transition-all duration-500"></div>
 
-            <div className="mt-8 text-center border-t border-white/10 pt-6">
-              <p className="text-[10px] text-royal-300 uppercase tracking-widest mb-1">Aset Wakaf Produktif</p>
-              <p className="text-3xl font-display text-gold-400">{formatNumber(impactData?.totalAset || 0)}</p>
-            </div>
-          </div>
-
-          <div className="lg:col-span-2 grid sm:grid-cols-2 gap-6">
-            <div className="bg-white/5 p-8 rounded-[2rem] border border-white/10 hover:bg-white/10 transition group hover:-translate-y-1">
-              <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-6 text-gold-400">
-                <GraduationCap className="w-6 h-6" />
-              </div>
-              <h4 className="text-2xl font-display mb-2">{impactData?.totalPenerima || 0} Santri</h4>
-              <p className="text-royal-200 text-sm mb-4">Penerima Manfaat Beasiswa Kader.</p>
-              <div className="w-full bg-royal-800 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-gold-400 h-full w-[85%] rounded-full"></div>
-              </div>
-            </div>
-            
-            <div className="bg-white/5 p-8 rounded-[2rem] border border-white/10 hover:bg-white/10 transition group hover:-translate-y-1">
-              <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-6 text-gold-400">
-                <Sprout className="w-6 h-6" />
-              </div>
-              <h4 className="text-2xl font-display mb-2">Pilar Pendidikan</h4>
-              <p className="text-royal-200 text-sm mb-4">Fokus pada Turats & Sains Modern.</p>
-              <div className="w-full bg-royal-800 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-gold-400 h-full w-[100%] rounded-full"></div>
-              </div>
-            </div>
-            
-            {(impactData?.strategicPrograms || []).slice(0, 1).map((prog, i) => (
-              <div key={i} className="bg-white/5 p-8 rounded-[2rem] border border-white/10 hover:bg-white/10 transition group sm:col-span-2 flex items-center justify-between hover:-translate-y-1">
-                <div>
-                  <h4 className="text-xl font-display mb-1">{prog.title}</h4>
-                  <p className="text-royal-200 text-sm">Target Realisasi Anggaran</p>
+              <div className="relative z-10">
+                <div className="w-16 h-16 rounded-2xl bg-royal-800/50 border border-white/5 flex items-center justify-center mb-8 group-hover:scale-110 transition-transform duration-500 shadow-inner">
+                  {item.icon}
                 </div>
-                <div className="text-right">
-                  <p className="text-3xl font-display text-gold-400">{prog.progress}%</p>
+
+                <h3 className="text-xl font-display font-bold text-white mb-3 group-hover:text-gold-300 transition-colors">
+                  {item.title}
+                </h3>
+
+                <p className="text-royal-200/80 text-sm leading-relaxed mb-8 min-h-[60px]">
+                  {item.desc}
+                </p>
+
+                <div className="pt-6 border-t border-white/10 flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gold-500">Impact</span>
+                  <span className="text-xs font-bold text-white bg-white/10 px-2 py-1 rounded">{item.stats}</span>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Bottom decoration or additional info */}
+        <div className="mt-20 flex flex-col md:flex-row items-center justify-center gap-8 text-center md:text-left opacity-60 hover:opacity-100 transition-opacity duration-500">
+          <p className="text-sm text-royal-200 uppercase tracking-widest font-bold">Didukung Sistem Manajemen Terintegrasi</p>
+          <div className="h-px w-20 bg-gold-500/50 hidden md:block"></div>
+          <p className="text-sm text-royal-200 uppercase tracking-widest font-bold">Audit Berkala Independen</p>
         </div>
       </div>
     </section>

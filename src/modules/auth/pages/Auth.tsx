@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, Mail, Lock, User, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, Mail, Lock, User, CheckCircle2, AlertCircle, ArrowLeft, ShieldCheck, ChevronRight, Heart } from "lucide-react";
 import { getUserRoles } from "@/modules/auth/services/auth.service";
 
 export default function Auth() {
@@ -43,22 +43,19 @@ export default function Auth() {
           // Check role before redirecting
           const roles = await getUserRoles(session.user.id);
           const hasAdminRole = roles.some(r => ['admin', 'superadmin', 'pengurus'].includes(r) || r.startsWith('admin_'));
-          
+
           if (isAdminLogin) {
             if (hasAdminRole) {
               navigate('/pms', { replace: true });
             } else {
-               // Logged in as santri but trying to access admin login page -> redirect to santri dashboard
-               navigate('/santri', { replace: true });
+              navigate('/santri', { replace: true });
             }
           } else {
-             // Standard login page (/auth)
-             if (hasAdminRole) {
-                // Admin trying to access public login -> redirect to PMS
-                navigate('/pms', { replace: true });
-             } else {
-                navigate('/santri', { replace: true });
-             }
+            if (hasAdminRole) {
+              navigate('/pms', { replace: true });
+            } else {
+              navigate('/santri', { replace: true });
+            }
           }
         }
       } catch (err) {
@@ -77,31 +74,17 @@ export default function Auth() {
 
     try {
       const loginIdentifier = loginEmail.trim().toUpperCase();
-
-      // Check if input is id_santri format (8 chars alphanumeric)
       const isIdSantri = /^[A-Z0-9]{8}$/.test(loginIdentifier);
-
       let emailToUse = loginIdentifier;
-      
+
       if (!isAdminLogin) {
-         // PUBLIC/SANTRI LOGIN
-         // Rule: Santri MUST use ID Santri.
-         // If user inputs email here, we assume they are trying to use admin account or wrong page.
-         // However, existing admins might use this page too (as per existing logic).
-         // If we want to strictly enforce "Santri use ID", we prioritize ID detection.
-         
-         if (isIdSantri) {
-            emailToUse = `${loginIdentifier}@pondoksukses.local`;
-         } else {
-            // Not an ID Santri format.
-            // If it's an email, it might be an admin trying to login here (which we redirect later)
-            // OR it's a santri trying to use their personal email (which we should BLOCK/WARN).
-            emailToUse = loginIdentifier.toLowerCase();
-         }
+        if (isIdSantri) {
+          emailToUse = `${loginIdentifier}@pondoksukses.local`;
+        } else {
+          emailToUse = loginIdentifier.toLowerCase();
+        }
       } else {
-         // ADMIN LOGIN PAGE
-         // Admins use Email.
-         emailToUse = loginIdentifier.toLowerCase();
+        emailToUse = loginIdentifier.toLowerCase();
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -113,56 +96,45 @@ export default function Auth() {
         if (isIdSantri) {
           setError('ID Santri atau password salah. Silakan coba lagi.');
         } else {
-           if (!isAdminLogin) {
-              // On public login, if they used email and failed -> warn them to use ID Santri if they are santri
-              setError('Email atau password salah. Santri harap login menggunakan ID Santri.');
-           } else {
-              setError('Email atau password salah.');
-           }
+          if (!isAdminLogin) {
+            setError('Email atau password salah. Santri harap login menggunakan ID Santri.');
+          } else {
+            setError('Email atau password salah.');
+          }
         }
       } else if (data.user) {
-        // Successful login - Now check Role Access
         const roles = await getUserRoles(data.user.id);
-        
-        // Double check metadata directly just in case getUserRoles failed/cached wrong
         const metaRole = data.user.user_metadata?.role;
         const hasMetaAdmin = metaRole === 'admin' || metaRole === 'superadmin';
-        
         const hasAdminRole = hasMetaAdmin || roles.some(r => ['admin', 'superadmin', 'pengurus'].includes(r) || r.startsWith('admin_'));
 
         if (isAdminLogin) {
-           // Admin Login Page Logic
-           if (!hasAdminRole) {
-              await supabase.auth.signOut();
-              setError('Akses ditolak. Halaman ini khusus untuk Administrator & Pengurus.');
-              return;
-           }
-           setSuccess('Login berhasil! Mengarahkan ke dashboard admin...');
-           navigate('/pms', { replace: true });
+          if (!hasAdminRole) {
+            await supabase.auth.signOut();
+            setError('Akses ditolak. Halaman ini khusus untuk Administrator & Pengurus.');
+            return;
+          }
+          setSuccess('Login berhasil! Mengarahkan ke dashboard admin...');
+          navigate('/pms', { replace: true });
         } else {
-           // Public Login Page Logic
-           if (hasAdminRole) {
-              await supabase.auth.signOut();
-              setError('Administrator harap login melalui portal khusus admin.');
-              return;
-           }
+          if (hasAdminRole) {
+            await supabase.auth.signOut();
+            setError('Administrator harap login melalui portal khusus admin.');
+            return;
+          }
 
-           // Prevent PSB accounts (registered via email) from logging in here if they somehow passed auth
-           // Santri accounts should be ID based. If current email is NOT ID based, it might be a PSB account.
-           const userEmail = data.user.email || "";
-           const isEmailLogin = userEmail.includes('@') && !userEmail.endsWith('@pondoksukses.local');
-           
-           if (isEmailLogin) {
-              // This is likely a PSB account trying to login to Santri Dashboard
-              // Redirect them to PSB Portal or Show Error
-               await supabase.auth.signOut();
-               setError('Akun pendaftaran PSB tidak dapat digunakan di sini. Silakan login di Portal PSB.');
-               setTimeout(() => navigate('/psb/auth'), 2000);
-               return;
-           }
+          const userEmail = data.user.email || "";
+          const isEmailLogin = userEmail.includes('@') && !userEmail.endsWith('@pondoksukses.local');
 
-           setSuccess('Login berhasil! Mengarahkan ke dashboard santri...');
-           navigate('/santri', { replace: true });
+          if (isEmailLogin) {
+            await supabase.auth.signOut();
+            setError('Akun pendaftaran PSB tidak dapat digunakan di sini. Silakan login di Portal PSB.');
+            setTimeout(() => navigate('/psb/auth'), 2000);
+            return;
+          }
+
+          setSuccess('Login berhasil! Mengarahkan ke dashboard santri...');
+          navigate('/santri', { replace: true });
         }
       }
     } catch (err: any) {
@@ -205,73 +177,78 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2">
-      {/* Left Side - Hero Image */}
-      <div className="relative hidden lg:block bg-slate-900">
-        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1549675583-45984c497939?auto=format&fit=crop&q=80&w=2974')" }} />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0b2b1f]/90 via-[#0b2b1f]/50 to-transparent" />
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/arabesque.png')] opacity-10" />
+    <div className="min-h-screen flex font-body bg-paper">
+      {/* Left Decoration - Hidden on Mobile */}
+      <div className="hidden lg:flex lg:w-1/2 bg-royal-950 relative flex-col justify-between p-16 text-white overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-royal-950 to-royal-900 z-0"></div>
+        <div className="absolute inset-0 opacity-10 z-0 bg-[url('https://www.transparenttextures.com/patterns/arabesque.png')] mix-blend-overlay"></div>
 
-        <div className="relative z-10 h-full flex flex-col justify-between p-12 text-white">
-          <Link to="/" className="w-fit">
-            <img 
-              src="/kop-albisri.png" 
-              alt="Logo Al-Bisri" 
-              className="w-56 mb-8 drop-shadow-2xl hover:scale-105 transition-transform duration-500 brightness-0 invert" 
-            />
-          </Link>
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gold-500/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-blue-500/10 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2"></div>
 
-          <div className="space-y-6 max-w-lg">
-            <h1 className="text-4xl md:text-5xl font-heading font-bold leading-[1.3]">
-              Selamat Datang di <span className="text-secondary">e-Maktab</span>
-            </h1>
-            <p className="text-lg text-slate-300 leading-relaxed font-light">
-              Platform manajemen terpadu Pesantren Al-Bisri. Kelola data akademik, administrasi, dan perkembangan Anda.
-            </p>
-            <div className="flex gap-4 pt-4">
-              <div className="flex -space-x-3">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className={`w-10 h-10 rounded-full border-2 border-[#0b2b1f] bg-slate-200 z-[${5 - i}]`} />
-                ))}
-              </div>
-              <div className="flex flex-col justify-center">
-                <span className="text-sm font-bold">500+ Santri & Alumni</span>
-                <span className="text-xs text-slate-400">Telah bergabung bersama kami</span>
-              </div>
-            </div>
+        <Link to="/" className="relative z-10 flex items-center gap-3 w-fit group">
+          <div className="w-10 h-10 bg-white/10 backdrop-blur border border-white/20 rounded-xl flex items-center justify-center group-hover:bg-gold-500 group-hover:border-gold-500 transition-all duration-300">
+            <ArrowLeft className="w-5 h-5 group-hover:text-royal-950 transition-colors" />
           </div>
+          <span className="font-display font-bold tracking-widest text-lg">AL-BISRI</span>
+        </Link>
 
-          <div className="text-sm text-slate-400">
-            Powered by: Isyraq An-Nur
+        <div className="relative z-10 max-w-md">
+          <img
+            src="/kop-albisri.png"
+            alt="Logo Al-Bisri"
+            className="w-56 mb-12 drop-shadow-2xl hover:scale-105 transition-transform duration-500 brightness-0 invert"
+          />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/20 border border-gold-500/30 text-gold-400 text-[10px] uppercase tracking-widest font-bold mb-6">
+            <ShieldCheck className="w-3 h-3" /> Area Terbatas
           </div>
+          <h1 className="text-5xl font-display font-medium leading-[1.3] mb-8">
+            Portal Layanan <br />
+            <span className="text-gold-400 italic">Akademik & Santri</span>
+          </h1>
+        </div>
+
+        <div className="relative z-10 flex items-center gap-4 text-sm text-royal-300 font-light">
+          <p className="border-l-2 border-gold-500 pl-4">
+            Silakan masuk menggunakan <strong>ID Santri</strong> yang tertera pada kartu pelajar Anda.
+          </p>
         </div>
       </div>
 
       {/* Right Side - Form */}
-      <div className="flex flex-col justify-center items-center p-6 md:p-12 bg-slate-50">
-        <div className="w-full max-w-md space-y-8 animate-fade-in">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 md:p-16 relative">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-royal-900 via-gold-500 to-royal-900 lg:hidden"></div>
+
+        <div className="w-full max-w-md space-y-6 animate-in fade-in slide-in-from-right-8 duration-700">
           {/* Mobile Logo */}
-          <div className="lg:hidden flex justify-center mb-8">
+          <div className="lg:hidden flex justify-center mb-6 pt-8">
             <Link to="/">
-              <img src="/kop-albisri.png" alt="Logo Al-Bisri" className="w-40" />
+              <img src="/kop-albisri.png" alt="Logo Al-Bisri" className="w-32" />
             </Link>
           </div>
 
-          <div className="text-center space-y-2">
-            <h2 className="text-3xl font-heading font-bold text-slate-900">Masuk ke Akun</h2>
-            <p className="text-slate-500">Silakan masukkan kredensial Anda untuk melanjutkan</p>
+          <div className="mb-6 text-center lg:text-left">
+            <h2 className="text-2xl md:text-3xl font-display font-bold text-royal-950 mb-2">
+              Selamat Datang di e-Maktab
+            </h2>
+            <p className="text-stone-500 font-light">
+              Masuk untuk mengakses dashboard santri dan layanan akademik.
+            </p>
           </div>
 
           <Tabs defaultValue="login" value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6 p-1 bg-white border border-slate-200 rounded-full">
-              <TabsTrigger value="login" className="rounded-full data-[state=active]:bg-primary data-[state=active]:text-white">Login</TabsTrigger>
-              <TabsTrigger value="register" className="rounded-full data-[state=active]:bg-primary data-[state=active]:text-white">Daftar Baru</TabsTrigger>
+            {/* 
+            <TabsList className="grid w-full grid-cols-2 mb-8 p-1 bg-stone-100 border border-stone-200 rounded-xl">
+              <TabsTrigger value="login" className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-royal-900 data-[state=active]:shadow-sm font-bold uppercase tracking-wider text-xs">Login</TabsTrigger>
+              <TabsTrigger value="register" className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-royal-900 data-[state=active]:shadow-sm font-bold uppercase tracking-wider text-xs">Daftar</TabsTrigger>
             </TabsList>
+            */}
+            {/* Registration hidden by default for E-Maktab as it is closed system usually */}
 
             {error && (
-              <Alert variant="destructive" className="mb-6 animate-shake">
+              <Alert variant="destructive" className="mb-6 animate-pulse bg-red-50 border-red-200 text-red-900">
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Gagal</AlertTitle>
+                <AlertTitle className="font-bold">Gagal Masuk</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
@@ -279,22 +256,22 @@ export default function Auth() {
             {success && (
               <Alert className="mb-6 bg-emerald-50 text-emerald-800 border-emerald-200">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                <AlertTitle>Berhasil</AlertTitle>
+                <AlertTitle className="font-bold">Berhasil</AlertTitle>
                 <AlertDescription>{success}</AlertDescription>
               </Alert>
             )}
 
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-5">
+            <TabsContent value="login" className="space-y-6">
+              <form onSubmit={handleLogin} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-slate-600 font-medium">Email / ID Santri</Label>
+                  <Label htmlFor="email" className="text-xs uppercase tracking-widest font-bold text-stone-400">Email / ID Santri</Label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 w-4 h-4" />
                     <Input
                       id="email"
                       type="text"
-                      placeholder="nama@email.com atau ID Santri"
-                      className="pl-10 bg-white border-slate-200 focus-visible:ring-primary h-11"
+                      placeholder="Contoh: 20240001"
+                      className="pl-12 py-4 md:py-6 rounded-xl border-stone-200 focus:border-royal-900 focus:ring-royal-900/10 transition-all font-body"
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
                       required
@@ -303,94 +280,51 @@ export default function Auth() {
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="password" className="text-slate-600 font-medium">Password</Label>
-                    <Link to="#" className="text-xs text-primary hover:underline font-medium">Lupa Password?</Link>
+                    <Label htmlFor="password" className="text-xs uppercase tracking-widest font-bold text-stone-400">Password</Label>
+                    <Link to="#" className="text-[10px] font-bold text-gold-600 uppercase tracking-wider hover:text-royal-900 transition-colors">Lupa Password?</Link>
                   </div>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 w-4 h-4" />
                     <Input
                       id="password"
                       type="password"
                       placeholder="••••••••"
-                      className="pl-10 bg-white border-slate-200 focus-visible:ring-primary h-11"
+                      className="pl-12 py-4 md:py-6 rounded-xl border-stone-200 focus:border-royal-900 focus:ring-royal-900/10 transition-all"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
                       required
                     />
                   </div>
                 </div>
-                <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 text-lg shadow-lg shadow-primary/20" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Masuk Sekarang"}
+                <Button type="submit" className="w-full py-4 md:py-7 bg-royal-900 hover:bg-royal-800 text-white rounded-xl shadow-xl shadow-royal-900/20 transition-all duration-300 group" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : (
+                    <span className="font-display font-bold uppercase tracking-[0.2em] text-sm flex items-center gap-2">
+                      Masuk Dashboard <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </span>
+                  )}
                 </Button>
               </form>
             </TabsContent>
 
             <TabsContent value="register">
+              {/* Registration Form simplified/hidden if unused */}
               <form onSubmit={handleRegister} className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="reg-name" className="text-slate-600 font-medium">Nama Lengkap</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                    <Input
-                      id="reg-name"
-                      placeholder="Nama Lengkap Anda"
-                      className="pl-10 bg-white border-slate-200 focus-visible:ring-primary h-11"
-                      value={registerName}
-                      onChange={(e) => setRegisterName(e.target.value)}
-                      required
-                    />
-                  </div>
+                {/* ... registration fields ... */}
+                <div className="text-center p-4 bg-stone-50 rounded-xl border border-stone-200">
+                  <p className="text-sm text-stone-500">Pendaftaran akun santri dilakukan oleh administrator.</p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reg-email" className="text-slate-600 font-medium">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                    <Input
-                      id="reg-email"
-                      type="email"
-                      placeholder="nama@email.com"
-                      className="pl-10 bg-white border-slate-200 focus-visible:ring-primary h-11"
-                      value={registerEmail}
-                      onChange={(e) => setRegisterEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reg-password" className="text-slate-600 font-medium">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                    <Input
-                      id="reg-password"
-                      type="password"
-                      placeholder="••••••••"
-                      className="pl-10 bg-white border-slate-200 focus-visible:ring-primary h-11"
-                      value={registerPassword}
-                      onChange={(e) => setRegisterPassword(e.target.value)}
-                      required
-                      minLength={6}
-                    />
-                  </div>
-                </div>
-                <Button type="submit" className="w-full h-11 bg-secondary hover:bg-secondary/90 text-secondary-foreground text-lg shadow-lg shadow-secondary/20" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Buat Akun"}
-                </Button>
               </form>
             </TabsContent>
           </Tabs>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-slate-200" />
+          <div className="mt-8 md:mt-20 flex flex-col items-center opacity-40 pb-6">
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-stone-500 mb-2">
+              <Heart className="w-3 h-3 text-gold-600 fill-current" /> Powered by:
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-slate-50 px-2 text-slate-500">Atau</span>
+            <div className="font-display font-bold text-royal-900 tracking-[0.3em] text-[10px]">
+              Isyraq An-Nur
             </div>
           </div>
-
-          <Button variant="outline" className="w-full h-11 bg-white border-slate-200 hover:bg-slate-50 text-slate-700" onClick={() => navigate('/')}>
-            Kembali ke Beranda
-          </Button>
         </div>
       </div>
     </div>

@@ -42,13 +42,13 @@ interface Transaction {
 const getSourceFromReferensi = (referensi?: string, kategori?: string, sourceModule?: string): string | null => {
   // Check kategori first for Penjualan Inventaris (to catch all cases)
   if (kategori === 'Penjualan Inventaris') return 'Penjualan Inventaris';
-  
+
   // Check kategori untuk Donasi (menangkap semua transaksi donasi)
   if (kategori === 'Donasi' || kategori === 'Donasi Tunai') return 'Donasi';
-  
+
   // Check source_module untuk Donasi
   if (sourceModule === 'donasi') return 'Donasi';
-  
+
   if (!referensi) return null;
   if (referensi.startsWith('donation:') || referensi.startsWith('donasi:')) return 'Donasi';
   if (referensi.startsWith('inventory_sale:') || referensi.startsWith('inventaris:')) return 'Penjualan Inventaris';
@@ -96,10 +96,10 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [sortBy, setSortBy] = useState<string>('tanggal');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  
+
   // Batch selection states
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
-  
+
   // State untuk dropdown rincian santri Bantuan Langsung
   const [expandedBantuanLangsung, setExpandedBantuanLangsung] = useState<Set<string>>(new Set());
   const [bantuanLangsungAllocations, setBantuanLangsungAllocations] = useState<Record<string, any[]>>({});
@@ -109,7 +109,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
     sub_kategori: ''
   });
   const [isBatchUpdating, setIsBatchUpdating] = useState(false);
-  
+
   // Date filter states - sync with parent if provided
   // Default to 'all' if no initialDateFilter provided, otherwise use initialDateFilter
   const [dateFilter, setDateFilter] = useState<string>(initialDateFilter || 'all');
@@ -186,17 +186,17 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
     }
     return date.toLocaleDateString('id-ID', options);
   };
-  
+
   // Format date with time from created_at if available
   const formatDateWithTime = (transaction: Transaction) => {
     const dateStr = transaction.tanggal;
     const createdStr = (transaction as any).created_at;
-    
+
     if (!dateStr) return '';
-    
+
     const date = new Date(dateStr);
     let timeStr = '';
-    
+
     // Use created_at for accurate time if available
     if (createdStr) {
       const createdDate = new Date(createdStr);
@@ -208,24 +208,24 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
     } else {
       // Fallback: use date's time (might be 00:00 for DATE type)
       timeStr = date.toLocaleTimeString('id-ID', {
-      hour: '2-digit',
+        hour: '2-digit',
         minute: '2-digit',
         hour12: false
       });
     }
-    
+
     const dateFormatted = date.toLocaleDateString('id-ID', {
       day: 'numeric',
       month: 'short',
       year: 'numeric'
     });
-    
+
     return `${dateFormatted}, ${timeStr}`;
   };
 
   const getTransactionIcon = (jenis: string) => {
-    return jenis === 'Pemasukan' ? 
-      <ArrowUpRight className="h-4 w-4 text-green-600" /> : 
+    return jenis === 'Pemasukan' ?
+      <ArrowUpRight className="h-4 w-4 text-green-600" /> :
       <ArrowDownLeft className="h-4 w-4 text-red-600" />;
   };
 
@@ -236,14 +236,14 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
       'Draft': { color: 'bg-gray-100 text-gray-800', label: 'Draft' },
       'Cancelled': { color: 'bg-red-100 text-red-800', label: 'Cancelled' },
     };
-    
+
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig['Draft'];
     return <Badge className={config.color} variant="secondary">{config.label}</Badge>;
   };
 
   // Get unique categories for filter
   const uniqueCategories = Array.from(new Set(transactions.map(t => t.kategori)));
-  
+
   // Get unique sources for filter
   const uniqueSources = Array.from(new Set(
     transactions
@@ -255,7 +255,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
   const getDateFilter = (transaction: Transaction) => {
     const transactionDate = new Date(transaction.tanggal);
     const now = new Date();
-    
+
     switch (dateFilter) {
       case 'bulan-ini': {
         const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -295,9 +295,9 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
   const filteredTransactions = transactions.filter(transaction => {
     // EXCLUDE transactions from tabungan module
     // Filter by source_module
-    if (transaction.source_module && 
-        typeof transaction.source_module === 'string' &&
-        transaction.source_module.toLowerCase().includes('tabungan')) {
+    if (transaction.source_module &&
+      typeof transaction.source_module === 'string' &&
+      transaction.source_module.toLowerCase().includes('tabungan')) {
       return false;
     }
     // Filter by kategori
@@ -308,7 +308,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
     if ((transaction as any).akun_kas?.managed_by === 'tabungan') {
       return false;
     }
-    
+
     // Apply other filters
     const s = (searchTerm || '').toLowerCase();
     const desc = ((transaction.deskripsi ?? '') as string).toString().toLowerCase();
@@ -316,20 +316,20 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
     const akun = ((transaction.akun_kas_nama ?? '') as string).toString().toLowerCase();
     const matchesSearch = desc.includes(s) || kat.includes(s) || akun.includes(s);
     const matchesType = filterType === 'all' || transaction.jenis_transaksi === filterType;
-    
+
     // Status filter removed - not used
     const matchesStatus = true;
-    
+
     const matchesCategory = filterCategory === 'all' || transaction.kategori === filterCategory;
     const matchesAccount = !selectedAccountId || transaction.akun_kas_id === selectedAccountId;
     const matchesDate = getDateFilter(transaction);
-    
+
     // Filter by source (donation, inventory, etc.)
     const transactionSource = getSourceFromReferensi(transaction.referensi, transaction.kategori, transaction.source_module);
-    const matchesSource = filterSource === 'all' || 
-                         (filterSource === 'manual' && !transactionSource) ||
-                         transactionSource === filterSource;
-    
+    const matchesSource = filterSource === 'all' ||
+      (filterSource === 'manual' && !transactionSource) ||
+      transactionSource === filterSource;
+
     return matchesSearch && matchesType && matchesStatus && matchesCategory && matchesAccount && matchesDate && matchesSource;
   });
 
@@ -337,7 +337,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
   const sortedTransactions = [...filteredTransactions].sort((a, b) => {
     let aValue, bValue;
     let aTieBreaker, bTieBreaker;
-    
+
     switch (sortBy) {
       case 'tanggal':
         aValue = new Date(a.tanggal).getTime();
@@ -367,7 +367,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
         aTieBreaker = (a as any).created_at ? new Date((a as any).created_at).getTime() : 0;
         bTieBreaker = (b as any).created_at ? new Date((b as any).created_at).getTime() : 0;
     }
-    
+
     // Primary sort
     let result = 0;
     if (sortOrder === 'asc') {
@@ -375,14 +375,14 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
     } else {
       result = aValue < bValue ? 1 : (aValue > bValue ? -1 : 0);
     }
-    
+
     // Tie-breaker: if primary values are equal, use created_at (newest first for desc, oldest first for asc)
     if (result === 0 && aTieBreaker !== bTieBreaker) {
-      return sortOrder === 'asc' 
+      return sortOrder === 'asc'
         ? (aTieBreaker > bTieBreaker ? 1 : -1)
         : (aTieBreaker < bTieBreaker ? 1 : -1);
     }
-    
+
     return result;
   });
 
@@ -455,14 +455,14 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
     try {
       setIsBatchUpdating(true);
       const transactionIds = Array.from(selectedTransactions);
-      
+
       // Filter transactions yang bisa di-edit
       // Izinkan auto-posted jika jenis_transaksi === 'Pemasukan'
       // Hapus filter donasi karena transaksi donasi pemasukan auto_posted bisa di-edit/di-delete
-      const editableTransactions = currentTransactions.filter(t => 
+      const editableTransactions = currentTransactions.filter(t =>
         transactionIds.includes(t.id) &&
         (
-          !t.auto_posted || 
+          !t.auto_posted ||
           (t.auto_posted && t.jenis_transaksi === 'Pemasukan')
         ) &&
         !t.referensi?.startsWith('inventory_sale:') &&
@@ -507,9 +507,9 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
           // Error is non-critical, continue silently
         }
       }
-      // Jika kategori adalah "Operasional dan Konsumsi Santri" dan ada sub_kategori,
+      // Jika kategori adalah "Asrama dan Konsumsi Santri" dan ada sub_kategori,
       // update juga jenis_bantuan di alokasi_pengeluaran_santri
-      else if (updateData.kategori === 'Operasional dan Konsumsi Santri' && updateData.sub_kategori) {
+      else if (updateData.kategori === 'Asrama dan Konsumsi Santri' && updateData.sub_kategori) {
         const { error: alokasiError } = await supabase
           .from('alokasi_layanan_santri')
           .update({ jenis_bantuan: updateData.sub_kategori })
@@ -527,7 +527,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
       setShowBatchEditDialog(false);
       setSelectedTransactions(new Set());
       setBatchEditData({ kategori: '', sub_kategori: '' });
-      
+
       // Refresh page
       window.location.reload();
     } catch (error: any) {
@@ -541,17 +541,17 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
     <Card className="rounded-lg border border-gray-200 shadow-sm bg-white">
       <CardHeader className="pb-4 pt-4 px-4">
         <div className="flex items-center justify-between">
-        <div>
-          <CardTitle className="text-base font-medium text-gray-900">Riwayat Transaksi</CardTitle>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Daftar lengkap transaksi keuangan
-          </p>
-        </div>
-        {selectedAccountId && selectedAccountName && (
-          <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-xs px-2 py-0.5">
-            {selectedAccountName}
-          </Badge>
-        )}
+          <div>
+            <CardTitle className="text-base font-medium text-gray-900">Riwayat Transaksi</CardTitle>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Daftar lengkap transaksi keuangan
+            </p>
+          </div>
+          {selectedAccountId && selectedAccountName && (
+            <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-xs px-2 py-0.5">
+              {selectedAccountName}
+            </Badge>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -568,7 +568,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                 className="pl-10"
               />
             </div>
-            
+
             {/* Type Filter */}
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="w-[130px] h-9 text-xs border-gray-200">
@@ -628,7 +628,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Calendar className="h-4 w-4 mr-2" />
-                    {customStartDate && customEndDate 
+                    {customStartDate && customEndDate
                       ? `${customStartDate.toLocaleDateString('id-ID')} - ${customEndDate.toLocaleDateString('id-ID')}`
                       : 'Pilih Periode'
                     }
@@ -655,8 +655,8 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                           className="rounded-md border"
                         />
                       </div>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         onClick={() => {
                           setShowDatePicker(false);
                           if (customStartDate && customEndDate && onCustomDateChange) {
@@ -682,9 +682,9 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
             {selectedAccountId && selectedAccountName && (
               <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 text-xs px-2 py-0.5">
                 Akun: {selectedAccountName}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={onClearFilter}
                   className="h-4 w-4 p-0 ml-1.5 hover:bg-transparent"
                 >
@@ -695,9 +695,9 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
             {filterType !== 'all' && (
               <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 text-xs px-2 py-0.5">
                 Jenis: {filterType}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setFilterType('all')}
                   className="h-4 w-4 p-0 ml-1.5 hover:bg-transparent"
                 >
@@ -708,9 +708,9 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
             {filterCategory !== 'all' && (
               <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 text-xs px-2 py-0.5">
                 Kategori: {filterCategory}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setFilterCategory('all')}
                   className="h-4 w-4 p-0 ml-1.5 hover:bg-transparent"
                 >
@@ -721,9 +721,9 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
             {filterSource !== 'all' && (
               <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 text-xs px-2 py-0.5">
                 Sumber: {filterSource}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setFilterSource('all')}
                   className="h-4 w-4 p-0 ml-1.5 hover:bg-transparent"
                 >
@@ -734,9 +734,9 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
             {dateFilter !== 'all' && (
               <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 text-xs px-2 py-0.5">
                 Periode: {dateFilter === 'custom' ? 'Custom' : dateFilter}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setDateFilter('all')}
                   className="h-4 w-4 p-0 ml-1.5 hover:bg-transparent"
                 >
@@ -769,7 +769,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                           )}
                         </button>
                       </th>
-                      <th 
+                      <th
                         className="px-3 py-3 text-left text-xs font-medium text-gray-600 cursor-pointer hover:text-gray-900"
                         onClick={() => handleSort('tanggal')}
                       >
@@ -780,7 +780,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                           )}
                         </div>
                       </th>
-                      <th 
+                      <th
                         className="px-3 py-3 text-left text-xs font-medium text-gray-600 cursor-pointer hover:text-gray-900"
                         onClick={() => handleSort('kategori')}
                       >
@@ -794,7 +794,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                       <th className="px-3 py-3 text-left text-xs font-medium text-gray-600">
                         Deskripsi
                       </th>
-                      <th 
+                      <th
                         className="px-3 py-3 text-right text-xs font-medium text-gray-600 cursor-pointer hover:text-gray-900"
                         onClick={() => handleSort('jumlah')}
                       >
@@ -819,13 +819,12 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                       </tr>
                     ) : (
                       currentTransactions.map((transaction) => (
-                        <tr 
+                        <tr
                           key={transaction.id}
-                          className={`transition-colors ${
-                            transaction.jenis_transaksi === 'Pemasukan' 
-                              ? 'bg-emerald-50/30 hover:bg-emerald-50/50' 
-                              : 'hover:bg-gray-50'
-                          }`}
+                          className={`transition-colors ${transaction.jenis_transaksi === 'Pemasukan'
+                            ? 'bg-emerald-50/30 hover:bg-emerald-50/50'
+                            : 'hover:bg-gray-50'
+                            }`}
                         >
                           <td className="px-3 py-3 whitespace-nowrap">
                             <button
@@ -842,28 +841,27 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                               }
                               title={
                                 (transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') ||
-                                transaction.referensi?.startsWith('inventory_sale:') ||
-                                transaction.referensi?.startsWith('inventaris:') ||
-                                transaction.referensi?.startsWith('pembayaran_santri:') ||
-                                transaction.kategori === 'Penjualan Inventaris'
+                                  transaction.referensi?.startsWith('inventory_sale:') ||
+                                  transaction.referensi?.startsWith('inventaris:') ||
+                                  transaction.referensi?.startsWith('pembayaran_santri:') ||
+                                  transaction.kategori === 'Penjualan Inventaris'
                                   ? "Transaksi ini tidak bisa di-edit"
                                   : selectedTransactions.has(transaction.id)
-                                  ? "Batal pilih"
-                                  : "Pilih"
+                                    ? "Batal pilih"
+                                    : "Pilih"
                               }
                             >
                               {selectedTransactions.has(transaction.id) ? (
                                 <CheckSquare className="h-4 w-4 text-blue-600" />
                               ) : (
-                                <Square className={`h-4 w-4 ${
-                                  (transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') ||
+                                <Square className={`h-4 w-4 ${(transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') ||
                                   transaction.referensi?.startsWith('inventory_sale:') ||
                                   transaction.referensi?.startsWith('inventaris:') ||
                                   transaction.referensi?.startsWith('pembayaran_santri:') ||
                                   transaction.kategori === 'Penjualan Inventaris'
-                                    ? 'text-gray-300 cursor-not-allowed'
-                                    : 'text-gray-400 hover:text-gray-600'
-                                }`} />
+                                  ? 'text-gray-300 cursor-not-allowed'
+                                  : 'text-gray-400 hover:text-gray-600'
+                                  }`} />
                               )}
                             </button>
                           </td>
@@ -881,22 +879,22 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                             </div>
                             <div className="flex flex-wrap gap-1">
                               {/* Badge ungu untuk semua transaksi donasi (lama dan baru) */}
-                              {(transaction.kategori === 'Donasi' || 
+                              {(transaction.kategori === 'Donasi' ||
                                 transaction.kategori === 'Donasi Tunai' ||
                                 transaction.referensi?.startsWith('donation:') ||
                                 transaction.referensi?.startsWith('donasi:') ||
                                 transaction.source_module === 'donasi') && (
-                                <Badge className="text-[10px] px-1.5 py-0 bg-purple-100 text-purple-800 border-purple-200">
-                                  Donasi
-                                </Badge>
-                              )}
-                              {(transaction.referensi?.startsWith('inventory_sale:') || 
+                                  <Badge className="text-[10px] px-1.5 py-0 bg-purple-100 text-purple-800 border-purple-200">
+                                    Donasi
+                                  </Badge>
+                                )}
+                              {(transaction.referensi?.startsWith('inventory_sale:') ||
                                 transaction.referensi?.startsWith('inventaris:') ||
                                 transaction.kategori === 'Penjualan Inventaris') && (
-                                <Badge className="text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800 border-blue-200">
-                                  Inventaris
-                                </Badge>
-                              )}
+                                  <Badge className="text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800 border-blue-200">
+                                    Inventaris
+                                  </Badge>
+                                )}
                               {transaction.referensi?.startsWith('pembayaran_santri:') && (
                                 <Badge className="text-[10px] px-1.5 py-0 bg-green-100 text-green-800 border-green-200">
                                   Pembayaran
@@ -928,28 +926,28 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                               const isPengeluaran = transaction.jenis_transaksi === 'Pengeluaran';
                               const jenisAlokasi = transaction.jenis_alokasi as string | undefined;
                               const shouldShowSantriDetail = isPengeluaran && jenisAlokasi === 'langsung';
-                              
+
                               return shouldShowSantriDetail;
                             })() && (
-                              <div className="mt-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={async () => {
-                                    if (expandedBantuanLangsung.has(transaction.id)) {
-                                      setExpandedBantuanLangsung(prev => {
-                                        const newSet = new Set(prev);
-                                        newSet.delete(transaction.id);
-                                        return newSet;
-                                      });
-                                    } else {
-                                      setExpandedBantuanLangsung(prev => new Set(prev).add(transaction.id));
-                                      // Fetch alokasi santri jika belum ada
-                                      if (!bantuanLangsungAllocations[transaction.id]) {
-                                        try {
-                                          const { data, error } = await supabase
-                                            .from('alokasi_layanan_santri')
-                                            .select(`
+                                <div className="mt-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={async () => {
+                                      if (expandedBantuanLangsung.has(transaction.id)) {
+                                        setExpandedBantuanLangsung(prev => {
+                                          const newSet = new Set(prev);
+                                          newSet.delete(transaction.id);
+                                          return newSet;
+                                        });
+                                      } else {
+                                        setExpandedBantuanLangsung(prev => new Set(prev).add(transaction.id));
+                                        // Fetch alokasi santri jika belum ada
+                                        if (!bantuanLangsungAllocations[transaction.id]) {
+                                          try {
+                                            const { data, error } = await supabase
+                                              .from('alokasi_layanan_santri')
+                                              .select(`
                                               id,
                                               santri_id,
                                               nominal_alokasi,
@@ -961,77 +959,76 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                                                 id_santri
                                               )
                                             `)
-                                            .eq('keuangan_id', transaction.id)
-                                            .eq('sumber_alokasi', 'manual');
-                                          
-                                          if (!error && data) {
-                                            setBantuanLangsungAllocations(prev => ({
-                                              ...prev,
-                                              [transaction.id]: data
-                                            }));
+                                              .eq('keuangan_id', transaction.id)
+                                              .eq('sumber_alokasi', 'manual');
+
+                                            if (!error && data) {
+                                              setBantuanLangsungAllocations(prev => ({
+                                                ...prev,
+                                                [transaction.id]: data
+                                              }));
+                                            }
+                                          } catch (err) {
+                                            console.error('Error loading alokasi santri:', err);
                                           }
-                                        } catch (err) {
-                                          console.error('Error loading alokasi santri:', err);
                                         }
                                       }
-                                    }
-                                  }}
-                                  className="h-6 text-xs"
-                                >
-                                  <Users className="h-3 w-3 mr-1" />
-                                  {expandedBantuanLangsung.has(transaction.id) ? 'Sembunyikan' : 'Lihat Rincian Santri'}
-                                </Button>
-                                {expandedBantuanLangsung.has(transaction.id) && bantuanLangsungAllocations[transaction.id] && (
-                                  <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
-                                    <div className="text-xs font-semibold text-blue-900 mb-2">
-                                      Daftar Santri yang Memperoleh Bantuan:
-                                    </div>
-                                    <div className="space-y-1 max-h-40 overflow-y-auto">
-                                      {bantuanLangsungAllocations[transaction.id].length > 0 ? (
-                                        bantuanLangsungAllocations[transaction.id].map((alloc: any, idx: number) => (
-                                          <div key={alloc.id || idx} className="text-xs p-1.5 bg-white rounded border border-blue-100">
-                                            <div className="font-medium text-gray-900">
-                                              {alloc.santri?.nama_lengkap || 'Tidak Diketahui'}
+                                    }}
+                                    className="h-6 text-xs"
+                                  >
+                                    <Users className="h-3 w-3 mr-1" />
+                                    {expandedBantuanLangsung.has(transaction.id) ? 'Sembunyikan' : 'Lihat Rincian Santri'}
+                                  </Button>
+                                  {expandedBantuanLangsung.has(transaction.id) && bantuanLangsungAllocations[transaction.id] && (
+                                    <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                                      <div className="text-xs font-semibold text-blue-900 mb-2">
+                                        Daftar Santri yang Memperoleh Bantuan:
+                                      </div>
+                                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                                        {bantuanLangsungAllocations[transaction.id].length > 0 ? (
+                                          bantuanLangsungAllocations[transaction.id].map((alloc: any, idx: number) => (
+                                            <div key={alloc.id || idx} className="text-xs p-1.5 bg-white rounded border border-blue-100">
+                                              <div className="font-medium text-gray-900">
+                                                {alloc.santri?.nama_lengkap || 'Tidak Diketahui'}
+                                              </div>
+                                              <div className="text-gray-600">
+                                                {alloc.santri?.id_santri || ''} • {alloc.jenis_bantuan || 'Bantuan'}
+                                              </div>
+                                              <div className="text-gray-500 text-[10px]">
+                                                {alloc.periode && `Periode: ${alloc.periode}`}
+                                                {alloc.keterangan && ` • ${alloc.keterangan}`}
+                                              </div>
+                                              <div className="font-semibold text-blue-700 mt-0.5">
+                                                {formatCurrency(alloc.nominal_alokasi || 0)}
+                                              </div>
                                             </div>
-                                            <div className="text-gray-600">
-                                              {alloc.santri?.id_santri || ''} • {alloc.jenis_bantuan || 'Bantuan'}
-                                            </div>
-                                            <div className="text-gray-500 text-[10px]">
-                                              {alloc.periode && `Periode: ${alloc.periode}`}
-                                              {alloc.keterangan && ` • ${alloc.keterangan}`}
-                                            </div>
-                                            <div className="font-semibold text-blue-700 mt-0.5">
-                                              {formatCurrency(alloc.nominal_alokasi || 0)}
-                                            </div>
+                                          ))
+                                        ) : (
+                                          <div className="text-xs text-gray-500 italic">
+                                            Tidak ada alokasi santri
                                           </div>
-                                        ))
-                                      ) : (
-                                        <div className="text-xs text-gray-500 italic">
-                                          Tidak ada alokasi santri
+                                        )}
+                                      </div>
+                                      {bantuanLangsungAllocations[transaction.id].length > 0 && (
+                                        <div className="mt-2 pt-2 border-t border-blue-200 text-xs font-semibold text-blue-900">
+                                          Total: {formatCurrency(
+                                            bantuanLangsungAllocations[transaction.id].reduce(
+                                              (sum: number, alloc: any) => sum + (alloc.nominal_alokasi || 0),
+                                              0
+                                            )
+                                          )}
                                         </div>
                                       )}
                                     </div>
-                                    {bantuanLangsungAllocations[transaction.id].length > 0 && (
-                                      <div className="mt-2 pt-2 border-t border-blue-200 text-xs font-semibold text-blue-900">
-                                        Total: {formatCurrency(
-                                          bantuanLangsungAllocations[transaction.id].reduce(
-                                            (sum: number, alloc: any) => sum + (alloc.nominal_alokasi || 0),
-                                            0
-                                          )
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                                  )}
+                                </div>
+                              )}
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-right">
-                            <div className={`text-sm font-semibold ${
-                              transaction.jenis_transaksi === 'Pemasukan' 
-                                ? 'text-emerald-600' 
-                                : 'text-rose-600'
-                            }`}>
+                            <div className={`text-sm font-semibold ${transaction.jenis_transaksi === 'Pemasukan'
+                              ? 'text-emerald-600'
+                              : 'text-rose-600'
+                              }`}>
                               {formatCurrency(transaction.jumlah)}
                             </div>
                             <div className="text-xs text-gray-500 mt-0.5">
@@ -1043,11 +1040,11 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                               {/* Cek apakah transaksi bisa di-edit/di-delete */}
                               {/* Untuk transaksi pemasukan auto_posted, tetap izinkan edit/delete */}
                               {/* Hanya nonaktifkan untuk transaksi pengeluaran auto_posted atau transaksi dari modul tertentu */}
-                              {(transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') || 
-                               transaction.referensi?.startsWith('inventory_sale:') ||
-                               transaction.referensi?.startsWith('inventaris:') ||
-                               transaction.referensi?.startsWith('pembayaran_santri:') ||
-                               transaction.kategori === 'Penjualan Inventaris' ? (
+                              {(transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') ||
+                                transaction.referensi?.startsWith('inventory_sale:') ||
+                                transaction.referensi?.startsWith('inventaris:') ||
+                                transaction.referensi?.startsWith('pembayaran_santri:') ||
+                                transaction.kategori === 'Penjualan Inventaris' ? (
                                 <span className="text-xs text-muted-foreground">-</span>
                               ) : (
                                 <>
@@ -1090,11 +1087,10 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                   currentTransactions.map((transaction) => (
                     <div
                       key={transaction.id}
-                      className={`rounded-lg border p-4 space-y-3 ${
-                        transaction.jenis_transaksi === 'Pemasukan' 
-                          ? 'bg-emerald-50/50 border-emerald-200' 
-                          : 'bg-white border-gray-200'
-                      }`}
+                      className={`rounded-lg border p-4 space-y-3 ${transaction.jenis_transaksi === 'Pemasukan'
+                        ? 'bg-emerald-50/50 border-emerald-200'
+                        : 'bg-white border-gray-200'
+                        }`}
                     >
                       {/* Header: Date and Amount */}
                       <div className="flex items-start justify-between gap-3">
@@ -1109,11 +1105,10 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                             </div>
                           </div>
                         </div>
-                        <div className={`text-right flex-shrink-0 text-sm font-semibold ${
-                          transaction.jenis_transaksi === 'Pemasukan' 
-                            ? 'text-emerald-600' 
-                            : 'text-rose-600'
-                        }`}>
+                        <div className={`text-right flex-shrink-0 text-sm font-semibold ${transaction.jenis_transaksi === 'Pemasukan'
+                          ? 'text-emerald-600'
+                          : 'text-rose-600'
+                          }`}>
                           {formatCurrency(transaction.jumlah)}
                         </div>
                       </div>
@@ -1125,22 +1120,22 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {/* Badge ungu untuk semua transaksi donasi (lama dan baru) */}
-                          {(transaction.kategori === 'Donasi' || 
+                          {(transaction.kategori === 'Donasi' ||
                             transaction.kategori === 'Donasi Tunai' ||
                             transaction.referensi?.startsWith('donation:') ||
                             transaction.referensi?.startsWith('donasi:') ||
                             transaction.source_module === 'donasi') && (
-                            <Badge className="text-[10px] px-1.5 py-0 bg-purple-100 text-purple-800 border-purple-200">
-                              Donasi
-                            </Badge>
-                          )}
-                          {(transaction.referensi?.startsWith('inventory_sale:') || 
+                              <Badge className="text-[10px] px-1.5 py-0 bg-purple-100 text-purple-800 border-purple-200">
+                                Donasi
+                              </Badge>
+                            )}
+                          {(transaction.referensi?.startsWith('inventory_sale:') ||
                             transaction.referensi?.startsWith('inventaris:') ||
                             transaction.kategori === 'Penjualan Inventaris') && (
-                            <Badge className="text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800 border-blue-200">
-                              Inventaris
-                            </Badge>
-                          )}
+                              <Badge className="text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800 border-blue-200">
+                                Inventaris
+                              </Badge>
+                            )}
                           {transaction.referensi?.startsWith('pembayaran_santri:') && (
                             <Badge className="text-[10px] px-1.5 py-0 bg-green-100 text-green-800 border-green-200">
                               Pembayaran
@@ -1174,28 +1169,28 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                           const isPengeluaran = transaction.jenis_transaksi === 'Pengeluaran';
                           const jenisAlokasi = transaction.jenis_alokasi as string | undefined;
                           const shouldShowSantriDetail = isPengeluaran && jenisAlokasi === 'langsung';
-                          
+
                           return shouldShowSantriDetail;
                         })() && (
-                          <div className="mt-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={async () => {
-                                if (expandedBantuanLangsung.has(transaction.id)) {
-                                  setExpandedBantuanLangsung(prev => {
-                                    const newSet = new Set(prev);
-                                    newSet.delete(transaction.id);
-                                    return newSet;
-                                  });
-                                } else {
-                                  setExpandedBantuanLangsung(prev => new Set(prev).add(transaction.id));
-                                  // Fetch alokasi santri jika belum ada
-                                  if (!bantuanLangsungAllocations[transaction.id]) {
-                                    try {
-                                      const { data, error } = await supabase
-                                        .from('alokasi_layanan_santri')
-                                        .select(`
+                            <div className="mt-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  if (expandedBantuanLangsung.has(transaction.id)) {
+                                    setExpandedBantuanLangsung(prev => {
+                                      const newSet = new Set(prev);
+                                      newSet.delete(transaction.id);
+                                      return newSet;
+                                    });
+                                  } else {
+                                    setExpandedBantuanLangsung(prev => new Set(prev).add(transaction.id));
+                                    // Fetch alokasi santri jika belum ada
+                                    if (!bantuanLangsungAllocations[transaction.id]) {
+                                      try {
+                                        const { data, error } = await supabase
+                                          .from('alokasi_layanan_santri')
+                                          .select(`
                                           id,
                                           santri_id,
                                           nominal_alokasi,
@@ -1207,100 +1202,100 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                                             id_santri
                                           )
                                         `)
-                                        .eq('keuangan_id', transaction.id)
-                                        .eq('sumber_alokasi', 'manual');
-                                      
-                                      if (!error && data) {
-                                        setBantuanLangsungAllocations(prev => ({
-                                          ...prev,
-                                          [transaction.id]: data
-                                        }));
+                                          .eq('keuangan_id', transaction.id)
+                                          .eq('sumber_alokasi', 'manual');
+
+                                        if (!error && data) {
+                                          setBantuanLangsungAllocations(prev => ({
+                                            ...prev,
+                                            [transaction.id]: data
+                                          }));
+                                        }
+                                      } catch (err) {
+                                        console.error('Error loading alokasi santri:', err);
                                       }
-                                    } catch (err) {
-                                      console.error('Error loading alokasi santri:', err);
                                     }
                                   }
-                                }
-                              }}
-                              className="h-6 text-xs w-full"
-                            >
-                              <Users className="h-3 w-3 mr-1" />
-                              {expandedBantuanLangsung.has(transaction.id) ? 'Sembunyikan' : 'Lihat Rincian Santri'}
-                            </Button>
-                            {expandedBantuanLangsung.has(transaction.id) && bantuanLangsungAllocations[transaction.id] && (
-                              <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
-                                <div className="text-xs font-semibold text-blue-900 mb-2">
-                                  Daftar Santri yang Memperoleh Bantuan:
-                                </div>
-                                <div className="space-y-1 max-h-40 overflow-y-auto">
-                                  {bantuanLangsungAllocations[transaction.id].length > 0 ? (
-                                    bantuanLangsungAllocations[transaction.id].map((alloc: any, idx: number) => (
-                                      <div key={alloc.id || idx} className="text-xs p-1.5 bg-white rounded border border-blue-100">
-                                        <div className="font-medium text-gray-900">
-                                          {alloc.santri?.nama_lengkap || 'Tidak Diketahui'}
+                                }}
+                                className="h-6 text-xs w-full"
+                              >
+                                <Users className="h-3 w-3 mr-1" />
+                                {expandedBantuanLangsung.has(transaction.id) ? 'Sembunyikan' : 'Lihat Rincian Santri'}
+                              </Button>
+                              {expandedBantuanLangsung.has(transaction.id) && bantuanLangsungAllocations[transaction.id] && (
+                                <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                                  <div className="text-xs font-semibold text-blue-900 mb-2">
+                                    Daftar Santri yang Memperoleh Bantuan:
+                                  </div>
+                                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                                    {bantuanLangsungAllocations[transaction.id].length > 0 ? (
+                                      bantuanLangsungAllocations[transaction.id].map((alloc: any, idx: number) => (
+                                        <div key={alloc.id || idx} className="text-xs p-1.5 bg-white rounded border border-blue-100">
+                                          <div className="font-medium text-gray-900">
+                                            {alloc.santri?.nama_lengkap || 'Tidak Diketahui'}
+                                          </div>
+                                          <div className="text-gray-600">
+                                            {alloc.santri?.id_santri || ''} • {alloc.jenis_bantuan || 'Bantuan'}
+                                          </div>
+                                          <div className="text-gray-500 text-[10px]">
+                                            {alloc.periode && `Periode: ${alloc.periode}`}
+                                            {alloc.keterangan && ` • ${alloc.keterangan}`}
+                                          </div>
+                                          <div className="font-semibold text-blue-700 mt-0.5">
+                                            {formatCurrency(alloc.nominal_alokasi || 0)}
+                                          </div>
                                         </div>
-                                        <div className="text-gray-600">
-                                          {alloc.santri?.id_santri || ''} • {alloc.jenis_bantuan || 'Bantuan'}
-                                        </div>
-                                        <div className="text-gray-500 text-[10px]">
-                                          {alloc.periode && `Periode: ${alloc.periode}`}
-                                          {alloc.keterangan && ` • ${alloc.keterangan}`}
-                                        </div>
-                                        <div className="font-semibold text-blue-700 mt-0.5">
-                                          {formatCurrency(alloc.nominal_alokasi || 0)}
-                                        </div>
+                                      ))
+                                    ) : (
+                                      <div className="text-xs text-gray-500 italic">
+                                        Tidak ada alokasi santri
                                       </div>
-                                    ))
-                                  ) : (
-                                    <div className="text-xs text-gray-500 italic">
-                                      Tidak ada alokasi santri
+                                    )}
+                                  </div>
+                                  {bantuanLangsungAllocations[transaction.id].length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-blue-200 text-xs font-semibold text-blue-900">
+                                      Total: {formatCurrency(
+                                        bantuanLangsungAllocations[transaction.id].reduce(
+                                          (sum: number, alloc: any) => sum + (alloc.nominal_alokasi || 0),
+                                          0
+                                        )
+                                      )}
                                     </div>
                                   )}
                                 </div>
-                                {bantuanLangsungAllocations[transaction.id].length > 0 && (
-                                  <div className="mt-2 pt-2 border-t border-blue-200 text-xs font-semibold text-blue-900">
-                                    Total: {formatCurrency(
-                                      bantuanLangsungAllocations[transaction.id].reduce(
-                                        (sum: number, alloc: any) => sum + (alloc.nominal_alokasi || 0),
-                                        0
-                                      )
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                              )}
+                            </div>
+                          )}
                       </div>
 
                       {/* Actions */}
                       {/* Untuk transaksi pemasukan auto_posted, tetap izinkan edit/delete */}
-                      {!((transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') || 
-                         transaction.referensi?.startsWith('inventory_sale:') ||
-                         transaction.referensi?.startsWith('inventaris:') ||
-                         transaction.referensi?.startsWith('pembayaran_santri:') ||
-                         transaction.kategori === 'Penjualan Inventaris') && (
-                        <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onEditTransaction?.(transaction)}
-                            className="flex-1 h-8 text-xs"
-                          >
-                            <Edit className="h-3 w-3 mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onDeleteTransaction?.(transaction)}
-                            className="flex-1 h-8 text-xs text-red-600 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-3 w-3 mr-1" />
-                            Hapus
-                          </Button>
-                        </div>
-                      )}
+                      {!((transaction.auto_posted && transaction.jenis_transaksi !== 'Pemasukan') ||
+                        transaction.referensi?.startsWith('inventory_sale:') ||
+                        transaction.referensi?.startsWith('inventaris:') ||
+                        transaction.referensi?.startsWith('pembayaran_santri:') ||
+                        transaction.kategori === 'Penjualan Inventaris') && (
+                          <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onEditTransaction?.(transaction)}
+                              className="flex-1 h-8 text-xs"
+                            >
+                              <Edit className="h-3 w-3 mr-1" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onDeleteTransaction?.(transaction)}
+                              className="flex-1 h-8 text-xs text-red-600 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              Hapus
+                            </Button>
+                          </div>
+                        )}
                     </div>
                   ))
                 )}
@@ -1328,11 +1323,11 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
               </SelectContent>
             </Select>
           </div>
-          
+
           <div className="flex items-center justify-center sm:justify-end space-x-2 flex-wrap gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handlePreviousPage}
               disabled={currentPage === 1}
               className="flex-shrink-0"
@@ -1342,8 +1337,8 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
             <span className="flex items-center px-3 text-sm whitespace-nowrap">
               Halaman {currentPage} dari {totalPages}
             </span>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={handleNextPage}
               disabled={currentPage === totalPages}
@@ -1364,8 +1359,8 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="batch_kategori">Kategori *</Label>
-              <Select 
-                value={batchEditData.kategori} 
+              <Select
+                value={batchEditData.kategori}
                 onValueChange={(value) => setBatchEditData(prev => ({ ...prev, kategori: value, sub_kategori: '' }))}
               >
                 <SelectTrigger>
@@ -1374,7 +1369,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                 <SelectContent>
                   <SelectItem value="Pendidikan Pesantren">Pendidikan Pesantren</SelectItem>
                   <SelectItem value="Pendidikan Formal">Pendidikan Formal</SelectItem>
-                  <SelectItem value="Operasional dan Konsumsi Santri">Operasional dan Konsumsi Santri</SelectItem>
+                  <SelectItem value="Asrama dan Konsumsi Santri">Asrama dan Konsumsi Santri</SelectItem>
                   <SelectItem value="Bantuan Langsung Yayasan">Bantuan Langsung Yayasan</SelectItem>
                   <SelectItem value="Operasional Yayasan">Operasional Yayasan</SelectItem>
                 </SelectContent>
@@ -1383,9 +1378,9 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
 
             <div className="space-y-2">
               <Label htmlFor="batch_sub_kategori">Sub Kategori</Label>
-              {batchEditData.kategori === 'Operasional dan Konsumsi Santri' ? (
-                <Select 
-                  value={batchEditData.sub_kategori} 
+              {batchEditData.kategori === 'Asrama dan Konsumsi Santri' ? (
+                <Select
+                  value={batchEditData.sub_kategori}
                   onValueChange={(value) => setBatchEditData(prev => ({ ...prev, sub_kategori: value }))}
                 >
                   <SelectTrigger>
@@ -1398,8 +1393,8 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
                   </SelectContent>
                 </Select>
               ) : batchEditData.kategori === 'Operasional Yayasan' ? (
-                <Select 
-                  value={batchEditData.sub_kategori} 
+                <Select
+                  value={batchEditData.sub_kategori}
                   onValueChange={(value) => setBatchEditData(prev => ({ ...prev, sub_kategori: value }))}
                 >
                   <SelectTrigger>
@@ -1429,7 +1424,7 @@ const RiwayatTransaksi: React.FC<RiwayatTransaksiProps> = ({
 
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
               <p className="text-xs text-amber-800">
-                <strong>Catatan:</strong> Hanya transaksi yang bisa di-edit yang akan diupdate. 
+                <strong>Catatan:</strong> Hanya transaksi yang bisa di-edit yang akan diupdate.
                 Transaksi auto-posted (dari donasi, inventaris, pembayaran santri) akan dilewati.
               </p>
             </div>

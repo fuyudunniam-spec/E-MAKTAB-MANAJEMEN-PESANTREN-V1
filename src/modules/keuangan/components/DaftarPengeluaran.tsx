@@ -174,7 +174,7 @@ const DaftarPengeluaran: React.FC = () => {
       // Fetch alokasi santri secara terpisah untuk kategori yang seharusnya punya alokasi
       if (item.kategori === 'Pendidikan Formal' ||
         item.kategori === 'Bantuan Langsung Yayasan' ||
-        item.kategori === 'Operasional dan Konsumsi Santri') {
+        item.kategori === 'Asrama dan Konsumsi Santri') {
         const { data: alokasiData, error: alokasiError } = await supabase
           .from('alokasi_layanan_santri')
           .eq('sumber_alokasi', 'manual')

@@ -83,11 +83,20 @@
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-background text-foreground font-body antialiased;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-heading tracking-tight;
   }
 }
@@ -117,5 +126,17 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  .btn-luxury {
+    @apply uppercase tracking-widest font-bold text-xs transition-all duration-300;
+  }
+
+  .mobile-slider {
+    @apply flex gap-6 overflow-x-auto pb-8 -mx-6 px-6 lg:grid lg:pb-0 lg:mx-0 lg:px-0 scroll-smooth snap-x snap-mandatory;
+  }
+
+  .mobile-slider>* {
+    @apply min-w-[280px] snap-center lg:min-w-0;
   }
 }

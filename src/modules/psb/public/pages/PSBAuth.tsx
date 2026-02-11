@@ -137,16 +137,16 @@ export default function PSBAuth() {
     }
 
     return (
-        <div className="min-h-screen flex font-body bg-paper">
+        <div className="min-h-screen flex font-jakarta bg-paper selection:bg-gold-200 selection:text-navy-950">
             {/* Left Decoration - Hidden on Mobile */}
-            <div className="hidden lg:flex lg:w-1/2 bg-royal-950 relative flex-col justify-between p-16 text-white overflow-hidden">
+            <div className="hidden lg:flex lg:w-1/2 bg-navy-950 relative flex-col justify-between p-16 text-white overflow-hidden">
                 {/* Background Pattern */}
                 <div className="absolute inset-0 bg-gradient-to-br from-royal-950 to-royal-900 z-0"></div>
                 <div className="absolute inset-0 opacity-10 z-0 bg-[url('https://www.transparenttextures.com/patterns/arabesque.png')] mix-blend-overlay"></div>
-                
+
                 {/* Decorative Glows */}
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gold-500/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
-                <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-blue-500/10 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2"></div>
+                <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-royal-400/10 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2"></div>
 
                 <Link to="/" className="relative z-10 flex items-center gap-3 w-fit group">
                     <div className="w-10 h-10 bg-white/10 backdrop-blur border border-white/20 rounded-xl flex items-center justify-center group-hover:bg-gold-500 group-hover:border-gold-500 transition-all duration-300">
@@ -155,17 +155,12 @@ export default function PSBAuth() {
                     <span className="font-display font-bold tracking-widest text-lg">AL-BISRI</span>
                 </Link>
 
-                <div className="relative z-10 max-w-md">
-                    <img 
-                        src="/kop-albisri.png" 
-                        alt="Logo Al-Bisri" 
-                        className="w-56 mb-12 drop-shadow-2xl hover:scale-105 transition-transform duration-500 brightness-0 invert"
-                    />
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/20 border border-gold-500/30 text-gold-400 text-[10px] uppercase tracking-widest font-bold mb-6">
+                <div className="relative z-10 max-w-md animate-fade-in text-center mx-auto lg:text-left lg:mx-0">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-accent-gold text-[10px] uppercase tracking-widest font-bold mb-6 backdrop-blur">
                         <ShieldCheck className="w-3 h-3" /> Penerimaan Santri Baru 2026/2027
                     </div>
-                    <h1 className="text-5xl font-display font-medium leading-[1.3] mb-8">
-                        Mulai <span className="text-gold-400 italic">Perjalanan</span><br />
+                    <h1 className="text-5xl font-display font-medium leading-[1.2] mb-8">
+                        Mulai <span className="text-accent-gold italic font-serif">Perjalanan</span><br />
                         Spiritual & Intelektual Anda.
                     </h1>
                 </div>
@@ -178,7 +173,7 @@ export default function PSBAuth() {
                             </div>
                         ))}
                     </div>
-                    <p>Terdaftar <span className="text-gold-400 font-bold">1.2k+</span> calon santri musim ini</p>
+                    <p>Terdaftar <span className="text-accent-gold font-bold">1.2k+</span> calon santri musim ini</p>
                 </div>
             </div>
 
@@ -189,11 +184,7 @@ export default function PSBAuth() {
                 <div className="w-full max-w-md">
                     {/* Mobile Logo */}
                     <div className="lg:hidden flex justify-center mb-12">
-                        <img 
-                            src="/kop-albisri.png" 
-                            alt="Logo Al-Bisri" 
-                            className="w-40"
-                        />
+                        <h2 className="font-display font-bold text-2xl text-royal-950 tracking-widest">AL-BISRI</h2>
                     </div>
 
                     {sessionUser ? (
@@ -206,7 +197,7 @@ export default function PSBAuth() {
                                         <ShieldCheck className="w-10 h-10" />
                                     </div>
                                     <h3 className="text-2xl font-display font-bold mb-2">Sesi Pendaftaran Aktif</h3>
-                                    <p className="text-royal-200 text-sm font-light mb-8 italic">
+                                    <p className="text-slate-200 text-sm font-light mb-8 italic">
                                         Terdeteksi sebagai: <span className="font-bold text-white uppercase tracking-wider">{sessionUser.user_metadata?.full_name || sessionUser.email}</span>
                                     </p>
 
@@ -230,10 +221,10 @@ export default function PSBAuth() {
                                 </div>
                             </div>
 
-                            <div className="p-6 rounded-2xl border border-blue-100 bg-blue-50 flex gap-4 items-start">
-                                <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                                <div className="text-xs text-blue-800 leading-relaxed">
-                                    <p className="font-bold mb-1 uppercase tracking-wider">Akses Portal</p>
+                            <div className="p-6 rounded-2xl border border-slate-200 bg-slate-50 flex gap-4 items-start animate-in fade-in slide-in-from-bottom-2 duration-700 delay-100">
+                                <ShieldCheck className="w-5 h-5 text-navy-600 shrink-0 mt-0.5" />
+                                <div className="text-xs text-navy-800 leading-relaxed font-sans">
+                                    <p className="font-bold mb-1 uppercase tracking-wider text-navy-900">Akses Portal</p>
                                     Anda sudah masuk ke sistem Al-Bisri. Klik tombol di atas untuk melanjutkan pengisian formulir atau melengkapi berkas.
                                 </div>
                             </div>
@@ -241,10 +232,10 @@ export default function PSBAuth() {
                     ) : (
                         <div className="animate-in fade-in slide-in-from-right-4 duration-500">
                             <div className="mb-10 text-center lg:text-left">
-                                <h2 className="text-3xl font-display font-bold text-royal-950 mb-3">
+                                <h2 className="text-3xl font-display font-bold text-navy-950 mb-3">
                                     {mode === "register" ? "Buat Akun Baru" : "Selamat Datang Kembali"}
                                 </h2>
-                                <p className="text-stone-500 font-light">
+                                <p className="text-slate-500 font-light">
                                     {mode === "register"
                                         ? "Lengkapi formulir di bawah untuk memulai proses pendaftaran."
                                         : "Masuk untuk melanjutkan proses pendaftaran Anda."}
@@ -254,13 +245,13 @@ export default function PSBAuth() {
                             <form onSubmit={handleAuth} className="space-y-6">
                                 {mode === "register" && (
                                     <div className="space-y-2">
-                                        <Label htmlFor="fullName" className="text-xs uppercase tracking-widest font-bold text-stone-400">Nama Lengkap</Label>
+                                        <Label htmlFor="fullName" className="text-xs uppercase tracking-widest font-bold text-slate-400">Nama Lengkap</Label>
                                         <div className="relative">
-                                            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                                            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                             <Input
                                                 id="fullName"
                                                 placeholder="Masukkan nama sesuai ijazah"
-                                                className="pl-12 py-6 rounded-xl border-stone-200 focus:border-royal-900 focus:ring-royal-900/10 transition-all font-body"
+                                                className="pl-12 py-6 rounded-xl border-slate-200 focus:border-navy-900 focus:ring-navy-900/10 transition-all font-sans"
                                                 value={fullName}
                                                 onChange={(e) => setFullName(e.target.value)}
                                                 required
@@ -270,14 +261,14 @@ export default function PSBAuth() {
                                 )}
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="email" className="text-xs uppercase tracking-widest font-bold text-stone-400">Email Aktif</Label>
+                                    <Label htmlFor="email" className="text-xs uppercase tracking-widest font-bold text-slate-400">Email Aktif</Label>
                                     <div className="relative">
-                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                         <Input
                                             id="email"
                                             type="email"
                                             placeholder="nama@email.com"
-                                            className="pl-12 py-6 rounded-xl border-stone-200 focus:border-royal-900 focus:ring-royal-900/10 transition-all font-body"
+                                            className="pl-12 py-6 rounded-xl border-slate-200 focus:border-navy-900 focus:ring-navy-900/10 transition-all font-sans"
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             required
@@ -287,18 +278,18 @@ export default function PSBAuth() {
 
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center">
-                                        <Label htmlFor="password" className="text-xs uppercase tracking-widest font-bold text-stone-400">Password</Label>
+                                        <Label htmlFor="password" className="text-xs uppercase tracking-widest font-bold text-slate-400">Password</Label>
                                         {mode === "login" && (
-                                            <button type="button" className="text-[10px] font-bold text-gold-600 uppercase tracking-wider hover:text-royal-900 transition-colors">Lupa Password?</button>
+                                            <button type="button" className="text-[10px] font-bold text-accent-gold uppercase tracking-wider hover:text-navy-900 transition-colors">Lupa Password?</button>
                                         )}
                                     </div>
                                     <div className="relative">
-                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                         <Input
                                             id="password"
                                             type="password"
                                             placeholder="••••••••"
-                                            className="pl-12 py-6 rounded-xl border-stone-200 focus:border-royal-900 focus:ring-royal-900/10 transition-all"
+                                            className="pl-12 py-6 rounded-xl border-slate-200 focus:border-navy-900 focus:ring-navy-900/10 transition-all font-sans"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
                                             required
@@ -308,7 +299,7 @@ export default function PSBAuth() {
 
                                 <Button
                                     type="submit"
-                                    className="w-full py-7 bg-royal-900 hover:bg-royal-800 text-white rounded-xl shadow-xl shadow-royal-900/20 transition-all duration-300 group"
+                                    className="w-full py-7 bg-navy-950 hover:bg-navy-900 text-white rounded-xl shadow-xl shadow-navy-900/20 transition-all duration-300 group"
                                     disabled={loading}
                                 >
                                     {loading ? (
@@ -329,7 +320,7 @@ export default function PSBAuth() {
                             {mode === "register" ? "Sudah memiliki akun pendaftaran?" : "Belum memiliki akun?"}
                             <button
                                 onClick={() => setMode(mode === "register" ? "login" : "register")}
-                                className="ml-2 font-bold text-royal-900 hover:text-gold-600 transition-colors"
+                                className="ml-2 font-bold text-navy-900 hover:text-accent-gold transition-colors"
                             >
                                 {mode === "register" ? "Masuk di sini" : "Daftar di sini"}
                             </button>
@@ -340,7 +331,7 @@ export default function PSBAuth() {
                         <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-stone-500 mb-2">
                             <Heart className="w-3 h-3 text-gold-600 fill-current" /> Powered by:
                         </div>
-                        <div className="font-display font-bold text-royal-900 tracking-[0.3em] text-[10px]">
+                        <div className="font-display font-bold text-royal-950 tracking-[0.3em] text-[10px]">
                             Isyraq An-Nur
                         </div>
                     </div>

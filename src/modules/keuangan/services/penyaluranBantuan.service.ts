@@ -1,8 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, parseISO, eachMonthOfInterval } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
-import { 
-  excludeTabunganTransactions, 
+import {
+  excludeTabunganTransactions,
   applyTabunganExclusionFilter,
   excludeKoperasiTransactions,
   applyKoperasiExclusionFilter
@@ -39,7 +39,7 @@ export interface PenyaluranStatistics {
   jumlah_transaksi: number;
   by_kategori: {
     'Bantuan Langsung Yayasan': number;
-    'Operasional dan Konsumsi Santri': number;
+    'Asrama dan Konsumsi Santri': number;
     'Pendidikan Formal': number;
     'Pendidikan Pesantren': number;
     'Operasional Yayasan': number;
@@ -158,9 +158,9 @@ export class PenyaluranBantuanService {
             // REVISI v2: Hanya tampilkan transaksi keuangan, bukan alokasi per-santri
             // Untuk Bantuan Langsung, tampilkan jika ada santri_id langsung di transaksi
             // Untuk kategori lain, tampilkan sebagai transaksi tanpa detail per-santri
-            
+
             const kategori = item.kategori || 'Lain-lain';
-            
+
             // Skip jika ini adalah kategori yang tidak relevan untuk laporan penyaluran
             // (kecuali Bantuan Langsung dan Operasional Yayasan yang sudah ditangani di bagian lain)
             if (kategori === 'Operasional Yayasan') {
@@ -191,7 +191,7 @@ export class PenyaluranBantuanService {
               // Ini hanya untuk backward compatibility
               // TODO: Migrate old transactions to have santri_id in keuangan table
             } else if (kategori !== 'Bantuan Langsung Yayasan' && kategori !== 'Operasional Yayasan') {
-              // Untuk kategori lain (Pendidikan Pesantren, Pendidikan Formal, Operasional dan Konsumsi Santri)
+              // Untuk kategori lain (Pendidikan Pesantren, Pendidikan Formal, Asrama dan Konsumsi Santri)
               // Tampilkan sebagai transaksi tanpa detail per-santri (sesuai spec v2)
               // TIDAK menampilkan baris per-santri dari alokasi
               results.push({
@@ -210,7 +210,7 @@ export class PenyaluranBantuanService {
             }
           });
         }
-        
+
         // REVISI: Ambil Bantuan Langsung Yayasan dari alokasi_pengeluaran_santri
         // untuk transaksi lama yang belum punya santri_id di tabel keuangan
         // Hanya untuk kategori "Bantuan Langsung Yayasan"
@@ -241,14 +241,14 @@ export class PenyaluranBantuanService {
             )
           `)
           .eq('sumber_alokasi', 'manual');
-        
+
         // Apply filters - filter by santri_id first (direct field)
         if (filters.santri_id) {
           alokasiQuery = alokasiQuery.eq('santri_id', filters.santri_id);
         }
-        
+
         const { data: alokasiData, error: alokasiError } = await alokasiQuery;
-        
+
         if (alokasiError) {
           console.error('Error fetching alokasi data:', alokasiError);
         } else {
@@ -256,40 +256,40 @@ export class PenyaluranBantuanService {
           const filteredAlokasiData = (alokasiData || []).filter((item: any) => {
             const keuangan = item.keuangan;
             if (!keuangan) return false;
-            
+
             // Filter by kategori
             if (keuangan.kategori !== 'Bantuan Langsung Yayasan') return false;
-            
+
             // Filter by ledger
             if (keuangan.ledger !== 'UMUM') return false;
-            
+
             // Filter by status
             if (keuangan.status !== 'posted') return false;
-            
+
             // Filter by date range
             if (filters.startDate && keuangan.tanggal < filters.startDate) return false;
             if (filters.endDate && keuangan.tanggal > filters.endDate) return false;
-            
+
             return true;
           });
-          
+
           // Sort by tanggal descending
           filteredAlokasiData.sort((a: any, b: any) => {
             const dateA = new Date(a.keuangan.tanggal).getTime();
             const dateB = new Date(b.keuangan.tanggal).getTime();
             return dateB - dateA;
           });
-          
+
           filteredAlokasiData.forEach((item: any) => {
             const keuangan = item.keuangan;
             if (!keuangan || !item.santri) return;
-            
+
             // Skip if already added from keuangan query (with santri_id)
-            const alreadyAdded = results.some(r => 
-              r.referensi_id === keuangan.id && 
+            const alreadyAdded = results.some(r =>
+              r.referensi_id === keuangan.id &&
               r.santri_id === item.santri.id
             );
-            
+
             if (!alreadyAdded) {
               results.push({
                 id: `${keuangan.id}-${item.santri.id}`,
@@ -412,7 +412,7 @@ export class PenyaluranBantuanService {
     // Calculate by category
     const by_kategori = {
       'Bantuan Langsung Yayasan': 0,
-      'Operasional dan Konsumsi Santri': 0,
+      'Asrama dan Konsumsi Santri': 0,
       'Pendidikan Formal': 0,
       'Pendidikan Pesantren': 0,
       'Operasional Yayasan': 0,
@@ -491,7 +491,7 @@ export class PenyaluranBantuanService {
 
     // Generate all months in range, filling missing ones with 0
     const result: MonthlyTrendData[] = [];
-    
+
     // Use eachMonthOfInterval to get all months in range
     const months = eachMonthOfInterval({
       start: startDate,
@@ -501,7 +501,7 @@ export class PenyaluranBantuanService {
     months.forEach((monthDate) => {
       const monthKey = format(monthDate, 'yyyy-MM');
       const monthData = monthlyMap[monthKey] || { finansial: 0, barang: 0 };
-      
+
       result.push({
         month: format(monthDate, 'MMM yyyy', { locale: localeId }),
         finansial: monthData.finansial,
@@ -537,7 +537,7 @@ export class PenyaluranBantuanService {
     // Define main categories with colors
     const mainCategories = [
       { name: 'Bantuan Langsung Yayasan', color: '#3b82f6' }, // Blue
-      { name: 'Operasional dan Konsumsi Santri', color: '#10b981' }, // Green
+      { name: 'Asrama dan Konsumsi Santri', color: '#10b981' }, // Green
       { name: 'Pendidikan Formal', color: '#f59e0b' }, // Amber
       { name: 'Pendidikan Pesantren', color: '#8b5cf6' }, // Purple
       { name: 'Operasional Yayasan', color: '#ef4444' }, // Red
@@ -611,7 +611,7 @@ export class PenyaluranBantuanService {
     santriHistory.forEach((item) => {
       const key = item.santri_id;
       if (!key) return; // Skip if no santri_id
-      
+
       if (!santriMap[key]) {
         santriMap[key] = {
           santri_id: item.santri_id || '',

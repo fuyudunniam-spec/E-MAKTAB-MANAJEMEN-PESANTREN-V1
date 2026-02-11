@@ -21,9 +21,9 @@ const updateTransaction = async (id: string, data: any) => {
     .from('keuangan')
     .update(data)
     .eq('id', id);
-  
+
   if (error) throw error;
-  
+
   // Ensure saldo akun kas is correct after update (per-account)
   try {
     // Prioritaskan akun_kas_id terbaru bila ada di data, kalau tidak ambil dari transaksi existing (fetch singkat)
@@ -52,7 +52,7 @@ const getRincianPengeluaran = async (keuanganId: string) => {
     .from('rincian_pengeluaran')
     .select('*')
     .eq('keuangan_id', keuanganId);
-  
+
   if (error) throw error;
   return data || [];
 };
@@ -62,7 +62,7 @@ const deleteRincianPengeluaran = async (id: string) => {
     .from('rincian_pengeluaran')
     .delete()
     .eq('id', id);
-  
+
   if (error) throw error;
 };
 
@@ -70,7 +70,7 @@ const createRincianPengeluaran = async (data: any) => {
   const { error } = await supabase
     .from('rincian_pengeluaran')
     .insert(data);
-  
+
   if (error) throw error;
 };
 
@@ -99,7 +99,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   // Form data
   const [formData, setFormData] = useState({
     tanggal: '',
@@ -114,10 +114,10 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
 
   // Rincian items
   const [rincianItems, setRincianItems] = useState<RincianItem[]>([]);
-  
+
   // Options
   const [akunKasOptions, setAkunKasOptions] = useState<AkunKas[]>([]);
-  
+
   // Alokasi santri (untuk transaksi dengan alokasi khusus)
   const [alokasiSantri, setAlokasiSantri] = useState<Array<AlokasiPengeluaranSantri & { santri?: { nama_lengkap?: string; id_santri?: string; nisn?: string } }>>([]);
   const [loadingAlokasi, setLoadingAlokasi] = useState(false);
@@ -155,8 +155,8 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   // Reset sub_kategori when kategori changes
   useEffect(() => {
     if (!formData.kategori) return;
-    
-    if (formData.kategori === 'Operasional dan Konsumsi Santri') {
+
+    if (formData.kategori === 'Asrama dan Konsumsi Santri') {
       // Jika sub_kategori tidak valid, reset ke kosong
       if (formData.sub_kategori && formData.sub_kategori !== 'Konsumsi' && formData.sub_kategori !== 'Operasional') {
         setFormData(prev => ({ ...prev, sub_kategori: '' }));
@@ -184,7 +184,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      
+
       // Load akun kas options dan rincian items secara paralel untuk performa lebih baik
       // Only load rincian for Pengeluaran
       const isPemasukan = transaction.jenis_transaksi === 'Pemasukan';
@@ -192,11 +192,11 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
         AkunKasService.getActive(),
         isPemasukan ? Promise.resolve([]) : getRincianPengeluaran(transaction.id).catch(() => []) // Jika error atau pemasukan, return empty array
       ]);
-      
+
       // Filter akun yang dikelola modul Tabungan
       const filtered = (accounts || []).filter((a: any) => a?.managed_by !== 'tabungan');
       setAkunKasOptions(filtered as any);
-      
+
 
       // Set form data from transaction
       const jenisAlokasi = transaction.jenis_alokasi || 'none';
@@ -210,7 +210,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
         jumlah: transaction.jumlah || 0,
         jenis_alokasi: jenisAlokasi
       });
-      
+
       // Load alokasi santri jika jenis alokasi adalah 'langsung'
       // Jangan load alokasi untuk kategori "Operasional Yayasan" karena tidak dialokasikan ke santri
       if (!isPemasukan && jenisAlokasi === 'langsung' && transaction.kategori !== 'Operasional Yayasan') {
@@ -265,14 +265,14 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   const handleRincianChange = (index: number, field: string, value: any) => {
     const updatedItems = [...rincianItems];
     updatedItems[index] = { ...updatedItems[index], [field]: value };
-    
+
     // Recalculate total
     if (field === 'jumlah' || field === 'harga_satuan') {
       updatedItems[index].total = updatedItems[index].jumlah * updatedItems[index].harga_satuan;
     }
-    
+
     setRincianItems(updatedItems);
-    
+
     // Update total amount
     const totalAmount = updatedItems.reduce((sum, item) => sum + item.total, 0);
     setFormData(prev => ({ ...prev, jumlah: totalAmount }));
@@ -320,7 +320,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
           .delete()
           .eq('sumber_alokasi', 'manual')
           .eq('keuangan_id', transaction.id);
-        
+
         if (deleteAlokasiError) {
           // Failed to delete alokasi, but main update already succeeded
         }
@@ -348,12 +348,12 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
         const deletedIds = existingRincian
           .map((item: any) => item.id)
           .filter((id: string) => !rincianItems.some(item => item.id === id));
-        
+
         // Delete removed items
         for (const id of deletedIds) {
           await deleteRincianPengeluaran(id);
         }
-        
+
         // Update existing items
         for (const item of updatedItems) {
           if (item.id) {
@@ -367,11 +367,11 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                 keterangan: item.keterangan
               })
               .eq('id', item.id);
-            
+
             if (error) throw error;
           }
         }
-        
+
         // Create new items
         for (const item of newItems) {
           await createRincianPengeluaran({
@@ -406,7 +406,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
     try {
       setLoadingAlokasi(true);
       const allocations = await AlokasiPengeluaranService.getByKeuanganId(keuanganId);
-      
+
       // Load santri data for each allocation
       const allocationsWithSantri = await Promise.all(
         allocations.map(async (alloc) => {
@@ -416,7 +416,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
               .select('nama_lengkap, id_santri')
               .eq('id', alloc.santri_id)
               .single();
-            
+
             return {
               ...alloc,
               santri: santriData || undefined
@@ -426,7 +426,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
           }
         })
       );
-      
+
       setAlokasiSantri(allocationsWithSantri);
       // Initialize editing state
       const editState: { [key: string]: any } = {};
@@ -462,17 +462,17 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   const handleSaveAlokasi = async () => {
     try {
       setSaving(true);
-      
+
       // Update each alokasi
       for (const [alokasiId, changes] of Object.entries(editingAlokasi)) {
         if (changes && Object.keys(changes).length > 0) {
           await AlokasiPengeluaranService.update(alokasiId, changes);
         }
       }
-      
+
       // Reload alokasi to reflect changes
       await loadAlokasiSantri(transaction.id);
-      
+
       toast.success('Alokasi santri berhasil diperbarui');
     } catch (error) {
       toast.error('Gagal memperbarui alokasi santri');
@@ -493,7 +493,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
 
   // Determine transaction type
   const isPemasukan = transaction.jenis_transaksi === 'Pemasukan';
-  
+
   // Kategori options based on transaction type
   const kategoriPemasukan = [
     'Bunga Bank',
@@ -501,11 +501,11 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
     'Lain-lain (Pemasukan)',
     'Pemasukan Lainnya'
   ];
-  
+
   const kategoriPengeluaran = [
     'Pendidikan Pesantren',
     'Pendidikan Formal',
-    'Operasional dan Konsumsi Santri',
+    'Asrama dan Konsumsi Santri',
     'Bantuan Langsung Yayasan',
     'Operasional Yayasan',
     'Pembangunan'
@@ -546,7 +546,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                       onChange={(e) => handleInputChange('tanggal', e.target.value)}
                     />
                   </div>
-                  
+
                   <div>
                     <Label htmlFor="kategori">Kategori *</Label>
                     <Select value={formData.kategori} onValueChange={(value) => handleInputChange('kategori', value)}>
@@ -568,10 +568,10 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   <div>
                     <Label htmlFor="sub_kategori">Sub Kategori</Label>
-                    {!isPemasukan && formData.kategori === 'Operasional dan Konsumsi Santri' ? (
+                    {!isPemasukan && formData.kategori === 'Asrama dan Konsumsi Santri' ? (
                       <Select value={formData.sub_kategori} onValueChange={(value) => handleInputChange('sub_kategori', value)}>
                         <SelectTrigger>
                           <SelectValue placeholder="Pilih sub kategori" />
@@ -613,7 +613,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                       />
                     )}
                   </div>
-                  
+
                   <div>
                     <Label htmlFor="akun_kas">Akun Kas *</Label>
                     <Select value={formData.akun_kas_id} onValueChange={(value) => handleInputChange('akun_kas_id', value)}>
@@ -629,12 +629,12 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   {!isPemasukan && (
                     <div>
                       <Label htmlFor="jenis_alokasi">Alokasi ke Santri</Label>
-                      <Select 
-                        value={formData.jenis_alokasi || 'none'} 
+                      <Select
+                        value={formData.jenis_alokasi || 'none'}
                         onValueChange={async (value) => {
                           handleInputChange('jenis_alokasi', value);
                           // Load alokasi santri jika jenis alokasi adalah 'langsung'
@@ -659,7 +659,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                       </p>
                     </div>
                   )}
-                  
+
                   <div>
                     <Label htmlFor="penerima_pembayar">{isPemasukan ? 'Penerima/Pemberi' : 'Penerima/Pembayar'}</Label>
                     <Input
@@ -669,7 +669,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                       placeholder={isPemasukan ? "e.g., Bank BCA, Pemerintah Daerah" : "Nama penerima atau pembayar"}
                     />
                   </div>
-                  
+
                   <div>
                     <Label htmlFor="jumlah">Total Jumlah</Label>
                     <Input
@@ -684,7 +684,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                     </p>
                   </div>
                 </div>
-                
+
                 <div>
                   <Label htmlFor="deskripsi">Deskripsi</Label>
                   <Textarea
@@ -727,7 +727,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                             </Button>
                           )}
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                           <div>
                             <Label>Nama Item</Label>
@@ -737,7 +737,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                               placeholder="Nama item"
                             />
                           </div>
-                          
+
                           <div>
                             <Label>Jumlah</Label>
                             <Input
@@ -747,7 +747,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                               placeholder="0"
                             />
                           </div>
-                          
+
                           <div>
                             <Label>Satuan</Label>
                             <Input
@@ -756,7 +756,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                               placeholder="unit"
                             />
                           </div>
-                          
+
                           <div>
                             <Label>Harga Satuan</Label>
                             <Input
@@ -766,7 +766,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                               placeholder="0"
                             />
                           </div>
-                          
+
                           <div>
                             <Label>Total</Label>
                             <Input
@@ -780,7 +780,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                             </p>
                           </div>
                         </div>
-                        
+
                         <div className="mt-4">
                           <Label>Keterangan</Label>
                           <Input
@@ -806,8 +806,8 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                       Distribusi Bantuan ke Santri
                     </CardTitle>
                     <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         size="sm"
                         onClick={() => loadAlokasiSantri(transaction.id)}
                         disabled={loadingAlokasi || saving}
@@ -816,8 +816,8 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                         {loadingAlokasi ? 'Memuat...' : 'Refresh'}
                       </Button>
                       {alokasiSantri.length > 0 && Object.keys(editingAlokasi).length > 0 && (
-                        <Button 
-                          variant="default" 
+                        <Button
+                          variant="default"
                           size="sm"
                           onClick={handleSaveAlokasi}
                           disabled={saving || loadingAlokasi}
@@ -854,8 +854,8 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                             Total Alokasi: {formatCurrency(
                               alokasiSantri.reduce((sum, alloc) => {
                                 const editData = editingAlokasi[alloc.id || ''];
-                                const nominal = editData?.nominal_alokasi !== undefined 
-                                  ? editData.nominal_alokasi 
+                                const nominal = editData?.nominal_alokasi !== undefined
+                                  ? editData.nominal_alokasi
                                   : alloc.nominal_alokasi || 0;
                                 return sum + nominal;
                               }, 0)
@@ -863,7 +863,7 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                           </span>
                         </div>
                       </div>
-                      
+
                       <div className="overflow-x-auto">
                         <Table>
                           <TableHeader>
@@ -880,19 +880,19 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                           <TableBody>
                             {alokasiSantri.map((alloc, index) => {
                               const editData = editingAlokasi[alloc.id || ''] || {};
-                              const nominal = editData.nominal_alokasi !== undefined 
-                                ? editData.nominal_alokasi 
+                              const nominal = editData.nominal_alokasi !== undefined
+                                ? editData.nominal_alokasi
                                 : alloc.nominal_alokasi || 0;
-                              const jenisBantuan = editData.jenis_bantuan !== undefined 
-                                ? editData.jenis_bantuan 
+                              const jenisBantuan = editData.jenis_bantuan !== undefined
+                                ? editData.jenis_bantuan
                                 : alloc.jenis_bantuan || '';
-                              const periode = editData.periode !== undefined 
-                                ? editData.periode 
+                              const periode = editData.periode !== undefined
+                                ? editData.periode
                                 : alloc.periode || '';
-                              const keterangan = editData.keterangan !== undefined 
-                                ? editData.keterangan 
+                              const keterangan = editData.keterangan !== undefined
+                                ? editData.keterangan
                                 : alloc.keterangan || '';
-                              
+
                               return (
                                 <TableRow key={alloc.id || index}>
                                   <TableCell className="font-medium">{index + 1}</TableCell>
@@ -948,17 +948,17 @@ const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
                           </TableBody>
                         </Table>
                       </div>
-                      
+
                       {/* Keterangan untuk setiap alokasi */}
                       {alokasiSantri.length > 0 && (
                         <div className="space-y-2 mt-4">
                           <Label className="text-sm font-medium">Keterangan Alokasi</Label>
                           {alokasiSantri.map((alloc, index) => {
                             const editData = editingAlokasi[alloc.id || ''] || {};
-                            const keterangan = editData.keterangan !== undefined 
-                              ? editData.keterangan 
+                            const keterangan = editData.keterangan !== undefined
+                              ? editData.keterangan
                               : alloc.keterangan || '';
-                            
+
                             return (
                               <div key={alloc.id || index} className="space-y-1">
                                 <div className="flex items-center gap-2">
