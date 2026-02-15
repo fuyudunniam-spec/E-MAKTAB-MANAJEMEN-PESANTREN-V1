@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, User, DollarSign, AlertTriangle, Calendar, Wallet } from 'lucide-react';
-import { TabunganSantriService } from '@/modules/santri/services/tabunganSantri.service';
+import { TabunganSantriService } from '@/modules/santri/shared/services/tabunganSantri.service';
 import { TransaksiTabungan } from '@/modules/keuangan/types/tabungan.types';
 import { AkunKasService, AkunKas } from '@/modules/keuangan/services/akunKas.service';
 import { useToast } from '@/hooks/use-toast';

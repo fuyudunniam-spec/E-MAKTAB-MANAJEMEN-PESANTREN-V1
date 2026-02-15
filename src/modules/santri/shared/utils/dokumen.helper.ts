@@ -1,7 +1,7 @@
 // Dokumen Helper - For registration form
 // Helper untuk manage dokumen requirements berdasarkan kategori
 
-import { DokumenData } from '@/modules/santri/types/santri.types';
+import { DokumenData } from '@/modules/santri/shared/types/santri.types';
 
 export class DokumenHelper {
   // Normalize various labels to strict DB enum values

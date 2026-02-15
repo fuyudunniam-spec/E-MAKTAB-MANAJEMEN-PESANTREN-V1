@@ -2,22 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, RefreshCw, Search, Filter } from 'lucide-react';
+import { Plus, RefreshCw, Search, Filter, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import DonorDataTable from '@/modules/donasi/admin/components/donor/DonorDataTable';
 import DonorFormDialog from '@/modules/donasi/admin/components/donor/DonorFormDialog';
 import { DonorService, type DonorStatistics, type Donor, type JenisDonatur } from '@/modules/donasi/services/donor.service';
 
 const MasterDonatur: React.FC = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [donors, setDonors] = useState<DonorStatistics[]>([]);
   const [filteredDonors, setFilteredDonors] = useState<DonorStatistics[]>([]);
-  
+
   // UI States
   const [showFormDialog, setShowFormDialog] = useState(false);
   const [editingDonor, setEditingDonor] = useState<Donor | null>(null);
-  
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filterJenis, setFilterJenis] = useState<JenisDonatur | 'all'>('all');
@@ -148,7 +150,12 @@ const MasterDonatur: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-            <span>Donasi</span>
+            <button
+              onClick={() => navigate('/pms/donasi')}
+              className="hover:text-gray-900 transition"
+            >
+              Donasi
+            </button>
             <span>/</span>
             <span className="text-gray-900 font-medium">Master Donatur</span>
           </div>
@@ -212,8 +219,8 @@ const MasterDonatur: React.FC = () => {
           </Select>
 
           {/* Status Filter */}
-          <Select 
-            value={filterStatus === 'all' ? 'all' : filterStatus.toString()} 
+          <Select
+            value={filterStatus === 'all' ? 'all' : filterStatus.toString()}
             onValueChange={(v) => setFilterStatus(v === 'all' ? 'all' : v === 'true')}
           >
             <SelectTrigger>

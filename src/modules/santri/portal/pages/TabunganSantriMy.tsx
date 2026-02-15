@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { getSaldoDanRingkas, listTransaksi, listPermohonanSaya, ajukanPenarikan } from '@/modules/santri/services/tabunganSantriClient';
+import { getSaldoDanRingkas, listTransaksi, listPermohonanSaya, ajukanPenarikan } from '@/modules/santri/shared/services/tabunganSantriClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -141,7 +141,7 @@ export default function TabunganSantriMy() {
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAjukan(false)}>Batal</Button>
-              <Button onClick={() => mAjukan.mutate()} disabled={!canWithdraw || mAjukan.isLoading}>Kirim</Button>
+              <Button onClick={() => mAjukan.mutate()} disabled={!canWithdraw || mAjukan.isPending}>Kirim</Button>
             </div>
           </div>
         </DialogContent>

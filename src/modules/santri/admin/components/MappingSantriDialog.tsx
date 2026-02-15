@@ -67,7 +67,7 @@ const MappingSantriDialog: React.FC<MappingSantriDialogProps> = ({
       MasterDataKeuanganService.searchSantriForMapping({
         search: searchQuery || undefined,
         kategori: filterKategori !== 'Semua' ? filterKategori : undefined,
-        status: filterStatus !== 'Semua' ? filterStatus : undefined,
+        status_santri: filterStatus !== 'Semua' ? filterStatus : undefined,
       }),
     enabled: tipeAlokasi === 'pilih_santri',
   });
@@ -303,11 +303,10 @@ const MappingSantriDialog: React.FC<MappingSantriDialogProps> = ({
                         return (
                           <div
                             key={santri.id}
-                            className={`flex items-center space-x-3 p-2 rounded-md border cursor-pointer transition-colors ${
-                              isSelected
+                            className={`flex items-center space-x-3 p-2 rounded-md border cursor-pointer transition-colors ${isSelected
                                 ? 'bg-primary/10 border-primary'
                                 : 'hover:bg-muted/50'
-                            }`}
+                              }`}
                             onClick={() => handleToggleSantri(santri.id)}
                           >
                             <Checkbox
@@ -324,10 +323,10 @@ const MappingSantriDialog: React.FC<MappingSantriDialogProps> = ({
                                   {santri.kategori}
                                 </Badge>
                                 <Badge
-                                  variant={santri.status === 'Aktif' ? 'default' : 'secondary'}
+                                  variant={santri.status_santri === 'Aktif' ? 'default' : 'secondary'}
                                   className="text-xs"
                                 >
-                                  {santri.status}
+                                  {santri.status_santri}
                                 </Badge>
                               </div>
                             </div>

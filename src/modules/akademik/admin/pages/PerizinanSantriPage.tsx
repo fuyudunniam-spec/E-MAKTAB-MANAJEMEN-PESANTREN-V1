@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { PerizinanSantriService, PerizinanSantriInput } from '@/modules/santri/services/perizinanSantri.service';
+import { PerizinanSantriService, PerizinanSantriInput } from '@/modules/santri/shared/services/perizinanSantri.service';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

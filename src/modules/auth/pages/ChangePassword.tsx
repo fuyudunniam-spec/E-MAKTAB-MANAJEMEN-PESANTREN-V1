@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Eye, EyeOff, Lock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { changePassword } from '@/modules/santri/services/santriAuth.service';
+import { changePassword } from '@/modules/santri/shared/services/santriAuth.service';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function ChangePassword() {

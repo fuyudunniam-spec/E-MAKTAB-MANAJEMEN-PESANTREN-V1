@@ -1,0 +1,323 @@
+import React, { useState, useEffect } from 'react';
+import {
+    Search,
+    ArrowRight,
+    Menu,
+    BookOpen,
+    Utensils,
+    Building2,
+    GraduationCap,
+    Heart,
+    ChevronDown,
+    Sparkles,
+    Play,
+    ShieldCheck
+} from 'lucide-react';
+
+// --- DATA: 4 PILAR YAYASAN ---
+
+const programs = [
+    {
+        id: 1,
+        title: 'Pendidikan Formal',
+        subtitle: 'Mewujudkan akses pendidikan berkualitas.',
+        category: 'Pendidikan',
+        image: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&q=80&w=800',
+        donors: 1420,
+        target: 2500000000,
+        collected: 1250000000,
+        icon: GraduationCap
+    },
+    {
+        id: 2,
+        title: 'Pesantren & Tahfidz',
+        subtitle: 'Melahirkan penghafal Al-Quran.',
+        category: 'Dakwah',
+        image: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&q=80&w=800',
+        donors: 3900,
+        target: 1500000000,
+        collected: 850000000,
+        icon: BookOpen
+    },
+    {
+        id: 3,
+        title: 'Kesejahteraan Santri',
+        subtitle: 'Menjamin gizi dan tempat tinggal layak.',
+        category: 'Sosial',
+        image: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?auto=format&fit=crop&q=80&w=800',
+        donors: 5205,
+        target: 3000000000,
+        collected: 900000000,
+        icon: Utensils
+    },
+    {
+        id: 4,
+        title: 'Operasional Yayasan',
+        subtitle: 'Mengokohkan pilar dakwah lembaga.',
+        category: 'Operasional',
+        image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=800',
+        donors: 860,
+        target: 1000000000,
+        collected: 450000000,
+        icon: Building2
+    }
+];
+
+// --- UTILS ---
+const formatCurrency = (val) => {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(val);
+};
+
+// --- COMPONENTS ---
+
+const Navbar = () => {
+    const [scrolled, setScrolled] = useState(false);
+
+    useEffect(() => {
+        const handleScroll = () => setScrolled(window.scrollY > 20);
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    return (
+        <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? 'bg-[#020617]/95 backdrop-blur-md py-4 shadow-xl border-b border-white/5' : 'bg-transparent py-6'}`}>
+            <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                    {/* Logo dengan bentuk Kubah Sederhana */}
+                    <div className="w-10 h-10 bg-[#d4af37] rounded-t-full rounded-b-lg flex items-center justify-center shadow-[0_0_15px_rgba(212,175,55,0.4)]">
+                        <span className="font-serif font-bold text-[#020617] text-xl">D</span>
+                    </div>
+                    <span className={`font-serif font-bold text-xl tracking-wide transition-colors ${scrolled ? 'text-white' : 'text-[#020617]'}`}>DonasiApp</span>
+                </div>
+
+                <div className={`hidden md:flex items-center gap-8 text-sm font-medium transition-colors ${scrolled ? 'text-slate-300' : 'text-[#020617]/80'}`}>
+                    <a href="#" className="font-bold border-b-2 border-[#d4af37] pb-1 hover:text-[#d4af37] transition-colors">Pilar Program</a>
+                    <a href="#" className="hover:text-[#d4af37] transition-colors">Laporan Amanah</a>
+                    <a href="#" className="hover:text-[#d4af37] transition-colors">Tentang Yayasan</a>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <button className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all shadow-lg ${scrolled ? 'bg-white text-[#020617] hover:bg-stone-200' : 'bg-[#020617] text-white hover:bg-[#0f172a]'}`}>
+                        Mulai Donasi
+                    </button>
+                </div>
+            </div>
+        </nav>
+    );
+};
+
+const ArchCard = ({ data }) => {
+    const percent = Math.min((data.collected / data.target) * 100, 100);
+    const Icon = data.icon;
+
+    return (
+        <div className="group relative flex flex-col items-center text-center">
+            {/* Arch Image Container */}
+            <div className="relative w-full aspect-[3/4] overflow-hidden rounded-t-[10rem] rounded-b-3xl shadow-xl shadow-[#020617]/10 group-hover:shadow-2xl group-hover:shadow-[#020617]/30 transition-all duration-700 hover:-translate-y-2 border border-[#020617]/5">
+                <img
+                    src={data.image}
+                    alt={data.title}
+                    className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110 grayscale group-hover:grayscale-0"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/40 to-transparent opacity-90 group-hover:opacity-70 transition-opacity duration-500"></div>
+
+                {/* Floating Icon Badge */}
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-[#020617]/90 backdrop-blur-md p-3 rounded-full shadow-lg text-[#d4af37] border border-white/10">
+                    <Icon size={20} />
+                </div>
+
+                {/* Content Overlay */}
+                <div className="absolute bottom-0 left-0 right-0 p-8 text-white translate-y-2 group-hover:translate-y-0 transition-transform duration-500">
+                    <h3 className="font-serif text-2xl font-bold mb-3 leading-tight text-white group-hover:text-[#d4af37] transition-colors">{data.title}</h3>
+
+                    <div className="opacity-0 group-hover:opacity-100 transition-all duration-500 delay-75 transform translate-y-4 group-hover:translate-y-0">
+                        <div className="flex justify-between text-[10px] uppercase tracking-widest font-bold text-slate-300 mb-2">
+                            <span>Terkumpul</span>
+                            <span>{Math.round(percent)}%</span>
+                        </div>
+                        <div className="w-full bg-white/20 h-1 rounded-full mb-6 overflow-hidden backdrop-blur-sm">
+                            <div className="bg-[#d4af37] h-full rounded-full shadow-[0_0_10px_rgba(212,175,55,0.5)]" style={{ width: `${percent}%` }}></div>
+                        </div>
+
+                        <button className="w-full py-3.5 bg-white text-[#020617] font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-[#d4af37] hover:text-[#020617] transition-all shadow-lg">
+                            Salurkan Sedekah
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Decorative Shadow Base */}
+            <div className="w-[70%] h-4 bg-[#020617]/5 rounded-[100%] blur-md mt-6 group-hover:w-[85%] transition-all duration-700"></div>
+        </div>
+    );
+};
+
+// --- MAIN PAGE ---
+
+const DonasiPage = () => {
+    return (
+        <div className="min-h-screen bg-stone-50 font-sans text-[#020617] selection:bg-[#d4af37] selection:text-white">
+            <Navbar />
+
+            {/* HERO SECTION: SPLIT ARCH */}
+            <header className="relative pt-32 pb-20 px-6 max-w-7xl mx-auto min-h-[90vh] flex flex-col justify-center">
+                <div className="grid lg:grid-cols-2 gap-12 lg:gap-24 items-center">
+
+                    {/* Left: Content */}
+                    <div className="order-2 lg:order-1 relative z-10">
+                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#020617]/5 border border-[#020617]/10 rounded-full text-[#020617] text-xs font-bold uppercase tracking-widest mb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                            <Sparkles size={14} className="text-[#d4af37]" /> Amal Jariyah & Wakaf
+                        </div>
+
+                        <h1 className="font-serif text-5xl md:text-7xl font-bold text-[#020617] mb-8 leading-[1.1]">
+                            Membangun <br />
+                            <span className="italic font-light text-[#d4af37]">Peradaban Umat.</span>
+                        </h1>
+
+                        <p className="text-slate-600 text-lg md:text-xl font-light leading-relaxed max-w-lg mb-10 border-l-2 border-[#d4af37] pl-6">
+                            Kami fokus pada 4 pilar utama untuk keberlanjutan manfaat: Pendidikan, Pesantren, Kesejahteraan Santri, dan Operasional Dakwah.
+                        </p>
+
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <button className="px-8 py-4 bg-[#020617] text-white font-bold rounded-full shadow-xl shadow-[#020617]/30 hover:bg-[#1e293b] hover:translate-y-[-2px] transition-all flex items-center justify-center gap-3">
+                                <Heart size={20} className="text-[#d4af37]" fill="currentColor" /> Mulai Berdonasi
+                            </button>
+                            <button className="px-8 py-4 bg-transparent border-2 border-[#020617]/10 text-[#020617] font-bold rounded-full hover:bg-[#020617] hover:text-white transition-all flex items-center justify-center gap-3">
+                                <Play size={20} fill="currentColor" /> Video Profil
+                            </button>
+                        </div>
+
+                        {/* Stats Minimal */}
+                        <div className="mt-16 flex gap-12">
+                            <div>
+                                <p className="text-3xl font-serif font-bold text-[#020617]">100%</p>
+                                <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mt-1">Amanah</p>
+                            </div>
+                            <div>
+                                <p className="text-3xl font-serif font-bold text-[#020617]">14rb+</p>
+                                <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mt-1">Donatur</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right: Arch Visual */}
+                    <div className="order-1 lg:order-2 relative h-[500px] lg:h-[650px] flex items-end justify-center">
+                        {/* Main Arch Image */}
+                        <div className="relative w-full h-full rounded-t-[20rem] rounded-b-[3rem] overflow-hidden shadow-2xl shadow-[#020617]/20 z-10 animate-in fade-in zoom-in-95 duration-1000 border-4 border-white">
+                            <img
+                                src="https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&q=80&w=1200"
+                                alt="Mosque Arch"
+                                className="w-full h-full object-cover hover:scale-105 transition-transform duration-[2s] grayscale hover:grayscale-0"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-[#020617]/80 to-transparent"></div>
+                        </div>
+
+                        {/* Decorative Background Elements (Islamic Pattern Abstract) */}
+                        <div className="absolute -z-10 w-[120%] h-[80%] border border-[#020617]/5 rounded-t-[20rem] top-10 left-1/2 -translate-x-1/2 animate-pulse"></div>
+                        <div className="absolute -z-20 w-[140%] h-[70%] border border-[#d4af37]/20 rounded-t-[20rem] top-20 left-1/2 -translate-x-1/2"></div>
+                    </div>
+                </div>
+            </header>
+
+            {/* SECTION: 4 PILLARS (THE ARCHES) */}
+            <section className="py-24 px-6 relative overflow-hidden bg-[#020617]">
+                {/* Background Texture */}
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/arabesque.png')] opacity-10"></div>
+                <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-[#d4af37]/10 to-transparent"></div>
+
+                <div className="max-w-7xl mx-auto relative z-10">
+                    <div className="flex flex-col md:flex-row justify-between items-end mb-20 text-white pt-12">
+                        <div>
+                            <h2 className="font-serif text-4xl md:text-5xl font-bold mb-4">4 Pilar Utama</h2>
+                            <p className="text-slate-400 text-lg max-w-lg font-light">Menjaga amanah umat melalui empat sektor strategis.</p>
+                        </div>
+                        <button className="hidden md:flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-[#d4af37] hover:text-white transition-colors border-b border-[#d4af37] hover:border-white pb-1">
+                            Lihat Detail Laporan <ArrowRight size={16} />
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+                        {programs.map((prog) => (
+                            <ArchCard key={prog.id} data={prog} />
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* IMPACT & TRANSPARENCY */}
+            <section className="py-32 px-6 max-w-7xl mx-auto">
+                <div className="bg-white rounded-[3rem] p-12 lg:p-20 shadow-xl border border-stone-200 grid lg:grid-cols-2 gap-16 items-center">
+                    <div>
+                        <div className="w-16 h-16 bg-stone-50 rounded-full flex items-center justify-center text-[#020617] mb-8 shadow-sm">
+                            <ShieldCheck size={32} strokeWidth={1.5} />
+                        </div>
+                        <h2 className="font-serif text-4xl md:text-5xl font-bold text-[#020617] mb-6">
+                            Transparansi <br /> Hingga Rupiah Terakhir.
+                        </h2>
+                        <p className="text-slate-600 text-lg leading-relaxed mb-10 font-light">
+                            Sistem kami terintegrasi langsung dengan pembukuan yayasan.
+                            Anda tidak hanya berdonasi, tapi juga bisa memantau aliran dana secara real-time di dashboard publik kami.
+                        </p>
+
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-4 p-5 rounded-3xl bg-stone-50 border border-stone-100 group hover:border-[#d4af37]/30 transition-colors">
+                                <div className="w-12 h-12 rounded-full bg-[#020617] flex items-center justify-center text-white font-serif font-bold group-hover:bg-[#d4af37] transition-colors">1</div>
+                                <div>
+                                    <span className="font-serif text-[#020617] font-bold text-lg block">Verifikasi Otomatis</span>
+                                    <span className="text-xs text-slate-500 uppercase tracking-wider">Tanpa celah manual</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4 p-5 rounded-3xl bg-stone-50 border border-stone-100 group hover:border-[#d4af37]/30 transition-colors">
+                                <div className="w-12 h-12 rounded-full bg-[#020617] flex items-center justify-center text-white font-serif font-bold group-hover:bg-[#d4af37] transition-colors">2</div>
+                                <div>
+                                    <span className="font-serif text-[#020617] font-bold text-lg block">Audit Keuangan Berkala</span>
+                                    <span className="text-xs text-slate-500 uppercase tracking-wider">Akuntabilitas Terjamin</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="relative">
+                        <div className="absolute inset-0 bg-[#d4af37] rounded-[3rem] rotate-3 transform shadow-2xl"></div>
+                        <div className="relative bg-[#020617] rounded-[3rem] p-8 md:p-16 text-white overflow-hidden shadow-2xl">
+                            {/* Abstract Line Pattern */}
+                            <div className="absolute top-0 right-0 w-64 h-64 border-[1px] border-white/5 rounded-full -mr-16 -mt-16 animate-pulse"></div>
+                            <div className="absolute bottom-0 left-0 w-48 h-48 border-[1px] border-[#d4af37]/20 rounded-full -ml-12 -mb-12"></div>
+                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20"></div>
+
+                            <div className="relative z-10 text-center">
+                                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#d4af37] mb-4">Total Dana Tersalurkan</p>
+                                <h3 className="font-serif text-5xl md:text-6xl font-bold mb-8 tracking-tight">Rp 12.5 M</h3>
+                                <p className="text-sm text-slate-400 mb-10 border-t border-white/10 pt-6">Update Real-time per Detik Ini</p>
+                                <button className="w-full py-5 bg-white text-[#020617] font-bold rounded-2xl hover:bg-[#d4af37] hover:text-white transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+                                    Buka Laporan Lengkap
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* FOOTER */}
+            <footer className="bg-[#020617] text-slate-400 py-16 text-center border-t border-white/10">
+                <div className="flex items-center justify-center gap-3 mb-6 opacity-100">
+                    <div className="w-10 h-10 bg-[#d4af37] rounded-t-full rounded-b-lg flex items-center justify-center text-[#020617] font-bold shadow-[0_0_15px_rgba(212,175,55,0.3)]">D</div>
+                </div>
+                <p className="text-sm max-w-md mx-auto leading-relaxed font-light mb-8">
+                    Membangun masa depan umat melalui transparansi dan amanah yang terjaga.
+                </p>
+                <p className="text-xs text-slate-600">
+                    © 2024 Yayasan Amanah Umat. Terdaftar di Kemenkumham & Dinsos.
+                </p>
+            </footer>
+
+        </div>
+    );
+};
+
+export default DonasiPage;

@@ -17,7 +17,7 @@ import {
   TrendingDown,
   RefreshCw
 } from 'lucide-react';
-import { TabunganSantriService } from '@/modules/santri/services/tabunganSantri.service';
+import { TabunganSantriService } from '@/modules/santri/shared/services/tabunganSantri.service';
 import { TabunganSantriWithSantri, TabunganFilter } from '@/modules/keuangan/types/tabungan.types';
 import { useToast } from '@/hooks/use-toast';
 

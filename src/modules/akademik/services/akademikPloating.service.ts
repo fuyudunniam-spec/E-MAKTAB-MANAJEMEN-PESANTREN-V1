@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { searchSantriStandard, SantriLite } from '@/modules/santri/utils/santri.utils';
+import { searchSantriStandard, SantriLite } from '@/modules/santri/shared/utils/santri.utils';
 
 export interface KelasOption { id: string; nama_kelas: string; program: string; rombel?: string|null } // program fleksibel
 // Export SantriLite dari utils untuk konsistensi

@@ -24,6 +24,8 @@ const FormPemasukanManual: React.FC<FormPemasukanManualProps> = ({ onSuccess }) 
   const [penerimaPembayar, setPenerimaPembayar] = useState('');
   const [akunKasId, setAkunKasId] = useState<string>('');
   const [akunKasOptions, setAkunKasOptions] = useState<AkunKas[]>([]);
+  const [donationProgramId, setDonationProgramId] = useState<string | null>(null);
+  const [donationPrograms, setDonationPrograms] = useState<any[]>([]);
 
   // Kategori pemasukan
   const kategoriPemasukan = [
@@ -35,14 +37,28 @@ const FormPemasukanManual: React.FC<FormPemasukanManualProps> = ({ onSuccess }) 
 
   useEffect(() => {
     loadAkunKas();
+    loadDonationPrograms();
   }, []);
+
+  const loadDonationPrograms = async () => {
+    try {
+      const { data } = await supabase
+        .from('donation_programs')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+      setDonationPrograms(data || []);
+    } catch (error) {
+      console.error('Error loading donation programs:', error);
+    }
+  };
 
   const loadAkunKas = async () => {
     try {
       const accounts = await AkunKasService.getAll();
       const activeAccounts = accounts.filter(acc => acc.status === 'aktif');
       setAkunKasOptions(activeAccounts);
-      
+
       // Set default akun kas
       const defaultAccount = activeAccounts.find(acc => acc.is_default);
       if (defaultAccount) {
@@ -56,7 +72,7 @@ const FormPemasukanManual: React.FC<FormPemasukanManualProps> = ({ onSuccess }) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!tanggal || !kategori || !jumlah || !akunKasId) {
       toast.error('Mohon lengkapi semua field yang wajib diisi');
       return;
@@ -88,7 +104,7 @@ const FormPemasukanManual: React.FC<FormPemasukanManualProps> = ({ onSuccess }) 
         auto_posted: false,
         created_by: user?.id
       };
-      
+
       const { data: keuangan, error: keuanganError } = await supabase
         .from('keuangan')
         .insert(insertData)
@@ -163,6 +179,35 @@ const FormPemasukanManual: React.FC<FormPemasukanManualProps> = ({ onSuccess }) 
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="program">Program Donasi (Label)</Label>
+                <Select
+                  value={donationProgramId || "none"}
+                  onValueChange={async (value) => {
+                    const progId = value === "none" ? null : value;
+                    setDonationProgramId(progId);
+
+                    if (progId) {
+                      const selectedProg = donationPrograms.find(p => p.id === progId);
+                      if (selectedProg?.linked_akun_kas_id) {
+                        setAkunKasId(selectedProg.linked_akun_kas_id);
+                        toast.success(`Akun kas otomatis diubah ke: ${akunKasOptions.find(a => a.id === selectedProg.linked_akun_kas_id)?.nama || 'Akun Program'}`);
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger id="program">
+                    <SelectValue placeholder="Pilih Program (Opsional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Umum / Tanpa Program</SelectItem>
+                    {donationPrograms.map(prog => (
+                      <SelectItem key={prog.id} value={prog.id}>{prog.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="kategori">Kategori *</Label>
                 <Select value={kategori} onValueChange={setKategori} required>
                   <SelectTrigger>
@@ -182,14 +227,14 @@ const FormPemasukanManual: React.FC<FormPemasukanManualProps> = ({ onSuccess }) 
                   id="subKategori"
                   value={subKategori}
                   onChange={(e) => setSubKategori(e.target.value)}
-                  placeholder="e.g., Bunga Deposito, Hibah Pemerintah"
+                  placeholder="e.g., Bunga Bank, Hibah Pemerintah"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="akunKas">Akun Kas *</Label>
-                <Select 
-                  value={akunKasId} 
+                <Select
+                  value={akunKasId}
                   onValueChange={setAkunKasId}
                   required
                 >
@@ -252,7 +297,7 @@ const FormPemasukanManual: React.FC<FormPemasukanManualProps> = ({ onSuccess }) 
           </form>
         </CardContent>
       </Card>
-    </div>
+    </div >
   );
 };
 

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Save, Loader2 } from "lucide-react";
 import PersonalStep from "@/modules/psb/components/forms/PersonalStep";
 import WaliStep from "@/modules/psb/components/forms/WaliStep";
-import { SantriData, WaliData } from "@/modules/santri/types/santri.types";
+import { SantriData, WaliData } from "@/modules/santri/shared/types/santri.types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -31,7 +31,7 @@ const InformasiPage = () => {
 
     try {
       setIsSaving(true);
-      
+
       // Save santri data
       if (formSantriData) {
         const { error: santriError } = await supabase
@@ -76,7 +76,7 @@ const InformasiPage = () => {
             <div className="text-sm text-muted-foreground">
               Pastikan semua data telah diisi dengan benar sebelum menyimpan
             </div>
-            <Button 
+            <Button
               onClick={handleSave}
               disabled={isSaving}
               className="bg-primary hover:bg-primary/90"

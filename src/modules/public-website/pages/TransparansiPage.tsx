@@ -5,7 +5,7 @@ import { Doughnut, Bar } from 'react-chartjs-2';
 import { useQuery } from '@tanstack/react-query';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
-import { getPublicImpactData, type PublicImpactData } from '../services/publicKeuangan.service';
+import { DonasiTransparansiService, type DonasiTransparansiData } from '@/modules/donasi/services/donasi.service';
 
 // Register ChartJS components
 ChartJS.register(ArcElement, ChartTooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
@@ -17,13 +17,10 @@ const TransparansiPage: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
 
-  // Data Fetching
-  const { data: impactData, isLoading } = useQuery<PublicImpactData>({
-    queryKey: ['public-impact-data', selectedYear, selectedMonth],
-    queryFn: () => getPublicImpactData({
-      year: selectedYear,
-      month: undefined // Fetch yearly data
-    })
+  // Data Fetching — scoped to donation program akun_kas only
+  const { data: impactData, isLoading } = useQuery<DonasiTransparansiData>({
+    queryKey: ['donasi-transparansi', selectedYear],
+    queryFn: () => DonasiTransparansiService.getData(selectedYear)
   });
 
   useEffect(() => {
@@ -42,15 +39,15 @@ const TransparansiPage: React.FC = () => {
   // Prepare Chart Data
   const compositionData = useMemo(() => {
     if (!impactData) return null;
-    const labels = impactData.sourceComposition.map(i => i.name);
-    // Luxury Palette: Royal(Navy), Gold, Stone, Muted Blue
-    const designColors = ['#020617', '#d4af37', '#e7e5e4', '#94a3b8', '#64748b'];
+    // Build composition from income vs expense
+    const labels = ['Pemasukan', 'Penyaluran'];
+    const designColors = ['#020617', '#d4af37'];
 
     return {
       labels,
       datasets: [{
-        data: impactData.sourceComposition.map(i => i.value),
-        backgroundColor: designColors.slice(0, impactData.sourceComposition.length),
+        data: [impactData.totalPemasukan, impactData.totalPengeluaran],
+        backgroundColor: designColors,
         borderWidth: 0,
         hoverOffset: 10
       }]
@@ -60,9 +57,9 @@ const TransparansiPage: React.FC = () => {
   const cashFlowData = useMemo(() => {
     if (!impactData) return null;
 
-    const labels = impactData.allocationTrend.map(d => d.month);
-    const incomeData = impactData.allocationTrend.map(d => d.pemasukan);
-    const expenseData = impactData.allocationTrend.map(d => d.pengeluaran);
+    const labels = impactData.trendBulanan.map(d => d.month);
+    const incomeData = impactData.trendBulanan.map(d => d.pemasukan);
+    const expenseData = impactData.trendBulanan.map(d => d.pengeluaran);
 
     return {
       labels,
@@ -190,30 +187,30 @@ const TransparansiPage: React.FC = () => {
             <div className="border-l-2 border-gold-500/30 pl-6 py-2">
               <div className="flex items-center gap-3 mb-2">
                 <Layers className="w-4 h-4 text-gold-500" />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Aset Wakaf</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Saldo Program Donasi</p>
 
               </div>
-              <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.totalAset || 0)}</h3>
+              <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.totalSaldoProgram || 0)}</h3>
             </div>
 
             {/* Card 2 */}
             <div className="border-l-2 border-gold-500/30 pl-6 py-2">
               <div className="flex items-center gap-3 mb-2">
                 <ArrowDownLeft className="w-4 h-4 text-gold-500" />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Amanah Diterima</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Donasi Diterima</p>
 
               </div>
-              <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.yearTotalPemasukan || 0)}</h3>
+              <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.totalPemasukan || 0)}</h3>
             </div>
 
             {/* Card 3 */}
             <div className="border-l-2 border-gold-500/30 pl-6 py-2">
               <div className="flex items-center gap-3 mb-2">
                 <ArrowUpRight className="w-4 h-4 text-gold-500" />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Penyaluran Manfaat</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Penyaluran</p>
 
               </div>
-              <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.totalPenyaluran || 0)}</h3>
+              <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.totalPengeluaran || 0)}</h3>
             </div>
 
           </div>
@@ -240,15 +237,17 @@ const TransparansiPage: React.FC = () => {
             </div>
 
             <div className="space-y-3 pt-6 border-t border-stone-100">
-              {(impactData?.sourceComposition || []).map((item, idx) => {
-                const total = impactData?.sourceComposition.reduce((acc, curr) => acc + curr.value, 0) || 0;
+              {impactData && [
+                { name: 'Pemasukan', value: impactData.totalPemasukan, color: 'bg-royal-950' },
+                { name: 'Penyaluran', value: impactData.totalPengeluaran, color: 'bg-gold-500' },
+              ].map((item, idx) => {
+                const total = impactData.totalPemasukan + impactData.totalPengeluaran;
                 const percentage = total > 0 ? Math.round((item.value / total) * 100) : 0;
-                const colors = ['bg-royal-950', 'bg-gold-500', 'bg-stone-200', 'bg-slate-400'];
 
                 return (
                   <div key={idx} className="flex justify-between items-center text-xs">
                     <span className="flex items-center gap-3 text-stone-600 font-medium">
-                      <div className={`w-2 h-2 rounded-full ${colors[idx % 4]}`}></div>
+                      <div className={`w-2 h-2 rounded-full ${item.color}`}></div>
                       {item.name}
                     </span>
                     <span className="font-bold text-royal-950">{percentage}%</span>
@@ -292,31 +291,17 @@ const TransparansiPage: React.FC = () => {
               <span className="text-gold-600 text-[9px] font-bold uppercase tracking-[0.2em] mb-2 block">Program Unggulan</span>
               <h3 className="font-display text-3xl text-royal-900">Progres Realisasi Program</h3>
             </div>
-            <a href="#" className="hidden sm:flex text-xs font-bold uppercase tracking-widest text-royal-900 hover:text-gold-600 items-center gap-2 transition-colors">
+            <a href="/donasi" className="hidden sm:flex text-xs font-bold uppercase tracking-widest text-royal-900 hover:text-gold-600 items-center gap-2 transition-colors">
               Lihat Semua Program <ArrowRight className="w-4 h-4 ml-1" />
             </a>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {(impactData?.strategicPrograms || []).map((prog, i) => (
-              <div key={i} className="group bg-white p-6 rounded-3xl border border-stone-100 hover:shadow-lg transition-all duration-300">
-                <div className="flex justify-between items-end mb-4">
-                  <h4 className="font-display text-lg font-bold text-royal-900">{prog.title}</h4>
-                  <span className="text-xs font-bold text-gold-600 bg-gold-50 px-2 py-1 rounded-full">{prog.progress}%</span>
-                </div>
-                <div className="w-full bg-stone-100 h-1.5 rounded-full mb-4 overflow-hidden">
-                  <div className="bg-gold-500 h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${prog.progress}%` }}></div>
-                </div>
-
-                <p className="text-xs text-stone-500 font-light leading-relaxed mb-4 min-h-[40px]">
-                  {prog.description}
-                </p>
-                <div className="flex justify-between items-center text-[10px] uppercase tracking-wider border-t border-stone-100 pt-4">
-                  <span className="text-stone-400">Target: {formatCurrency(prog.budget)}</span>
-                  <span className="text-royal-900 font-bold">{prog.status}</span>
-                </div>
-              </div>
-            ))}
+          {/* Programs from donation data are not fetched here — link to /donasi instead */}
+          <div className="text-center py-8 bg-white rounded-2xl border border-stone-100">
+            <p className="text-stone-500 font-light mb-4">Lihat detail progres setiap program donasi</p>
+            <a href="/donasi" className="inline-flex items-center gap-2 px-6 py-3 bg-royal-950 text-white rounded-full text-sm font-bold uppercase tracking-widest hover:bg-gold-600 transition-all">
+              Buka Halaman Donasi <ArrowRight className="w-4 h-4" />
+            </a>
           </div>
         </div>
       </section>
@@ -355,9 +340,9 @@ const TransparansiPage: React.FC = () => {
                       </td>
                       <td className="p-6">
                         <p className="font-display font-medium text-royal-900 text-base">{row.description}</p>
-                        {row.rincian && row.rincian.length > 0 && (
+                        {row.program_nama && (
                           <p className="text-xs text-stone-400 font-light mt-0.5">
-                            {row.rincian.length} Item Detail
+                            Program: {row.program_nama}
                           </p>
                         )}
                       </td>

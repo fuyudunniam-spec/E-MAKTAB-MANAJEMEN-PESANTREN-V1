@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Users, Plus, Trash2, AlertCircle, Star } from "lucide-react";
 import { toast } from 'sonner';
-import { WaliData } from '@/modules/santri/types/santri.types';
+import { WaliData } from '@/modules/santri/shared/types/santri.types';
 
 interface WaliStepProps {
   waliData: WaliData[];

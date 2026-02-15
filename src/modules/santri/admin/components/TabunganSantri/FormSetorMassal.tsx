@@ -20,7 +20,7 @@ import {
   Wallet,
   Info
 } from 'lucide-react';
-import { TabunganSantriService } from '@/modules/santri/services/tabunganSantri.service';
+import { TabunganSantriService } from '@/modules/santri/shared/services/tabunganSantri.service';
 import { AkunKasService, AkunKas } from '@/modules/keuangan/services/akunKas.service';
 import { SaldoTabunganSantri } from '@/modules/keuangan/types/tabungan.types';
 import { useToast } from '@/hooks/use-toast';

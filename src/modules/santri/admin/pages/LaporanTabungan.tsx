@@ -20,7 +20,7 @@ import {
   Users,
   ArrowLeft
 } from 'lucide-react';
-import { TabunganSantriService } from '@/modules/santri/services/tabunganSantri.service';
+import { TabunganSantriService } from '@/modules/santri/shared/services/tabunganSantri.service';
 import { TabunganSantriWithSantri, TabunganFilter, TabunganStats } from '@/modules/keuangan/types/tabungan.types';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';

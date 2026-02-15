@@ -17,7 +17,7 @@ import {
   Info,
   PenLine
 } from "lucide-react";
-import { DokumenData } from '@/modules/santri/types/santri.types';
+import { DokumenData } from '@/modules/santri/shared/types/santri.types';
 import DocumentPreviewDialog from '@/components/common/DocumentPreviewDialog';
 
 interface DokumenStepProps {

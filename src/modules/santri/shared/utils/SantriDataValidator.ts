@@ -1,6 +1,6 @@
 // Santri Data Validator - Validates cross-module data consistency
 import { supabase } from "@/integrations/supabase/client";
-import { ProfileHelper } from "@/modules/santri/utils/profile.helper";
+import { ProfileHelper } from "@/modules/santri/shared/utils/profile.helper";
 
 export interface ValidationResult {
   isValid: boolean;
@@ -97,9 +97,9 @@ export class SantriDataValidator {
    * Validate basic santri data
    */
   private static async validateBasicData(
-    santriData: any, 
-    errors: ValidationError[], 
-    warnings: ValidationWarning[], 
+    santriData: any,
+    errors: ValidationError[],
+    warnings: ValidationWarning[],
     counters: ValidationCounters
   ) {
     const checks = [
@@ -147,10 +147,10 @@ export class SantriDataValidator {
    * Validate academic data consistency
    */
   private static async validateAcademicData(
-    santriId: string, 
-    santriData: any, 
-    errors: ValidationError[], 
-    warnings: ValidationWarning[], 
+    santriId: string,
+    santriData: any,
+    errors: ValidationError[],
+    warnings: ValidationWarning[],
     counters: ValidationCounters
   ) {
     const { data: kelasAnggotaData } = await supabase
@@ -223,10 +223,10 @@ export class SantriDataValidator {
    * Validate financial data consistency
    */
   private static async validateFinancialData(
-    santriId: string, 
-    santriData: any, 
-    errors: ValidationError[], 
-    warnings: ValidationWarning[], 
+    santriId: string,
+    santriData: any,
+    errors: ValidationError[],
+    warnings: ValidationWarning[],
     counters: ValidationCounters
   ) {
     const [tagihanResult, pembayaranResult] = await Promise.all([
@@ -263,20 +263,20 @@ export class SantriDataValidator {
    * Validate document data completeness
    */
   private static async validateDocumentData(
-    santriId: string, 
-    santriData: any, 
-    errors: ValidationError[], 
-    warnings: ValidationWarning[], 
+    santriId: string,
+    santriData: any,
+    errors: ValidationError[],
+    warnings: ValidationWarning[],
     counters: ValidationCounters
   ) {
     const requiredDocs = ProfileHelper.getRequiredDocuments(santriData.kategori, santriData.status_sosial);
-    
+
     const { data: uploadedDocs } = await supabase
       .from('dokumen_santri')
       .select('*')
       .eq('santri_id', santriId);
 
-    const dokumenWajibLengkap = requiredDocs.filter(reqDoc => 
+    const dokumenWajibLengkap = requiredDocs.filter(reqDoc =>
       uploadedDocs?.some(uploaded => uploaded.jenis_dokumen === reqDoc.jenis_dokumen)
     ).length;
 
@@ -297,7 +297,7 @@ export class SantriDataValidator {
     // Check document verification status
     if (uploadedDocs && uploadedDocs.length > 0) {
       const unverifiedDocs = uploadedDocs.filter(doc => doc.status_verifikasi === 'Belum Diverifikasi');
-      
+
       if (unverifiedDocs.length > 0) {
         warnings.push({
           module: 'documents',
@@ -313,10 +313,10 @@ export class SantriDataValidator {
    * Validate wali data
    */
   private static async validateWaliData(
-    santriId: string, 
-    santriData: any, 
-    errors: ValidationError[], 
-    warnings: ValidationWarning[], 
+    santriId: string,
+    santriData: any,
+    errors: ValidationError[],
+    warnings: ValidationWarning[],
     counters: ValidationCounters
   ) {
     const { data: waliData } = await supabase
@@ -367,14 +367,14 @@ export class SantriDataValidator {
    * Create validation result object
    */
   private static createValidationResult(
-    errors: ValidationError[], 
-    warnings: ValidationWarning[], 
-    totalChecks: number, 
-    passedChecks: number, 
+    errors: ValidationError[],
+    warnings: ValidationWarning[],
+    totalChecks: number,
+    passedChecks: number,
     score?: number
   ): ValidationResult {
     const calculatedScore = score !== undefined ? score : (totalChecks > 0 ? Math.round((passedChecks / totalChecks) * 100) : 0);
-    
+
     return {
       isValid: errors.filter(e => e.severity === 'critical' || e.severity === 'high').length === 0,
       errors,

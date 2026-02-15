@@ -9,9 +9,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { getSafeAvatarUrl } from '@/utils/url.utils';
-import { KategoriSantri, StatusSosial, SantriData, WaliData, RiwayatPendidikan, KondisiKesehatan, DokumenData } from '@/modules/santri/types/santri.types';
-import { ProfileHelper } from '@/modules/santri/utils/profile.helper';
-import { DokumenHelper } from '@/modules/santri/utils/dokumen.helper';
+import { KategoriSantri, StatusSosial, SantriData, WaliData, RiwayatPendidikan, KondisiKesehatan, DokumenData } from '@/modules/santri/shared/types/santri.types';
+import { ProfileHelper } from '@/modules/santri/shared/utils/profile.helper';
+import { DokumenHelper } from '@/modules/santri/shared/utils/dokumen.helper';
 
 // Import Steps
 import KategoriStep from '@/modules/psb/components/forms/KategoriStep';

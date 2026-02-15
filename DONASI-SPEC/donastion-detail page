@@ -1,0 +1,389 @@
+import React, { useState } from 'react';
+import {
+    Heart,
+    Share2,
+    ArrowLeft,
+    MapPin,
+    Clock,
+    Users,
+    CheckCircle2,
+    AlertCircle,
+    Download,
+    ArrowDownLeft,
+    ArrowUpRight,
+    X,
+    ChevronDown
+} from 'lucide-react';
+
+// --- MOCK DATA SERVICES ---
+
+const getProgramData = (slug) => {
+    return {
+        id: 'prog_001',
+        title: 'Bangun Sumber Air Bersih Desa Kekeringan',
+        category: 'Wakaf Air',
+        image: 'https://images.unsplash.com/photo-1574482620811-1a26b2b51336?auto=format&fit=crop&q=80&w=1000',
+        targetAmount: 150000000,
+        collectedAmount: 85000000,
+        donorCount: 342,
+        daysLeft: 15,
+        description: `
+      <p class="mb-4">Warga Desa Karanglo setiap hari harus berjalan kaki sejauh 3 KM untuk mendapatkan air bersih. Sumur gali yang ada sudah mengering sejak 3 bulan terakhir akibat kemarau panjang.</p>
+      <p class="mb-4">Program ini bertujuan membangun sumur bor sedalam 60 meter lengkap dengan instalasi toren air dan tempat wudhu untuk musholla setempat.</p>
+      <h3 class="text-xl font-serif font-bold text-slate-900 mt-6 mb-3">Rencana Penggunaan Dana:</h3>
+      <ul class="list-disc pl-5 space-y-2">
+        <li>Pengeboran Sumur (60m)</li>
+        <li>Pembelian Pompa Submersible</li>
+        <li>Pembangunan Menara Air</li>
+      </ul>
+    `,
+        location: 'Gunung Kidul, Yogyakarta',
+        updates: [
+            { date: '20 Okt 2023', title: 'Pengeboran Mencapai 30 Meter', content: 'Alhamdulillah, tim teknis sudah mencapai kedalaman 30 meter. Lapisan tanah berbatu cukup menantang.' },
+            { date: '01 Okt 2023', title: 'Survey Geolistrik Selesai', content: 'Titik sumber air potensial sudah ditemukan di dekat Musholla Al-Hidayah.' }
+        ]
+    };
+};
+
+const getFinancialData = (programId) => {
+    return {
+        summary: {
+            income: 85000000,
+            expense: 35000000,
+            balance: 50000000
+        },
+        transactions: [
+            { id: 1, date: '25 Okt', description: 'Pembayaran Jasa Bor Tahap 1', amount: 15000000, type: 'expense', category: 'Jasa' },
+            { id: 2, date: '24 Okt', description: 'Hamba Allah - Via Web', amount: 500000, type: 'income', category: 'Donasi' },
+            { id: 3, date: '24 Okt', description: 'Beli Pipa PVC 4 Inch (20 btg)', amount: 2500000, type: 'expense', category: 'Material' },
+            { id: 4, date: '23 Okt', description: 'Ibu Siti Aminah - Doa utk Alm Suami', amount: 1000000, type: 'income', category: 'Wakaf' },
+            { id: 5, date: '22 Okt', description: 'Budi Santoso', amount: 200000, type: 'income', category: 'Donasi' },
+        ]
+    };
+};
+
+// --- COMPONENTS ---
+
+const ProgressBar = ({ current, target }) => {
+    const percent = Math.min((current / target) * 100, 100);
+    return (
+        <div className="w-full bg-stone-200 rounded-full h-2 mb-2">
+            <div
+                className="bg-yellow-600 h-2 rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(202,138,4,0.3)]"
+                style={{ width: `${percent}%` }}
+            ></div>
+        </div>
+    );
+};
+
+const TabButton = ({ active, label, onClick, icon: Icon }) => (
+    <button
+        onClick={onClick}
+        className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-all font-serif tracking-wide ${active
+                ? 'border-yellow-600 text-slate-900 bg-yellow-50/50'
+                : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-stone-50'
+            }`}
+    >
+        {Icon && <Icon size={16} className={active ? "text-yellow-600" : ""} />}
+        {label}
+    </button>
+);
+
+const FinancialCard = ({ data }) => {
+    const [filter, setFilter] = useState('all');
+
+    const filteredTrans = data.transactions.filter(t => {
+        if (filter === 'income') return t.type === 'income';
+        if (filter === 'expense') return t.type === 'expense';
+        return true;
+    });
+
+    return (
+        <div className="bg-white rounded-3xl border border-stone-100 shadow-xl shadow-stone-200/50 overflow-hidden">
+            {/* Header Ringkasan Keuangan - Royal Style */}
+            <div className="bg-slate-950 p-6 text-white grid grid-cols-3 divide-x divide-white/10">
+                <div className="px-4 text-center">
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">Total Masuk</p>
+                    <p className="text-lg font-serif font-bold text-yellow-500">Rp {(data.summary.income / 1000000).toFixed(1)} Jt</p>
+                </div>
+                <div className="px-4 text-center">
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">Total Keluar</p>
+                    <p className="text-lg font-serif font-bold text-white">Rp {(data.summary.expense / 1000000).toFixed(1)} Jt</p>
+                </div>
+                <div className="px-4 text-center">
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">Saldo</p>
+                    <p className="text-lg font-serif font-bold text-emerald-400">Rp {(data.summary.balance / 1000000).toFixed(1)} Jt</p>
+                </div>
+            </div>
+
+            {/* Filter & Search */}
+            <div className="p-4 border-b border-stone-100 flex justify-between items-center gap-4 bg-stone-50/50">
+                <div className="flex gap-2">
+                    {['all', 'income', 'expense'].map((f) => (
+                        <button
+                            key={f}
+                            onClick={() => setFilter(f)}
+                            className={`px-4 py-1.5 rounded-full text-[10px] uppercase tracking-widest font-bold transition-all ${filter === f
+                                    ? 'bg-slate-900 text-white shadow-md'
+                                    : 'bg-white border border-stone-200 text-stone-500 hover:border-yellow-500 hover:text-yellow-600'
+                                }`}
+                        >
+                            {f === 'all' ? 'Semua' : f === 'income' ? 'Masuk' : 'Keluar'}
+                        </button>
+                    ))}
+                </div>
+                <button className="text-stone-400 hover:text-slate-900">
+                    <Download size={16} />
+                </button>
+            </div>
+
+            {/* Tabel Transaksi */}
+            <div className="max-h-[400px] overflow-y-auto">
+                <table className="w-full text-left">
+                    <thead className="bg-white sticky top-0 z-10 text-[10px] font-bold text-stone-400 uppercase tracking-widest border-b border-stone-100">
+                        <tr>
+                            <th className="px-6 py-4">Tanggal</th>
+                            <th className="px-6 py-4">Uraian</th>
+                            <th className="px-6 py-4 text-right">Nominal</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-50 text-sm">
+                        {filteredTrans.map((t) => (
+                            <tr key={t.id} className={`transition-colors ${t.type === 'income' ? 'bg-yellow-50/10 hover:bg-yellow-50/30' : 'hover:bg-stone-50'}`}>
+                                <td className="px-6 py-4 text-stone-500 font-medium text-xs">{t.date}</td>
+                                <td className="px-6 py-4">
+                                    <div className="font-serif font-medium text-slate-900">{t.description}</div>
+                                    <div className="text-[10px] uppercase tracking-wider text-stone-400 mt-1 inline-flex items-center gap-1 border border-stone-200 px-2 py-0.5 rounded-full">
+                                        {t.category}
+                                    </div>
+                                </td>
+                                <td className={`px-6 py-4 text-right font-bold font-serif ${t.type === 'income' ? 'text-yellow-700' : 'text-slate-900'}`}>
+                                    {t.type === 'income' ? '+' : '-'} Rp {t.amount.toLocaleString()}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+// --- MAIN PAGE ---
+
+const ProgramDetailPage = () => {
+    const [activeTab, setActiveTab] = useState('story');
+    const [showDonateModal, setShowDonateModal] = useState(false);
+
+    const program = getProgramData('prog_001');
+    const financials = getFinancialData('prog_001');
+
+    return (
+        <div className="min-h-screen bg-stone-50 text-slate-900 font-sans pb-20 selection:bg-yellow-200 selection:text-slate-950">
+
+            {/* Navbar Placeholder (Matches Transparansi Page) */}
+            <div className="h-20 bg-slate-950/90 backdrop-blur-md border-b border-white/10 sticky top-0 z-40 flex items-center px-6 justify-between text-white">
+                <div className="flex items-center gap-2 font-serif font-bold text-xl">
+                    <ArrowLeft className="mr-2 cursor-pointer hover:text-yellow-500 transition-colors" />
+                    <div className="w-8 h-8 bg-yellow-600 rounded-lg flex items-center justify-center text-slate-950 font-bold">D</div>
+                    DonasiApp
+                </div>
+                <button className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                    <Share2 size={20} />
+                </button>
+            </div>
+
+            {/* Hero Header Luxury */}
+            <div className="relative pt-12 pb-32 px-6 bg-slate-950 text-white overflow-hidden">
+                <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/arabesque.png')]"></div>
+                <div className="absolute top-0 right-0 w-2/3 h-full bg-gradient-to-l from-slate-900/50 to-transparent pointer-events-none"></div>
+                <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl"></div>
+
+                <div className="max-w-5xl mx-auto relative z-10">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-8 h-[1px] bg-yellow-500"></div>
+                        <span className="text-yellow-500 text-xs font-bold uppercase tracking-[0.3em]">
+                            {program.category}
+                        </span>
+                    </div>
+                    <h1 className="font-serif text-3xl lg:text-5xl leading-tight mb-4 max-w-3xl">
+                        {program.title}
+                    </h1>
+                    <div className="flex items-center gap-6 text-sm text-slate-300">
+                        <span className="flex items-center gap-2"><MapPin size={16} className="text-yellow-600" /> {program.location}</span>
+                        <span className="flex items-center gap-2"><Clock size={16} className="text-yellow-600" /> {program.daysLeft} hari lagi</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="max-w-5xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-3 gap-8 -mt-24 relative z-20">
+
+                {/* KOLOM KIRI: Konten Utama */}
+                <div className="lg:col-span-2 space-y-8">
+
+                    {/* Main Image */}
+                    <div className="relative aspect-video rounded-[2rem] overflow-hidden bg-stone-200 shadow-2xl border-4 border-white">
+                        <img src={program.image} alt={program.title} className="w-full h-full object-cover" />
+                    </div>
+
+                    {/* TABS NAVIGATION */}
+                    <div className="bg-white rounded-[2rem] shadow-xl shadow-stone-200/50 border border-stone-100 overflow-hidden">
+                        <div className="flex border-b border-stone-100 overflow-x-auto px-4">
+                            <TabButton
+                                active={activeTab === 'story'}
+                                onClick={() => setActiveTab('story')}
+                                label="Cerita & Latar Belakang"
+                                icon={AlertCircle}
+                            />
+                            <TabButton
+                                active={activeTab === 'finance'}
+                                onClick={() => setActiveTab('finance')}
+                                label="Laporan Keuangan"
+                                icon={CheckCircle2}
+                            />
+                        </div>
+
+                        <div className="p-8 min-h-[300px]">
+                            {activeTab === 'story' && (
+                                <div className="prose prose-stone prose-lg max-w-none font-serif text-slate-700 leading-relaxed">
+                                    <div dangerouslySetInnerHTML={{ __html: program.description }} />
+
+                                    {/* Timeline Updates Embedded in Story */}
+                                    <div className="mt-12 pt-8 border-t border-stone-100">
+                                        <h4 className="font-serif font-bold text-xl mb-6 flex items-center gap-2">
+                                            <Clock className="text-yellow-600" size={20} /> Kabar Terbaru
+                                        </h4>
+                                        <div className="space-y-8 pl-4 border-l-2 border-stone-200 ml-2">
+                                            {program.updates.map((update, idx) => (
+                                                <div key={idx} className="relative">
+                                                    <div className="absolute -left-[21px] top-1 w-4 h-4 rounded-full bg-stone-100 border-4 border-slate-900"></div>
+                                                    <div className="mb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{update.date}</div>
+                                                    <h4 className="text-lg font-bold text-slate-900 mb-2 font-serif">{update.title}</h4>
+                                                    <p className="text-stone-600 text-sm leading-relaxed">{update.content}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'finance' && (
+                                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <div className="mb-8 text-center">
+                                        <h3 className="font-serif text-2xl font-bold mb-2 text-slate-900">Transparansi Dana</h3>
+                                        <p className="text-stone-500 text-sm max-w-md mx-auto">
+                                            Setiap rupiah donasi Anda dicatat otomatis oleh sistem akuntansi kami.
+                                            Anda bisa memantau penggunaannya secara real-time di bawah ini.
+                                        </p>
+                                    </div>
+                                    <FinancialCard data={financials} />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                </div>
+
+                {/* KOLOM KANAN: Sidebar Donasi */}
+                <div className="lg:col-span-1">
+                    <div className="sticky top-28 space-y-6">
+
+                        {/* Donation Card Luxury */}
+                        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-stone-200/50 border border-stone-100 relative overflow-hidden group">
+                            {/* Decorative Gradient Blob */}
+                            <div className="absolute -top-10 -right-10 w-32 h-32 bg-yellow-500/10 rounded-full blur-2xl group-hover:bg-yellow-500/20 transition-all duration-700"></div>
+
+                            <div className="mb-8 relative z-10">
+                                <div className="flex justify-between items-end mb-2">
+                                    <span className="text-3xl font-serif font-bold text-slate-900">Rp {(program.collectedAmount / 1000000).toFixed(1)} Jt</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs font-bold text-stone-500 mb-2 uppercase tracking-wide">
+                                    <span>Terkumpul</span>
+                                    <span>Target: {(program.targetAmount / 1000000).toFixed(0)} Jt</span>
+                                </div>
+                                <ProgressBar current={program.collectedAmount} target={program.targetAmount} />
+                                <div className="mt-4 flex items-center justify-between text-xs">
+                                    <div className="flex -space-x-2">
+                                        {[1, 2, 3].map(i => (
+                                            <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-stone-200 flex items-center justify-center text-[10px] font-bold text-stone-500">
+                                                {String.fromCharCode(64 + i)}
+                                            </div>
+                                        ))}
+                                        <div className="w-8 h-8 rounded-full border-2 border-white bg-slate-900 flex items-center justify-center text-[10px] font-bold text-white">
+                                            +{program.donorCount}
+                                        </div>
+                                    </div>
+                                    <span className="text-stone-400 font-medium">Orang Berdonasi</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 relative z-10">
+                                <button
+                                    onClick={() => setShowDonateModal(true)}
+                                    className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-all transform active:scale-95 flex items-center justify-center gap-3 border border-slate-900"
+                                >
+                                    <Heart fill="currentColor" className="text-yellow-500" size={20} />
+                                    Donasi Sekarang
+                                </button>
+                                <button className="w-full py-4 bg-white border-2 border-stone-100 text-slate-900 font-bold rounded-2xl hover:border-slate-900 hover:bg-stone-50 transition-all">
+                                    Bagikan Program
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Trust Badge */}
+                        <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-lg shadow-stone-200/30 flex gap-4 items-center">
+                            <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+                                <CheckCircle2 className="text-emerald-600" size={24} />
+                            </div>
+                            <div>
+                                <h5 className="text-sm font-bold text-slate-900 font-serif">Dana Dijamin Amanah</h5>
+                                <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+                                    Tersinkronisasi langsung dengan buku besar keuangan yayasan.
+                                </p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+            {/* MODAL DONASI */}
+            {showDonateModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-white/20">
+                        <div className="p-6 border-b border-stone-100 flex justify-between items-center bg-stone-50">
+                            <div>
+                                <h3 className="font-serif font-bold text-xl text-slate-900">Nominal Donasi</h3>
+                                <p className="text-xs text-stone-500 mt-1">Pilih atau masukkan nominal kebaikanmu.</p>
+                            </div>
+                            <button onClick={() => setShowDonateModal(false)} className="p-2 hover:bg-stone-200 rounded-full transition-colors"><X size={20} /></button>
+                        </div>
+                        <div className="p-8 space-y-6">
+                            <div className="grid grid-cols-2 gap-3">
+                                {[50000, 100000, 250000, 500000].map(amt => (
+                                    <button key={amt} className="py-4 px-4 border border-stone-200 rounded-2xl font-bold text-stone-600 hover:border-yellow-500 hover:bg-yellow-50 hover:text-yellow-700 transition-all font-serif">
+                                        Rp {(amt / 1000).toFixed(0)}rb
+                                    </button>
+                                ))}
+                            </div>
+                            <div>
+                                <div className="relative">
+                                    <span className="absolute left-6 top-1/2 -translate-y-1/2 font-bold text-slate-400">Rp</span>
+                                    <input type="number" className="w-full pl-14 pr-6 py-4 border border-stone-200 rounded-2xl font-bold text-xl font-serif text-slate-900 focus:ring-2 focus:ring-yellow-500 outline-none bg-stone-50 focus:bg-white transition-colors" placeholder="0" />
+                                </div>
+                            </div>
+                            <button className="w-full py-5 bg-yellow-600 text-white font-bold rounded-2xl hover:bg-yellow-700 shadow-xl shadow-yellow-600/20 transition-all flex justify-center items-center gap-2">
+                                Lanjut Pembayaran <ArrowDownLeft size={18} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+        </div>
+    );
+};
+
+export default ProgramDetailPage;

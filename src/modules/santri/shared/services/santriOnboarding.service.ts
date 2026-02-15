@@ -1,6 +1,6 @@
 // Santri Onboarding Service - Check profile completion and guide onboarding
 import { supabase } from "@/integrations/supabase/client";
-import { ProfileHelper } from "@/modules/santri/utils/profile.helper";
+import { ProfileHelper } from "@/modules/santri/shared/utils/profile.helper";
 
 export interface ProfileCompletionStatus {
   isComplete: boolean;
@@ -42,7 +42,7 @@ export class SantriOnboardingService {
         canSkipOnboarding: false,
       };
     }
-    
+
     try {
       // Get santri data
       const { data: santri, error: santriError } = await supabase
@@ -70,11 +70,11 @@ export class SantriOnboardingService {
 
       // Check basic required fields
       const requiredFields = ProfileHelper.getRequiredFields(santri.kategori, santri.status_sosial);
-      
+
       requiredFields.forEach(field => {
         totalChecks++;
         const value = santri[field.key];
-        const isEmpty = !value || 
+        const isEmpty = !value ||
           (typeof value === 'string' && value.trim() === '') ||
           (typeof value === 'number' && isNaN(value));
 
@@ -160,7 +160,7 @@ export class SantriOnboardingService {
       }
 
       // Check documents - use DocumentService to get requirements (consistent with UI)
-      const { DocumentService } = await import('@/modules/santri/services/document.service');
+      const { DocumentService } = await import('@/modules/santri/shared/services/document.service');
       const requiredDocs = await DocumentService.getDocumentRequirements(
         santri.kategori || 'ALL',
         santri.status_sosial,
@@ -207,8 +207,8 @@ export class SantriOnboardingService {
       });
 
       // Calculate completion percentage
-      const completionPercentage = totalChecks > 0 
-        ? Math.round((passedChecks / totalChecks) * 100) 
+      const completionPercentage = totalChecks > 0
+        ? Math.round((passedChecks / totalChecks) * 100)
         : 0;
 
       const isComplete = completionPercentage === 100 && !missingWali;

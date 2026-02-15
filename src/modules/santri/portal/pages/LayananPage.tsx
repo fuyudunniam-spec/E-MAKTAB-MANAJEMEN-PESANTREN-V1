@@ -1,5 +1,5 @@
 import { useOutletContext } from "react-router-dom";
-import BantuanYayasanTab from "@/modules/santri/components/BantuanYayasanTab";
+import BantuanYayasanTab from "@/modules/santri/shared/components/BantuanYayasanTab";
 
 interface ProfileContext {
   santriId: string;
@@ -11,7 +11,7 @@ const LayananPage = () => {
 
   return (
     <div className="space-y-6 mt-6">
-      <BantuanYayasanTab 
+      <BantuanYayasanTab
         santriId={santriId}
         santriName={santri?.nama_lengkap}
         santriNisn={santri?.nisn}

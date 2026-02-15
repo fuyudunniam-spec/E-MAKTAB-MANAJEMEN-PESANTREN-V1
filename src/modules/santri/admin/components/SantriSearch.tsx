@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Search, X, User, Loader2 } from 'lucide-react';
-import { SantriService } from '@/modules/santri/services/santri.service';
+import { SantriService } from '@/modules/santri/shared/services/santri.service';
 import { cn } from '@/lib/utils';
 
 interface SantriSearchResult {

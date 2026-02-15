@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Heart, User, GraduationCap, Home, Users } from "lucide-react";
-import { KategoriSantri } from '@/modules/santri/types/santri.types';
+import { KategoriSantri } from '@/modules/santri/shared/types/santri.types';
 
 interface KategoriStepProps {
   selectedKategori: KategoriSantri | '';

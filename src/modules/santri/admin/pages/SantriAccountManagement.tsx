@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Plus, RefreshCw, Key, Trash2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { getSantriAccounts, createSantriAccount, updateSantriAccount, deleteSantriAccount, resetSantriPassword, type SantriAccountInfo } from '@/modules/santri/services/santriAuth.service';
+import { getSantriAccounts, createSantriAccount, updateSantriAccount, deleteSantriAccount, resetSantriPassword, type SantriAccountInfo } from '@/modules/santri/shared/services/santriAuth.service';
 
 export default function SantriAccountManagement() {
   const { user } = useAuth();

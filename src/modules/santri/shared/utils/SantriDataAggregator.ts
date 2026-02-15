@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { ProfileHelper } from "@/modules/santri/utils/profile.helper";
+import { ProfileHelper } from "@/modules/santri/shared/utils/profile.helper";
 
 export interface SantriFinancialSummary {
   total_beasiswa: number;

@@ -2,7 +2,7 @@
 // Service for handling santri approval workflow
 
 import { supabase } from '@/integrations/supabase/client';
-import { ApprovalSantriData, StatusApproval } from '@/modules/santri/types/santri.types';
+import { ApprovalSantriData, StatusApproval } from '@/modules/santri/shared/types/santri.types';
 
 export class ApprovalService {
   /**

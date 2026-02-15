@@ -585,6 +585,8 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
   const [penerimaPembayar, setPenerimaPembayar] = useState('');
   const [catatan, setCatatan] = useState('');
   const [jenisAlokasi, setJenisAlokasi] = useState('');
+  const [donationProgramId, setDonationProgramId] = useState<string | null>(null);
+  const [donationPrograms, setDonationPrograms] = useState<any[]>([]);
 
   // Rincian items
   const [rincianItems, setRincianItems] = useState<RincianItem[]>([]);
@@ -990,6 +992,7 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
   // Load initial data
   useEffect(() => {
     loadInitialData();
+    loadDonationPrograms();
   }, []);
 
   const loadInitialData = async () => {
@@ -1015,6 +1018,19 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
     } catch (error) {
       console.error('Error loading initial data:', error);
       toast.error('Gagal memuat data awal');
+    }
+  };
+
+  const loadDonationPrograms = async () => {
+    try {
+      const { data } = await supabase
+        .from('donation_programs')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+      setDonationPrograms(data || []);
+    } catch (error) {
+      console.error('Error loading donation programs:', error);
     }
   };
 
@@ -1818,6 +1834,34 @@ const FormPengeluaranRinci: React.FC<FormPengeluaranRinciProps> = ({ onSuccess }
                     <SelectItem key={akun.id} value={akun.id}>
                       {akun.nama} ({akun.kode})
                     </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="program">Program Donasi (Label)</Label>
+              <Select
+                value={donationProgramId || "none"}
+                onValueChange={async (value) => {
+                  const progId = value === "none" ? null : value;
+                  setDonationProgramId(progId);
+
+                  if (progId) {
+                    const selectedProg = donationPrograms.find(p => p.id === progId);
+                    if (selectedProg?.linked_akun_kas_id) {
+                      setAkunKasId(selectedProg.linked_akun_kas_id);
+                      toast.success(`Akun kas otomatis diubah ke: ${akunKasOptions.find(a => a.id === selectedProg.linked_akun_kas_id)?.nama || 'Akun Program'}`);
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger id="program">
+                  <SelectValue placeholder="Pilih Program (Opsional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Umum / Tanpa Program</SelectItem>
+                  {donationPrograms.map(prog => (
+                    <SelectItem key={prog.id} value={prog.id}>{prog.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

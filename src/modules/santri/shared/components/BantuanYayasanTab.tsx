@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 import {
   getBantuanSantri,
   BantuanSantri
-} from '@/modules/santri/services/alokasiSantriBinaan.service';
+} from '@/modules/santri/shared/services/alokasiSantriBinaan.service';
 import { formatRupiah, formatDate, getBulanNames, getCurrentPeriod } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 

@@ -28,7 +28,7 @@ import { useAuth } from "@/hooks/useAuth";
 // Services
 import { AkunKasService } from "@/modules/keuangan/services/akunKas.service";
 import { TagihanService } from "@/modules/keuangan/services/tagihan.service";
-import { PerizinanSantriService } from "@/modules/santri/services/perizinanSantri.service";
+import { PerizinanSantriService } from "@/modules/santri/shared/services/perizinanSantri.service";
 import { getLabaRugiReport } from "@/modules/koperasi/services/laporanKoperasi.service";
 import { supabase } from "@/integrations/supabase/client";
 

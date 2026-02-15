@@ -1325,7 +1325,9 @@ const KeuanganV3: React.FC = () => {
     ? akunKas.find(akun => akun.id === selectedAccountId)
     : null;
 
-  const selectedAccountName = currentSelectedAccount?.nama;
+  const selectedAccountName = selectedAccountFilter
+    ? akunKas.find(akun => akun.id === selectedAccountFilter)?.nama || 'Semua Akun'
+    : 'Semua Akun';
 
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 bg-white min-h-screen">

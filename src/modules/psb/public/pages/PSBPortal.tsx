@@ -39,7 +39,7 @@ import PersonalStep from '@/modules/psb/components/forms/PersonalStep';
 import WaliStep from '@/modules/psb/components/forms/WaliStep';
 import ProgramSelectionView from '@/modules/psb/components/forms/ProgramSelectionView';
 import DokumenSantriTab from '@/modules/santri/components/DokumenSantriTab';
-import { SantriData, WaliData } from '@/modules/santri/types/santri.types';
+import { SantriData, WaliData } from '@/modules/santri/shared/types/santri.types';
 
 const PSBPortal = () => {
     const navigate = useNavigate();

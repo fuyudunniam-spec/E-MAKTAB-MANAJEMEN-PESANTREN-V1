@@ -24,7 +24,7 @@ import {
   FileText,
   AlertCircle
 } from "lucide-react";
-import { TabunganSantriService, type TabunganStats } from '@/modules/santri/services/tabunganSantri.service';
+import { TabunganSantriService, type TabunganStats } from '@/modules/santri/shared/services/tabunganSantri.service';
 import { SaldoTabunganSantri } from '@/types/tabungan.types';
 import { useToast } from '@/hooks/use-toast';
 import { FormSetorMassal } from '../components/TabunganSantri/FormSetorMassal';

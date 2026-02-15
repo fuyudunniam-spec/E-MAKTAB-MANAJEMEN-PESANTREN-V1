@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { SantriOnboardingService, type RegistrationStep, type SantriRegistrationData } from '@/modules/santri/services/santriOnboarding.service';
+import { SantriOnboardingService, type RegistrationStep, type SantriRegistrationData } from '@/modules/santri/shared/services/santriOnboarding.service';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -25,8 +25,8 @@ import {
 import { toast } from 'sonner';
 import PersonalStep from '@/modules/psb/components/forms/PersonalStep';
 import WaliStep from '@/modules/psb/components/forms/WaliStep';
-import DokumenSantriTab from '@/modules/santri/components/DokumenSantriTab';
-import { SantriData, WaliData } from '@/modules/santri/types/santri.types';
+import DokumenSantriTab from '@/modules/santri/shared/components/DokumenSantriTab';
+import { SantriData, WaliData } from '@/modules/santri/shared/types/santri.types';
 
 const SantriOnboarding: React.FC = () => {
   const navigate = useNavigate();

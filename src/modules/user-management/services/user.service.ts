@@ -218,7 +218,7 @@ export class UserService {
    */
   static async createSantriAccount(input: CreateSantriAccountInput): Promise<{ userId: string; email: string; password: string }> {
     // Import existing service
-    const { createSantriAccount } = await import('@/modules/santri/services/santriAuth.service');
+    const { createSantriAccount } = await import('@/modules/santri/shared/services/santriAuth.service');
     
     // Get santri data
     const { data: santri, error: santriError } = await supabase

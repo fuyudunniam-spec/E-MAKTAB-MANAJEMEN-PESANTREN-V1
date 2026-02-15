@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { User } from "lucide-react";
-import { SantriData, StatusSosial, RumpunKelas } from '@/modules/santri/types/santri.types';
+import { SantriData, StatusSosial, RumpunKelas } from '@/modules/santri/shared/types/santri.types';
 
 interface PersonalStepProps {
   santriData: SantriData;

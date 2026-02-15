@@ -5,7 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { GraduationCap, Plus, Trash2 } from "lucide-react";
-import { RiwayatPendidikan } from '@/modules/santri/types/santri.types';
+import { toast } from 'sonner';
+import { RiwayatPendidikan } from '@/modules/santri/shared/types/santri.types';
 
 interface PendidikanStepProps {
   riwayatPendidikan: RiwayatPendidikan[];
@@ -69,7 +70,7 @@ const PendidikanStep: React.FC<PendidikanStepProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-slate-700">Jenjang *</Label>
-                <Input 
+                <Input
                   value={riwayat.jenjang || ''}
                   onChange={(e) => updateRiwayat(index, 'jenjang', e.target.value)}
                   placeholder="SD, SMP, SMA, TK"
@@ -77,7 +78,7 @@ const PendidikanStep: React.FC<PendidikanStepProps> = ({
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-slate-700">Nama Sekolah *</Label>
-                <Input 
+                <Input
                   value={riwayat.nama_sekolah || ''}
                   onChange={(e) => updateRiwayat(index, 'nama_sekolah', e.target.value)}
                   placeholder="SDN 01, SMPN 02, dll"
@@ -88,7 +89,7 @@ const PendidikanStep: React.FC<PendidikanStepProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-slate-700">Tahun Masuk</Label>
-                <Input 
+                <Input
                   value={riwayat.tahun_masuk || ''}
                   onChange={(e) => updateRiwayat(index, 'tahun_masuk', e.target.value)}
                   placeholder="2018"
@@ -97,7 +98,7 @@ const PendidikanStep: React.FC<PendidikanStepProps> = ({
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-slate-700">Tahun Lulus</Label>
-                <Input 
+                <Input
                   value={riwayat.tahun_lulus || ''}
                   onChange={(e) => updateRiwayat(index, 'tahun_lulus', e.target.value)}
                   placeholder="2024"
@@ -106,7 +107,7 @@ const PendidikanStep: React.FC<PendidikanStepProps> = ({
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-slate-700">Nilai Rata-rata</Label>
-                <Input 
+                <Input
                   type="number"
                   step="0.01"
                   min="0"
@@ -120,7 +121,7 @@ const PendidikanStep: React.FC<PendidikanStepProps> = ({
 
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-slate-700">Prestasi (Opsional)</Label>
-              <Textarea 
+              <Textarea
                 value={riwayat.prestasi || ''}
                 onChange={(e) => updateRiwayat(index, 'prestasi', e.target.value)}
                 placeholder="Juara 1 Lomba Matematika, Ranking 5 besar, dll"
@@ -129,8 +130,8 @@ const PendidikanStep: React.FC<PendidikanStepProps> = ({
             </div>
           </div>
         ))}
-        
-        <Button 
+
+        <Button
           type="button"
           variant="outline"
           onClick={addRiwayat}

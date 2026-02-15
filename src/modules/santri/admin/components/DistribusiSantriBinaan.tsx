@@ -25,7 +25,7 @@ import {
   getAlokasiHistory,
   getPreviewAlokasi,
   AlokasiOverheadBulanan
-} from '@/modules/santri/services/alokasiSantriBinaan.service';
+} from '@/modules/santri/shared/services/alokasiSantriBinaan.service';
 import { formatRupiah, getBulanNames, getCurrentPeriod } from '@/lib/utils';
 
 const DistribusiSantriBinaan: React.FC = () => {

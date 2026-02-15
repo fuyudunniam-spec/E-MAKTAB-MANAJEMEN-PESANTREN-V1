@@ -30,6 +30,7 @@ const TabunganSantriAdmin = lazy(() => import("@/modules/santri/admin/pages/Tabu
 const LaporanTabungan = lazy(() => import("@/modules/santri/admin/pages/LaporanTabungan"));
 const DonasiDashboard = lazy(() => import("@/modules/donasi/admin/pages/DonasiDashboard"));
 const MasterDonatur = lazy(() => import("@/modules/donasi/admin/pages/MasterDonatur"));
+
 const Auth = lazy(() => import("@/modules/auth/pages/Auth"));
 const AdminSetupPage = lazy(() => import("@/modules/user-management/pages/SetupAdmin"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -58,6 +59,7 @@ const AboutUsPage = lazy(() => import("@/modules/public-website/pages/AboutUsPag
 const DonasiPage = lazy(() => import("@/modules/public-website/pages/DonasiPage"));
 const NewsPage = lazy(() => import("@/modules/public-website/pages/NewsPage"));
 const NewsDetailPage = lazy(() => import("@/modules/public-website/pages/NewsDetailPage"));
+const ProgramDonasiDetailPage = lazy(() => import("@/modules/public-website/pages/ProgramDonasiDetailPage"));
 
 // Admin Website Imports - Removed unused imports
 
@@ -131,6 +133,7 @@ const App = () => (
               <Route path="/transparansi" element={<SuspenseOnly><TransparansiPage /></SuspenseOnly>} />
               <Route path="/tentang-kami" element={<SuspenseOnly><AboutUsPage /></SuspenseOnly>} />
               <Route path="/donasi" element={<SuspenseOnly><DonasiPage /></SuspenseOnly>} />
+              <Route path="/donasi/:slug" element={<SuspenseOnly><ProgramDonasiDetailPage /></SuspenseOnly>} />
               <Route path="/berita" element={<SuspenseOnly><NewsPage /></SuspenseOnly>} />
               <Route path="/berita/:slug" element={<SuspenseOnly><NewsDetailPage /></SuspenseOnly>} />
 
@@ -382,17 +385,18 @@ const App = () => (
                   <LaporanTabungan />
                 </WithLayout>
               } />
-              <Route path="/donasi" element={
+              <Route path="/pms/donasi" element={
                 <WithLayout>
                   <DonasiDashboard />
                 </WithLayout>
               } />
-              <Route path="/donasi-dashboard" element={<Navigate to="/donasi" replace />} />
-              <Route path="/donasi/master-donatur" element={
+              <Route path="/donasi-dashboard" element={<Navigate to="/pms/donasi" replace />} />
+              <Route path="/pms/donasi/master-donatur" element={
                 <WithLayout>
                   <MasterDonatur />
                 </WithLayout>
               } />
+
 
               {/* Legacy Redirects */}
               <Route path="/inventaris-test" element={<Navigate to="/inventaris" replace />} />

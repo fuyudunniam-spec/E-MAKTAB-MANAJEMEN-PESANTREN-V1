@@ -1,5 +1,5 @@
 import { useOutletContext } from "react-router-dom";
-import DokumenSantriTab from "@/modules/santri/components/DokumenSantriTab";
+import DokumenSantriTab from "@/modules/santri/shared/components/DokumenSantriTab";
 
 interface ProfileContext {
   santri: any;
@@ -8,7 +8,7 @@ interface ProfileContext {
 
 const DokumenPage = () => {
   const { santri, santriId } = useOutletContext<ProfileContext>();
-  
+
   const isBantuanRecipient = santri?.kategori?.includes('Binaan') || false;
 
   return (
