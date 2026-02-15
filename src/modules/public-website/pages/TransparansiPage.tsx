@@ -14,7 +14,9 @@ const TransparansiPage: React.FC = () => {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
 
-  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  // Default to previous year since many pesantren operate on academic year calendars
+  // Users can switch to current year via the dropdown if needed
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear - 1);
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
 
   // Data Fetching — scoped to donation program akun_kas only

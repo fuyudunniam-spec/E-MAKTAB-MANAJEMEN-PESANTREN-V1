@@ -24,17 +24,29 @@ interface TransaksiProgram {
     status: string;
 }
 
+// Show deskripsi as-is from keuangan table (same data as admin dashboard)
+const getDescription = (deskripsi: string | null): { text: string; isEmpty: boolean } => {
+    if (!deskripsi || deskripsi.trim() === '') return { text: '', isEmpty: true };
+    return { text: deskripsi, isEmpty: false };
+};
+
 const getTransaksiByAkunKas = async (akunKasId: string): Promise<TransaksiProgram[]> => {
-    const { data, error } = await supabase
-        .from('keuangan')
-        .select('id, tanggal, deskripsi, kategori, jumlah, jenis_transaksi, status')
-        .eq('akun_kas_id', akunKasId)
-        .eq('status', 'posted')
-        .order('tanggal', { ascending: false })
-        .limit(50);
+    // Use SECURITY DEFINER RPC to bypass RLS for anonymous public access
+    const { data, error } = await supabase.rpc('get_program_donasi_transactions', {
+        p_akun_kas_id: akunKasId,
+    });
 
     if (error) throw error;
-    return (data || []) as TransaksiProgram[];
+    const txArray = data as any[];
+    return (txArray || []).map((tx: any) => ({
+        id: tx.id,
+        tanggal: tx.tanggal,
+        deskripsi: tx.deskripsi || '',
+        kategori: tx.kategori || '',
+        jumlah: tx.jumlah,
+        jenis_transaksi: tx.jenis_transaksi,
+        status: tx.status,
+    }));
 };
 
 const formatCurrency = (val: number) =>
@@ -679,7 +691,8 @@ const ProgramDonasiDetailPage: React.FC = () => {
                                         <thead>
                                             <tr className="bg-stone-50 text-[10px] font-bold uppercase tracking-widest text-stone-400 border-b border-stone-100">
                                                 <th className="p-4 font-medium">Tanggal</th>
-                                                <th className="p-4 font-medium">Uraian</th>
+                                                <th className="p-4 font-medium">Kategori</th>
+                                                <th className="p-4 font-medium">Deskripsi</th>
                                                 <th className="p-4 font-medium text-right">Nominal</th>
                                                 <th className="p-4 font-medium text-center">Jenis</th>
                                             </tr>
@@ -687,13 +700,28 @@ const ProgramDonasiDetailPage: React.FC = () => {
                                         <tbody className="text-sm">
                                             {transactions.map((tx) => (
                                                 <tr key={tx.id} className={`border-b border-stone-50 hover:bg-stone-50/50 transition-colors`}>
-                                                    <td className="p-4 text-stone-500 font-medium">
+                                                    <td className="p-4 text-stone-500 font-medium whitespace-nowrap">
                                                         {new Date(tx.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                                                     </td>
                                                     <td className="p-4">
-                                                        <p className="text-royal-900 font-medium">{tx.deskripsi || tx.kategori}</p>
+                                                        <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-bold ${tx.jenis_transaksi === 'Pemasukan'
+                                                            ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                                                            : 'text-amber-700 bg-amber-50 border border-amber-200'
+                                                            }`}>
+                                                            {tx.kategori}
+                                                        </span>
                                                     </td>
-                                                    <td className={`p-4 text-right font-display font-bold ${tx.jenis_transaksi === 'Pemasukan' ? 'text-emerald-700' : 'text-royal-900'}`}>
+                                                    <td className="p-4">
+                                                        {(() => {
+                                                            const desc = getDescription(tx.deskripsi);
+                                                            return desc.isEmpty ? (
+                                                                <span className="text-stone-300 italic text-xs">Belum ada deskripsi</span>
+                                                            ) : (
+                                                                <p className="text-royal-900 font-medium text-sm">{desc.text}</p>
+                                                            );
+                                                        })()}
+                                                    </td>
+                                                    <td className={`p-4 text-right font-display font-bold whitespace-nowrap ${tx.jenis_transaksi === 'Pemasukan' ? 'text-emerald-700' : 'text-royal-900'}`}>
                                                         {tx.jenis_transaksi === 'Pemasukan' ? '+' : '-'} {formatCurrency(tx.jumlah)}
                                                     </td>
                                                     <td className="p-4 text-center">

@@ -113,30 +113,31 @@ export class ProgramDonasiService {
     }
 
     static async getActivePublic(): Promise<ProgramDonasi[]> {
-        const { data, error } = await supabase
-            .from('program_donasi')
-            .select(AKUN_KAS_JOIN)
-            .eq('is_active', true)
-            .order('urutan', { ascending: true });
+        // Use SECURITY DEFINER RPC to bypass RLS for anonymous public access
+        const { data, error } = await supabase.rpc('get_program_donasi_public', {});
 
         if (error) throw error;
-        return (data || []).map(mapProgram);
+        const programs = data as any[];
+        if (!programs || !Array.isArray(programs)) return [];
+        return programs.map((p: any) => ({
+            ...p,
+            sanity_slugs: p.sanity_slugs || [],
+        }));
     }
 
     static async getBySlug(slug: string): Promise<ProgramDonasi | null> {
-        const { data, error } = await supabase
-            .from('program_donasi')
-            .select(AKUN_KAS_JOIN)
-            .eq('slug', slug)
-            .eq('is_active', true)
-            .single();
+        // Use SECURITY DEFINER RPC to bypass RLS for anonymous public access
+        const { data, error } = await supabase.rpc('get_program_donasi_public', {
+            p_slug: slug,
+        });
 
-        if (error) {
-            if (error.code === 'PGRST116') return null;
-            throw error;
-        }
-
-        return mapProgram(data);
+        if (error) throw error;
+        if (!data || data === 'null') return null;
+        const p = data as any;
+        return {
+            ...p,
+            sanity_slugs: p.sanity_slugs || [],
+        };
     }
 
     static async create(input: CreateProgramInput): Promise<ProgramDonasi> {
@@ -341,13 +342,16 @@ export class DoaHajatService {
 
 export class DonasiTransparansiService {
     static async getData(year: number): Promise<DonasiTransparansiData> {
-        // 1. Get all program_donasi with their akun_kas_id
-        const { data: programs, error: pgErr } = await supabase
-            .from('program_donasi')
-            .select('id, nama, akun_kas_id, akun_kas!inner(saldo_saat_ini)');
+        // Use SECURITY DEFINER RPC to bypass RLS for anonymous public access
+        const { data, error } = await supabase.rpc('get_donasi_transparansi_data', {
+            p_year: year,
+        });
 
-        if (pgErr) throw pgErr;
-        if (!programs || programs.length === 0) {
+        if (error) throw error;
+
+        const result = data as any;
+
+        if (!result || !result.totalSaldoProgram) {
             return {
                 totalSaldoProgram: 0,
                 totalPemasukan: 0,
@@ -357,64 +361,23 @@ export class DonasiTransparansiService {
             };
         }
 
-        const akunKasIds = [...new Set(programs.map((p: any) => p.akun_kas_id))];
-        const totalSaldo = programs.reduce((s: number, p: any) => s + ((p.akun_kas as any)?.saldo_saat_ini || 0), 0);
-
-        // Map akun_kas_id → program_nama
-        const akunToProgram: Record<string, string> = {};
-        programs.forEach((p: any) => { akunToProgram[p.akun_kas_id] = p.nama; });
-
-        // 2. Get all transactions for these akun_kas in the given year
-        const startDate = `${year}-01-01`;
-        const endDate = `${year}-12-31`;
-
-        const { data: txs, error: txErr } = await supabase
-            .from('keuangan')
-            .select('id, tanggal, deskripsi, kategori, jumlah, jenis_transaksi, akun_kas_id')
-            .in('akun_kas_id', akunKasIds)
-            .eq('status', 'posted')
-            .gte('tanggal', startDate)
-            .lte('tanggal', endDate)
-            .order('tanggal', { ascending: false });
-
-        if (txErr) throw txErr;
-
-        const transactions = txs || [];
-
-        // 3. Aggregate
-        let totalPemasukan = 0;
-        let totalPengeluaran = 0;
-        const trendMap: Record<number, { pemasukan: number; pengeluaran: number }> = {};
-        for (let i = 1; i <= 12; i++) trendMap[i] = { pemasukan: 0, pengeluaran: 0 };
-
-        transactions.forEach((tx: any) => {
-            const month = new Date(tx.tanggal).getMonth() + 1;
-            if (tx.jenis_transaksi === 'Pemasukan') {
-                totalPemasukan += tx.jumlah;
-                trendMap[month].pemasukan += tx.jumlah;
-            } else {
-                totalPengeluaran += tx.jumlah;
-                trendMap[month].pengeluaran += tx.jumlah;
-            }
-        });
-
         return {
-            totalSaldoProgram: totalSaldo,
-            totalPemasukan,
-            totalPengeluaran,
-            trendBulanan: MONTH_NAMES.map((m, i) => ({
-                month: m,
-                monthNum: i + 1,
-                pemasukan: trendMap[i + 1].pemasukan,
-                pengeluaran: trendMap[i + 1].pengeluaran,
+            totalSaldoProgram: result.totalSaldoProgram || 0,
+            totalPemasukan: result.totalPemasukan || 0,
+            totalPengeluaran: result.totalPengeluaran || 0,
+            trendBulanan: (result.trendBulanan || []).map((t: any) => ({
+                month: t.month,
+                monthNum: t.monthNum,
+                pemasukan: t.pemasukan || 0,
+                pengeluaran: t.pengeluaran || 0,
             })),
-            recentTransactions: transactions.slice(0, 50).map((tx: any) => ({
-                date: tx.tanggal,
-                description: tx.deskripsi || tx.kategori,
-                category: tx.kategori,
-                amount: tx.jumlah,
-                type: tx.jenis_transaksi,
-                program_nama: akunToProgram[tx.akun_kas_id] || '—',
+            recentTransactions: (result.recentTransactions || []).map((tx: any) => ({
+                date: tx.date,
+                description: tx.description,
+                category: tx.category,
+                amount: tx.amount,
+                type: tx.type,
+                program_nama: tx.program_nama || '—',
             })),
         };
     }
