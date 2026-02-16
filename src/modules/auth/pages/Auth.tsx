@@ -42,20 +42,12 @@ export default function Auth() {
         if (session) {
           // Check role before redirecting
           const roles = await getUserRoles(session.user.id);
-          const hasAdminRole = roles.some(r => ['admin', 'superadmin', 'pengurus'].includes(r) || r.startsWith('admin_'));
+          const hasStaffOrAbove = roles.some(r => ['admin', 'pengurus', 'staff'].includes(r) || r.startsWith('admin_'));
 
-          if (isAdminLogin) {
-            if (hasAdminRole) {
-              navigate('/pms', { replace: true });
-            } else {
-              navigate('/santri', { replace: true });
-            }
+          if (hasStaffOrAbove) {
+            navigate('/pms', { replace: true });
           } else {
-            if (hasAdminRole) {
-              navigate('/pms', { replace: true });
-            } else {
-              navigate('/santri', { replace: true });
-            }
+            navigate('/santri', { replace: true });
           }
         }
       } catch (err) {
@@ -104,37 +96,28 @@ export default function Auth() {
         }
       } else if (data.user) {
         const roles = await getUserRoles(data.user.id);
-        const metaRole = data.user.user_metadata?.role;
-        const hasMetaAdmin = metaRole === 'admin' || metaRole === 'superadmin';
-        const hasAdminRole = hasMetaAdmin || roles.some(r => ['admin', 'superadmin', 'pengurus'].includes(r) || r.startsWith('admin_'));
+        const hasStaffOrAbove = roles.some(r => ['admin', 'pengurus', 'staff'].includes(r) || r.startsWith('admin_'));
 
         if (isAdminLogin) {
-          if (!hasAdminRole) {
+          // /pms/secure-gate – only staff/admin/pengurus allowed
+          if (!hasStaffOrAbove) {
             await supabase.auth.signOut();
-            setError('Akses ditolak. Halaman ini khusus untuk Administrator & Pengurus.');
+            setError('Akses ditolak. Halaman ini khusus untuk Administrator, Pengurus & Staff.');
             return;
           }
-          setSuccess('Login berhasil! Mengarahkan ke dashboard admin...');
+          setSuccess('Login berhasil! Mengarahkan ke dashboard...');
           navigate('/pms', { replace: true });
         } else {
-          if (hasAdminRole) {
-            await supabase.auth.signOut();
-            setError('Administrator harap login melalui portal khusus admin.');
-            return;
+          // /auth – general login, route based on role
+          if (hasStaffOrAbove) {
+            // Staff/admin accessing /auth → redirect to admin dashboard
+            setSuccess('Login berhasil! Mengarahkan ke dashboard...');
+            navigate('/pms', { replace: true });
+          } else {
+            // Santri / pengajar → santri dashboard
+            setSuccess('Login berhasil! Mengarahkan ke dashboard...');
+            navigate('/santri', { replace: true });
           }
-
-          const userEmail = data.user.email || "";
-          const isEmailLogin = userEmail.includes('@') && !userEmail.endsWith('@pondoksukses.local');
-
-          if (isEmailLogin) {
-            await supabase.auth.signOut();
-            setError('Akun pendaftaran PSB tidak dapat digunakan di sini. Silakan login di Portal PSB.');
-            setTimeout(() => navigate('/psb/auth'), 2000);
-            return;
-          }
-
-          setSuccess('Login berhasil! Mengarahkan ke dashboard santri...');
-          navigate('/santri', { replace: true });
         }
       }
     } catch (err: any) {

@@ -1,5 +1,5 @@
 import { client } from '@/lib/sanity/client'
-import { LANDING_PAGE_QUERY, NEWS_QUERY, ABOUT_PAGE_QUERY, DONATION_PAGE_QUERY } from '@/lib/sanity/queries'
+import { LANDING_PAGE_QUERY, NEWS_QUERY, ABOUT_PAGE_QUERY, DONATION_PAGE_QUERY, PSB_PAGE_QUERY, SITE_SETTINGS_QUERY } from '@/lib/sanity/queries'
 import { urlFor } from '@/lib/sanity/image'
 
 export interface SanityImage {
@@ -54,6 +54,14 @@ export const SanityService = {
 
     getDonationPageData: async () => {
         return await client.fetch(DONATION_PAGE_QUERY)
+    },
+
+    getPsbPageData: async () => {
+        return await client.fetch(PSB_PAGE_QUERY)
+    },
+
+    getSiteSettings: async () => {
+        return await client.fetch(SITE_SETTINGS_QUERY)
     },
 
     imageUrl: (source: SanityImage) => {

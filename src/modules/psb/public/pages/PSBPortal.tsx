@@ -38,7 +38,7 @@ import { toast } from 'sonner';
 import PersonalStep from '@/modules/psb/components/forms/PersonalStep';
 import WaliStep from '@/modules/psb/components/forms/WaliStep';
 import ProgramSelectionView from '@/modules/psb/components/forms/ProgramSelectionView';
-import DokumenSantriTab from '@/modules/santri/components/DokumenSantriTab';
+import DokumenSantriTab from '@/modules/santri/shared/components/DokumenSantriTab';
 import { SantriData, WaliData } from '@/modules/santri/shared/types/santri.types';
 
 const PSBPortal = () => {
@@ -59,13 +59,13 @@ const PSBPortal = () => {
     useEffect(() => {
         // Handle auth state once loading is finished
         if (!authLoading && !user) {
-             // Only redirect if explicitly not logged in AND loading is done
-             console.log("No user found in portal, redirecting to auth");
-             navigate('/psb/auth', { replace: true });
+            // Only redirect if explicitly not logged in AND loading is done
+            console.log("No user found in portal, redirecting to auth");
+            navigate('/psb/auth', { replace: true });
         } else if (user && !dataLoading && !santriData) {
-             // User exists, but data not loaded yet.
-             // Only load if not already loading and no data present
-             loadInitialData();
+            // User exists, but data not loaded yet.
+            // Only load if not already loading and no data present
+            loadInitialData();
         }
     }, [user, authLoading, navigate, santriData]);
 
@@ -153,25 +153,25 @@ const PSBPortal = () => {
 
     const handleProgramSelect = async (programId: string) => {
         if (!user?.id) return;
-        
+
         // Draft Mode: Tidak langsung simpan ke database
         const timestamp = Date.now();
         const angkatan = new Date().getFullYear().toString();
-        
+
         // Generate ID properly with async await
         const idSantri = await generateIdSantri(programId, angkatan);
-        
+
         const draftSantriData = {
             user_id: user.id,
             nama_lengkap: user.name || user.email?.split('@')[0] || 'Calon Santri',
             status_santri: 'Calon',
             status_approval: 'pending',
-            kategori: programId, 
+            kategori: programId,
             id_santri: idSantri,
-            
+
             // Default values
             nisn: `TMP${timestamp}`,
-            nik: `NIK${timestamp}`, 
+            nik: `NIK${timestamp}`,
             jenis_kelamin: 'Laki-laki',
             tempat_lahir: '',
             tanggal_lahir: '',
@@ -180,7 +180,7 @@ const PSBPortal = () => {
             agama: 'Islam',
             status_sosial: 'Lengkap',
             kewarganegaraan: 'Indonesia',
-            
+
             tipe_pembayaran: programId.includes('Binaan') ? 'Subsidi Penuh' : 'Bayar Sendiri',
             angkatan: angkatan,
             created_at: new Date().toISOString()
@@ -195,7 +195,7 @@ const PSBPortal = () => {
             alamat: '',
             is_utama: true,
         }]);
-        
+
         setShowProgramSelection(false);
         toast.info("Program dipilih. Silakan lengkapi data diri Anda.");
     };
@@ -211,7 +211,7 @@ const PSBPortal = () => {
             setShowResetConfirm(false);
             return;
         }
-        
+
         // Jika sudah tersimpan di DB, hapus record
         setSaving(true);
         try {
@@ -223,14 +223,14 @@ const PSBPortal = () => {
             if (error) throw error;
 
             toast.success("Program berhasil direset. Silakan pilih program baru.");
-            
+
             setSantriData(null);
             setFormSantriData({});
             setWaliData([]);
             setShowProgramSelection(true);
             setCurrentStep('info');
             setShowResetConfirm(false);
-            
+
         } catch (error: any) {
             console.error('Error resetting program:', error);
             toast.error(`Gagal mereset program: ${error.message}`);
@@ -250,14 +250,14 @@ const PSBPortal = () => {
             if (!formSantriData.tempat_lahir?.trim()) throw new Error("Tempat Lahir wajib diisi");
             if (!formSantriData.tanggal_lahir) throw new Error("Tanggal Lahir wajib diisi");
             if (!formSantriData.alamat?.trim()) throw new Error("Alamat wajib diisi");
-            
+
             // Clean up data before sending
             const cleanData = { ...formSantriData };
-            
+
             // Remove empty strings for date fields to avoid DB errors
             if (cleanData.tanggal_lahir === '') cleanData.tanggal_lahir = null;
             if (cleanData.tanggal_masuk === '') cleanData.tanggal_masuk = null;
-            
+
             // Ensure numeric fields are numbers or null
             if (cleanData.anak_ke === '') cleanData.anak_ke = null;
             if (cleanData.jumlah_saudara === '') cleanData.jumlah_saudara = null;
@@ -273,7 +273,7 @@ const PSBPortal = () => {
                 if (createError) throw createError;
 
                 setSantriData(newSantri);
-                setFormSantriData(newSantri); 
+                setFormSantriData(newSantri);
                 toast.success('Data diri berhasil disimpan! Pendaftaran Anda telah dibuat.');
             } else {
                 // UPDATE jika sudah ada ID
@@ -368,9 +368,9 @@ const PSBPortal = () => {
     if (showProgramSelection) {
         return (
             <PSBLayout>
-                <ProgramSelectionView 
-                    onSelect={handleProgramSelect} 
-                    isLoading={saving} 
+                <ProgramSelectionView
+                    onSelect={handleProgramSelect}
+                    isLoading={saving}
                 />
             </PSBLayout>
         );
@@ -378,7 +378,7 @@ const PSBPortal = () => {
 
     const handleStatusSosialChange = async (value: string) => {
         if (!santriData?.id) return;
-        
+
         // Update local state immediately for UI responsiveness
         setFormSantriData(prev => ({ ...prev, status_sosial: value }));
         setSantriData(prev => ({ ...prev, status_sosial: value }));
@@ -441,10 +441,10 @@ const PSBPortal = () => {
                                             <div className="w-2 h-2 rounded-full bg-green-500"></div>
                                             ID Pendaftar: <span className="text-white font-bold">{santriData?.id_santri || 'TERDAFTAR'}</span>
                                         </div>
-                                        
+
                                         {!dataLoading && santriData?.status_approval === 'pending' && (
                                             <div className="mt-1">
-                                                <button 
+                                                <button
                                                     onClick={() => setShowResetConfirm(true)}
                                                     className="text-xs font-medium text-slate-400 hover:text-gold-500 transition-colors flex items-center gap-1 group"
                                                 >
@@ -481,7 +481,7 @@ const PSBPortal = () => {
                                             const isActive = currentStep === step.id;
                                             const isPast = steps.findIndex(s => s.id === currentStep) > i;
                                             const isAccessible = canAccessStep(step.id);
-                                            
+
                                             return (
                                                 <button
                                                     key={step.id}
@@ -493,7 +493,7 @@ const PSBPortal = () => {
                                                             ? 'bg-royal-950 text-white shadow-lg shadow-royal-950/20'
                                                             : isPast
                                                                 ? 'text-green-600 bg-green-50 hover:bg-green-100'
-                                                                : isAccessible 
+                                                                : isAccessible
                                                                     ? 'text-slate-500 hover:bg-slate-100'
                                                                     : 'text-slate-300 cursor-not-allowed opacity-60'
                                                         }
@@ -556,24 +556,23 @@ const PSBPortal = () => {
                                                 {/* Status Icon */}
                                                 <div className={`
                                                     w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl animate-in zoom-in duration-500
-                                                    ${santriData?.status_approval === 'disetujui' ? 'bg-green-100 text-green-600' 
-                                                      : santriData?.status_approval === 'ditolak' ? 'bg-red-100 text-red-600'
-                                                      : 'bg-amber-100 text-amber-600'}
+                                                    ${santriData?.status_approval === 'disetujui' ? 'bg-green-100 text-green-600'
+                                                        : santriData?.status_approval === 'ditolak' ? 'bg-red-100 text-red-600'
+                                                            : 'bg-amber-100 text-amber-600'}
                                                 `}>
-                                                    {santriData?.status_approval === 'disetujui' ? <CheckCircle className="w-12 h-12" /> 
-                                                     : santriData?.status_approval === 'ditolak' ? <XCircle className="w-12 h-12" />
-                                                     : <Clock className="w-12 h-12" />}
+                                                    {santriData?.status_approval === 'disetujui' ? <CheckCircle className="w-12 h-12" />
+                                                        : santriData?.status_approval === 'ditolak' ? <XCircle className="w-12 h-12" />
+                                                            : <Clock className="w-12 h-12" />}
                                                 </div>
 
                                                 {/* Status Title */}
-                                                <h3 className={`text-3xl font-bold mb-3 ${
-                                                    santriData?.status_approval === 'disetujui' ? 'text-green-700'
-                                                    : santriData?.status_approval === 'ditolak' ? 'text-red-700'
-                                                    : 'text-royal-950'
-                                                }`}>
-                                                    {santriData?.status_approval === 'disetujui' ? 'Selamat! Anda Diterima' 
-                                                     : santriData?.status_approval === 'ditolak' ? 'Mohon Maaf, Pendaftaran Ditolak'
-                                                     : 'Sedang Diverifikasi'}
+                                                <h3 className={`text-3xl font-bold mb-3 ${santriData?.status_approval === 'disetujui' ? 'text-green-700'
+                                                        : santriData?.status_approval === 'ditolak' ? 'text-red-700'
+                                                            : 'text-royal-950'
+                                                    }`}>
+                                                    {santriData?.status_approval === 'disetujui' ? 'Selamat! Anda Diterima'
+                                                        : santriData?.status_approval === 'ditolak' ? 'Mohon Maaf, Pendaftaran Ditolak'
+                                                            : 'Sedang Diverifikasi'}
                                                 </h3>
 
                                                 {/* Status Description */}
@@ -581,36 +580,36 @@ const PSBPortal = () => {
                                                     {santriData?.status_approval === 'disetujui'
                                                         ? 'Alhamdulillah, pendaftaran Anda telah disetujui. Silakan gunakan ID Santri di bawah ini untuk login ke Sistem Akademik.'
                                                         : santriData?.status_approval === 'ditolak'
-                                                        ? 'Mohon maaf, berdasarkan hasil verifikasi, pendaftaran Anda belum dapat kami terima. Silakan hubungi panitia untuk informasi lebih lanjut.'
-                                                        : 'Terima kasih telah melengkapi data. Tim panitia sedang melakukan pengecekan berkas dan data Anda. Mohon tunggu informasi selanjutnya.'
+                                                            ? 'Mohon maaf, berdasarkan hasil verifikasi, pendaftaran Anda belum dapat kami terima. Silakan hubungi panitia untuk informasi lebih lanjut.'
+                                                            : 'Terima kasih telah melengkapi data. Tim panitia sedang melakukan pengecekan berkas dan data Anda. Mohon tunggu informasi selanjutnya.'
                                                     }
                                                 </p>
-                                                
+
                                                 {/* APPROVED ACTION: Show ID & Login Button */}
                                                 {santriData?.status_approval === 'disetujui' && (
-                                                  <div className="flex flex-col items-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-150">
-                                                    <div className="p-6 bg-royal-950/5 rounded-2xl border-2 border-royal-950/10 w-full max-w-sm relative overflow-hidden group hover:border-gold-500/50 transition-colors">
-                                                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-royal-900 via-gold-500 to-royal-900"></div>
-                                                      <p className="text-xs uppercase tracking-widest font-bold text-slate-500 mb-2">ID Santri Resmi Anda</p>
-                                                      <div className="flex items-center justify-center gap-3">
-                                                          <p className="text-4xl font-display font-bold text-royal-950 tracking-wider font-mono">{santriData.id_santri}</p>
-                                                      </div>
-                                                      <p className="text-[10px] text-slate-400 mt-2">Gunakan ID ini sebagai username login Anda</p>
-                                                    </div>
+                                                    <div className="flex flex-col items-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-150">
+                                                        <div className="p-6 bg-royal-950/5 rounded-2xl border-2 border-royal-950/10 w-full max-w-sm relative overflow-hidden group hover:border-gold-500/50 transition-colors">
+                                                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-royal-900 via-gold-500 to-royal-900"></div>
+                                                            <p className="text-xs uppercase tracking-widest font-bold text-slate-500 mb-2">ID Santri Resmi Anda</p>
+                                                            <div className="flex items-center justify-center gap-3">
+                                                                <p className="text-4xl font-display font-bold text-royal-950 tracking-wider font-mono">{santriData.id_santri}</p>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-400 mt-2">Gunakan ID ini sebagai username login Anda</p>
+                                                        </div>
 
-                                                    <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md justify-center">
-                                                        <Button 
-                                                          onClick={() => {
-                                                            signOut();
-                                                            setTimeout(() => navigate('/auth'), 500);
-                                                          }}
-                                                          className="bg-gold-500 hover:bg-gold-600 text-royal-950 font-bold px-8 py-6 rounded-2xl shadow-xl shadow-gold-500/20 w-full sm:w-auto transition-all hover:scale-105"
-                                                        >
-                                                          <LogIn className="w-5 h-5 mr-2" />
-                                                          Login Portal Santri
-                                                        </Button>
+                                                        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md justify-center">
+                                                            <Button
+                                                                onClick={() => {
+                                                                    signOut();
+                                                                    setTimeout(() => navigate('/auth'), 500);
+                                                                }}
+                                                                className="bg-gold-500 hover:bg-gold-600 text-royal-950 font-bold px-8 py-6 rounded-2xl shadow-xl shadow-gold-500/20 w-full sm:w-auto transition-all hover:scale-105"
+                                                            >
+                                                                <LogIn className="w-5 h-5 mr-2" />
+                                                                Login Portal Santri
+                                                            </Button>
+                                                        </div>
                                                     </div>
-                                                  </div>
                                                 )}
 
                                                 {/* REJECTED ACTION: Show Contact Button */}
@@ -637,31 +636,30 @@ const PSBPortal = () => {
                                                         { label: "Daftar Akun", status: "done" },
                                                         { label: "Lengkapi Data", status: "done" },
                                                         { label: "Verifikasi", status: santriData?.status_approval === 'pending' ? "active" : "done" },
-                                                        { 
-                                                            label: santriData?.status_approval === 'ditolak' ? "Ditolak" : "Diterima", 
-                                                            status: santriData?.status_approval === 'pending' ? "pending" 
-                                                                    : santriData?.status_approval === 'ditolak' ? "error" 
-                                                                    : "done" 
+                                                        {
+                                                            label: santriData?.status_approval === 'ditolak' ? "Ditolak" : "Diterima",
+                                                            status: santriData?.status_approval === 'pending' ? "pending"
+                                                                : santriData?.status_approval === 'ditolak' ? "error"
+                                                                    : "done"
                                                         },
                                                     ].map((item, i) => (
                                                         <div key={i} className="text-center group flex flex-col items-center z-10">
                                                             <div className={`
                                                                 w-12 h-12 rounded-full border-4 border-white flex items-center justify-center mb-3 transition-all shadow-lg
-                                                                ${item.status === 'done' ? 'bg-green-500 text-white' 
-                                                                  : item.status === 'active' ? 'bg-royal-950 text-white ring-4 ring-royal-950/10' 
-                                                                  : item.status === 'error' ? 'bg-red-500 text-white'
-                                                                  : 'bg-slate-200 text-slate-400'}
+                                                                ${item.status === 'done' ? 'bg-green-500 text-white'
+                                                                    : item.status === 'active' ? 'bg-royal-950 text-white ring-4 ring-royal-950/10'
+                                                                        : item.status === 'error' ? 'bg-red-500 text-white'
+                                                                            : 'bg-slate-200 text-slate-400'}
                                                             `}>
-                                                                {item.status === 'done' ? <CheckCircle2 className="w-6 h-6" /> 
-                                                                 : item.status === 'error' ? <XCircle className="w-6 h-6" />
-                                                                 : <span className="font-bold text-sm">{i + 1}</span>}
+                                                                {item.status === 'done' ? <CheckCircle2 className="w-6 h-6" />
+                                                                    : item.status === 'error' ? <XCircle className="w-6 h-6" />
+                                                                        : <span className="font-bold text-sm">{i + 1}</span>}
                                                             </div>
-                                                            <span className={`text-xs font-bold uppercase tracking-widest ${
-                                                                item.status === 'done' ? 'text-green-600' 
-                                                                : item.status === 'active' ? 'text-royal-950' 
-                                                                : item.status === 'error' ? 'text-red-600'
-                                                                : 'text-slate-400'
-                                                            }`}>
+                                                            <span className={`text-xs font-bold uppercase tracking-widest ${item.status === 'done' ? 'text-green-600'
+                                                                    : item.status === 'active' ? 'text-royal-950'
+                                                                        : item.status === 'error' ? 'text-red-600'
+                                                                            : 'text-slate-400'
+                                                                }`}>
                                                                 {item.label}
                                                             </span>
                                                         </div>
@@ -671,18 +669,15 @@ const PSBPortal = () => {
 
                                             {/* Admin Notes Section */}
                                             {(santriData?.catatan_approval || santriData?.status_approval === 'ditolak') && (
-                                                <div className={`p-6 rounded-[24px] border ${
-                                                    santriData?.status_approval === 'ditolak' ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'
-                                                }`}>
-                                                    <h4 className={`font-bold mb-3 flex items-center gap-2 ${
-                                                        santriData?.status_approval === 'ditolak' ? 'text-red-800' : 'text-royal-950'
+                                                <div className={`p-6 rounded-[24px] border ${santriData?.status_approval === 'ditolak' ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'
                                                     }`}>
+                                                    <h4 className={`font-bold mb-3 flex items-center gap-2 ${santriData?.status_approval === 'ditolak' ? 'text-red-800' : 'text-royal-950'
+                                                        }`}>
                                                         <Info className={`w-5 h-5 ${santriData?.status_approval === 'ditolak' ? 'text-red-600' : 'text-royal-600'}`} />
                                                         Catatan Panitia
                                                     </h4>
-                                                    <p className={`font-medium italic leading-relaxed ${
-                                                        santriData?.status_approval === 'ditolak' ? 'text-red-600' : 'text-slate-600'
-                                                    }`}>
+                                                    <p className={`font-medium italic leading-relaxed ${santriData?.status_approval === 'ditolak' ? 'text-red-600' : 'text-slate-600'
+                                                        }`}>
                                                         "{santriData?.catatan_approval || 'Tidak ada catatan khusus.'}"
                                                     </p>
                                                 </div>
@@ -752,7 +747,7 @@ const PSBPortal = () => {
                                                             </p>
                                                         </div>
                                                         <div className="w-full md:w-64">
-                                                            <Select 
+                                                            <Select
                                                                 value={santriData.status_sosial || 'Lengkap'}
                                                                 onValueChange={handleStatusSosialChange}
                                                             >
@@ -809,7 +804,7 @@ const PSBPortal = () => {
                         <AlertDialogTitle>Ubah Program Pilihan?</AlertDialogTitle>
                         <AlertDialogDescription>
                             Tindakan ini akan <strong>menghapus data pendaftaran Anda saat ini</strong> (ID: {santriData?.id_santri}) dan mengembalikan Anda ke halaman pemilihan program.
-                            <br/><br/>
+                            <br /><br />
                             Data yang sudah diisi (Biodata, Wali, Dokumen) akan hilang permanen.
                         </AlertDialogDescription>
                     </AlertDialogHeader>

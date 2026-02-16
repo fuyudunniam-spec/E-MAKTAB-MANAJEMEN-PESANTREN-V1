@@ -50,8 +50,8 @@ export const getPublicImpactData = async (params?: { month?: number; year?: numb
   try {
     // V10: RPC now handles everything, minimal client side fallback needed
     const { data: rpcData, error } = await supabase.rpc('get_public_financial_data', {
-      p_year: params?.year,
-      p_month: params?.month
+      p_year: params?.year ? Number(params.year) : null,
+      p_month: params?.month ? Number(params.month) : null
     });
 
     if (error) {

@@ -3,14 +3,19 @@
  * Defines which roles can access which modules
  */
 
-// Simplified role system - only 4 roles
-export type AppRole = 
-  | 'admin'      // Full access to all modules
-  | 'staff'      // Flexible access - admin can configure allowed modules
-  | 'pengajar'   // Access to pengajar profile only
-  | 'santri';    // Access to santri profile only
+// Role system aligned with database app_role enum
+export type AppRole =
+  | 'admin'             // Full access to all modules
+  | 'admin_keuangan'    // Full access (keuangan-focused admin)
+  | 'admin_akademik'    // Full access (akademik-focused admin)
+  | 'admin_inventaris'  // Full access (inventaris-focused admin)
+  | 'admin_koperasi'    // Full access (koperasi-focused admin)
+  | 'pengurus'          // Board member - flexible access like staff
+  | 'staff'             // Flexible access - admin configures allowed modules
+  | 'pengajar'          // Access to pengajar profile & monitoring
+  | 'santri';           // Access to santri profile only
 
-export type ModuleName = 
+export type ModuleName =
   | 'dashboard'
   | 'santri'
   | 'keuangan'
@@ -30,11 +35,16 @@ export type ModuleName =
  * '*' means access to all modules
  * Empty array [] means role uses allowedModules field (flexible access configured by admin)
  */
-const PERMISSION_MATRIX: Record<AppRole, string[] | '*' > = {
-  admin: '*', // Full access to all modules (always - simplified approach)
-  staff: [], // Flexible access - uses allowedModules field (must have explicit modules configured)
-  pengajar: ['dashboard', 'monitoring', 'settings'], // Access to pengajar profile and monitoring
-  santri: ['dashboard', 'santri', 'tabungan', 'settings'], // Access to santri profile (their own), tabungan, and settings
+const PERMISSION_MATRIX: Record<AppRole, string[] | '*'> = {
+  admin: '*', // Full access to all modules
+  admin_keuangan: ['dashboard', 'keuangan', 'pembayaran', 'tabungan', 'donasi', 'settings'], // Access to finance, payments, savings, donations
+  admin_akademik: ['dashboard', 'monitoring', 'plotting', 'santri', 'settings'], // Access to academic monitoring, plotting, santri
+  admin_inventaris: ['dashboard', 'inventaris', 'distribusi', 'settings'], // Access to inventory, distribution
+  admin_koperasi: ['dashboard', 'koperasi', 'penjualan', 'settings'], // Access to cooperative, sales
+  pengurus: [], // Board member - flexible access like staff, uses allowedModules
+  staff: [], // Flexible access - uses allowedModules field
+  pengajar: ['dashboard', 'monitoring', 'settings'], // Pengajar profile and monitoring
+  santri: ['dashboard', 'santri', 'tabungan', 'settings'], // Santri profile, tabungan, settings
 };
 
 /**
@@ -43,7 +53,7 @@ const PERMISSION_MATRIX: Record<AppRole, string[] | '*' > = {
 const MODULE_PATH_MAP: Record<string, ModuleName> = {
   // Dashboard
   '/': 'dashboard',
-  
+
   // Santri - Canonical routes
   '/santri': 'santri',
   '/santri/profile': 'santri',
@@ -56,7 +66,7 @@ const MODULE_PATH_MAP: Record<string, ModuleName> = {
   '/santri/profile-minimal': 'santri', // Redirects to /santri/profile
   '/santri/profile-master': 'santri', // Redirects to /santri/profile
   '/santri/profile-redesigned': 'santri', // Redirects to /santri/profile
-  
+
   // Keuangan - Canonical routes
   '/keuangan-v3': 'keuangan',
   '/keuangan-v3/penyaluran-bantuan': 'keuangan',
@@ -67,13 +77,13 @@ const MODULE_PATH_MAP: Record<string, ModuleName> = {
   // Legacy routes (redirected)
   '/keuangan': 'keuangan', // Redirects to /keuangan-v3
   '/keuangan-dashboard': 'keuangan', // Redirects to /keuangan-v3
-  
+
   // Donasi - Canonical routes
   '/donasi': 'donasi',
   '/donasi/master-donatur': 'donasi',
   // Legacy routes (redirected)
   '/donasi-dashboard': 'donasi', // Redirects to /donasi
-  
+
   // Inventaris - Canonical routes
   '/inventaris': 'inventaris',
   '/inventaris/master': 'inventaris',
@@ -87,7 +97,7 @@ const MODULE_PATH_MAP: Record<string, ModuleName> = {
   '/inventaris-legacy': 'inventaris', // Redirects to /inventaris
   '/inventaris-old': 'inventaris', // Redirects to /inventaris
   '/inventaris/sales': 'koperasi', // Redirects to /koperasi/kasir
-  
+
   // Koperasi - Canonical routes
   '/koperasi': 'koperasi',
   '/koperasi/master': 'koperasi',
@@ -105,7 +115,7 @@ const MODULE_PATH_MAP: Record<string, ModuleName> = {
   '/koperasi/laporan': 'koperasi',
   // Legacy routes (redirected)
   '/koperasi-old': 'koperasi', // Redirects to /koperasi
-  
+
   // Akademik - Canonical routes
   '/akademik': 'monitoring',
   '/akademik/kelas': 'plotting',
@@ -122,7 +132,7 @@ const MODULE_PATH_MAP: Record<string, ModuleName> = {
   '/akademik/master': 'plotting', // Redirects to /akademik/kelas
   '/akademik/presensi': 'monitoring', // Redirects to /akademik/pertemuan?tab=presensi
   '/akademik/jurnal': 'monitoring', // Redirects to /akademik/pertemuan?tab=jurnal
-  
+
   // Admin - Canonical routes
   '/admin/users': 'settings',
   '/admin/data-master': 'settings', // Alias for /admin/users
@@ -130,10 +140,18 @@ const MODULE_PATH_MAP: Record<string, ModuleName> = {
   '/admin/keuangan-audit': 'settings',
   // Legacy routes (redirected)
   '/administrasi': 'settings', // Redirects to /admin/users
-  
+
   // Other
   '/monitoring': 'monitoring',
-  '/change-password': 'settings',
+  '/change-password': 'dashboard', // Allow all users to change password (mapped to dashboard)
+
+  // Website Management - Protected by settings permission
+  '/admin/website/homepage': 'settings',
+  '/admin/website/settings': 'settings',
+  '/admin/website/posts': 'settings',
+  '/admin/website/pages': 'settings',
+  '/admin/website/testimonials': 'settings',
+  '/admin/website/media': 'settings',
 };
 
 /**
@@ -146,7 +164,7 @@ const MODULE_PATH_MAP: Record<string, ModuleName> = {
 export function canAccessModule(role: AppRole | string, module: ModuleName | string, allowedModules?: string[] | null): boolean {
   // Normalize role to AppRole type
   const normalizedRole = role as AppRole;
-  
+
   // Check if role exists in permission matrix
   if (!PERMISSION_MATRIX[normalizedRole]) {
     console.warn(`Unknown role: ${normalizedRole}`);
@@ -198,10 +216,10 @@ export function canAccessModuleWithUser(user: { role: AppRole | string; allowedM
 export function canAccessPath(role: AppRole | string, path: string, allowedModules?: string[] | null): boolean {
   // Normalize path (remove query params, hash, trailing slash)
   const normalizedPath = path.split('?')[0].split('#')[0].replace(/\/$/, '') || '/';
-  
+
   // Get module name from path
   const module = MODULE_PATH_MAP[normalizedPath];
-  
+
   if (!module) {
     // If path is not in map, default to dashboard access check
     // This allows access to paths not explicitly defined
@@ -228,7 +246,7 @@ export function canAccessPathWithUser(user: { role: AppRole | string; allowedMod
  */
 export function getAccessibleModules(role: AppRole | string): ModuleName[] {
   const normalizedRole = role as AppRole;
-  
+
   if (!PERMISSION_MATRIX[normalizedRole]) {
     return [];
   }
@@ -253,8 +271,8 @@ export function getAccessibleModules(role: AppRole | string): ModuleName[] {
  * @returns true if role can perform action
  */
 export function canPerformAction(
-  role: AppRole | string, 
-  action: string, 
+  role: AppRole | string,
+  action: string,
   module?: ModuleName | string
 ): boolean {
   // If module is specified, check module access first
@@ -272,7 +290,7 @@ export function canPerformAction(
     case 'view':
       // All authenticated users can view if they have module access
       return true;
-    
+
     case 'create':
     case 'edit':
     case 'delete':
@@ -281,12 +299,12 @@ export function canPerformAction(
         return true;
       }
       return false;
-    
+
     case 'export':
     case 'report':
       // Only admins and pengurus can export/report
       return role === 'admin' || role === 'pengurus';
-    
+
     default:
       return false;
   }
@@ -297,7 +315,7 @@ export function canPerformAction(
  */
 export function getPermissionMatrix(): Record<AppRole, string[]> {
   const matrix: Record<string, string[]> = {};
-  
+
   Object.entries(PERMISSION_MATRIX).forEach(([role, modules]) => {
     if (modules === '*') {
       matrix[role] = ['All Modules'];
@@ -305,7 +323,7 @@ export function getPermissionMatrix(): Record<AppRole, string[]> {
       matrix[role] = modules as string[];
     }
   });
-  
+
   return matrix as Record<AppRole, string[]>;
 }
 

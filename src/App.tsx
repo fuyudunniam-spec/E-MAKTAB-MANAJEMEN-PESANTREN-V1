@@ -32,6 +32,7 @@ const DonasiDashboard = lazy(() => import("@/modules/donasi/admin/pages/DonasiDa
 const MasterDonatur = lazy(() => import("@/modules/donasi/admin/pages/MasterDonatur"));
 
 const Auth = lazy(() => import("@/modules/auth/pages/Auth"));
+const LoginSantri = lazy(() => import("@/modules/auth/pages/LoginSantri"));
 const AdminSetupPage = lazy(() => import("@/modules/user-management/pages/SetupAdmin"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const SantriOnboarding = lazy(() => import("@/modules/santri/admin/pages/SantriOnboarding"));
@@ -50,7 +51,7 @@ const DashboardSantri = lazy(() => import("@/modules/santri/admin/pages/Dashboar
 const TabunganSantriMy = lazy(() => import("@/modules/santri/portal/pages/TabunganSantriMy"));
 
 // Public Website Imports
-const PSBPage = lazy(() => import("@/modules/psb/public/pages/PSBPage"));
+const PSBPage = lazy(() => import("@/modules/public-website/pages/PSBPage"));
 const PSBPortal = lazy(() => import("@/modules/psb/public/pages/PSBPortal"));
 const PSBAuth = lazy(() => import("@/modules/psb/public/pages/PSBAuth"));
 const LandingPage = lazy(() => import("@/modules/public-website/pages/LandingPage"));
@@ -60,6 +61,7 @@ const DonasiPage = lazy(() => import("@/modules/public-website/pages/DonasiPage"
 const NewsPage = lazy(() => import("@/modules/public-website/pages/NewsPage"));
 const NewsDetailPage = lazy(() => import("@/modules/public-website/pages/NewsDetailPage"));
 const ProgramDonasiDetailPage = lazy(() => import("@/modules/public-website/pages/ProgramDonasiDetailPage"));
+const PublicProgramPage = lazy(() => import("@/modules/public-website/pages/PublicProgramPage"));
 
 // Admin Website Imports - Removed unused imports
 
@@ -80,6 +82,7 @@ const ProfilPengajarPage = lazy(() => import('@/modules/akademik/admin/pages/Pro
 const InputNilaiPage = lazy(() => import('@/modules/akademik/guru/pages/InputNilaiPage'));
 const RapotPage = lazy(() => import('@/modules/akademik/guru/pages/RapotPage'));
 const UserManagementPage = lazy(() => import('@/modules/user-management/pages/UserManagementPage'));
+const AuditLogPage = lazy(() => import('@/modules/user-management/pages/AuditLogPage'));
 // SantriAccountManagement is already declared above, removing duplicate declaration
 
 // Lazy imports for inventory modules
@@ -127,6 +130,7 @@ const App = () => (
               <Route path="/setup-admin" element={<SuspenseOnly><AdminSetupPage /></SuspenseOnly>} />
               {/* SLICE UNIK UNTUK SUPERADMIN - Ganti 'secure-gate' dengan kata sandi url yang anda inginkan */}
               <Route path="/pms/secure-gate" element={<SuspenseOnly><Auth /></SuspenseOnly>} />
+              <Route path="/login-santri" element={<SuspenseOnly><LoginSantri /></SuspenseOnly>} />
 
               {/* Public Website Routes */}
               <Route path="/" element={<SuspenseOnly><LandingPage /></SuspenseOnly>} />
@@ -136,6 +140,7 @@ const App = () => (
               <Route path="/donasi/:slug" element={<SuspenseOnly><ProgramDonasiDetailPage /></SuspenseOnly>} />
               <Route path="/berita" element={<SuspenseOnly><NewsPage /></SuspenseOnly>} />
               <Route path="/berita/:slug" element={<SuspenseOnly><NewsDetailPage /></SuspenseOnly>} />
+              <Route path="/program" element={<SuspenseOnly><PublicProgramPage /></SuspenseOnly>} />
 
               {/* PSB Portal Routes */}
               <Route path="/psb" element={<SuspenseOnly><PSBPage /></SuspenseOnly>} />
@@ -277,6 +282,11 @@ const App = () => (
               <Route path="/admin/data-master" element={
                 <WithLayout>
                   <UserManagementPage />
+                </WithLayout>
+              } />
+              <Route path="/admin/audit-log" element={
+                <WithLayout>
+                  <AuditLogPage />
                 </WithLayout>
               } />
 

@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { AuditLogService } from './auditLog.service';
 
 // Get Supabase URL from client
 const getSupabaseUrl = () => {
@@ -18,8 +19,8 @@ const getSupabaseAnonKey = () => {
   return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3eWVtYXVvamZ0bHl6emd1amdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNjkyMDcsImV4cCI6MjA3NDk0NTIwN30.AYYJ3ikwLY1hnt1njt4S-gCliMTEJ_trUYkMri6MUas';
 };
 
-// Simplified role system - only 4 roles (import from permissions.ts for consistency)
-export type AppRole = 'admin' | 'staff' | 'santri' | 'pengajar';
+// Role system aligned with DB app_role enum (must match permissions.ts)
+export type AppRole = 'admin' | 'admin_keuangan' | 'admin_akademik' | 'admin_inventaris' | 'admin_koperasi' | 'pengurus' | 'staff' | 'pengajar' | 'santri';
 
 export interface UserProfile {
   id: string;
@@ -96,7 +97,7 @@ export class UserManagementService {
       // Explicitly select allowed_modules to ensure it's included
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, email, full_name, created_at, updated_at, allowed_modules')
+        .select('id, email, full_name, created_at, updated_at, allowed_modules, user_type')
         .order('created_at', { ascending: false });
 
       if (profilesError) {
@@ -111,86 +112,86 @@ export class UserManagementService {
         return [];
       }
 
-    const userIds = profiles.map(p => p.id);
+      const userIds = profiles.map(p => p.id);
 
-    // Ambil roles untuk semua user
-    let roles: any[] = [];
-    try {
-      const { data: rolesData, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id, role')
-        .in('user_id', userIds);
+      // Ambil roles untuk semua user
+      let roles: any[] = [];
+      try {
+        const { data: rolesData, error: rolesError } = await supabase
+          .from('user_roles')
+          .select('user_id, role')
+          .in('user_id', userIds);
 
-      if (rolesError) {
-        console.error('[UserManagementService] Error fetching roles:', rolesError);
-        // Continue dengan empty array jika error
-      } else {
-        roles = rolesData || [];
+        if (rolesError) {
+          console.error('[UserManagementService] Error fetching roles:', rolesError);
+          // Continue dengan empty array jika error
+        } else {
+          roles = rolesData || [];
+        }
+      } catch (error) {
+        console.error('[UserManagementService] Exception fetching roles:', error);
       }
-    } catch (error) {
-      console.error('[UserManagementService] Exception fetching roles:', error);
-    }
 
-    // Ambil data pengajar untuk user yang punya pengajar
-    let pengajar: any[] = [];
-    try {
-      const { data: pengajarData, error: pengajarError } = await supabase
-        .from('akademik_pengajar')
-        .select('id, nama_lengkap, status, kode_pengajar, user_id')
-        .in('user_id', userIds);
+      // Ambil data pengajar untuk user yang punya pengajar
+      let pengajar: any[] = [];
+      try {
+        const { data: pengajarData, error: pengajarError } = await supabase
+          .from('akademik_pengajar')
+          .select('id, nama_lengkap, status, kode_pengajar, user_id')
+          .in('user_id', userIds);
 
-      if (pengajarError) {
-        console.error('[UserManagementService] Error fetching pengajar:', pengajarError);
-        // Continue dengan empty array jika error
-      } else {
-        pengajar = pengajarData || [];
+        if (pengajarError) {
+          console.error('[UserManagementService] Error fetching pengajar:', pengajarError);
+          // Continue dengan empty array jika error
+        } else {
+          pengajar = pengajarData || [];
+        }
+      } catch (error) {
+        console.error('[UserManagementService] Exception fetching pengajar:', error);
       }
-    } catch (error) {
-      console.error('[UserManagementService] Exception fetching pengajar:', error);
-    }
 
-     // Ambil data santri untuk user yang punya santri
-     let santri: any[] = [];
-     try {
-       const { data: santriData, error: santriError } = await supabase
-         .from('santri')
-         .select('id, id_santri, nama_lengkap, status_santri, kategori, user_id, jenis_kelamin')
-         .in('user_id', userIds);
+      // Ambil data santri untuk user yang punya santri
+      let santri: any[] = [];
+      try {
+        const { data: santriData, error: santriError } = await supabase
+          .from('santri')
+          .select('id, id_santri, nama_lengkap, status_santri, kategori, user_id, jenis_kelamin')
+          .in('user_id', userIds);
 
-      if (santriError) {
-        console.error('[UserManagementService] Error fetching santri:', santriError);
-        // Continue dengan empty array jika error
-      } else {
-        santri = santriData || [];
+        if (santriError) {
+          console.error('[UserManagementService] Error fetching santri:', santriError);
+          // Continue dengan empty array jika error
+        } else {
+          santri = santriData || [];
+        }
+      } catch (error) {
+        console.error('[UserManagementService] Exception fetching santri:', error);
       }
-    } catch (error) {
-      console.error('[UserManagementService] Exception fetching santri:', error);
-    }
 
-    // Map roles per user
-    const rolesMap: Record<string, AppRole[]> = {};
-    roles.forEach(r => {
-      if (r?.user_id && r?.role) {
-        if (!rolesMap[r.user_id]) rolesMap[r.user_id] = [];
-        rolesMap[r.user_id].push(r.role as AppRole);
-      }
-    });
+      // Map roles per user
+      const rolesMap: Record<string, AppRole[]> = {};
+      roles.forEach(r => {
+        if (r?.user_id && r?.role) {
+          if (!rolesMap[r.user_id]) rolesMap[r.user_id] = [];
+          rolesMap[r.user_id].push(r.role as AppRole);
+        }
+      });
 
-    // Map pengajar per user
-    const pengajarMap: Record<string, any> = {};
-    pengajar.forEach(p => {
-      if (p?.user_id) {
-        pengajarMap[p.user_id] = p;
-      }
-    });
+      // Map pengajar per user
+      const pengajarMap: Record<string, any> = {};
+      pengajar.forEach(p => {
+        if (p?.user_id) {
+          pengajarMap[p.user_id] = p;
+        }
+      });
 
-    // Map santri per user
-    const santriMap: Record<string, any> = {};
-    santri.forEach(s => {
-      if (s?.user_id) {
-        santriMap[s.user_id] = s;
-      }
-    });
+      // Map santri per user
+      const santriMap: Record<string, any> = {};
+      santri.forEach(s => {
+        if (s?.user_id) {
+          santriMap[s.user_id] = s;
+        }
+      });
 
       const result = (profiles || []).map(profile => ({
         id: profile.id,
@@ -209,14 +210,14 @@ export class UserManagementService {
           status: pengajarMap[profile.id].status as 'Aktif' | 'Non-Aktif',
           kode_pengajar: pengajarMap[profile.id].kode_pengajar,
         } : null,
-         santri: santriMap[profile.id] ? {
-           id: santriMap[profile.id].id,
-           id_santri: santriMap[profile.id].id_santri,
-           nama_lengkap: santriMap[profile.id].nama_lengkap,
-           status_santri: santriMap[profile.id].status_santri as 'Aktif' | 'Non-Aktif' | 'Alumni',
-           kategori: santriMap[profile.id].kategori,
-           jenis_kelamin: santriMap[profile.id].jenis_kelamin,
-         } : null,
+        santri: santriMap[profile.id] ? {
+          id: santriMap[profile.id].id,
+          id_santri: santriMap[profile.id].id_santri,
+          nama_lengkap: santriMap[profile.id].nama_lengkap,
+          status_santri: santriMap[profile.id].status_santri as 'Aktif' | 'Non-Aktif' | 'Alumni',
+          kategori: santriMap[profile.id].kategori,
+          jenis_kelamin: santriMap[profile.id].jenis_kelamin,
+        } : null,
       }));
 
       console.log('[UserManagementService] Users mapped:', result.length);
@@ -247,7 +248,7 @@ export class UserManagementService {
     // Call Edge Function untuk create user
     const supabaseUrl = getSupabaseUrl();
     const anonKey = getSupabaseAnonKey();
-    
+
     const requestBody = {
       email: input.email.trim(),
       password: input.password,
@@ -294,16 +295,16 @@ export class UserManagementService {
       } catch {
         errorData = { error: responseText || `HTTP ${response.status}: ${response.statusText}` };
       }
-      
+
       let errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
-      
+
       // Handle specific error cases with user-friendly messages
       if (errorData.details?.code === 'email_exists' || errorMessage.includes('already been registered')) {
         errorMessage = `Email "${requestBody.email}" sudah terdaftar. Silakan gunakan email lain atau hapus user yang sudah ada terlebih dahulu.`;
       } else if (errorData.details) {
         errorMessage = `${errorMessage}\nDetail: ${JSON.stringify(errorData.details)}`;
       }
-      
+
       console.error('[UserManagementService] Error creating user:', errorMessage);
       throw new Error(errorMessage);
     }
@@ -315,7 +316,7 @@ export class UserManagementService {
       console.error('[UserManagementService] Failed to parse response:', parseError);
       throw new Error('Gagal memproses response dari server');
     }
-    
+
     if (!data.success) {
       throw new Error(data.error || 'Gagal membuat user');
     }
@@ -333,24 +334,24 @@ export class UserManagementService {
     }
 
     const supabaseUrl = getSupabaseUrl();
-    
+
     // Build update body - only include defined fields
     const updateBody: any = {
       user_id: userId,
     };
-    
+
     // Only include fields that are explicitly provided (not undefined)
     if (input.email !== undefined) updateBody.email = input.email;
     if (input.password !== undefined) updateBody.password = input.password;
     if (input.full_name !== undefined) updateBody.full_name = input.full_name;
     if (input.roles !== undefined) updateBody.roles = input.roles;
-    
+
     // CRITICAL: Always include allowed_modules if it exists in input (even if null)
     // This allows clearing it (null) or updating it (array)
     if ('allowedModules' in input) {
       updateBody.allowed_modules = input.allowedModules;
     }
-    
+
     console.log('[UserManagementService] Updating user with data:', {
       user_id: userId,
       input_keys: Object.keys(input),
@@ -441,10 +442,13 @@ export class UserManagementService {
    * Delete user (akan cascade ke profiles, user_roles, dll)
    */
   static async deleteUser(userId: string): Promise<void> {
-    // Delete via Supabase Auth Admin API
-    // Untuk sekarang, kita akan delete dari profiles dan user_roles saja
-    // Auth user akan dihapus via admin atau RPC function
-    
+    // Get user info for audit log before deleting
+    let oldEmail = 'unknown';
+    try {
+      const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', userId).single();
+      if (profile) oldEmail = profile.email || 'unknown';
+    } catch { /* ignore */ }
+
     const { error } = await supabase.rpc('delete_user_complete', {
       p_user_id: userId,
     });
@@ -453,6 +457,20 @@ export class UserManagementService {
       // Fallback: delete dari tables yang bisa kita akses
       await supabase.from('user_roles').delete().eq('user_id', userId);
       await supabase.from('profiles').delete().eq('id', userId);
+    }
+
+    // Write audit log (non-fatal)
+    try {
+      await AuditLogService.logAction({
+        action: 'DELETE_USER',
+        module_code: 'USER_MANAGEMENT',
+        entity: 'user',
+        entity_id: userId,
+        old_values: { email: oldEmail },
+      });
+    } catch { /* audit log failure is non-fatal */ }
+
+    if (error) {
       throw new Error(`Gagal menghapus user dari auth: ${error.message}. Data di profiles dan user_roles sudah dihapus.`);
     }
   }
@@ -636,7 +654,7 @@ export class UserManagementService {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = String(date.getFullYear());
     const last3 = idSantri.slice(-3);
-    
+
     return `${day}${month}${year}${last3}`;
   }
 

@@ -16,6 +16,7 @@ export interface User {
   santriId?: string; // UUID dari tabel santri
   idSantri?: string; // ID Santri (format: BM240001)
   allowedModules?: string[] | null; // Module access list for admin users
+  userType?: string | null; // superadmin, staff, santri, pengajar
   profile?: {
     full_name: string | null;
     email: string | null;
@@ -150,6 +151,7 @@ export function useAuth() {
         santriId: santriData?.id,
         idSantri: santriData?.id_santri,
         allowedModules: (profile as any)?.allowed_modules || null,
+        userType: (profile as any)?.user_type || null,
         profile: profile ? {
           full_name: profile.full_name,
           email: profile.email
@@ -506,9 +508,9 @@ export function useAuth() {
     return canAccessModuleWithUser(user, module);
   };
 
-  const isAdmin = user?.role === "admin";
-  const isStaff = user?.role === "admin" || user?.role?.startsWith("admin_") || user?.role === "pengurus";
-  const isViewer = user?.role === "pengurus" || user?.role === "santri";
+  const isAdmin = user?.role === "admin" || (user?.role?.startsWith("admin_") ?? false);
+  const isStaff = isAdmin || user?.role === "staff" || user?.role === "pengurus";
+  const isViewer = user?.role === "pengajar" || user?.role === "santri";
 
   return {
     user,

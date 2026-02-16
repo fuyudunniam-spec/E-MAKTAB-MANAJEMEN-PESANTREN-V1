@@ -31,8 +31,8 @@ const LandingPage: React.FC = () => {
       <main>
         <PublicHero data={heroData} />
         <PublicPartners />
-        <PublicHistory />
-        <PublicServices />
+        <PublicHistory data={sanityData?.history} />
+        <PublicServices data={sanityData?.services} />
         <PublicTestimonials />
         <PublicNews />
         <PublicZakatCalc />

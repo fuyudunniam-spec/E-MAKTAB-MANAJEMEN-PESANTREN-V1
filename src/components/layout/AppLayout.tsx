@@ -32,7 +32,7 @@ import {
   FileBarChart,
   Calculator,
   Target,
-  Target,
+
   Settings2,
   Globe
 } from 'lucide-react';

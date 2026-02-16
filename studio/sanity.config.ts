@@ -2,6 +2,7 @@ import { defineConfig } from 'sanity'
 import { structureTool } from 'sanity/structure'
 import { visionTool } from '@sanity/vision'
 import { schemaTypes } from './schemaTypes'
+import { structure } from './structure'
 
 // TODO: better to use environment variables, but for simplicity we HARDCODE the project ID here
 // since this file is client-side configuration anyway.
@@ -16,7 +17,9 @@ export default defineConfig({
     dataset,
 
     plugins: [
-        structureTool(),
+        structureTool({
+            structure,
+        }),
         visionTool(),
     ],
 

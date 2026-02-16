@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { UserManagementService, UserWithRoles, AppRole, CreateUserInput, UpdateUserInput } from '@/modules/user-management/services/userManagement.service';
 import { getAllModuleNames, getModuleLabel, ModuleName } from '@/utils/permissions';
-import { UserService, UserComplete, UserFilters } from '@/modules/user-management/services/user.service';
 import { supabase } from '@/integrations/supabase/client';
 import { AkademikKelasService, KelasMaster } from '@/modules/akademik/services/akademikKelas.service';
 import { AkademikAgendaService, AkademikAgenda } from '@/modules/akademik/services/akademikAgenda.service';
@@ -49,31 +48,36 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-// Simplified role options - only 4 roles: admin, staff, pengajar, santri
+// Role options aligned with database app_role enum
 const ROLE_OPTIONS: { value: AppRole; label: string; description: string }[] = [
-  { value: 'admin', label: 'Admin', description: 'Mengakses seluruh modul dan semua fitur' },
-  { value: 'staff', label: 'Staff', description: 'Akses fleksibel - pilih modul yang diizinkan (yang tidak dipilih tidak ditampilkan)' },
-  { value: 'pengajar', label: 'Pengajar', description: 'Hanya dapat mengakses profil pengajar' },
-  { value: 'santri', label: 'Santri', description: 'Hanya mengakses profil santri' },
+  { value: 'admin', label: 'Superadmin', description: 'Akses penuh ke seluruh modul dan fitur' },
+  { value: 'admin_keuangan', label: 'Admin Keuangan', description: 'Akses penuh, fokus pengelolaan keuangan pesantren' },
+  { value: 'admin_akademik', label: 'Admin Akademik', description: 'Akses penuh, fokus pengelolaan akademik dan pengajaran' },
+  { value: 'admin_inventaris', label: 'Admin Inventaris', description: 'Akses penuh, fokus pengelolaan inventaris dan aset' },
+  { value: 'admin_koperasi', label: 'Admin Koperasi', description: 'Akses penuh, fokus pengelolaan koperasi pesantren' },
+  { value: 'pengurus', label: 'Pengurus', description: 'Akses fleksibel sesuai konfigurasi - sama seperti staff' },
+  { value: 'staff', label: 'Staff', description: 'Akses fleksibel - pilih modul yang diizinkan' },
+  { value: 'pengajar', label: 'Pengajar / Ustadz', description: 'Akses monitoring, profil pengajar, dan pengajaran' },
+  { value: 'santri', label: 'Santri', description: 'Akses profil santri dan tabungan' },
 ];
 
 const UserManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin' || user?.roles?.includes('admin');
+  const isAdmin = user?.role === 'admin' || (user?.role?.startsWith('admin_') ?? false) || user?.roles?.some(r => r === 'admin' || r.startsWith('admin_'));
 
   const [users, setUsers] = useState<UserWithRoles[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const searchTermRef = useRef<string>('');
-  
+
   // Sync searchTerm with ref
   useEffect(() => {
     searchTermRef.current = searchTerm;
   }, [searchTerm]);
   const [filterRole, setFilterRole] = useState<AppRole | 'all'>('all');
   const [activeTab, setActiveTab] = useState<'santri' | 'pengajar' | 'staff'>('santri');
-  
+
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -88,7 +92,7 @@ const UserManagementPage: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const filterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   // Sync selectedUser with ref
   useEffect(() => {
     selectedUserRef.current = selectedUser;
@@ -109,7 +113,7 @@ const UserManagementPage: React.FC = () => {
       password?: string;
     }>;
   } | null>(null);
-  
+
   // Form states
   const [formData, setFormData] = useState<CreateUserInput>({
     email: '',
@@ -137,91 +141,17 @@ const UserManagementPage: React.FC = () => {
     try {
       setLoading(true);
       console.log('[UserManagementPage] Loading users...');
-      
-      // Try to use new UserService first, fallback to UserManagementService
-      try {
-        const filters: UserFilters = {
-          user_type: activeTab,
-          role: filterRole === 'all' ? 'all' : filterRole,
-          search: searchTerm || undefined,
-        };
-        const data = await UserService.listUsers(filters);
-        console.log('[UserManagementPage] Users loaded via UserService:', data?.length || 0);
-        
-        // Convert UserComplete to UserWithRoles format for compatibility
-        const convertedUsers: UserWithRoles[] = data.map(u => {
-          // Note: User can have santri role without santri data if they're staff/admin with santri role
-          // This is not necessarily an error, so we'll only log in debug mode
-          if (process.env.NODE_ENV === 'development' && u.roles.includes('santri' as AppRole) && !u.santri) {
-            console.debug('[UserManagementPage] User has santri role but no santri data (may be intentional):', {
-              id: u.id,
-              email: u.email,
-              roles: u.roles,
-              user_type: u.user_type,
-            });
-          }
-          
-          return {
-            id: u.id,
-            email: u.email,
-            full_name: u.full_name,
-            created_at: u.created_at,
-            updated_at: u.updated_at,
-            roles: u.roles as AppRole[],
-            username: u.santri?.id_santri || undefined,
-            password_plain: undefined, // Will be loaded separately if needed
-            allowedModules: u.allowed_modules || null, // Map allowed_modules from UserComplete
-            allowed_modules: u.allowed_modules || null, // Keep for backward compatibility
-            santri: u.santri ? {
-              id: u.santri.id,
-              id_santri: u.santri.id_santri,
-              nama_lengkap: u.santri.nama_lengkap,
-              status_santri: u.santri.status_santri,
-              kategori: u.santri.kategori,
-            } : undefined,
-            pengajar: u.pengajar ? {
-              id: u.pengajar.id,
-              nama_lengkap: u.pengajar.nama_lengkap,
-              kode_pengajar: u.pengajar.kode_pengajar || undefined,
-              status: u.pengajar.status,
-            } : undefined,
-          };
-        });
-        
-        console.log('[UserManagementPage] Converted users:', {
-          total: convertedUsers.length,
-          withSantri: convertedUsers.filter(u => u.santri).length,
-          withSantriRole: convertedUsers.filter(u => u.roles.includes('santri')).length,
-        });
-        // Debug: Check allowedModules mapping
-        convertedUsers.forEach(u => {
-          if (u.roles.includes('staff')) {
-            console.log('[UserManagementPage] Staff user allowedModules:', {
-              id: u.id,
-              email: u.email,
-              allowedModules: u.allowedModules,
-              allowed_modules: u.allowed_modules,
-            });
-          }
-        });
-        
-        setUsers(convertedUsers);
-      } catch (serviceError) {
-        // Fallback to UserManagementService
-        console.warn('[UserManagementPage] UserService failed, using fallback:', serviceError);
-        const data = await UserManagementService.listUsers();
-        console.log('[UserManagementPage] Users loaded via UserManagementService:', data?.length || 0);
-        setUsers(data || []);
-      }
+      const data = await UserManagementService.listUsers();
+      console.log('[UserManagementPage] Users loaded:', data?.length || 0);
+      setUsers(data || []);
     } catch (error: any) {
       console.error('[UserManagementPage] Error loading users:', error);
       toast.error(error.message || 'Gagal memuat daftar user');
-      // Set empty array sebagai fallback
       setUsers([]);
     } finally {
       setLoading(false);
     }
-  }, [activeTab, filterRole, searchTerm]);
+  }, []); // No dependencies – only reload when explicitly called
 
   const loadKelas = useCallback(async () => {
     try {
@@ -251,14 +181,14 @@ const UserManagementPage: React.FC = () => {
       loadUsers();
       loadKelas();
     }
-  }, [isAdmin, loadUsers, loadKelas, activeTab]);
+  }, [isAdmin]); // Only reload on admin status change, not on loadUsers reference change
 
   useEffect(() => {
     if (selectedKelasId) {
       loadAgenda(selectedKelasId);
     }
   }, [selectedKelasId, loadAgenda]);
-  
+
   // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
@@ -270,7 +200,7 @@ const UserManagementPage: React.FC = () => {
       }
     };
   }, []);
-  
+
   // Reset newPassword when password dialog opens
   useEffect(() => {
     if (passwordDialogOpen) {
@@ -315,23 +245,26 @@ const UserManagementPage: React.FC = () => {
       }
     }
 
-    // Validasi khusus untuk role staff - wajib pilih minimal 1 modul (selain dashboard)
+    // Validasi khusus untuk role staff/pengurus - wajib pilih minimal 1 modul
+    const selectedRole = formData.roles[0];
+    const isFlexRole = selectedRole === 'staff' || selectedRole === 'pengurus';
+    const isFullAccessRole = selectedRole === 'admin' || selectedRole?.startsWith('admin_');
     let finalAllowedModules = formData.allowedModules;
-    if (formData.roles[0] === 'staff') {
+    if (isFlexRole) {
       if (!formData.allowedModules || formData.allowedModules.length === 0) {
-        toast.error('Staff wajib memilih minimal 1 modul yang dapat diakses');
+        toast.error('Staff/Pengurus wajib memilih minimal 1 modul yang dapat diakses');
         return;
       }
-      // Ensure dashboard is always included for staff (create new array, don't mutate)
+      // Ensure dashboard is always included
       finalAllowedModules = formData.allowedModules.includes('dashboard')
-        ? [...formData.allowedModules] // Copy array
+        ? [...formData.allowedModules]
         : ['dashboard', ...formData.allowedModules];
     }
 
-    // Admin: selalu set allowedModules ke null (full access)
+    // Admin / admin_*: selalu set allowedModules ke null (full access)
     const submitData = {
       ...formData,
-      allowedModules: formData.roles[0] === 'admin' ? null : finalAllowedModules,
+      allowedModules: isFullAccessRole ? null : finalAllowedModules,
     };
 
     console.log('[UserManagementPage] Creating user - submitData:', {
@@ -373,33 +306,35 @@ const UserManagementPage: React.FC = () => {
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
 
-    // Validasi khusus untuk role staff - wajib pilih minimal 1 modul (selain dashboard)
+    // Validasi khusus untuk role staff/pengurus - wajib pilih minimal 1 modul
+    const selectedRole = formData.roles[0];
+    const isFlexRole = selectedRole === 'staff' || selectedRole === 'pengurus';
+    const isFullAccessRole = selectedRole === 'admin' || selectedRole?.startsWith('admin_');
     let finalAllowedModules = formData.allowedModules;
-    if (formData.roles[0] === 'staff') {
+    if (isFlexRole) {
       if (!formData.allowedModules || formData.allowedModules.length === 0) {
-        toast.error('Staff wajib memilih minimal 1 modul yang dapat diakses');
+        toast.error('Staff/Pengurus wajib memilih minimal 1 modul yang dapat diakses');
         return;
       }
-      // Ensure dashboard is always included for staff (create new array, don't mutate)
+      // Ensure dashboard is always included
       finalAllowedModules = formData.allowedModules.includes('dashboard')
-        ? [...formData.allowedModules] // Copy array
+        ? [...formData.allowedModules]
         : ['dashboard', ...formData.allowedModules];
     }
 
-    // Admin: selalu set allowedModules ke null (full access)
+    // Admin / admin_*: selalu set allowedModules ke null (full access)
     const submitData: UpdateUserInput = {
       full_name: formData.full_name,
       roles: formData.roles,
     };
-    
+
     // Only include email if it changed
     if (formData.email !== selectedUser.email) {
       submitData.email = formData.email;
     }
-    
+
     // CRITICAL: Always include allowedModules (even if null for admin)
-    // This ensures it's sent to the backend and saved properly
-    submitData.allowedModules = formData.roles[0] === 'admin' ? null : finalAllowedModules;
+    submitData.allowedModules = isFullAccessRole ? null : finalAllowedModules;
 
     console.log('[UserManagementPage] Updating user - submitData:', {
       userId: selectedUser.id,
@@ -427,7 +362,7 @@ const UserManagementPage: React.FC = () => {
   const handleUpdatePassword = async () => {
     // Use ref to ensure we have the correct user even if state hasn't updated
     const userToUpdate = selectedUserRef.current || selectedUser;
-    
+
     if (!userToUpdate || !newPassword) {
       toast.error('Password baru wajib diisi');
       return;
@@ -445,7 +380,7 @@ const UserManagementPage: React.FC = () => {
         email: userToUpdate.email,
         full_name: userToUpdate.full_name,
       });
-      
+
       await UserManagementService.updateUser(userToUpdate.id, {
         password: newPassword,
       });
@@ -532,12 +467,12 @@ const UserManagementPage: React.FC = () => {
       setIsGeneratingMassal(true);
       const results = await UserManagementService.generateAccountsForAllSantri();
       setGenerateMassalResults(results);
-      
+
       if (results.success > 0) {
         toast.success(`Berhasil membuat ${results.success} akun dari ${results.total} santri`);
         loadUsers(); // Refresh user list
       }
-      
+
       if (results.failed > 0) {
         toast.warning(`${results.failed} akun gagal dibuat. Lihat detail di dialog.`);
       }
@@ -547,33 +482,32 @@ const UserManagementPage: React.FC = () => {
       setIsGeneratingMassal(false);
     }
   };
-  // Single role selection (replaces toggleRole for new simplified role system)
+  // Single role selection
   const setRole = (role: AppRole) => {
     setFormData(prev => {
-      const isStaff = role === 'staff';
+      const isFlexible = role === 'staff' || role === 'pengurus';
       const isPengajar = role === 'pengajar';
-      
-      // Staff: Set default modules jika belum ada (dashboard + settings)
-      // Admin: tidak perlu allowedModules (selalu null = full access)
-      // Santri & Pengajar: tidak perlu allowedModules (fixed modules)
-      let allowedModules = null;
-      if (isStaff) {
-        // Jika sebelumnya bukan staff, set default
-        if (prev.roles[0] !== 'staff') {
-          allowedModules = ['dashboard', 'settings']; // Default untuk staff baru
+      const isFullAccess = role === 'admin' || role.startsWith('admin_');
+
+      // admin / admin_*: null (full access)
+      // staff / pengurus: flexible, uses allowedModules
+      // pengajar / santri: fixed modules (null)
+      let allowedModules: string[] | null = null;
+      if (isFlexible) {
+        if (prev.roles[0] !== role) {
+          allowedModules = ['dashboard', 'settings'];
         } else {
-          // Tetap pakai yang sudah ada, atau default jika kosong
-          allowedModules = prev.allowedModules && prev.allowedModules.length > 0 
-            ? prev.allowedModules 
+          allowedModules = prev.allowedModules && prev.allowedModules.length > 0
+            ? prev.allowedModules
             : ['dashboard', 'settings'];
         }
       }
-      
+
       return {
         ...prev,
-        roles: [role], // Single role only
+        roles: [role],
         allowedModules,
-        createPengajar: isPengajar ? true : false,
+        createPengajar: isPengajar,
       };
     });
   };
@@ -583,11 +517,11 @@ const UserManagementPage: React.FC = () => {
     if (!formData.createPengajar || !formData.pengajarData?.nama_lengkap) {
       return;
     }
-    
+
     if (formData.pengajarData.kode_pengajar) {
       return; // Sudah ada kode, jangan generate ulang
     }
-    
+
     try {
       // Ambil jumlah pengajar terakhir untuk generate kode
       const { data: lastPengajar } = await supabase
@@ -628,10 +562,10 @@ const UserManagementPage: React.FC = () => {
   }, [formData.createPengajar, formData.pengajarData?.nama_lengkap, formData.pengajarData?.kode_pengajar]);
 
   useEffect(() => {
-    if (formData.createPengajar && 
-        formData.roles[0] === 'pengajar' && 
-        formData.pengajarData?.nama_lengkap && 
-        !formData.pengajarData?.kode_pengajar) {
+    if (formData.createPengajar &&
+      formData.roles[0] === 'pengajar' &&
+      formData.pengajarData?.nama_lengkap &&
+      !formData.pengajarData?.kode_pengajar) {
       generateKodePengajar();
     }
   }, [formData.createPengajar, formData.roles, formData.pengajarData?.nama_lengkap, formData.pengajarData?.kode_pengajar, generateKodePengajar]);
@@ -639,11 +573,11 @@ const UserManagementPage: React.FC = () => {
   // Calculate statistics for tab counts only
   const statistics = useMemo(() => {
     // Filter santri: check both santri property and 'santri' role
-    const santriUsers = users.filter(u => 
+    const santriUsers = users.filter(u =>
       u.santri || u.roles.includes('santri')
     );
     // Filter pengajar: check both pengajar property and 'pengajar' role
-    const pengajarUsers = users.filter(u => 
+    const pengajarUsers = users.filter(u =>
       u.pengajar || u.roles.includes('pengajar')
     );
     const staffUsers = users.filter(u => u.roles.includes('staff'));
@@ -658,7 +592,7 @@ const UserManagementPage: React.FC = () => {
   // Filter users based on active tab
   const filteredUsers = useMemo(() => {
     let tabFiltered = users;
-    
+
     // Filter by active tab
     if (activeTab === 'santri') {
       tabFiltered = users.filter(u => u.santri || u.roles.includes('santri'));
@@ -669,14 +603,14 @@ const UserManagementPage: React.FC = () => {
     }
 
     // Filter by role (if not 'all')
-    const roleFiltered = filterRole !== 'all' 
+    const roleFiltered = filterRole !== 'all'
       ? tabFiltered.filter(u => u.roles.includes(filterRole))
       : tabFiltered;
 
     // Filter by search term
     if (!searchTerm) return roleFiltered;
-    
-    return roleFiltered.filter(u => 
+
+    return roleFiltered.filter(u =>
       u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.pengajar?.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -717,8 +651,8 @@ const UserManagementPage: React.FC = () => {
             <UserPlus className="w-4 h-4 mr-2" />
             Tambah User
           </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={async () => {
               try {
                 const santriList = await UserManagementService.getSantriWithoutAccounts();
@@ -740,137 +674,137 @@ const UserManagementPage: React.FC = () => {
 
       {/* Table View */}
       <Card>
-          <CardHeader>
-            <CardTitle>Daftar User</CardTitle>
-            <CardDescription>
-              Master data semua akun user, pengajar, dan staff
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Tabs untuk memisahkan Santri, Pengajar, dan Staff */}
-            <div className="mb-4 border-b">
-              <div className="flex gap-2">
-                <Button
-                  variant={activeTab === 'santri' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => {
-                    setActiveTab('santri');
-                    setFilterRole('all');
-                  }}
-                >
-                  <GraduationCap className="w-4 h-4 mr-2" />
-                  Santri ({statistics.totalSantri})
-                </Button>
-                <Button
-                  variant={activeTab === 'pengajar' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => {
-                    setActiveTab('pengajar');
-                    setFilterRole('all');
-                  }}
-                >
-                  <BookOpen className="w-4 h-4 mr-2" />
-                  Pengajar ({statistics.totalPengajar})
-                </Button>
-                <Button
-                  variant={activeTab === 'staff' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => {
-                    setActiveTab('staff');
-                    setFilterRole('all');
-                  }}
-                >
-                  <UserCog className="w-4 h-4 mr-2" />
-                  Staff ({statistics.totalStaff})
-                </Button>
-              </div>
-            </div>
-
-            <div className="mb-4 flex flex-col md:flex-row gap-4">
-              <Input
-                placeholder="Cari user berdasarkan email, nama, ID santri, atau kode pengajar..."
-                value={searchTerm}
-                onChange={(e) => {
-                  const newValue = e.target.value;
-                  setSearchTerm(newValue);
-                  // Debounce search - clear previous timeout
-                  if (searchTimeoutRef.current) {
-                    clearTimeout(searchTimeoutRef.current);
-                  }
-                  // Trigger reload when search changes (after 500ms delay)
-                  searchTimeoutRef.current = setTimeout(() => {
-                    loadUsers();
-                  }, 500);
+        <CardHeader>
+          <CardTitle>Daftar User</CardTitle>
+          <CardDescription>
+            Master data semua akun user, pengajar, dan staff
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Tabs untuk memisahkan Santri, Pengajar, dan Staff */}
+          <div className="mb-4 border-b">
+            <div className="flex gap-2">
+              <Button
+                variant={activeTab === 'santri' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => {
+                  setActiveTab('santri');
+                  setFilterRole('all');
                 }}
-                autoComplete="off"
-                className="flex-1 max-w-md"
-              />
-              <Select value={filterRole} onValueChange={(value) => {
-                setFilterRole(value as AppRole | 'all');
-                // Debounce filter - clear previous timeout
-                if (filterTimeoutRef.current) {
-                  clearTimeout(filterTimeoutRef.current);
-                }
-                // Trigger reload when filter changes (after 200ms delay)
-                filterTimeoutRef.current = setTimeout(() => {
-                  loadUsers();
-                }, 200);
-              }}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Filter berdasarkan role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Role</SelectItem>
-                  {ROLE_OPTIONS.map(role => (
-                    <SelectItem key={role.value} value={role.value}>
-                      {role.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              >
+                <GraduationCap className="w-4 h-4 mr-2" />
+                Santri ({statistics.totalSantri})
+              </Button>
+              <Button
+                variant={activeTab === 'pengajar' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => {
+                  setActiveTab('pengajar');
+                  setFilterRole('all');
+                }}
+              >
+                <BookOpen className="w-4 h-4 mr-2" />
+                Pengajar ({statistics.totalPengajar})
+              </Button>
+              <Button
+                variant={activeTab === 'staff' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => {
+                  setActiveTab('staff');
+                  setFilterRole('all');
+                }}
+              >
+                <UserCog className="w-4 h-4 mr-2" />
+                Staff ({statistics.totalStaff})
+              </Button>
             </div>
+          </div>
 
-            {loading ? (
-              <div className="py-10 flex items-center justify-center gap-2 text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Memuat data...
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
+          <div className="mb-4 flex flex-col md:flex-row gap-4">
+            <Input
+              placeholder="Cari user berdasarkan email, nama, ID santri, atau kode pengajar..."
+              value={searchTerm}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                setSearchTerm(newValue);
+                // Debounce search - clear previous timeout
+                if (searchTimeoutRef.current) {
+                  clearTimeout(searchTimeoutRef.current);
+                }
+                // Trigger reload when search changes (after 500ms delay)
+                searchTimeoutRef.current = setTimeout(() => {
+                  loadUsers();
+                }, 500);
+              }}
+              autoComplete="off"
+              className="flex-1 max-w-md"
+            />
+            <Select value={filterRole} onValueChange={(value) => {
+              setFilterRole(value as AppRole | 'all');
+              // Debounce filter - clear previous timeout
+              if (filterTimeoutRef.current) {
+                clearTimeout(filterTimeoutRef.current);
+              }
+              // Trigger reload when filter changes (after 200ms delay)
+              filterTimeoutRef.current = setTimeout(() => {
+                loadUsers();
+              }, 200);
+            }}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Filter berdasarkan role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Role</SelectItem>
+                {ROLE_OPTIONS.map(role => (
+                  <SelectItem key={role.value} value={role.value}>
+                    {role.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {loading ? (
+            <div className="py-10 flex items-center justify-center gap-2 text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Memuat data...
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Roles</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Pengajar</TableHead>
+                  <TableHead>Tanggal Dibuat</TableHead>
+                  <TableHead className="text-right">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Roles</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Pengajar</TableHead>
-                    <TableHead>Tanggal Dibuat</TableHead>
-                    <TableHead className="text-right">Aksi</TableHead>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      Tidak ada user ditemukan
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                        Tidak ada user ditemukan
+                ) : (
+                  filteredUsers.map((u) => (
+                    <TableRow key={u.id}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{u.full_name || u.email}</div>
+                          <div className="text-sm text-muted-foreground">{u.email}</div>
+                          {u.username && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Username: <span className="font-mono">{u.username}</span>
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredUsers.map((u) => (
-                      <TableRow key={u.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{u.full_name || u.email}</div>
-                            <div className="text-sm text-muted-foreground">{u.email}</div>
-                            {u.username && (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                Username: <span className="font-mono">{u.username}</span>
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {u.santri ? (
+                      <TableCell>
+                        {u.santri ? (
                           <div>
                             <Badge variant="outline" className="font-mono">
                               {u.santri.id_santri}
@@ -885,26 +819,26 @@ const UserManagementPage: React.FC = () => {
                         ) : (
                           <span className="text-muted-foreground text-sm">-</span>
                         )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
                           {u.roles.map((role) => (
                             <Badge key={role} variant="secondary">
                               {ROLE_OPTIONS.find(r => r.value === role)?.label || role}
                             </Badge>
                           ))}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {u.santri ? (
-                          <Badge 
-                            variant="outline" 
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {u.santri ? (
+                          <Badge
+                            variant="outline"
                             className={
-                              u.santri.status_santri === 'Aktif' 
-                                ? 'bg-green-50 text-green-800 border-green-200' 
+                              u.santri.status_santri === 'Aktif'
+                                ? 'bg-green-50 text-green-800 border-green-200'
                                 : u.santri.status_santri === 'Non-Aktif'
-                                ? 'bg-red-50 text-red-800 border-red-200'
-                                : 'bg-blue-50 text-blue-800 border-blue-200'
+                                  ? 'bg-red-50 text-red-800 border-red-200'
+                                  : 'bg-blue-50 text-blue-800 border-blue-200'
                             }
                           >
                             {u.santri.status_santri}
@@ -912,9 +846,9 @@ const UserManagementPage: React.FC = () => {
                         ) : (
                           <span className="text-muted-foreground text-sm">-</span>
                         )}
-                        </TableCell>
-                        <TableCell>
-                          {u.pengajar ? (
+                      </TableCell>
+                      <TableCell>
+                        {u.pengajar ? (
                           <Badge variant="outline" className="bg-blue-50">
                             <BookOpen className="w-3 h-3 mr-1" />
                             {u.pengajar.nama_lengkap}
@@ -922,189 +856,189 @@ const UserManagementPage: React.FC = () => {
                         ) : (
                           <span className="text-muted-foreground text-sm">-</span>
                         )}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(u.created_at).toLocaleDateString('id-ID')}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Aksi</DropdownMenuLabel>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setSelectedUser(u);
-                                  setViewDialogOpen(true);
-                                }}
-                              >
-                                <Users className="w-4 h-4 mr-2" />
-                                View Detail
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setSelectedUser(u);
-                                  // Use allowedModules (camelCase) first, fallback to allowed_modules (snake_case)
-                                  let userAllowedModules = u.allowedModules || u.allowed_modules || null;
-                                  
-                                  console.log('[UserManagementPage] Loading user for edit - RAW DATA:', {
-                                    id: u.id,
-                                    email: u.email,
-                                    roles: u.roles,
-                                    allowedModules_raw: u.allowedModules,
-                                    allowed_modules_raw: u.allowed_modules,
-                                    user_object: u
-                                  });
-                                  
-                                  // If user is staff and allowedModules is null/empty, set default
-                                  if (u.roles.includes('staff')) {
-                                    if (!userAllowedModules || (Array.isArray(userAllowedModules) && userAllowedModules.length === 0)) {
-                                      // Only set default if truly empty - means user hasn't configured modules yet
-                                      userAllowedModules = ['dashboard', 'settings'];
-                                      console.log('[UserManagementPage] Staff user with empty allowedModules - setting default:', userAllowedModules);
-                                    } else {
-                                      // Ensure dashboard is always included if not already present
-                                      if (!userAllowedModules.includes('dashboard')) {
-                                        userAllowedModules = ['dashboard', ...userAllowedModules];
-                                        console.log('[UserManagementPage] Dashboard not found - adding it:', userAllowedModules);
-                                      }
-                                      console.log('[UserManagementPage] Using saved allowedModules:', userAllowedModules);
+                      </TableCell>
+                      <TableCell>
+                        {new Date(u.created_at).toLocaleDateString('id-ID')}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedUser(u);
+                                setViewDialogOpen(true);
+                              }}
+                            >
+                              <Users className="w-4 h-4 mr-2" />
+                              View Detail
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedUser(u);
+                                // Use allowedModules (camelCase) first, fallback to allowed_modules (snake_case)
+                                let userAllowedModules = u.allowedModules || u.allowed_modules || null;
+
+                                console.log('[UserManagementPage] Loading user for edit - RAW DATA:', {
+                                  id: u.id,
+                                  email: u.email,
+                                  roles: u.roles,
+                                  allowedModules_raw: u.allowedModules,
+                                  allowed_modules_raw: u.allowed_modules,
+                                  user_object: u
+                                });
+
+                                // If user is staff and allowedModules is null/empty, set default
+                                if (u.roles.includes('staff')) {
+                                  if (!userAllowedModules || (Array.isArray(userAllowedModules) && userAllowedModules.length === 0)) {
+                                    // Only set default if truly empty - means user hasn't configured modules yet
+                                    userAllowedModules = ['dashboard', 'settings'];
+                                    console.log('[UserManagementPage] Staff user with empty allowedModules - setting default:', userAllowedModules);
+                                  } else {
+                                    // Ensure dashboard is always included if not already present
+                                    if (!userAllowedModules.includes('dashboard')) {
+                                      userAllowedModules = ['dashboard', ...userAllowedModules];
+                                      console.log('[UserManagementPage] Dashboard not found - adding it:', userAllowedModules);
                                     }
+                                    console.log('[UserManagementPage] Using saved allowedModules:', userAllowedModules);
                                   }
-                                  
-                                  console.log('[UserManagementPage] Final allowedModules for form:', userAllowedModules);
-                                  setFormData({
-                                    email: u.email,
-                                    password: '',
-                                    full_name: u.full_name || '',
-                                    roles: u.roles,
-                                    allowedModules: userAllowedModules,
-                                    createPengajar: false,
-                                    pengajarData: {
-                                      nama_lengkap: '',
-                                      kode_pengajar: '',
-                                      program_spesialisasi: [],
-                                      kontak: '',
-                                    },
-                                  });
-                                  setEditDialogOpen(true);
-                                }}
-                              >
-                                <Edit className="w-4 h-4 mr-2" />
-                                Kelola Akun
-                              </DropdownMenuItem>
-                              {u.santri && (
-                                <React.Fragment>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      navigate(`/santri/profile?santriId=${u.santri!.id}`);
-                                    }}
-                                  >
-                                    <ExternalLink className="w-4 h-4 mr-2" />
-                                    Lihat Profil Santri
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      navigate(`/akademik/presensi?santriId=${u.santri!.id}`);
-                                    }}
-                                  >
-                                    <ClipboardCheck className="w-4 h-4 mr-2" />
-                                    Monitoring Absensi
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setSelectedUser(u);
-                                      setSelectedStatus(u.santri!.status_santri);
-                                      setStatusDialogOpen(true);
-                                    }}
-                                  >
-                                    <Shield className="w-4 h-4 mr-2" />
-                                    Edit Status Santri
-                                  </DropdownMenuItem>
-                                </React.Fragment>
-                              )}
-                              {u.pengajar && (
-                                <React.Fragment>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      navigate(`/akademik/pengajar/profil?pengajarId=${u.pengajar!.id}`);
-                                    }}
-                                  >
-                                    <ExternalLink className="w-4 h-4 mr-2" />
-                                    Lihat Profil Pengajar
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      navigate(`/akademik/presensi?pengajarId=${u.pengajar!.id}`);
-                                    }}
-                                  >
-                                    <ClipboardCheck className="w-4 h-4 mr-2" />
-                                    Monitoring Absensi
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setSelectedPengajarId(u.pengajar!.id);
-                                      setAssignDialogOpen(true);
-                                    }}
-                                  >
-                                    <Calendar className="w-4 h-4 mr-2" />
-                                    Assign ke Kelas/Agenda
-                                  </DropdownMenuItem>
-                                </React.Fragment>
-                              )}
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  // Prevent event bubbling
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  
-                                  // Store current searchTerm to prevent it from changing
-                                  const currentSearchTerm = searchTermRef.current;
-                                  
-                                  // Reset all password-related state first
-                                  setNewPassword('');
-                                  setShowPassword(false);
-                                  
-                                  // Set selectedUser
-                                  setSelectedUser(u);
-                                  selectedUserRef.current = u;
-                                  
-                                  // Open dialog immediately - no setTimeout needed
-                                  setPasswordDialogOpen(true);
-                                  
-                                  // Restore searchTerm if it was changed (after a brief delay)
-                                  setTimeout(() => {
-                                    if (searchTermRef.current !== currentSearchTerm) {
-                                      setSearchTerm(currentSearchTerm);
-                                    }
-                                  }, 10);
-                                }}
-                              >
-                                <Key className="w-4 h-4 mr-2" />
-                                Ubah Password
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => handleDeleteUser(u.id, u.full_name || u.email)}
-                                className="text-red-600"
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Hapus User
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                                }
+
+                                console.log('[UserManagementPage] Final allowedModules for form:', userAllowedModules);
+                                setFormData({
+                                  email: u.email,
+                                  password: '',
+                                  full_name: u.full_name || '',
+                                  roles: u.roles,
+                                  allowedModules: userAllowedModules,
+                                  createPengajar: false,
+                                  pengajarData: {
+                                    nama_lengkap: '',
+                                    kode_pengajar: '',
+                                    program_spesialisasi: [],
+                                    kontak: '',
+                                  },
+                                });
+                                setEditDialogOpen(true);
+                              }}
+                            >
+                              <Edit className="w-4 h-4 mr-2" />
+                              Kelola Akun
+                            </DropdownMenuItem>
+                            {u.santri && (
+                              <React.Fragment>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    navigate(`/santri/profile?santriId=${u.santri!.id}`);
+                                  }}
+                                >
+                                  <ExternalLink className="w-4 h-4 mr-2" />
+                                  Lihat Profil Santri
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    navigate(`/akademik/presensi?santriId=${u.santri!.id}`);
+                                  }}
+                                >
+                                  <ClipboardCheck className="w-4 h-4 mr-2" />
+                                  Monitoring Absensi
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedUser(u);
+                                    setSelectedStatus(u.santri!.status_santri);
+                                    setStatusDialogOpen(true);
+                                  }}
+                                >
+                                  <Shield className="w-4 h-4 mr-2" />
+                                  Edit Status Santri
+                                </DropdownMenuItem>
+                              </React.Fragment>
+                            )}
+                            {u.pengajar && (
+                              <React.Fragment>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    navigate(`/akademik/pengajar/profil?pengajarId=${u.pengajar!.id}`);
+                                  }}
+                                >
+                                  <ExternalLink className="w-4 h-4 mr-2" />
+                                  Lihat Profil Pengajar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    navigate(`/akademik/presensi?pengajarId=${u.pengajar!.id}`);
+                                  }}
+                                >
+                                  <ClipboardCheck className="w-4 h-4 mr-2" />
+                                  Monitoring Absensi
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedPengajarId(u.pengajar!.id);
+                                    setAssignDialogOpen(true);
+                                  }}
+                                >
+                                  <Calendar className="w-4 h-4 mr-2" />
+                                  Assign ke Kelas/Agenda
+                                </DropdownMenuItem>
+                              </React.Fragment>
+                            )}
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                // Prevent event bubbling
+                                e.preventDefault();
+                                e.stopPropagation();
+
+                                // Store current searchTerm to prevent it from changing
+                                const currentSearchTerm = searchTermRef.current;
+
+                                // Reset all password-related state first
+                                setNewPassword('');
+                                setShowPassword(false);
+
+                                // Set selectedUser
+                                setSelectedUser(u);
+                                selectedUserRef.current = u;
+
+                                // Open dialog immediately - no setTimeout needed
+                                setPasswordDialogOpen(true);
+
+                                // Restore searchTerm if it was changed (after a brief delay)
+                                setTimeout(() => {
+                                  if (searchTermRef.current !== currentSearchTerm) {
+                                    setSearchTerm(currentSearchTerm);
+                                  }
+                                }, 10);
+                              }}
+                            >
+                              <Key className="w-4 h-4 mr-2" />
+                              Ubah Password
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteUser(u.id, u.full_name || u.email)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Hapus User
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Create User Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -1146,13 +1080,12 @@ const UserManagementPage: React.FC = () => {
               <Label>Role *</Label>
               <div className="grid grid-cols-1 gap-2">
                 {ROLE_OPTIONS.map((role) => (
-                  <div 
-                    key={role.value} 
-                    className={`flex items-start space-x-2 p-3 border rounded cursor-pointer transition-colors ${
-                      formData.roles[0] === role.value 
-                        ? 'border-primary bg-primary/5' 
-                        : 'hover:bg-muted/50'
-                    }`}
+                  <div
+                    key={role.value}
+                    className={`flex items-start space-x-2 p-3 border rounded cursor-pointer transition-colors ${formData.roles[0] === role.value
+                      ? 'border-primary bg-primary/5'
+                      : 'hover:bg-muted/50'
+                      }`}
                     onClick={() => setRole(role.value)}
                   >
                     <input
@@ -1170,15 +1103,15 @@ const UserManagementPage: React.FC = () => {
                 ))}
               </div>
             </div>
-            {/* Module Access - Hanya untuk staff (admin selalu full access) */}
-            {formData.roles[0] === 'staff' && (
+            {/* Module Access - Untuk staff & pengurus (admin selalu full access) */}
+            {(formData.roles[0] === 'staff' || formData.roles[0] === 'pengurus') && (
               <div className="space-y-2 p-4 border rounded-lg bg-muted/50">
                 <Label>Akses Modul *</Label>
                 <p className="text-xs text-muted-foreground mb-2">
-                  Pilih modul yang dapat diakses oleh staff ini. Modul yang tidak dipilih tidak akan ditampilkan.
+                  Pilih modul yang dapat diakses oleh user ini. Modul yang tidak dipilih tidak akan ditampilkan.
                 </p>
                 <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded mb-2">
-                  ⚠️ Staff wajib memilih minimal 1 modul
+                  ⚠️ Staff/Pengurus wajib memilih minimal 1 modul
                 </div>
                 <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
                   {getAllModuleNames()
@@ -1186,7 +1119,7 @@ const UserManagementPage: React.FC = () => {
                     .map((module) => {
                       const currentModules = formData.allowedModules || ['dashboard'];
                       const isChecked = currentModules.includes(module);
-                      
+
                       return (
                         <div key={module} className="flex items-center space-x-2">
                           <Checkbox
@@ -1195,18 +1128,18 @@ const UserManagementPage: React.FC = () => {
                               setFormData(prev => {
                                 const current = prev.allowedModules || ['dashboard'];
                                 const otherModules = current.filter(m => m !== 'dashboard');
-                                
+
                                 let newOtherModules: string[];
                                 if (checked) {
-                                  newOtherModules = otherModules.includes(module) 
-                                    ? otherModules 
+                                  newOtherModules = otherModules.includes(module)
+                                    ? otherModules
                                     : [...otherModules, module];
                                 } else {
                                   newOtherModules = otherModules.filter(m => m !== module);
                                 }
-                                
+
                                 const finalModules = ['dashboard', ...newOtherModules];
-                                
+
                                 console.log('[UserManagementPage] Checkbox changed (CREATE):', {
                                   module,
                                   checked,
@@ -1215,7 +1148,7 @@ const UserManagementPage: React.FC = () => {
                                   newOtherModules,
                                   finalModules
                                 });
-                                
+
                                 return {
                                   ...prev,
                                   allowedModules: finalModules,
@@ -1313,7 +1246,7 @@ const UserManagementPage: React.FC = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input 
+              <Input
                 value={formData.email}
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                 placeholder="user@example.com"
@@ -1334,13 +1267,12 @@ const UserManagementPage: React.FC = () => {
               <Label>Role *</Label>
               <div className="grid grid-cols-1 gap-2">
                 {ROLE_OPTIONS.map((role) => (
-                  <div 
-                    key={role.value} 
-                    className={`flex items-start space-x-2 p-3 border rounded cursor-pointer transition-colors ${
-                      formData.roles[0] === role.value 
-                        ? 'border-primary bg-primary/5' 
-                        : 'hover:bg-muted/50'
-                    }`}
+                  <div
+                    key={role.value}
+                    className={`flex items-start space-x-2 p-3 border rounded cursor-pointer transition-colors ${formData.roles[0] === role.value
+                      ? 'border-primary bg-primary/5'
+                      : 'hover:bg-muted/50'
+                      }`}
                     onClick={() => setRole(role.value)}
                   >
                     <input
@@ -1358,15 +1290,15 @@ const UserManagementPage: React.FC = () => {
                 ))}
               </div>
             </div>
-            {/* Module Access - Hanya untuk staff (admin selalu full access) */}
-            {formData.roles[0] === 'staff' && (
+            {/* Module Access - Untuk staff & pengurus (admin selalu full access) */}
+            {(formData.roles[0] === 'staff' || formData.roles[0] === 'pengurus') && (
               <div className="space-y-2 p-4 border rounded-lg bg-muted/50">
                 <Label>Akses Modul *</Label>
                 <p className="text-xs text-muted-foreground mb-2">
-                  Pilih modul yang dapat diakses oleh staff ini. Dashboard akan selalu ditambahkan secara otomatis. Modul yang tidak dipilih tidak akan ditampilkan.
+                  Pilih modul yang dapat diakses oleh user ini. Dashboard akan selalu ditambahkan secara otomatis. Modul yang tidak dipilih tidak akan ditampilkan.
                 </p>
                 <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded mb-2">
-                  ⚠️ Staff wajib memilih minimal 1 modul (selain dashboard)
+                  ⚠️ Staff/Pengurus wajib memilih minimal 1 modul (selain dashboard)
                 </div>
                 <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
                   {getAllModuleNames()
@@ -1375,7 +1307,7 @@ const UserManagementPage: React.FC = () => {
                       // Check if module is selected (dashboard is always included, so check the rest)
                       const currentModules = formData.allowedModules || ['dashboard'];
                       const isChecked = currentModules.includes(module);
-                      
+
                       return (
                         <div key={module} className="flex items-center space-x-2">
                           <Checkbox
@@ -1385,22 +1317,22 @@ const UserManagementPage: React.FC = () => {
                                 const current = prev.allowedModules || ['dashboard'];
                                 // Filter out dashboard temporarily to work with other modules
                                 const otherModules = current.filter(m => m !== 'dashboard');
-                                
+
                                 // Update other modules based on checkbox state
                                 let newOtherModules: string[];
                                 if (checked) {
                                   // Add module if not already present
-                                  newOtherModules = otherModules.includes(module) 
-                                    ? otherModules 
+                                  newOtherModules = otherModules.includes(module)
+                                    ? otherModules
                                     : [...otherModules, module];
                                 } else {
                                   // Remove module
                                   newOtherModules = otherModules.filter(m => m !== module);
                                 }
-                                
+
                                 // Always include dashboard, plus selected other modules
                                 const finalModules = ['dashboard', ...newOtherModules];
-                                
+
                                 console.log('[UserManagementPage] Checkbox changed (EDIT):', {
                                   module,
                                   checked,
@@ -1409,7 +1341,7 @@ const UserManagementPage: React.FC = () => {
                                   newOtherModules,
                                   finalModules
                                 });
-                                
+
                                 return {
                                   ...prev,
                                   allowedModules: finalModules,
@@ -1438,8 +1370,8 @@ const UserManagementPage: React.FC = () => {
       </Dialog>
 
       {/* Update Password Dialog */}
-      <Dialog 
-        open={passwordDialogOpen} 
+      <Dialog
+        open={passwordDialogOpen}
         onOpenChange={(open) => {
           // Only close dialog, don't allow opening from here (use button click instead)
           if (!open) {
@@ -1503,8 +1435,8 @@ const UserManagementPage: React.FC = () => {
             }}>
               Batal
             </Button>
-            <Button 
-              onClick={handleUpdatePassword} 
+            <Button
+              onClick={handleUpdatePassword}
               disabled={!newPassword || newPassword.length < 6 || !selectedUser}
             >
               <Key className="w-4 h-4 mr-2" />
@@ -1580,14 +1512,14 @@ const UserManagementPage: React.FC = () => {
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">Status Santri</Label>
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={
-                          selectedUser.santri.status_santri === 'Aktif' 
-                            ? 'bg-green-50 text-green-800 border-green-200' 
+                          selectedUser.santri.status_santri === 'Aktif'
+                            ? 'bg-green-50 text-green-800 border-green-200'
                             : selectedUser.santri.status_santri === 'Non-Aktif'
-                            ? 'bg-red-50 text-red-800 border-red-200'
-                            : 'bg-blue-50 text-blue-800 border-blue-200'
+                              ? 'bg-red-50 text-red-800 border-red-200'
+                              : 'bg-blue-50 text-blue-800 border-blue-200'
                         }
                       >
                         {selectedUser.santri.status_santri}
@@ -1642,8 +1574,8 @@ const UserManagementPage: React.FC = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Status Santri *</Label>
-              <Select 
-                value={selectedUser?.santri?.status_santri || selectedStatus} 
+              <Select
+                value={selectedUser?.santri?.status_santri || selectedStatus}
                 onValueChange={(value) => setSelectedStatus(value as 'Aktif' | 'Non-Aktif' | 'Alumni')}
               >
                 <SelectTrigger>
@@ -1794,7 +1726,7 @@ const UserManagementPage: React.FC = () => {
                   </CardContent>
                 </Card>
               </div>
-              
+
               <div className="space-y-2">
                 <Label>Detail Hasil</Label>
                 <div className="border rounded-lg max-h-96 overflow-y-auto">

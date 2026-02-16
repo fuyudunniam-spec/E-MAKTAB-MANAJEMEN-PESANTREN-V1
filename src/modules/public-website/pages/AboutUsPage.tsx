@@ -57,11 +57,11 @@ const AboutUsPage: React.FC = () => {
             <span className="text-accent-gold font-bold uppercase tracking-[0.2em] text-[10px]">Profil Lembaga</span>
           </div>
           <h1 className="text-5xl md:text-7xl font-display font-medium text-white mb-8 leading-tight">
-            Penjaga Tradisi, <br />
-            <span className="italic text-accent-gold font-serif">Pembangun Peradaban</span>
+            {sanityData?.aboutPage?.hero?.title || "Penjaga Tradisi,"} <br />
+            <span className="italic text-accent-gold font-serif">{sanityData?.aboutPage?.hero?.titleItalic || "Pembangun Peradaban"}</span>
           </h1>
           <p className="text-lg md:text-xl text-slate-300 leading-relaxed max-w-2xl mx-auto font-light">
-            Al-Bisri adalah perwujudan dari cita-cita luhur untuk mengangkat derajat umat melalui pendidikan yang berkarakter, mandiri, dan berwawasan global.
+            {sanityData?.aboutPage?.hero?.subtitle || "Al-Bisri adalah perwujudan dari cita-cita luhur untuk mengangkat derajat umat melalui pendidikan yang berkarakter, mandiri, dan berwawasan global."}
           </p>
 
         </div>
@@ -76,42 +76,57 @@ const AboutUsPage: React.FC = () => {
             <div className="relative order-2 lg:order-1">
               <div className="absolute -top-6 -left-6 w-full h-full border border-gold-400/30 rounded-[3rem]"></div>
               <div className="relative rounded-[3rem] overflow-hidden shadow-2xl aspect-[4/5] lg:aspect-square group bg-stone-100">
-                <img src="https://images.unsplash.com/photo-1585036156171-384164a8c675?q=80&w=2670&auto=format&fit=crop" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-1000 transform group-hover:scale-105" alt="Sejarah Pesantren" />
+                <img
+                  src={sanityData?.aboutPage?.history?.image ? SanityService.imageUrl(sanityData.aboutPage.history.image) : "https://images.unsplash.com/photo-1585036156171-384164a8c675?q=80&w=2670&auto=format&fit=crop"}
+                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition duration-1000 transform group-hover:scale-105"
+                  alt="Sejarah Pesantren"
+                />
                 <div className="absolute inset-0 bg-royal-950/20 mix-blend-multiply"></div>
 
                 {/* Floating Card */}
                 <div className="absolute bottom-8 right-8 bg-white p-8 rounded-2xl shadow-xl border-t-4 border-accent-gold max-w-xs animate-in slide-in-from-bottom-8 duration-700 delay-300">
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">Didirikan Tahun</p>
-                  <p className="font-display text-5xl text-navy-950 leading-none">1998</p>
+                  <p className="font-display text-5xl text-navy-950 leading-none">{sanityData?.aboutPage?.history?.foundedYear || "1998"}</p>
                 </div>
               </div>
             </div>
 
             {/* Content */}
             <div className="order-1 lg:order-2">
-              <span className="text-accent-gold font-bold uppercase tracking-[0.2em] text-xs mb-4 block">Akar Sejarah</span>
+              <span className="text-accent-gold font-bold uppercase tracking-[0.2em] text-xs mb-4 block">{sanityData?.aboutPage?.history?.badge || "Akar Sejarah"}</span>
               <h2 className="text-4xl lg:text-5xl font-display text-navy-950 mb-8 leading-tight">
-                Transformasi dari <br /><span className="italic text-stone-400">Majelis ke Institut</span>
+                {sanityData?.aboutPage?.history?.title || "Transformasi dari"} <br /><span className="italic text-stone-400">{sanityData?.aboutPage?.history?.subtitle || "Majelis ke Institut"}</span>
               </h2>
 
               <div className="prose prose-lg text-slate-500 font-jakarta leading-relaxed">
-                <p className="mb-6">
-                  Bermula dari sebuah rumah wakaf sederhana di pinggiran kota, KH. Bisri Mustofa (Alm) memulai majelis taklim kecil dengan lima orang santri yatim. Niat beliau sederhana: memberikan hak pendidikan bagi mereka yang kurang beruntung.
-                </p>
-                <p className="mb-8">
-                  Seiring berjalannya waktu, amanah umat semakin besar. Pada tahun 2010, Yayasan Al-Bisri resmi bertransformasi menjadi lembaga pendidikan terpadu yang memadukan kurikulum salaf (kitab kuning) dengan sistem sekolah formal modern.
-                </p>
+                {sanityData?.aboutPage?.history?.description ? (
+                  sanityData.aboutPage.history.description.map((block: any, idx: number) => (
+                    <p key={idx} className="mb-6">
+                      {block.children.map((child: any) => child.text).join('')}
+                    </p>
+                  ))
+                ) : (
+                  <>
+                    <p className="mb-6">
+                      Bermula dari sebuah rumah wakaf sederhana di pinggiran kota, KH. Bisri Mustofa (Alm) memulai majelis taklim kecil dengan lima orang santri yatim. Niat beliau sederhana: memberikan hak pendidikan bagi mereka yang kurang beruntung.
+                    </p>
+                    <p className="mb-8">
+                      Seiring berjalannya waktu, amanah umat semakin besar. Pada tahun 2010, Yayasan Al-Bisri resmi bertransformasi menjadi lembaga pendidikan terpadu yang memadukan kurikulum salaf (kitab kuning) dengan sistem sekolah formal modern.
+                    </p>
+                  </>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-12 border-t border-stone-200 pt-10 mt-10">
-                <div>
-                  <span className="text-4xl font-display text-accent-gold block mb-2">1.2k+</span>
-                  <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Alumni Tersebar</span>
-                </div>
-                <div>
-                  <span className="text-4xl font-display text-accent-gold block mb-2">100%</span>
-                  <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Lulusan Kompeten</span>
-                </div>
+                {(sanityData?.aboutPage?.history?.stats || [
+                  { value: "1.2k+", label: "Alumni Tersebar" },
+                  { value: "100%", label: "Lulusan Kompeten" }
+                ]).map((stat: any, idx: number) => (
+                  <div key={idx}>
+                    <span className="text-4xl font-display text-accent-gold block mb-2">{stat.value}</span>
+                    <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">{stat.label}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -143,7 +158,7 @@ const AboutUsPage: React.FC = () => {
                 </div>
                 <h3 className="text-2xl font-display mb-4 text-white">Visi Utama</h3>
                 <p className="text-royal-100/80 leading-relaxed font-light italic">
-                  "Menjadi pusat kaderisasi ulama dan intelektual muslim yang mandiri, berakhlak mulia, dan berwawasan global."
+                  "{sanityData?.aboutPage?.vision?.mainVision || "Menjadi pusat kaderisasi ulama dan intelektual muslim yang mandiri, berakhlak mulia, dan berwawasan global."}"
                 </p>
               </div>
 
@@ -154,11 +169,11 @@ const AboutUsPage: React.FC = () => {
                 </div>
                 <h3 className="text-2xl font-display mb-6 text-white">Misi Strategis</h3>
                 <ul className="space-y-4">
-                  {[
+                  {(sanityData?.aboutPage?.mission?.points || [
                     "Integrasi tradisi klasik & sains modern.",
                     "Kemandirian ekonomi pesantren.",
                     "Skill teknokrat & kepemimpinan."
-                  ].map((item, i) => (
+                  ]).map((item: string, i: number) => (
                     <li key={i} className="flex gap-4 items-start text-sm text-royal-200 font-light">
                       <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white/10 text-[10px] font-bold text-white shrink-0 mt-0.5">{i + 1}</span>
                       {item}
@@ -167,7 +182,6 @@ const AboutUsPage: React.FC = () => {
                 </ul>
               </div>
             </div>
-
           </div>
         </div>
       </section>

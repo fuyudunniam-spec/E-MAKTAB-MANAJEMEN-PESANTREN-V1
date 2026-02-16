@@ -6,14 +6,29 @@ export default defineType({
     type: 'document',
     fields: [
         defineField({
+            name: 'badge',
+            title: 'Badge (Pill)',
+            type: 'string',
+        }),
+        defineField({
+            name: 'subBadge',
+            title: 'Sub Badge (Text)',
+            type: 'string',
+        }),
+        defineField({
             name: 'title',
-            title: 'Hero Title',
+            title: 'Hero Title (Main)',
             type: 'string',
             validation: (rule) => rule.required(),
         }),
         defineField({
+            name: 'titleItalic',
+            title: 'Hero Title (Italic/Gold)',
+            type: 'string',
+        }),
+        defineField({
             name: 'subtitle',
-            title: 'Hero Subtitle',
+            title: 'Description',
             type: 'text',
             rows: 3,
         }),
@@ -24,13 +39,11 @@ export default defineType({
             options: {
                 hotspot: true,
             },
-            fields: [
-                defineField({
-                    name: 'alt',
-                    type: 'string',
-                    title: 'Alternative text',
-                })
-            ]
+        }),
+        defineField({
+            name: 'externalImageUrl',
+            title: 'External Image URL (Unsplash)',
+            type: 'string',
         }),
         defineField({
             name: 'ctaText',
@@ -42,5 +55,21 @@ export default defineType({
             title: 'Button Link',
             type: 'string',
         }),
+        defineField({
+            name: 'ctaStyle',
+            title: 'Button Style',
+            type: 'string',
+            options: {
+                list: [
+                    { title: 'White (Outline/Solid)', value: 'bg-white text-navy-950' },
+                    { title: 'Gold (Solid)', value: 'bg-accent-gold text-navy-950' },
+                ]
+            }
+        }),
+        defineField({
+            name: 'order',
+            title: 'Order',
+            type: 'number',
+        })
     ],
 })

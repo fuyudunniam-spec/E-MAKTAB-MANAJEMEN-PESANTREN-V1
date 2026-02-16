@@ -3,6 +3,7 @@ import { ArrowRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getPublicImpactData } from '../services/publicKeuangan.service';
+import { SanityService } from '../../public-website/services/sanity.service';
 
 interface PublicHeroProps {
     data?: any;
@@ -56,7 +57,8 @@ const PublicHero: React.FC<PublicHeroProps> = ({ data }) => {
 
     useEffect(() => {
         const interval = setInterval(() => {
-            handleSlideChange((currentSlide + 1) % SLIDES.length);
+            const length = data?.length || 1;
+            handleSlideChange((currentSlide + 1) % length);
         }, 8000);
         return () => clearInterval(interval);
     }, [currentSlide]);
@@ -72,11 +74,14 @@ const PublicHero: React.FC<PublicHeroProps> = ({ data }) => {
         <section className="relative h-screen w-full bg-navy-950 overflow-hidden font-jakarta">
             {/* Slides Container */}
             <div id="hero-slider" className="relative h-full w-full">
-                {SLIDES.map((slide, index) => {
+                {(data || []).map((slide: any, index: number) => {
                     const isActive = index === currentSlide;
+                    // Fallback for image
+                    const bgImage = slide.externalImageUrl || (slide.backgroundImage ? SanityService.imageUrl(slide.backgroundImage) : '');
+
                     return (
                         <div
-                            key={slide.id}
+                            key={slide._id || index}
                             className={`absolute inset-0 w-full h-full transition-all duration-1000 ease-in-out ${isActive ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
                             style={{ visibility: isActive ? 'visible' : 'hidden' }}
                         >
@@ -85,7 +90,7 @@ const PublicHero: React.FC<PublicHeroProps> = ({ data }) => {
 
                             {/* Background Image with Scale Animation */}
                             <img
-                                src={slide.image}
+                                src={bgImage}
                                 className={`absolute inset-0 w-full h-full object-cover transition-transform duration-[10000ms] ease-linear ${isActive ? 'scale-100' : 'scale-110'}`}
                                 alt={slide.title}
                             />
@@ -113,16 +118,18 @@ const PublicHero: React.FC<PublicHeroProps> = ({ data }) => {
                                     </h1>
 
                                     <p className="text-lg text-white/80 font-light leading-relaxed mb-10 max-w-xl">
-                                        {slide.desc}
+                                        {slide.subtitle}
                                     </p>
 
                                     <div className="flex gap-6">
-                                        <Link
-                                            to={slide.ctaLink}
-                                            className={`${slide.ctaStyle} relative overflow-hidden px-10 py-4 font-bold uppercase tracking-widest text-xs transition-all hover:scale-105 group`}
-                                        >
-                                            <span className="relative z-10">{slide.ctaText}</span>
-                                        </Link>
+                                        {slide.ctaText && (
+                                            <Link
+                                                to={slide.ctaLink || '#'}
+                                                className={`${slide.ctaStyle || 'bg-white text-navy-950'} relative overflow-hidden px-10 py-4 font-bold uppercase tracking-widest text-xs transition-all hover:scale-105 group`}
+                                            >
+                                                <span className="relative z-10">{slide.ctaText}</span>
+                                            </Link>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -134,7 +141,7 @@ const PublicHero: React.FC<PublicHeroProps> = ({ data }) => {
             {/* Slider Navigation Controls */}
             <div className="absolute bottom-12 left-6 md:left-10 z-30 flex items-center gap-10">
                 <div id="slider-dots" className="flex gap-4">
-                    {SLIDES.map((_, idx) => (
+                    {(data || []).map((_: any, idx: number) => (
                         <button
                             key={idx}
                             onClick={() => handleSlideChange(idx)}
