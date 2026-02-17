@@ -9,6 +9,9 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
+    "sanity": "npm run dev --prefix studio",
+    "sanity:build": "npm run build --prefix studio",
+    "sanity:deploy": "npm run deploy --prefix studio",
     "test": "vitest --run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui"
