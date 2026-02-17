@@ -62,6 +62,7 @@ const NewsPage = lazy(() => import("@/modules/public-website/pages/NewsPage"));
 const NewsDetailPage = lazy(() => import("@/modules/public-website/pages/NewsDetailPage"));
 const ProgramDonasiDetailPage = lazy(() => import("@/modules/public-website/pages/ProgramDonasiDetailPage"));
 const PublicProgramPage = lazy(() => import("@/modules/public-website/pages/PublicProgramPage"));
+const SanityStudioRedirect = lazy(() => import("@/modules/public-website/pages/SanityStudioRedirect"));
 
 // Admin Website Imports - Removed unused imports
 
@@ -290,7 +291,9 @@ const App = () => (
                 </WithLayout>
               } />
 
-              {/* Website Management Routes - Removed as per user request */}
+              {/* Website Management Routes */}
+              <Route path="/studio" element={<SuspenseOnly><SanityStudioRedirect /></SuspenseOnly>} />
+              <Route path="/admin/studio" element={<SuspenseOnly><SanityStudioRedirect /></SuspenseOnly>} />
 
               {/* Academic Routes */}
               <Route path="/akademik" element={

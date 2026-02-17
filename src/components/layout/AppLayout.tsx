@@ -183,6 +183,7 @@ const SidebarContent = () => {
       icon: Globe,
       items: [
         { icon: LayoutDashboard, label: 'Dashboard Web', path: '/admin/website/homepage' },
+        { icon: Store, label: 'Content Studio', path: '/admin/studio' },
         { icon: Settings2, label: 'Pengaturan', path: '/admin/website/settings' },
         { icon: FileText, label: 'Berita/Artikel', path: '/admin/website/posts' },
         { icon: BookOpen, label: 'Halaman Statis', path: '/admin/website/pages' },
