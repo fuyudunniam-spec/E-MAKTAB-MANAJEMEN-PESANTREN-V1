@@ -9,5 +9,7 @@ export default defineCliConfig({
         dataset,
     },
     studioHost: 'emaktab-website', // Optional: for deployment
-    autoUpdates: true,
+    deployment: {
+        autoUpdates: true,
+    },
 })
