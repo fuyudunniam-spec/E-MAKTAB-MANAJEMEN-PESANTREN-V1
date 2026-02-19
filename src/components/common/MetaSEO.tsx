@@ -12,6 +12,8 @@ const MetaSEO = () => {
 
     if (!siteSettings) return null;
 
+    const logoUrl = siteSettings.logo ? SanityService.imageUrl(siteSettings.logo) : null;
+
     return (
         <Helmet>
             {siteSettings.title && <title>{siteSettings.title}</title>}
@@ -19,6 +21,12 @@ const MetaSEO = () => {
             {siteSettings.description && <meta property="og:description" content={siteSettings.description} />}
             {/* Fallback author if needed, though often static */}
             <meta name="author" content={siteSettings.brand?.title || "Pesantren Al-Bisri"} />
+
+            {/* Dynamic Logo / Favicon */}
+            {logoUrl && <link rel="icon" href={logoUrl} />}
+            {logoUrl && <link rel="apple-touch-icon" href={logoUrl} />}
+            {logoUrl && <meta property="og:image" content={logoUrl} />}
+            {logoUrl && <meta name="twitter:image" content={logoUrl} />}
         </Helmet>
     );
 };
