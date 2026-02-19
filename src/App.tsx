@@ -7,6 +7,7 @@ import { lazy, Suspense, type ReactNode } from "react";
 import Layout from "@/components/layout/AppLayout";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import MetaSEO from "@/components/common/MetaSEO";
 
 const RouteFallback = () => (
   <div className="p-6 text-sm text-muted-foreground">Loading...</div>
@@ -122,6 +123,7 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <TooltipProvider>
+          <MetaSEO />
           <Toaster />
           <Sonner />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -457,7 +459,7 @@ const App = () => (
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
-  </ErrorBoundary>
+  </ErrorBoundary >
 );
 
 export default App;
