@@ -27,7 +27,7 @@ export const structure = (S: StructureBuilder) =>
                             S.documentTypeListItem('landingHero').title('Hero Section'),
                             S.documentTypeListItem('service').title('Layanan (4 Utama)'),
                             S.documentTypeListItem('impactPillar').title('Pilar Impact'),
-                            S.documentTypeListItem('milestone').title('Milestones'),
+
                             S.documentTypeListItem('partner').title('Partners'),
                             S.documentTypeListItem('testimonial').title('Testimonials'),
                         ])
@@ -81,7 +81,7 @@ export const structure = (S: StructureBuilder) =>
                         'siteSettings',
                         'psbPage',
                         'landingHero',
-                        'milestone',
+
                         'partner',
                         'testimonial',
                         'news',
