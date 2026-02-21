@@ -7,7 +7,7 @@ export const LANDING_PAGE_QUERY = groq`{
   "impactPillars": *[_type == "impactPillar"] | order(order asc),
   "history": *[_type == "aboutPage"][0].history,
   "partners": *[_type == "partner"],
-  "milestones": *[_type == "milestone"] | order(year desc),
+
   "testimonials": *[_type == "testimonial"]
 }`
 
@@ -36,7 +36,7 @@ export const ABOUT_PAGE_QUERY = groq`{
       scopusId
   },
   "facilities": *[_type == "facility"],
-    "milestones": *[_type == "milestone"] | order(year desc)
+
 }`
 
 // Donation Page Queries
