@@ -1,11 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
 import {
-  Heart, ArrowRight, CheckCircle2, Loader2, Upload, X,
-  Users, Star, Shield, ChevronDown, Send, BookOpen,
-  Clock, BadgeCheck, Copy, Check, PhoneCall, HeartHandshake,
-  Sparkles
+  ArrowRight, Loader2, Upload, X,
+  Shield, Send, BookOpen, Copy, Check,
+  Lock, HeartHandshake, BookMarked, Users, MessageCircle,
+  Sparkles, Home, GraduationCap, Building, Heart, CheckCircle2, PhoneCall
 } from 'lucide-react';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
@@ -16,6 +15,7 @@ import {
   type DnsSocialProofItem,
   type DnsRekeningDisplay,
 } from '@/modules/donasi/services/dns.service';
+
 // ============================================
 // HELPERS
 // ============================================
@@ -34,71 +34,23 @@ const timeAgo = (dateStr: string) => {
   return `${d} hari lalu`;
 };
 
-const QUICK_AMOUNTS = [25000, 50000, 100000, 250000, 500000, 1000000];
+const IMPACT_AMOUNTS = [
+  { value: 50000, label: 'Sedekah Operasional' },
+  { value: 150000, label: 'Pangan 1 Santri / Pekan' },
+  { value: 300000, label: 'Pendidikan 1 Santri / Bulan' },
+  { value: 1000000, label: 'Beasiswa Penuh 1 Santri' },
+];
 
-// ================================================
-// REKENING CARD — Elegant white bank card
-// ================================================
-
-const RekeningCard = ({ r }: { r: DnsRekeningDisplay }) => {
-  const [copied, setCopied] = useState(false);
-
-  const copy = () => {
-    navigator.clipboard.writeText(r.nomor_rekening).catch(() => {
-      // fallback for older browsers
-      const el = document.createElement('textarea');
-      el.value = r.nomor_rekening;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-    });
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-  };
-
-  return (
-    <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-      {/* Bank name row */}
-      <p className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.15em] mb-3">{r.nama_bank}</p>
-
-      {/* Account number + copy */}
-      <div className="flex items-center justify-between gap-3 bg-stone-50 border border-stone-100 rounded-xl px-4 py-3 mb-3">
-        <span className="font-mono font-bold text-[#0a192f] text-xl tracking-wider select-all">
-          {r.nomor_rekening}
-        </span>
-        <button
-          onClick={copy}
-          className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${copied
-            ? 'bg-emerald-500 text-white'
-            : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500 hover:text-white'
-            }`}
-        >
-          {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-          {copied ? 'Tersalin!' : 'Salin'}
-        </button>
-      </div>
-
-      {/* Atas nama */}
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Atas Nama</span>
-        <span className="text-sm font-bold text-[#0a192f]">{r.atas_nama}</span>
-      </div>
-      {r.keterangan && <p className="text-xs text-amber-600 mt-1.5">{r.keterangan}</p>}
-    </div>
-  );
-};
-
-// ============================================
-// MAIN PAGE
-// ============================================
-
-const DonasiPage = () => {
+export default function DonasiPage() {
   const formRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
-  // Form state
-  const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
+  // --- WIDGET STATES ---
+  const [formStep, setFormStep] = useState(1);
+  const [donationType, setDonationType] = useState<'one-time' | 'monthly'>('one-time');
+
+  // --- FORM STATES ---
+  const [selectedAmount, setSelectedAmount] = useState<number | null>(IMPACT_AMOUNTS[1].value);
   const [customAmount, setCustomAmount] = useState('');
   const [nama, setNama] = useState('');
   const [noWa, setNoWa] = useState('');
@@ -109,9 +61,10 @@ const DonasiPage = () => {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submittedId, setSubmittedId] = useState<string>('');
   const [formError, setFormError] = useState('');
-  const [uploadProgress, setUploadProgress] = useState(false);
+  const [isPending, setIsPending] = useState(false);
+  const [copiedRek, setCopiedRek] = useState<string | null>(null);
 
-  // Data fetches
+  // --- DATA FETCHES ---
   const { data: rekening = [] } = useQuery<DnsRekeningDisplay[]>({
     queryKey: ['dns_rekening'],
     queryFn: DnsRekeningService.getAll,
@@ -124,12 +77,12 @@ const DonasiPage = () => {
     refetchInterval: 60 * 1000,
   });
 
-  // Auto-refresh social proof every 60s
   useEffect(() => {
     const timer = setInterval(() => refetchSP(), 60000);
     return () => clearInterval(timer);
   }, [refetchSP]);
 
+  // --- LOGIC ---
   const getNominal = useCallback((): number => {
     if (selectedAmount === -1) {
       const n = parseInt(customAmount.replace(/\D/g, ''), 10);
@@ -137,6 +90,19 @@ const DonasiPage = () => {
     }
     return selectedAmount ?? 0;
   }, [selectedAmount, customAmount]);
+
+  const handleNextStep = () => {
+    if (getNominal() < 10000) {
+      setFormError('Nominal minimal donasi adalah Rp 10.000');
+      return;
+    }
+    setFormError('');
+    setFormStep(2);
+    if (formRef.current) {
+      const y = formRef.current.getBoundingClientRect().top + window.scrollY - 100;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  };
 
   const handleBuktiChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -155,31 +121,29 @@ const DonasiPage = () => {
       setFormError('');
       const nominal = getNominal();
       if (!nama.trim()) throw new Error('Nama harus diisi');
-      if (nominal < 1000) throw new Error('Nominal minimal Rp 1.000');
       if (!buktiFile) throw new Error('Bukti transfer wajib dilampirkan');
 
-      // 1. Upload bukti
-      setUploadProgress(true);
-      let buktiUrl = '';
+      setIsPending(true);
       try {
+        // 1. Upload bukti
         const tempId = `tmp-${Date.now()}`;
-        buktiUrl = await DnsSubmissionService.uploadBukti(buktiFile, tempId);
+        const buktiUrl = await DnsSubmissionService.uploadBukti(buktiFile, tempId);
+
+        // 2. Submit
+        const id = await DnsSubmissionService.submit({
+          nama: nama.trim(),
+          no_wa: noWa.trim() || undefined,
+          nominal,
+          pesan_doa: pesanDoa.trim() || undefined,
+          bukti_transfer_url: buktiUrl,
+          is_anonim: isAnonim,
+          tampil_publik: true,
+        });
+
+        return id;
       } finally {
-        setUploadProgress(false);
+        setIsPending(false);
       }
-
-      // 2. Submit
-      const id = await DnsSubmissionService.submit({
-        nama: nama.trim(),
-        no_wa: noWa.trim() || undefined,
-        nominal,
-        pesan_doa: pesanDoa.trim() || undefined,
-        bukti_transfer_url: buktiUrl,
-        is_anonim: isAnonim,
-        tampil_publik: true,
-      });
-
-      return id;
     },
     onSuccess: (id) => {
       setSubmittedId(id);
@@ -196,337 +160,434 @@ const DonasiPage = () => {
     submitMutation.mutate();
   };
 
-  const scrollToForm = () => {
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const copyRekening = (rek: string, id: string) => {
+    navigator.clipboard.writeText(rek).catch(() => {
+      const el = document.createElement('textarea');
+      el.value = rek;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    });
+    setCopiedRek(id);
+    setTimeout(() => setCopiedRek(null), 2500);
   };
 
-  // WA konfirmasi ke nomor pesantren (085955303882)
   const waLink = `https://wa.me/6285955303882?text=${encodeURIComponent(
-    `Assalamu'alaikum, saya ${nama || 'Hamba Allah'} sudah transfer donasi sebesar ${formatRp(selectedAmount || parseInt(customAmount || '0'))} untuk Pesantren Al-Bisri.\n\nRekening: BSI 3334444940 a/n YPAY Al-Bisri\n\nMohon konfirmasinya. Jazakumullah khairan 🤲`
+    `Assalamu'alaikum, saya ${isAnonim ? 'Hamba Allah' : (nama || 'Hamba Allah')} telah menunaikan donasi sebesar ${formatRp(getNominal())} untuk Pesantren Al-Bisri dengan ID ${submittedId}.\n\nMohon konfirmasinya. Jazakumullah khairan.`
   )}`;
 
-  const verifiedDonors = socialProof.filter(s => s.tipe === 'donasi').length;
-
   return (
-    <div className="min-h-screen bg-[#fafafa] font-jakarta overflow-x-hidden">
+    <div className="min-h-screen font-sans text-slate-800 flex flex-col relative page-bg-pattern font-jakarta">
 
-      {/* NAVBAR */}
-      <PublicNavbar />
+      {/* Background Ambience Layers */}
+      <div className="absolute top-0 left-0 w-full h-[600px] hero-glow pointer-events-none z-0"></div>
 
-      {/* ── HERO / HEADER ───────────────────────────────────────── */}
-      <section className="relative pt-20 pb-12 overflow-hidden">
-        <div className="max-w-[1200px] mx-auto px-6 lg:px-12 text-center animate-in fade-in slide-in-from-bottom-5 duration-700">
-          <div className="inline-block mb-3">
-            <span className="text-[10px] font-bold tracking-[0.2em] text-amber-600 uppercase">Tunaikan Kebaikan</span>
-          </div>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif text-[#0a192f] mb-4">
-            Satu Sedekah, <span className="italic">Seribu Keberkahan</span>
-          </h1>
-          <p className="text-slate-500 text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
-            Dukungan Anda adalah hidangan bergizi, seragam bersih, dan lampu yang menerangi waktu mengaji para santri yatim Al-Bisri.
-          </p>
-        </div>
-      </section>
+      <div className="relative z-10 flex flex-col min-h-screen">
+        <PublicNavbar />
 
-      {/* ── MAIN CONTENT GRID ─────────────────────────────── */}
-      <main className="max-w-[1200px] mx-auto px-6 lg:px-12 pb-24">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <main className="flex-1 w-full pt-16 pb-24">
 
-          {/* LEFT COLUMN: Info, Rekening, Social Proof (Col 5) */}
-          <div className="lg:col-span-5 space-y-6 animate-in fade-in slide-in-from-left-5 duration-700 delay-100">
-
-            {/* Info Card - Deep Navy Accent */}
-            <div className="bg-[#0a192f] rounded-3xl p-8 shadow-xl relative overflow-hidden text-white group">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-500" />
-              <Heart className="w-8 h-8 text-amber-500/40 absolute top-6 right-6" />
-
-              <div className="relative z-10">
-                <h3 className="text-lg font-serif text-amber-400 mb-4">Setiap Rupiah Berarti</h3>
-                <p className="text-sm text-slate-300 leading-relaxed mb-6 font-light">
-                  Bukan sekadar nominal, donasi Anda adalah wujud kasih nyata bagi masa depan mereka yang membutuhkan.
-                </p>
-                <div className="flex items-center gap-4 pt-5 border-t border-white/10">
-                  <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-amber-400" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest text-slate-400">Status Program</p>
-                    <p className="font-bold text-sm">100% Beasiswa Santri Yatim</p>
-                  </div>
-                </div>
-              </div>
+          {/* ========================================== */}
+          {/* SECTION 1: NARRATIVE & IMPACT (TOP)        */}
+          {/* ========================================== */}
+          <section className="max-w-5xl mx-auto px-6 mb-24 text-center">
+            <div className="animate-fade-in-up">
+              <h4 className="inline-flex items-center gap-2 text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-6 bg-white/50 backdrop-blur-sm border border-[#c09c53]/20 px-4 py-2 rounded-full shadow-sm">
+                <Sparkles className="w-3.5 h-3.5" /> Gotong Royong Pendidikan Umat
+              </h4>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif text-[#0f172a] leading-[1.15] mb-8 drop-shadow-sm">
+                Berikan Hadiah Ilmu<br />& Masa Depan.
+              </h1>
+              <p className="text-slate-600 text-sm md:text-base leading-relaxed max-w-3xl mx-auto mb-16">
+                Di balik setiap lantunan doa bakda Maghrib, ada <strong>50 santri yatim dan dhuafa</strong> di Pesantren Al-Bisri yang menggantungkan cita-citanya. Sebagian menetap di asrama, sebagian lagi berjuang dari rumah. Uluran tangan Anda bukan sekadar angka, melainkan kepastian bahwa mereka bisa makan bergizi hari ini, menghafal Al-Qur'an esok hari, dan meraih masa depan tanpa takut putus sekolah.
+              </p>
             </div>
 
-            {/* Rekening Card Section */}
-            {rekening.length > 0 && (
-              <div className="bg-white rounded-3xl p-8 shadow-sm border border-stone-100">
-                <h3 className="text-lg font-serif text-[#0a192f] mb-6 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-stone-50 flex items-center justify-center">
-                    <Shield className="w-4 h-4 text-[#0a192f]" />
-                  </div>
-                  Rekening Resmi
-                </h3>
-
-                <div className="space-y-6">
-                  {rekening.map(r => (
-                    <RekeningCard key={r.id} r={r} />
-                  ))}
+            {/* Impact Pillars - Horizontal Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left border-t border-slate-200/60 pt-16 animate-fade-in-up delay-100">
+              <div className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
+                <div className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                  <Home className="w-5 h-5 text-[#0f172a]" />
                 </div>
+                <h3 className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">Asrama &<br />Pangan Santri</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">Menjamin tempat tinggal yang aman dan gizi 3x sehari. Memastikan tak ada satupun santri yatim yang belajar dalam keadaan lapar.</p>
               </div>
-            )}
+              <div className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
+                <div className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                  <BookMarked className="w-5 h-5 text-[#0f172a]" />
+                </div>
+                <h3 className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">Pendidikan<br />Diniyah & Tahfidz</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">Fokus membina akhlak mulia dan mendampingi hafalan Al-Qur'an mereka siang dan malam, mencetak generasi Rabbani.</p>
+              </div>
+              <div className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
+                <div className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                  <GraduationCap className="w-5 h-5 text-[#0f172a]" />
+                </div>
+                <h3 className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">Pendidikan<br />Formal (Sekolah)</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">Membiayai akses sekolah 100% gratis. Membekali mereka dengan ijazah dan ilmu umum agar siap mandiri dan bersaing di masa depan.</p>
+              </div>
+              <div className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
+                <div className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                  <Building className="w-5 h-5 text-[#0f172a]" />
+                </div>
+                <h3 className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">Operasional<br />& Khidmah</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">Menopang fasilitas pesantren serta memberikan apresiasi yang layak bagi para asatidz yang mengabdi 24 jam merawat santri.</p>
+              </div>
+            </div>
+          </section>
 
-            {/* Live Social Proof / Doa Feed */}
-            <div className="bg-white rounded-3xl p-8 shadow-sm border border-stone-100">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-serif text-[#0a192f] flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-stone-50 flex items-center justify-center relative">
-                    <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                    <BookOpen className="w-4 h-4 text-[#0a192f]" />
+
+          {/* ========================================== */}
+          {/* SECTION 2: BUKTI DOA & FORM (SIDE BY SIDE) */}
+          {/* ========================================== */}
+          <section className="max-w-7xl mx-auto px-6 animate-fade-in-up delay-200" ref={formRef}>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
+
+              {/* LEFT: BUKU DOA SANTRI */}
+              <div className="lg:col-span-5 bg-white/80 backdrop-blur-md border border-slate-200 p-8 md:p-10 shadow-lg shadow-slate-200/40 rounded-2xl hover:shadow-xl transition-shadow duration-500">
+                <div className="flex items-center gap-3 mb-8 border-b border-slate-100 pb-4">
+                  <div className="w-8 h-8 rounded bg-slate-50 border border-slate-100 flex items-center justify-center relative shadow-inner">
+                    <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                    <BookOpen className="w-4 h-4 text-[#0f172a]" />
                   </div>
-                  Buku Doa Santri
-                </h3>
-                {socialProof.length > 5 && (
-                  <span className="text-[10px] text-stone-400 uppercase tracking-wider font-bold">Scroll ↓</span>
-                )}
-              </div>
+                  <h3 className="font-serif text-xl text-[#0f172a]">Buku Doa Santri</h3>
+                </div>
 
-              <div className="bg-[#fafafa] p-4 rounded-2xl border border-stone-100 border-l-2 border-l-amber-500 mb-6">
-                <p className="text-[11px] text-slate-600 leading-relaxed italic">
-                  "Mengetuk pintu langit bersama doa para santri yatim setiap ba'da Maghrib."
+                <p className="text-xs text-slate-500 leading-relaxed mb-8 bg-[#fafafa] p-4 border-l-2 border-[#c09c53] rounded-r-lg">
+                  Setiap donasi dan titipan doa Anda akan dicatat dan diaminkan secara khusus oleh para santri ba'da shalat Maghrib berjamaah.
                 </p>
-              </div>
 
-              <div className="relative">
-                <div className="space-y-5 max-h-[250px] md:max-h-[350px] overflow-y-auto pr-2 scroll-smooth" style={{ scrollbarWidth: 'thin', scrollbarColor: '#d6d3d1 transparent' }}>
+                <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar" style={{ scrollbarWidth: 'thin', scrollbarColor: '#d6d3d1 transparent' }}>
                   {socialProof.length === 0 ? (
                     <div className="text-center py-8 text-slate-400 text-xs">
                       Belum ada doa hari ini.
                     </div>
                   ) : (
-                    socialProof.map(item => (
-                      <div key={item.id} className="flex gap-4 items-start pb-4 border-b border-stone-50 last:border-0 last:pb-0">
-                        <div className="w-8 h-8 rounded-full bg-stone-50 border border-stone-100 flex items-center justify-center shrink-0 mt-0.5">
-                          <Heart className="w-3.5 h-3.5 text-[#0a192f]" />
+                    socialProof.map((item) => (
+                      <div key={item.id} className="border-b border-slate-100 pb-6 last:border-0 last:pb-0 hover:bg-slate-50/50 p-2 -mx-2 rounded-lg transition-colors">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-bold text-[#0f172a] flex items-center gap-2">
+                            {item.nama_tampil}
+                            {item.tipe === 'donasi' && <Check className="w-3 h-3 text-[#c09c53]" />}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{timeAgo(item.created_at)}</span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-sm text-[#0a192f]">{item.nama_tampil}</span>
-                            {item.tipe === 'donasi' && item.nominal && (
-                              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                                {formatRp(item.nominal)}
-                              </span>
-                            )}
+                        {item.tipe === 'donasi' && item.nominal && (
+                          <span className="inline-block px-2 py-1 bg-[#f9f5ec] text-[#a38240] text-[10px] font-bold uppercase tracking-widest mb-3 rounded-sm">
+                            Mendukung {formatRp(item.nominal)}
+                          </span>
+                        )}
+                        {item.pesan_doa && (
+                          <div className="flex items-start gap-3 mt-1 bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                            <MessageCircle className="w-3.5 h-3.5 text-slate-300 mt-0.5 shrink-0" />
+                            <p className="text-xs text-slate-600 italic leading-relaxed">
+                              "{item.pesan_doa}"
+                            </p>
                           </div>
-                          {item.pesan_doa && (
-                            <p className="text-xs text-slate-500 italic mt-1.5 leading-relaxed line-clamp-3">"{item.pesan_doa}"</p>
-                          )}
-                          <p className="text-[10px] font-semibold text-stone-400 mt-2 uppercase tracking-wide">
-                            {timeAgo(item.created_at)}
-                          </p>
-                        </div>
+                        )}
                       </div>
                     ))
                   )}
                 </div>
-                {/* Fade gradient at bottom to indicate more content */}
-                {socialProof.length > 3 && (
-                  <div className="absolute bottom-0 left-0 right-2 h-8 bg-gradient-to-t from-white to-transparent pointer-events-none rounded-b-xl" />
-                )}
-              </div>
-            </div>
 
-          </div>
-
-          {/* RIGHT COLUMN: Donation Form (Col 7) */}
-          <div className="lg:col-span-7 animate-in fade-in slide-in-from-right-5 duration-700 delay-200" ref={formRef}>
-            <div className="bg-white rounded-3xl p-8 md:p-10 shadow-xl shadow-stone-200/50 border border-stone-100">
-
-              <div className="mb-8">
-                <h2 className="text-2xl font-serif text-[#0a192f] mb-2">Formulir Donasi</h2>
-                <p className="text-sm text-slate-500">Mohon lengkapi data di bawah untuk pencatatan donasi.</p>
-              </div>
-
-              {submitSuccess ? (
-                /* SUCCESS STATE */
-                <div className="py-10 text-center animate-in zoom-in-95 duration-500">
-                  <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <CheckCircle2 className="w-10 h-10" />
-                  </div>
-                  <h3 className="text-2xl font-serif text-[#0a192f] mb-3">Jazaakumullah Khairan!</h3>
-                  <p className="text-slate-600 mb-8 max-w-sm mx-auto">
-                    Donasi Anda telah diterima dan sedang diproses admin. Semoga menjadi jariyah yang terus mengalir.
-                  </p>
-
-                  <div className="flex flex-col gap-3 max-w-xs mx-auto">
-                    {waLink && (
-                      <a href={waLink} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl transition-all shadow-lg shadow-emerald-200">
-                        <PhoneCall className="w-4 h-4" />
-                        Konfirmasi via WhatsApp
-                      </a>
-                    )}
-                    <button
-                      onClick={() => {
-                        setSubmitSuccess(false);
-                        setNama(''); setNoWa(''); setPesanDoa('');
-                        setSelectedAmount(null); setCustomAmount('');
-                        setBuktiFile(null); setBuktiPreview('');
-                        setIsAnonim(false);
-                      }}
-                      className="text-sm font-bold text-stone-400 hover:text-[#0a192f] transition-colors"
-                    >
-                      Berdonasi Lagi
-                    </button>
-                  </div>
+                <div className="mt-8 pt-8 border-t border-slate-100">
+                  <DoandaloneForm />
                 </div>
-              ) : (
-                /* FORM */
-                <form onSubmit={handleSubmit} className="space-y-8">
+              </div>
 
-                  {/* 1. NOMINAL */}
-                  <div>
-                    <h4 className="text-[10px] font-bold text-[#0a192f] tracking-[0.2em] uppercase mb-4 flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-stone-100 flex items-center justify-center text-[10px]">1</span>
-                      Pilih Nominal
-                    </h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-                      {QUICK_AMOUNTS.map(amt => (
-                        <button
-                          key={amt}
-                          type="button"
-                          onClick={() => { setSelectedAmount(amt); setCustomAmount(''); }}
-                          className={`h-14 rounded-2xl border-2 font-bold transition-all flex items-center justify-center ${selectedAmount === amt
-                            ? 'bg-stone-50 border-[#0a192f] text-[#0a192f]'
-                            : 'bg-white border-stone-100 text-slate-500 hover:border-amber-400/50 hover:text-amber-600'
-                            }`}
-                        >
-                          {formatRp(amt)}
-                        </button>
-                      ))}
-                    </div>
-                    <div className={`relative h-14 rounded-2xl border-2 transition-all ${selectedAmount === -1 ? 'border-[#0a192f] bg-stone-50' : 'border-stone-100 bg-white'}`}>
-                      <span className="absolute left-5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">Rp</span>
-                      <input
-                        type="text"
-                        placeholder="Nominal lainnya"
-                        value={customAmount}
-                        onChange={e => {
-                          const cleaned = e.target.value.replace(/\D/g, '');
-                          setCustomAmount(cleaned);
-                          setSelectedAmount(-1);
-                        }}
-                        className="w-full h-full pl-12 pr-5 bg-transparent text-sm font-bold text-[#0a192f] outline-none placeholder:font-normal placeholder:text-slate-300"
-                      />
-                    </div>
-                  </div>
 
-                  {/* 2. DATA DIRI */}
-                  <div>
-                    <h4 className="text-[10px] font-bold text-[#0a192f] tracking-[0.2em] uppercase mb-4 flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-stone-100 flex items-center justify-center text-[10px]">2</span>
-                      Detail Donatur
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <input
-                        type="text"
-                        placeholder="Nama Lengkap *"
-                        value={nama}
-                        onChange={e => setNama(e.target.value)}
-                        required
-                        className="w-full h-14 px-5 rounded-2xl border-2 border-stone-100 bg-white text-sm text-[#0a192f] outline-none focus:border-[#0a192f] transition-all placeholder:text-slate-300 font-medium"
-                      />
-                      <input
-                        type="tel"
-                        placeholder="WhatsApp (untuk konfirmasi)"
-                        value={noWa}
-                        onChange={e => setNoWa(e.target.value)}
-                        className="w-full h-14 px-5 rounded-2xl border-2 border-stone-100 bg-white text-sm text-[#0a192f] outline-none focus:border-[#0a192f] transition-all placeholder:text-slate-300 font-medium"
-                      />
-                    </div>
-                    <label className="flex items-center gap-3 px-1 cursor-pointer group mb-5">
-                      <input
-                        type="checkbox"
-                        checked={isAnonim}
-                        onChange={e => setIsAnonim(e.target.checked)}
-                        className="w-4 h-4 rounded border-stone-300 accent-[#0a192f]"
-                      />
-                      <span className="text-xs text-slate-500 group-hover:text-[#0a192f] transition-colors font-medium">Sembunyikan nama (sebagai Hamba Allah)</span>
-                    </label>
+              {/* RIGHT: DONATION WIDGET */}
+              <div className="lg:col-span-7">
+                <div className="bg-white border border-slate-200 shadow-2xl shadow-[#0f172a]/5 rounded-2xl overflow-hidden transform hover:-translate-y-1 transition-transform duration-500">
 
-                    <textarea
-                      placeholder="Tuliskan harapan atau doa yang ingin diaminkan para santri... (opsional)"
-                      value={pesanDoa}
-                      onChange={e => setPesanDoa(e.target.value)}
-                      rows={3}
-                      className="w-full p-5 rounded-2xl border-2 border-stone-100 bg-white text-sm text-[#0a192f] outline-none focus:border-[#0a192f] transition-all placeholder:text-slate-300 font-medium resize-none"
-                    />
-                  </div>
+                  {/* Widget Header Progress */}
+                  {!submitSuccess && (
+                    <div className="flex bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-widest text-slate-400 relative">
+                      <div className="absolute top-0 left-0 h-0.5 bg-[#c09c53] transition-all duration-500"
+                        style={{ width: formStep === 1 ? '50%' : '100%' }}></div>
 
-                  {/* 3. UPLOAD */}
-                  <div>
-                    <h4 className="text-[10px] font-bold text-[#0a192f] tracking-[0.2em] uppercase mb-4 flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-stone-100 flex items-center justify-center text-[10px]">3</span>
-                      Bukti Transfer
-                    </h4>
-                    {buktiPreview ? (
-                      <div className="relative rounded-2xl overflow-hidden border-2 border-stone-100 group">
-                        <img src={buktiPreview} alt="Bukti" className="w-full max-h-56 object-cover" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <button
-                            type="button"
-                            onClick={() => { setBuktiFile(null); setBuktiPreview(''); }}
-                            className="bg-white text-red-600 px-4 py-2 rounded-xl font-bold text-xs"
-                          >
-                            Ganti Foto
-                          </button>
-                        </div>
+                      <div className={`flex-1 py-4 text-center transition-colors ${formStep === 1 ? 'bg-white text-[#0f172a]' : ''}`}>
+                        1. Pilih Niat
                       </div>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center gap-1 border-2 border-dashed border-stone-200 rounded-2xl p-8 cursor-pointer hover:border-amber-400 hover:bg-amber-50/30 transition-all group">
-                        <Upload className="w-8 h-8 text-stone-300 group-hover:text-amber-500 transition-colors mb-2" />
-                        <span className="text-sm font-bold text-slate-600">Unggah Bukti Transfer</span>
-                        <span className="text-[10px] text-stone-400 uppercase tracking-widest">JPG, PNG, PDF · Maks. 5 MB</span>
-                        <input type="file" accept="image/*,application/pdf" className="hidden" onChange={handleBuktiChange} />
-                      </label>
-                    )}
-                  </div>
-
-                  {/* ERROR */}
-                  {formError && (
-                    <div className="bg-rose-50 border border-rose-100 text-rose-600 text-xs px-5 py-3 rounded-xl font-medium">
-                      {formError}
+                      <div className={`flex-1 py-4 text-center transition-colors border-l border-slate-200 ${formStep === 2 ? 'bg-white text-[#0f172a]' : ''}`}>
+                        2. Selesaikan
+                      </div>
                     </div>
                   )}
 
-                  {/* SUBMIT */}
-                  <button
-                    type="submit"
-                    disabled={submitMutation.isPending || uploadProgress}
-                    className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-stone-100 disabled:text-stone-400 text-[#0a192f] h-16 rounded-2xl font-bold tracking-widest uppercase text-xs transition-all flex items-center justify-center gap-2 shadow-xl shadow-amber-200"
-                  >
-                    {(submitMutation.isPending || uploadProgress) ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        {uploadProgress ? 'Mengupload...' : 'Memproses...'}
-                      </>
+                  <div className="p-8 md:p-10 relative">
+                    {submitSuccess ? (
+                      /* --- SUCCESS STATE --- */
+                      <div className="text-center py-8 animate-fade-in-up">
+                        <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6 relative">
+                          <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-20"></div>
+                          <Check className="w-10 h-10 text-green-600" />
+                        </div>
+                        <h2 className="text-2xl font-serif text-[#0f172a] mb-3">Jazakumullah Khairan.</h2>
+                        <p className="text-slate-500 text-sm mb-8 leading-relaxed max-w-md mx-auto">
+                          Kebaikan Anda telah tercatat dengan ID <span className="font-mono text-[#0f172a] font-bold bg-slate-100 px-2 py-1 rounded">{submittedId}</span>. Kwitansi digital dan update program akan kami kirimkan via WhatsApp.
+                        </p>
+
+                        <div className="space-y-4 max-w-sm mx-auto">
+                          <a href={waLink} target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-center gap-2 py-4 bg-[#0f172a] hover:bg-slate-800 text-white text-xs font-bold uppercase tracking-widest transition-all rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5">
+                            <PhoneCall className="w-4 h-4" />
+                            Konfirmasi ke Admin
+                          </a>
+                          <button onClick={() => {
+                            setSubmitSuccess(false); setFormStep(1);
+                            setNama(''); setNoWa(''); setPesanDoa('');
+                            setSelectedAmount(IMPACT_AMOUNTS[1].value); setCustomAmount('');
+                            setBuktiFile(null); setBuktiPreview('');
+                            setIsAnonim(false);
+                          }}
+                            className="w-full py-4 text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-[#0f172a] transition-colors"
+                          >
+                            Donasi Lagi
+                          </button>
+                        </div>
+                      </div>
+
+                    ) : formStep === 1 ? (
+                      /* --- STEP 1: CHOOSE AMOUNT --- */
+                      <div className="animate-fade-in">
+
+                        <div className="flex bg-slate-100 p-1.5 mb-8 rounded-xl">
+                          <button type="button" onClick={() => setDonationType('one-time')}
+                            className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-all rounded-lg ${donationType === 'one-time' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-slate-500 hover:text-[#0f172a]'}`}
+                          >
+                            Sekali Donasi
+                          </button>
+                          <button type="button" onClick={() => setDonationType('monthly')}
+                            className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest transition-all rounded-lg ${donationType === 'monthly' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-slate-500 hover:text-[#0f172a]'}`}
+                          >
+                            Rutin Bulanan
+                          </button>
+                        </div>
+
+                        <div className="space-y-3 mb-8">
+                          {IMPACT_AMOUNTS.map((item) => (
+                            <button key={item.value} type="button" onClick={() => { setSelectedAmount(item.value); setCustomAmount(''); }}
+                              className={`w-full flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-xl border transition-all text-left gap-2 group ${selectedAmount === item.value
+                                ? 'border-[#0f172a] bg-slate-50 ring-1 ring-[#0f172a] shadow-md'
+                                : 'border-slate-200 hover:border-[#c09c53] hover:shadow-sm'
+                                }`}
+                            >
+                              <span className={`text-sm font-bold transition-colors ${selectedAmount === item.value ? 'text-[#0f172a]' : 'text-slate-600 group-hover:text-[#0f172a]'}`}>
+                                {formatRp(item.value)}
+                              </span>
+                              <span className={`text-[10px] uppercase tracking-widest font-bold transition-colors ${selectedAmount === item.value ? 'text-[#c09c53]' : 'text-slate-400 group-hover:text-[#c09c53]'}`}>
+                                {item.label}
+                              </span>
+                            </button>
+                          ))}
+
+                          <div className={`relative border rounded-xl transition-all overflow-hidden ${selectedAmount === -1
+                            ? 'border-[#0f172a] bg-slate-50 ring-1 ring-[#0f172a] shadow-md'
+                            : 'border-slate-200 hover:border-[#c09c53]'}`}>
+                            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">Rp</span>
+                            <input type="text" placeholder="Nominal lainnya..." value={customAmount} onChange={e => {
+                              const cleaned = e.target.value.replace(/\D/g, '');
+                              setCustomAmount(cleaned);
+                              setSelectedAmount(-1);
+                            }}
+                              className="w-full py-5 pl-14 pr-5 text-sm font-bold text-[#0f172a] outline-none placeholder:font-normal placeholder:text-slate-400 bg-transparent transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        {formError && <p className="text-red-500 text-xs font-medium mb-4 animate-fade-in-up">{formError}</p>}
+
+                        <button onClick={handleNextStep}
+                          className="w-full bg-[#0f172a] hover:bg-slate-800 text-white py-4 rounded-xl text-xs font-bold uppercase tracking-widest transition-all hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center gap-2 group">
+                          Lanjutkan <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </button>
+                      </div>
+
                     ) : (
-                      <>
-                        Konfirmasi Donasi
-                        <ArrowRight className="w-4 h-4" />
-                      </>
+                      /* --- STEP 2: DETAILS & PAYMENT --- */
+                      <form onSubmit={handleSubmit} className="animate-fade-in">
+
+                        <div className="mb-8 flex items-center justify-between border-b border-slate-100 pb-6">
+                          <div>
+                            <p className="text-[10px] font-bold text-[#c09c53] uppercase tracking-widest mb-1">Total Donasi</p>
+                            <h3 className="font-serif text-2xl text-[#0f172a]">
+                              {formatRp(getNominal())} <span className="text-sm font-sans text-slate-400">{donationType === 'monthly' ? '/ Bulan' : ''}</span>
+                            </h3>
+                          </div>
+                          <button type="button" onClick={() => setFormStep(1)}
+                            className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-[#0f172a] transition-colors border border-slate-200 px-3 py-1.5 rounded-full hover:bg-slate-50">
+                            Ubah
+                          </button>
+                        </div>
+
+                        <div className="space-y-5 mb-10">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Nama Lengkap *</label>
+                            <input type="text" value={nama} onChange={e => setNama(e.target.value)} required
+                              className="w-full py-3.5 px-4 border border-slate-200 rounded-xl text-sm text-[#0f172a] outline-none focus:border-[#0f172a] bg-slate-50 focus:bg-white transition-all focus:ring-4 focus:ring-[#0f172a]/5"
+                            />
+                            <label className="flex items-center gap-2 mt-3 cursor-pointer w-fit group">
+                              <input type="checkbox" checked={isAnonim} onChange={e => setIsAnonim(e.target.checked)}
+                                className="w-4 h-4 border-slate-300 rounded accent-[#0f172a]"
+                              />
+                              <span className="text-xs text-slate-500 group-hover:text-slate-800 transition-colors">Donasi Tanpa Nama (Hamba Allah)</span>
+                            </label>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">No. WhatsApp <span className="font-normal">(Opsional)</span></label>
+                            <input type="tel" value={noWa} onChange={e => setNoWa(e.target.value)}
+                              className="w-full py-3.5 px-4 border border-slate-200 rounded-xl text-sm text-[#0f172a] outline-none focus:border-[#0f172a] bg-slate-50 focus:bg-white transition-all focus:ring-4 focus:ring-[#0f172a]/5"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Pesan & Doa <span className="font-normal">(Opsional)</span></label>
+                            <textarea value={pesanDoa} onChange={e => setPesanDoa(e.target.value)}
+                              rows={3}
+                              placeholder="Tuliskan hajat Anda agar diaminkan para santri..."
+                              className="w-full py-3.5 px-4 border border-slate-200 rounded-xl text-sm text-[#0f172a] outline-none focus:border-[#0f172a] bg-slate-50 focus:bg-white transition-all focus:ring-4 focus:ring-[#0f172a]/5 resize-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mb-10">
+                          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Instruksi Transfer</h3>
+
+                          {rekening.length > 0 ? (
+                            rekening.map(r => (
+                              <div key={r.id} className="bg-slate-50 border border-slate-200 p-5 mb-5 rounded-xl relative overflow-hidden group">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-[#c09c53]"></div>
+                                <div className="flex justify-between items-center mb-1">
+                                  <p className="text-xs font-bold text-[#0f172a] uppercase tracking-widest">{r.nama_bank}</p>
+                                </div>
+                                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-4">A.N {r.atas_nama}</p>
+
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                  <p className="text-xl font-mono text-[#0f172a] tracking-wider font-bold bg-white px-3 py-1 rounded-md border border-slate-100 select-all">{r.nomor_rekening}</p>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyRekening(r.nomor_rekening, r.id)}
+                                    className={`text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-1.5 w-fit px-3 py-2 rounded-lg ${copiedRek === r.id ? 'bg-green-50 text-green-600' : 'bg-white text-[#c09c53] hover:bg-[#c09c53] hover:text-white border border-slate-200 hover:border-[#c09c53]'}`}
+                                  >
+                                    {copiedRek === r.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                    {copiedRek === r.id ? 'Tersalin' : 'Salin'}
+                                  </button>
+                                </div>
+                                {r.keterangan && <p className="text-xs text-[#c09c53] mt-2">{r.keterangan}</p>}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl relative overflow-hidden">
+                              <div className="absolute top-0 left-0 w-1 h-full bg-[#c09c53]"></div>
+                              <p className="text-xs font-bold text-[#0f172a] uppercase tracking-widest">Bank Syariah Indonesia (BSI)</p>
+                              <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-4">A.N YPAY Al-Bisri</p>
+                              <p className="text-xl font-mono text-[#0f172a] tracking-wider font-bold">3334444940</p>
+                            </div>
+                          )}
+
+                          {buktiPreview ? (
+                            <div className="relative border border-slate-200 rounded-xl overflow-hidden group shadow-sm">
+                              <img src={buktiPreview} alt="Bukti" className="w-full h-32 object-cover" />
+                              <div className="absolute inset-0 bg-[#0f172a]/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                <button
+                                  type="button"
+                                  onClick={() => { setBuktiFile(null); setBuktiPreview(''); }}
+                                  className="text-xs font-bold text-white uppercase tracking-widest border-2 border-white px-6 py-2 rounded-full hover:bg-white hover:text-[#0f172a] transition-colors"
+                                >
+                                  Ubah Foto
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl py-8 cursor-pointer hover:border-[#0f172a] bg-slate-50 hover:bg-slate-50/50 transition-colors group">
+                              <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-sm">
+                                <Upload className="w-5 h-5 text-slate-400 group-hover:text-[#0f172a] transition-colors" />
+                              </div>
+                              <span className="text-xs font-bold text-slate-600 uppercase tracking-widest group-hover:text-[#0f172a] transition-colors">Unggah Bukti Transfer</span>
+                              <span className="text-[10px] text-slate-400 mt-1">JPG/PNG (Max 5MB)</span>
+                              <input type="file" accept="image/*" className="hidden" onChange={handleBuktiChange} />
+                            </label>
+                          )}
+                        </div>
+
+                        {formError && (
+                          <div className="mb-6 p-4 bg-red-50 text-red-600 text-xs font-bold uppercase tracking-widest border border-red-100 rounded-xl flex items-center gap-3 animate-fade-in">
+                            <X className="w-4 h-4" /> {formError}
+                          </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          disabled={submitMutation.isPending || isPending}
+                          className="w-full bg-[#0f172a] text-white py-4 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-slate-800 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                        >
+                          {(submitMutation.isPending || isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                          {(submitMutation.isPending || isPending) ? 'Memproses Data...' : 'Selesaikan Donasi'}
+                        </button>
+
+                        <div className="mt-5 flex items-center justify-center gap-2 text-slate-400">
+                          <Shield className="w-3 h-3 text-green-500" />
+                          <p className="text-[9px] uppercase tracking-widest font-bold">Transaksi Aman & Terenkripsi</p>
+                        </div>
+                      </form>
                     )}
-                  </button>
-                </form>
-              )}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          </section>
 
-        </div>
-      </main>
+        </main>
 
-      <PublicFooter />
+        <PublicFooter />
+      </div>
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        /* Pattern Background */
+        .page-bg-pattern {
+            background-color: #fafafa;
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+        
+        /* Subtle Glow in Hero */
+        .hero-glow {
+            background: radial-gradient(circle at 50% -20%, rgba(192, 156, 83, 0.1) 0%, rgba(15, 23, 42, 0.02) 40%, transparent 70%);
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .animate-fade-in-up { 
+            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
+            opacity: 0; 
+        }
+        .animate-fade-in { 
+            animation: fadeIn 0.5s ease-out forwards; 
+        }
+        
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+
+        /* Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+        .custom-scrollbar:hover::-webkit-scrollbar-thumb { background: #cbd5e1; }
+      `}} />
     </div>
   );
-};
+}
 
 // ============================================
 // DOA STANDALONE FORM (inside page)
@@ -563,24 +624,24 @@ const DoandaloneForm = () => {
         placeholder="Nama Anda"
         value={nama}
         onChange={e => setNama(e.target.value)}
-        className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-amber-400 transition-colors"
+        className="w-full text-sm border border-slate-200 px-3 py-2 rounded-lg outline-none focus:border-[#0f172a] transition-colors"
       />
       <textarea
         placeholder="Tulis doa atau hajat Anda di sini..."
         value={pesan}
         onChange={e => setPesan(e.target.value)}
         rows={2}
-        className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 outline-none focus:border-amber-400 transition-colors resize-none"
+        className="w-full text-sm border border-slate-200 px-3 py-2 rounded-lg outline-none focus:border-[#0f172a] transition-colors resize-none"
       />
       <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" checked={isAnonim} onChange={e => setIsAnonim(e.target.checked)} className="w-3.5 h-3.5 accent-amber-400" />
+        <input type="checkbox" checked={isAnonim} onChange={e => setIsAnonim(e.target.checked)} className="w-3.5 h-3.5 accent-[#0f172a]" />
         <span className="text-xs text-slate-500">Kirim sebagai anonim</span>
       </label>
       {error && <p className="text-xs text-red-500">{error}</p>}
       <button
         onClick={() => { if (!nama.trim() || !pesan.trim()) { setError('Nama dan doa wajib diisi'); return; } setError(''); mut.mutate(); }}
         disabled={mut.isPending}
-        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+        className="w-full bg-[#0f172a] hover:bg-slate-800 text-white text-xs font-bold uppercase tracking-widest py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
       >
         {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         Kirim Doa
@@ -588,5 +649,3 @@ const DoandaloneForm = () => {
     </div>
   );
 };
-
-export default DonasiPage;

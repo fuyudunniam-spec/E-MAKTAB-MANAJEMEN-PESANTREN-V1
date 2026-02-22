@@ -1,516 +1,660 @@
-<!DOCTYPE html>
-<html lang="id">
+import React, { useState, useRef, useEffect } from 'react';
+import {
+ArrowRight, Loader2, Upload, X,
+Shield, Send, BookOpen, Copy, Check,
+Lock, HeartHandshake, BookMarked, Users, MessageCircle,
+Sparkles, Home, GraduationCap, Building
+} from 'lucide-react';
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Donasi - Pesantren Al-Bisri</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap"
-        rel="stylesheet">
+// ============================================
+// MOCK DATA
+// ============================================
 
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Plus Jakarta Sans', 'sans-serif'],
-                        serif: ['Playfair Display', 'serif'],
-                    },
-                    colors: {
-                        navy: {
-                            800: '#1a2a40',
-                            900: '#0a192f', // Sesuai warna dark navy di screenshot
-                            950: '#050d1a',
-                        },
-                        gold: {
-                            400: '#d4b572',
-                            500: '#c09c53', // Sesuai warna gold/mustard di screenshot
-                            600: '#a38240',
-                        },
-                        surface: {
-                            50: '#fafafa',
-                            100: '#f4f5f7',
-                        }
-                    },
-                    boxShadow: {
-                        'soft': '0 10px 40px -10px rgba(0,0,0,0.03)',
-                    }
-                }
-            }
-        }
-    </script>
+const MOCK_REKENING = [
+{ id: '1', nama_bank: 'Bank Syariah Indonesia (BSI)', atas_nama: 'Yayasan Pesantren Al-Bisri', nomor_rekening: '7123 456
+789' },
+];
 
-    <style>
-        body {
-            background-color: #fafafa;
-            color: #334155;
-            -webkit-font-smoothing: antialiased;
-        }
+const IMPACT_AMOUNTS = [
+{ value: 50000, label: 'Sedekah Operasional' },
+{ value: 150000, label: 'Pangan 1 Santri / Pekan' },
+{ value: 300000, label: 'Pendidikan 1 Santri / Bulan' },
+{ value: 1000000, label: 'Beasiswa Penuh 1 Santri' },
+];
 
-        .feed-scroll::-webkit-scrollbar {
-            width: 4px;
-        }
+const MOCK_SOCIAL_PROOF = [
+{ id: '1', tipe: 'donasi', nama_tampil: 'Hamba Allah', nominal: 500000, pesan_doa: 'Bismillah, semoga menjadi amal
+jariyah keluarga kami. Amin.', created_at: new Date(Date.now() - 120000).toISOString() },
+{ id: '2', tipe: 'doa', nama_tampil: 'Keluarga Bpk. Rahman', nominal: null, pesan_doa: 'Mohon aminkan doa untuk
+kelancaran operasi ibunda besok pagi.', created_at: new Date(Date.now() - 900000).toISOString() },
+{ id: '3', tipe: 'donasi', nama_tampil: 'Siti Aminah', nominal: 1000000, pesan_doa: 'Semoga para santri kelak menjadi
+generasi qurani yang sukses dan mandiri.', created_at: new Date(Date.now() - 3600000).toISOString() },
+{ id: '4', tipe: 'donasi', nama_tampil: 'Hamba Allah', nominal: 250000, pesan_doa: '', created_at: new Date(Date.now() -
+7200000).toISOString() },
+];
 
-        .feed-scroll::-webkit-scrollbar-track {
-            background: transparent;
-        }
+// ============================================
+// HELPERS
+// ============================================
 
-        .feed-scroll::-webkit-scrollbar-thumb {
-            background: #e2e8f0;
-            border-radius: 4px;
-        }
+const formatRp = (n) =>
+new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
-        .feed-scroll:hover::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-        }
-
-        .fade-in-up {
-            animation: fadeInUp 0.8s ease-out forwards;
-            opacity: 0;
-            transform: translateY(20px);
-        }
-
-        .delay-100 {
-            animation-delay: 100ms;
-        }
-
-        .delay-200 {
-            animation-delay: 200ms;
-        }
-
-        @keyframes fadeInUp {
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* Custom Input Number */
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-
-        /* Checkbox custom color */
-        .accent-navy {
-            accent-color: #0a192f;
-        }
-    </style>
-</head>
-
-<body class="relative min-h-screen flex flex-col">
-
-    <!-- Navbar: Exact match with the provided screenshot -->
-    <nav class="w-full bg-white border-b border-slate-100 sticky top-0 z-50 shadow-sm">
-        <div class="max-w-[1440px] mx-auto px-6 lg:px-12 h-[90px] flex items-center justify-between">
-
-            <!-- Logo & Brand -->
-            <div class="flex items-center gap-4">
-                <div class="w-10 h-10 shrink-0">
-                    <!-- Placeholder Logo -->
-                    <div
-                        class="w-full h-full rounded-full border border-slate-200 flex items-center justify-center bg-white shadow-sm overflow-hidden">
-                        <img src="https://api.dicebear.com/7.x/shapes/svg?seed=albisri&backgroundColor=ffffff"
-                            alt="Logo" class="w-6 h-6 object-contain opacity-80">
-                    </div>
-                </div>
-                <div class="flex flex-col justify-center">
-                    <span class="text-[1.35rem] font-serif font-bold text-navy-900 leading-none mb-1">Pesantren
-                        Al-Bisri</span>
-                    <span class="text-[8px] tracking-[0.15em] text-slate-400 uppercase font-semibold">Under Supervision
-                        of <span class="text-gold-500 font-bold">Pesantren Mahasiswa An-Nur</span></span>
+const timeAgo = (dateStr) => {
+const diff = Date.now() - new Date(dateStr).getTime();
+const m = Math.floor(diff / 60000);
+if (m < 1) return 'baru saja' ; if (m < 60) return `${m} menit lalu`; const h=Math.floor(m / 60); if (h < 24) return
+    `${h} jam lalu`; const d=Math.floor(h / 24); return `${d} hari lalu`; };
+    //============================================// COMPONENTS //============================================const
+    PublicNavbar=()=> (
+    <nav
+        className="w-full bg-white/80 backdrop-blur-lg border-b border-slate-100 sticky top-0 z-50 transition-all duration-300">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div className="flex items-center gap-4 group cursor-pointer">
+                <div className="flex flex-col">
+                    <span
+                        className="font-serif font-bold text-2xl text-[#0f172a] leading-none group-hover:text-[#c09c53] transition-colors duration-300">Al-Bisri.</span>
+                    <span className="text-[9px] tracking-[0.2em] text-[#c09c53] uppercase font-bold mt-1">Pesantren
+                        Yatim</span>
                 </div>
             </div>
-
-            <!-- Center Navigation (Hidden on mobile) -->
             <div
-                class="hidden lg:flex items-center gap-8 text-[11px] font-bold tracking-[0.1em] text-navy-900 uppercase">
-                <a href="#" class="hover:text-gold-500 transition-colors">Profil</a>
-                <a href="#" class="hover:text-gold-500 transition-colors">Program</a>
-                <a href="#" class="hover:text-gold-500 transition-colors">Kabar Pesantren</a>
-                <a href="#" class="hover:text-gold-500 transition-colors">Transparansi</a>
-            </div>
-
-            <!-- Right Actions -->
-            <div
-                class="hidden lg:flex items-center gap-6 text-[11px] font-bold tracking-[0.1em] text-navy-900 uppercase">
-                <div class="w-px h-6 bg-slate-200"></div> <!-- Divider -->
-                <a href="#" class="flex items-center gap-2 hover:text-gold-500 transition-colors">
-                    <i data-lucide="user-plus" class="w-4 h-4"></i> PSB
-                </a>
-                <a href="#" class="flex items-center gap-2 hover:text-gold-500 transition-colors">
-                    <i data-lucide="log-in" class="w-4 h-4"></i> Login
-                </a>
+                className="hidden md:flex items-center gap-8 text-xs font-bold tracking-widest uppercase text-slate-500">
+                <a href="#" className="hover:text-[#c09c53] transition-colors">Profil</a>
+                <a href="#" className="hover:text-[#c09c53] transition-colors">Program</a>
                 <a href="#"
-                    class="bg-gold-500 hover:bg-gold-600 text-white px-8 py-3 rounded-md transition-colors shadow-sm ml-2">
-                    Donasi
-                </a>
+                    className="text-[#0f172a] transition-colors relative after:absolute after:-bottom-2 after:left-0 after:w-full after:h-0.5 after:bg-[#c09c53]">Donasi</a>
             </div>
-
-            <!-- Mobile Menu Toggle -->
-            <button class="lg:hidden text-navy-900 p-2">
-                <i data-lucide="menu" class="w-6 h-6"></i>
-            </button>
         </div>
     </nav>
+    );
 
-    <!-- Main Content -->
-    <main class="flex-grow max-w-[1200px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-12">
-
-        <!-- Header Section -->
-        <div class="mb-10 text-center fade-in-up">
-            <h4 class="text-[10px] font-bold tracking-[0.2em] text-gold-500 uppercase mb-3">Penyaluran Dana</h4>
-            <h1 class="text-4xl md:text-5xl font-serif text-navy-900 mb-4 capitalize">Tunaikan Kebaikan</h1>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-
-            <!-- LEFT COLUMN: Dialog & Rekening (Balanced Height) -->
-            <div class="lg:col-span-5 space-y-6 fade-in-up delay-100">
-
-                <!-- Dialog / Info Card -->
-                <div class="bg-navy-900 rounded-3xl p-8 shadow-soft relative overflow-hidden text-white">
-                    <div class="absolute top-0 right-0 w-40 h-40 bg-white opacity-5 rounded-bl-full -z-0"></div>
-                    <i data-lucide="quote" class="w-8 h-8 text-gold-500/40 absolute top-6 right-6"></i>
-
-                    <div class="relative z-10">
-                        <h3 class="text-lg font-serif text-gold-500 mb-4">Setiap Rupiah Berarti</h3>
-                        <p class="text-sm text-slate-300 leading-relaxed mb-6 font-light">
-                            Bukan sekadar nominal, donasi Anda adalah hidangan bergizi di meja makan mereka, seragam
-                            bersih untuk sekolah, dan lampu yang menerangi waktu mengaji malam para santri yatim
-                            Al-Bisri.
-                        </p>
-                        <div class="flex items-center gap-3 pt-5 border-t border-white/10">
-                            <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                                <i data-lucide="heart" class="w-4 h-4 text-gold-500"></i>
-                            </div>
-                            <div>
-                                <p class="text-[10px] uppercase tracking-widest text-slate-400">Target Tahun Ini</p>
-                                <p class="font-bold text-sm">100% Beasiswa Santri Yatim</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Rekening Card -->
-                <div class="bg-white rounded-3xl p-8 shadow-soft border border-slate-100">
-                    <h3 class="text-lg font-serif text-navy-900 mb-5 flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-lg bg-surface-100 flex items-center justify-center">
-                            <i data-lucide="building" class="w-4 h-4 text-navy-900"></i>
-                        </div>
-                        Rekening Resmi
-                    </h3>
-
-                    <div class="space-y-5">
-                        <div>
-                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Bank Syariah
-                                Indonesia (BSI)</p>
-                            <div
-                                class="flex items-center justify-between bg-surface-50 p-4 rounded-xl border border-slate-100">
-                                <p class="text-2xl font-sans font-bold text-navy-900 tracking-wider"
-                                    id="rekening-number">7123456789</p>
-                                <button onclick="copyToClipboard('rekening-number', this)"
-                                    class="text-gold-500 hover:text-white bg-gold-500/10 hover:bg-gold-500 px-3 py-1.5 rounded-lg transition-colors font-semibold text-xs flex items-center gap-2">
-                                    <i data-lucide="copy" class="w-3.5 h-3.5"></i> Salin
-                                </button>
-                            </div>
-                        </div>
-                        <div>
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Atas Nama</p>
-                            <p class="font-bold text-navy-900 text-sm">Yayasan Pesantren Al-Bisri</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Buku Doa Ba'da Maghrib (New Contextual Feed) -->
-                <div class="bg-white rounded-3xl p-8 shadow-soft border border-slate-100">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-serif text-navy-900 flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg bg-surface-100 flex items-center justify-center relative">
-                                <div
-                                    class="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse">
-                                </div>
-                                <i data-lucide="book-open" class="w-4 h-4 text-navy-900"></i>
-                            </div>
-                            Buku Doa Santri
-                        </h3>
-                    </div>
-
-                    <div class="bg-surface-50 p-4 rounded-xl border border-slate-100 border-l-2 border-l-gold-500 mb-5">
-                        <p class="text-xs text-slate-600 leading-relaxed">
-                            Setiap titipan doa Anda akan dibacakan dan diaminkan secara khusus oleh para santri yatim
-                            <span class="font-bold text-navy-900">setiap ba'da shalat Maghrib berjamaah.</span>
-                        </p>
-                    </div>
-
-                    <div class="space-y-4 max-h-[190px] overflow-y-auto pr-3 feed-scroll">
-                        <!-- Feed Item 1 -->
-                        <div class="flex gap-4 items-start pb-4 border-b border-slate-50 last:border-0 last:pb-0">
-                            <div
-                                class="w-8 h-8 rounded-full bg-surface-100 border border-slate-100 flex items-center justify-center shrink-0 mt-0.5">
-                                <i data-lucide="heart" class="w-3.5 h-3.5 text-navy-900"></i>
-                            </div>
-                            <div class="flex-1">
-                                <p class="text-sm text-slate-700 leading-snug"><span
-                                        class="font-bold text-navy-900">Hamba Allah</span> berdonasi <span
-                                        class="font-bold text-gold-500">Rp 500.000</span></p>
-                                <p class="text-xs text-slate-500 italic mt-1.5 leading-relaxed">"Mohon aminkan agar
-                                    almarhum ayah kami dilapangkan kuburnya."</p>
-                                <p class="text-[10px] font-semibold text-slate-400 mt-2 uppercase tracking-wide">2 menit
-                                    lalu</p>
-                            </div>
-                        </div>
-
-                        <!-- Feed Item 2 -->
-                        <div class="flex gap-4 items-start pb-4 border-b border-slate-50 last:border-0 last:pb-0">
-                            <div
-                                class="w-8 h-8 rounded-full bg-surface-100 border border-slate-100 flex items-center justify-center shrink-0 mt-0.5">
-                                <i data-lucide="message-circle" class="w-3.5 h-3.5 text-navy-900"></i>
-                            </div>
-                            <div class="flex-1">
-                                <p class="text-sm text-slate-700 leading-snug"><span
-                                        class="font-bold text-navy-900">Bpk. Rahman</span> menitipkan doa</p>
-                                <p class="text-xs text-slate-500 italic mt-1.5 leading-relaxed">"Mohon doa santri untuk
-                                    kelancaran operasi ibunda besok pagi."</p>
-                                <p class="text-[10px] font-semibold text-slate-400 mt-2 uppercase tracking-wide">15
-                                    menit lalu</p>
-                            </div>
-                        </div>
-
-                        <!-- Feed Item 3 -->
-                        <div class="flex gap-4 items-start pb-4 border-b border-slate-50 last:border-0 last:pb-0">
-                            <div
-                                class="w-8 h-8 rounded-full bg-surface-100 border border-slate-100 flex items-center justify-center shrink-0 mt-0.5">
-                                <i data-lucide="heart" class="w-3.5 h-3.5 text-navy-900"></i>
-                            </div>
-                            <div class="flex-1">
-                                <p class="text-sm text-slate-700 leading-snug"><span
-                                        class="font-bold text-navy-900">Siti Aminah</span> berdonasi <span
-                                        class="font-bold text-gold-500">Rp 1.000.000</span></p>
-                                <p class="text-[10px] font-semibold text-slate-400 mt-2 uppercase tracking-wide">1 jam
-                                    lalu</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-
-            <!-- RIGHT COLUMN: Compact Form -->
-            <div class="lg:col-span-7 fade-in-up delay-200">
-                <div class="bg-white rounded-3xl p-8 shadow-soft border border-slate-100">
-
-                    <form onsubmit="event.preventDefault(); submitForm();" class="space-y-8">
-
-                        <!-- Nominal -->
-                        <div>
-                            <h2 class="text-sm font-bold text-navy-900 tracking-wide uppercase mb-4">1. Nominal Donasi
-                            </h2>
-                            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                <button type="button" onclick="selectAmount(this, 50000)"
-                                    class="amount-btn h-12 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:border-navy-900 hover:text-navy-900 transition bg-white focus:outline-none flex items-center justify-center">Rp
-                                    50.000</button>
-                                <button type="button" onclick="selectAmount(this, 100000)"
-                                    class="amount-btn h-12 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:border-navy-900 hover:text-navy-900 transition bg-white focus:outline-none flex items-center justify-center">Rp
-                                    100.000</button>
-                                <button type="button" onclick="selectAmount(this, 250000)"
-                                    class="relative amount-btn h-12 border-2 border-navy-900 rounded-xl text-sm font-bold text-navy-900 transition bg-surface-50 focus:outline-none active-amount flex items-center justify-center">
-                                    Rp 250.000
-                                </button>
-                                <button type="button" onclick="selectAmount(this, 500000)"
-                                    class="amount-btn h-12 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:border-navy-900 hover:text-navy-900 transition bg-white focus:outline-none flex items-center justify-center">Rp
-                                    500.000</button>
-                                <div class="col-span-2 md:col-span-2 relative h-12">
-                                    <span
-                                        class="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-400 font-semibold">Rp</span>
-                                    <input type="number" id="custom-amount" onfocus="clearAmountSelection()"
-                                        placeholder="Nominal Lainnya"
-                                        class="w-full h-full pl-11 pr-4 border border-slate-200 rounded-xl text-sm font-semibold text-navy-900 placeholder:font-normal placeholder:text-slate-400 focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition bg-white">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Data Diri (Lebih compact) -->
-                        <div>
-                            <h2 class="text-sm font-bold text-navy-900 tracking-wide uppercase mb-4">2. Detail Donatur
-                            </h2>
-                            <div class="space-y-4">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <input type="text" placeholder="Nama Lengkap *"
-                                        class="w-full px-4 h-12 border border-slate-200 rounded-xl text-sm text-navy-900 focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition bg-surface-50 focus:bg-white"
-                                        required>
-                                    <input type="tel" placeholder="No. WhatsApp (Opsional)"
-                                        class="w-full px-4 h-12 border border-slate-200 rounded-xl text-sm text-navy-900 focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition bg-surface-50 focus:bg-white">
-                                </div>
-                                <div class="flex items-center gap-2 px-1">
-                                    <input type="checkbox"
-                                        class="w-4 h-4 rounded border-slate-300 accent-navy transition cursor-pointer"
-                                        id="anonim">
-                                    <label for="anonim" class="text-xs text-slate-500 cursor-pointer">Sembunyikan nama
-                                        saya (Hamba Allah)</label>
-                                </div>
-                                <textarea rows="2"
-                                    placeholder="Tuliskan harapan atau doa yang ingin diaminkan... (Opsional)"
-                                    class="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-navy-900 focus:border-navy-900 focus:ring-1 focus:ring-navy-900 outline-none transition bg-surface-50 focus:bg-white resize-none"></textarea>
-                            </div>
-                        </div>
-
-                        <!-- Upload (Lebih tipis/horizontal) -->
-                        <div>
-                            <h2 class="text-sm font-bold text-navy-900 tracking-wide uppercase mb-4">3. Bukti Transfer
-                            </h2>
-                            <label
-                                class="flex items-center justify-between w-full h-16 px-5 border border-slate-200 border-dashed rounded-xl cursor-pointer bg-surface-50 hover:bg-surface-100 hover:border-navy-900 transition group"
-                                id="upload-area">
-                                <div class="flex items-center gap-3" id="upload-placeholder">
-                                    <i data-lucide="upload-cloud"
-                                        class="w-5 h-5 text-slate-400 group-hover:text-navy-900 transition-colors"></i>
-                                    <div>
-                                        <p class="text-sm text-slate-600 font-medium">Unggah foto bukti</p>
-                                        <p class="text-[10px] text-slate-400 uppercase tracking-wider">JPG/PNG maks 5MB
-                                        </p>
-                                    </div>
-                                </div>
-                                <div
-                                    class="bg-white border border-slate-200 text-xs font-bold text-slate-600 px-4 py-2 rounded-lg group-hover:bg-navy-900 group-hover:text-white group-hover:border-navy-900 transition-all">
-                                    Pilih File</div>
-                                <input type="file" id="file-upload" class="hidden" accept="image/*"
-                                    onchange="handleFileUpload(event)">
-                            </label>
-                        </div>
-
-                        <!-- Submit Button -->
-                        <div class="pt-2">
-                            <button type="submit"
-                                class="w-full bg-gold-500 hover:bg-gold-600 text-white h-14 rounded-xl font-bold tracking-widest uppercase text-sm transition-colors flex items-center justify-center gap-2 shadow-sm">
-                                Konfirmasi Donasi
-                            </button>
-                        </div>
-
-                    </form>
-                </div>
-            </div>
-
-        </div>
-
-    </main>
-
-    <!-- Footer minimalis -->
-    <footer class="border-t border-slate-200 bg-white py-8 mt-auto">
+    const PublicFooter = () => (
+    <footer className="bg-[#0f172a] py-16 mt-24 relative overflow-hidden">
         <div
-            class="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div class="flex flex-col md:flex-row items-center gap-1 md:gap-4 text-xs text-slate-500">
-                <p class="font-semibold text-navy-900">&copy; 2024 Pesantren Al-Bisri.</p>
-                <span class="hidden md:inline">|</span>
-                <p>Seluruh hak cipta dilindungi.</p>
+            className="absolute top-0 right-0 w-96 h-96 bg-white opacity-5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none">
+        </div>
+        <div
+            className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+            <div className="flex flex-col items-center md:items-start">
+                <span className="font-serif font-bold text-xl text-white leading-none mb-2">Al-Bisri.</span>
+                <p className="text-xs text-slate-400 font-medium tracking-wide">Membina generasi Rabbani yang mandiri.
+                </p>
             </div>
-            <div class="flex items-center gap-6">
-                <a href="#" class="text-slate-400 hover:text-gold-500 transition-colors"><i data-lucide="instagram"
-                        class="w-4 h-4"></i></a>
-                <a href="#" class="text-slate-400 hover:text-gold-500 transition-colors"><i data-lucide="facebook"
-                        class="w-4 h-4"></i></a>
-                <a href="#" class="text-slate-400 hover:text-gold-500 transition-colors"><i data-lucide="youtube"
-                        class="w-4 h-4"></i></a>
-            </div>
+            <p className="text-xs text-slate-500 font-medium tracking-wide">&copy; 2026 Yayasan Pesantren Al-Bisri.</p>
         </div>
     </footer>
+    );
 
-    <script>
-        lucide.createIcons();
+    export default function App() {
+    const formRef = useRef(null);
 
-        function copyToClipboard(elementId, btnElement) {
-            const textToCopy = document.getElementById(elementId).innerText.replace(/\s+/g, '');
-            const tempInput = document.createElement("input");
-            tempInput.value = textToCopy;
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            document.execCommand("copy");
-            document.body.removeChild(tempInput);
+    // --- WIDGET STATES ---
+    const [formStep, setFormStep] = useState(1);
+    const [donationType, setDonationType] = useState('one-time');
 
-            const originalHTML = btnElement.innerHTML;
+    // --- FORM STATES ---
+    const [selectedAmount, setSelectedAmount] = useState(IMPACT_AMOUNTS[1].value);
+    const [customAmount, setCustomAmount] = useState('');
 
-            btnElement.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Tersalin!`;
-            btnElement.classList.replace('bg-gold-500/10', 'bg-green-500/10');
-            btnElement.classList.replace('text-gold-500', 'text-green-600');
+    const [nama, setNama] = useState('');
+    const [noWa, setNoWa] = useState('');
+    const [pesanDoa, setPesanDoa] = useState('');
+    const [isAnonim, setIsAnonim] = useState(false);
 
-            lucide.createIcons();
+    const [buktiFile, setBuktiFile] = useState(null);
+    const [buktiPreview, setBuktiPreview] = useState('');
 
-            setTimeout(() => {
-                btnElement.innerHTML = originalHTML;
-                btnElement.classList.replace('bg-green-500/10', 'bg-gold-500/10');
-                btnElement.classList.replace('text-green-600', 'text-gold-500');
-                lucide.createIcons();
-            }, 2000);
+    const [submitSuccess, setSubmitSuccess] = useState(false);
+    const [submittedId, setSubmittedId] = useState('');
+    const [formError, setFormError] = useState('');
+    const [isPending, setIsPending] = useState(false);
+    const [copiedRek, setCopiedRek] = useState(false);
+
+    // --- LOGIC ---
+    const getNominal = () => {
+    if (selectedAmount === -1) {
+    const n = parseInt(customAmount.replace(/\D/g, ''), 10);
+    return isNaN(n) ? 0 : n;
+    }
+    return selectedAmount ?? 0;
+    };
+
+    const handleNextStep = () => {
+    if (getNominal() < 10000) { setFormError('Nominal minimal donasi adalah Rp 10.000'); return; } setFormError('');
+        setFormStep(2); if(formRef.current) { const y=formRef.current.getBoundingClientRect().top + window.scrollY -
+        100; window.scrollTo({ top: y, behavior: 'smooth' }); } }; const handleBuktiChange=(e)=> {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        if (f.size > 5 * 1024 * 1024) {
+        setFormError('Ukuran file maksimal 5 MB');
+        return;
+        }
+        setBuktiFile(f);
+        setBuktiPreview(URL.createObjectURL(f));
+        setFormError('');
+        };
+
+        const handleSubmit = (e) => {
+        e.preventDefault();
+        setFormError('');
+
+        if (!nama.trim()) { setFormError('Nama lengkap wajib diisi'); return; }
+        if (!buktiFile) { setFormError('Mohon lampirkan bukti transfer'); return; }
+
+        setIsPending(true);
+
+        setTimeout(() => {
+        setSubmittedId(`TRX-${Math.floor(100000 + Math.random() * 900000)}`);
+        setSubmitSuccess(true);
+        setIsPending(false);
+        }, 2000);
+        };
+
+        const copyRekening = (rek) => {
+        navigator.clipboard.writeText(rek).catch(() => {
+        const el = document.createElement('textarea');
+        el.value = rek;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        });
+        setCopiedRek(true);
+        setTimeout(() => setCopiedRek(false), 2000);
+        };
+
+        const waLink = `https://wa.me/6285955303882?text=${encodeURIComponent(
+        `Assalamu'alaikum, saya ${isAnonim ? 'Hamba Allah' : (nama || 'Hamba Allah')} telah menunaikan donasi sebesar
+        ${formatRp(getNominal())} untuk Pesantren Al-Bisri dengan ID ${submittedId}.\n\nMohon konfirmasinya.
+        Jazakumullah khairan.`
+        )}`;
+
+        return (
+        <div className="min-h-screen font-sans text-slate-800 flex flex-col relative page-bg-pattern">
+
+            {/* Background Ambience Layers */}
+            <div className="absolute top-0 left-0 w-full h-[600px] hero-glow pointer-events-none z-0"></div>
+
+            <div className="relative z-10">
+                <PublicNavbar />
+
+                <main className="flex-1 w-full pt-16 pb-24">
+
+                    {/* ========================================== */}
+                    {/* SECTION 1: NARRATIVE & IMPACT (TOP) */}
+                    {/* ========================================== */}
+                    <section className="max-w-5xl mx-auto px-6 mb-24 text-center">
+                        <div className="animate-fade-in-up">
+                            <h4
+                                className="inline-flex items-center gap-2 text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-6 bg-white/50 backdrop-blur-sm border border-[#c09c53]/20 px-4 py-2 rounded-full shadow-sm">
+                                <Sparkles className="w-3.5 h-3.5" /> Gotong Royong Pendidikan Umat
+                            </h4>
+                            <h1
+                                className="text-4xl md:text-5xl lg:text-6xl font-serif text-[#0f172a] leading-[1.15] mb-8 drop-shadow-sm">
+                                Berikan Hadiah Ilmu<br />& Masa Depan.
+                            </h1>
+                            <p className="text-slate-600 text-sm md:text-base leading-relaxed max-w-3xl mx-auto mb-16">
+                                Di balik setiap lantunan doa bakda Maghrib, ada <strong>50 santri yatim dan
+                                    dhuafa</strong> di Pesantren Al-Bisri yang menggantungkan cita-citanya. Sebagian
+                                menetap di asrama, sebagian lagi berjuang dari rumah. Uluran tangan Anda bukan sekadar
+                                angka, melainkan kepastian bahwa mereka bisa makan bergizi hari ini, menghafal Al-Qur'an
+                                esok hari, dan meraih masa depan tanpa takut putus sekolah.
+                            </p>
+                        </div>
+
+                        {/* Impact Pillars - Horizontal Grid with Hover Animation */}
+                        <div
+                            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left border-t border-slate-200/60 pt-16 animate-fade-in-up delay-100">
+                            <div
+                                className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
+                                <div
+                                    className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                                    <Home className="w-5 h-5 text-[#0f172a]" />
+                                </div>
+                                <h3
+                                    className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">
+                                    Asrama &<br />Pangan Santri</h3>
+                                <p className="text-xs text-slate-500 leading-relaxed">Menjamin tempat tinggal yang aman
+                                    dan gizi 3x sehari. Memastikan tak ada satupun santri yatim yang belajar dalam
+                                    keadaan lapar.</p>
+                            </div>
+                            <div
+                                className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
+                                <div
+                                    className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                                    <BookMarked className="w-5 h-5 text-[#0f172a]" />
+                                </div>
+                                <h3
+                                    className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">
+                                    Pendidikan<br />Diniyah & Tahfidz</h3>
+                                <p className="text-xs text-slate-500 leading-relaxed">Fokus membina akhlak mulia dan
+                                    mendampingi hafalan Al-Qur'an mereka siang dan malam, mencetak generasi Rabbani.</p>
+                            </div>
+                            <div
+                                className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
+                                <div
+                                    className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                                    <GraduationCap className="w-5 h-5 text-[#0f172a]" />
+                                </div>
+                                <h3
+                                    className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">
+                                    Pendidikan<br />Formal (Sekolah)</h3>
+                                <p className="text-xs text-slate-500 leading-relaxed">Membiayai akses sekolah 100%
+                                    gratis. Membekali mereka dengan ijazah dan ilmu umum agar siap mandiri dan bersaing
+                                    di masa depan.</p>
+                            </div>
+                            <div
+                                className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
+                                <div
+                                    className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                                    <Building className="w-5 h-5 text-[#0f172a]" />
+                                </div>
+                                <h3
+                                    className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">
+                                    Operasional<br />& Khidmah</h3>
+                                <p className="text-xs text-slate-500 leading-relaxed">Menopang fasilitas pesantren serta
+                                    memberikan apresiasi yang layak bagi para asatidz yang mengabdi 24 jam merawat
+                                    santri.</p>
+                            </div>
+                        </div>
+                    </section>
+
+
+                    {/* ========================================== */}
+                    {/* SECTION 2: BUKTI DOA & FORM (SIDE BY SIDE) */}
+                    {/* ========================================== */}
+                    <section className="max-w-7xl mx-auto px-6 animate-fade-in-up delay-200" ref={formRef}>
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
+
+                            {/* LEFT: BUKU DOA SANTRI */}
+                            <div
+                                className="lg:col-span-5 bg-white/80 backdrop-blur-md border border-slate-200 p-8 md:p-10 shadow-lg shadow-slate-200/40 rounded-2xl hover:shadow-xl transition-shadow duration-500">
+                                <div className="flex items-center gap-3 mb-8 border-b border-slate-100 pb-4">
+                                    <div
+                                        className="w-8 h-8 rounded bg-slate-50 border border-slate-100 flex items-center justify-center relative shadow-inner">
+                                        <span
+                                            className="absolute top-1 right-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                                        <BookOpen className="w-4 h-4 text-[#0f172a]" />
+                                    </div>
+                                    <h3 className="font-serif text-xl text-[#0f172a]">Buku Doa Santri</h3>
+                                </div>
+
+                                <p
+                                    className="text-xs text-slate-500 leading-relaxed mb-8 bg-[#fafafa] p-4 border-l-2 border-[#c09c53] rounded-r-lg">
+                                    Setiap donasi dan titipan doa Anda akan dicatat dan diaminkan secara khusus oleh
+                                    para santri ba'da shalat Maghrib berjamaah.
+                                </p>
+
+                                <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {MOCK_SOCIAL_PROOF.map((item, index) => (
+                                    <div key={item.id}
+                                        className="border-b border-slate-100 pb-6 last:border-0 last:pb-0 hover:bg-slate-50/50 p-2 -mx-2 rounded-lg transition-colors">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-sm font-bold text-[#0f172a] flex items-center gap-2">
+                                                {item.nama_tampil}
+                                                {item.tipe === 'donasi' &&
+                                                <Check className="w-3 h-3 text-[#c09c53]" />}
+                                            </span>
+                                            <span
+                                                className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{timeAgo(item.created_at)}</span>
+                                        </div>
+                                        {item.tipe === 'donasi' && item.nominal && (
+                                        <span
+                                            className="inline-block px-2 py-1 bg-[#f9f5ec] text-[#a38240] text-[10px] font-bold uppercase tracking-widest mb-3 rounded-sm">
+                                            Mendukung {formatRp(item.nominal)}
+                                        </span>
+                                        )}
+                                        {item.pesan_doa && (
+                                        <div
+                                            className="flex items-start gap-3 mt-1 bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                                            <MessageCircle className="w-3.5 h-3.5 text-slate-300 mt-0.5 shrink-0" />
+                                            <p className="text-xs text-slate-600 italic leading-relaxed">
+                                                "{item.pesan_doa}"
+                                            </p>
+                                        </div>
+                                        )}
+                                    </div>
+                                    ))}
+                                </div>
+                            </div>
+
+
+                            {/* RIGHT: DONATION WIDGET */}
+                            <div className="lg:col-span-7">
+                                <div
+                                    className="bg-white border border-slate-200 shadow-2xl shadow-[#0f172a]/5 rounded-2xl overflow-hidden transform hover:-translate-y-1 transition-transform duration-500">
+
+                                    {/* Widget Header Progress */}
+                                    {!submitSuccess && (
+                                    <div
+                                        className="flex bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-widest text-slate-400 relative">
+                                        {/* Progress Line */}
+                                        <div className="absolute top-0 left-0 h-0.5 bg-[#c09c53] transition-all duration-500"
+                                            style={{ width: formStep===1 ? '50%' : '100%' }}></div>
+
+                                        <div className={`flex-1 py-4 text-center transition-colors ${formStep===1
+                                            ? 'bg-white text-[#0f172a]' : '' }`}>
+                                            1. Pilih Niat
+                                        </div>
+                                        <div className={`flex-1 py-4 text-center transition-colors border-l
+                                            border-slate-200 ${formStep===2 ? 'bg-white text-[#0f172a]' : '' }`}>
+                                            2. Selesaikan
+                                        </div>
+                                    </div>
+                                    )}
+
+                                    <div className="p-8 md:p-10 relative">
+                                        {submitSuccess ? (
+                                        /* --- SUCCESS STATE --- */
+                                        <div className="text-center py-8 animate-fade-in-up">
+                                            <div
+                                                className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6 relative">
+                                                <div
+                                                    className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-20">
+                                                </div>
+                                                <Check className="w-10 h-10 text-green-600" />
+                                            </div>
+                                            <h2 className="text-2xl font-serif text-[#0f172a] mb-3">Jazakumullah
+                                                Khairan.</h2>
+                                            <p className="text-slate-500 text-sm mb-8 leading-relaxed max-w-md mx-auto">
+                                                Kebaikan Anda telah tercatat dengan ID <span
+                                                    className="font-mono text-[#0f172a] font-bold bg-slate-100 px-2 py-1 rounded">{submittedId}</span>.
+                                                Kwitansi digital dan update program akan kami kirimkan via WhatsApp.
+                                            </p>
+
+                                            <div className="space-y-4 max-w-sm mx-auto">
+                                                <a href={waLink} target="_blank" rel="noopener noreferrer"
+                                                    className="w-full flex items-center justify-center gap-2 py-4 bg-[#0f172a] hover:bg-slate-800 text-white text-xs font-bold uppercase tracking-widest transition-all rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5">
+                                                    Konfirmasi ke Admin
+                                                </a>
+                                                <button onClick={()=> {
+                                                    setSubmitSuccess(false); setFormStep(1);
+                                                    setNama(''); setNoWa(''); setPesanDoa('');
+                                                    setSelectedAmount(IMPACT_AMOUNTS[1].value); setCustomAmount('');
+                                                    setBuktiFile(null); setBuktiPreview('');
+                                                    }}
+                                                    className="w-full py-4 text-xs font-bold uppercase tracking-widest
+                                                    text-slate-500 hover:text-[#0f172a] transition-colors"
+                                                    >
+                                                    Donasi Lagi
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        ) : formStep === 1 ? (
+                                        /* --- STEP 1: CHOOSE AMOUNT --- */
+                                        <div className="animate-fade-in">
+
+                                            <div className="flex bg-slate-100 p-1.5 mb-8 rounded-xl">
+                                                <button type="button" onClick={()=> setDonationType('one-time')}
+                                                    className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest
+                                                    transition-all rounded-lg ${donationType === 'one-time' ? 'bg-white
+                                                    text-[#0f172a] shadow-sm' : 'text-slate-500 hover:text-[#0f172a]'}`}
+                                                    >
+                                                    Sekali Donasi
+                                                </button>
+                                                <button type="button" onClick={()=> setDonationType('monthly')}
+                                                    className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest
+                                                    transition-all rounded-lg ${donationType === 'monthly' ? 'bg-white
+                                                    text-[#0f172a] shadow-sm' : 'text-slate-500 hover:text-[#0f172a]'}`}
+                                                    >
+                                                    Rutin Bulanan
+                                                </button>
+                                            </div>
+
+                                            <div className="space-y-3 mb-8">
+                                                {IMPACT_AMOUNTS.map((item) => (
+                                                <button key={item.value} type="button" onClick={()=> {
+                                                    setSelectedAmount(item.value); setCustomAmount(''); }}
+                                                    className={`w-full flex flex-col sm:flex-row sm:items-center
+                                                    justify-between p-5 rounded-xl border transition-all text-left gap-2
+                                                    group ${
+                                                    selectedAmount === item.value
+                                                    ? 'border-[#0f172a] bg-slate-50 ring-1 ring-[#0f172a] shadow-md'
+                                                    : 'border-slate-200 hover:border-[#c09c53] hover:shadow-sm'
+                                                    }`}
+                                                    >
+                                                    <span className={`text-sm font-bold transition-colors
+                                                        ${selectedAmount===item.value ? 'text-[#0f172a]'
+                                                        : 'text-slate-600 group-hover:text-[#0f172a]' }`}>
+                                                        {formatRp(item.value)}
+                                                    </span>
+                                                    <span className={`text-[10px] uppercase tracking-widest font-bold
+                                                        transition-colors ${selectedAmount===item.value
+                                                        ? 'text-[#c09c53]' : 'text-slate-400 group-hover:text-[#c09c53]'
+                                                        }`}>
+                                                        {item.label}
+                                                    </span>
+                                                </button>
+                                                ))}
+
+                                                <div className={`relative border rounded-xl transition-all
+                                                    overflow-hidden ${selectedAmount===-1
+                                                    ? 'border-[#0f172a] bg-slate-50 ring-1 ring-[#0f172a] shadow-md'
+                                                    : 'border-slate-200 hover:border-[#c09c53]' }`}>
+                                                    <span
+                                                        className="absolute left-5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">Rp</span>
+                                                    <input type="text" placeholder="Nominal lainnya..."
+                                                        value={customAmount} onChange={e=> {
+                                                    const cleaned = e.target.value.replace(/\D/g, '');
+                                                    setCustomAmount(cleaned);
+                                                    setSelectedAmount(-1);
+                                                    }}
+                                                    className="w-full py-5 pl-14 pr-5 text-sm font-bold text-[#0f172a]
+                                                    outline-none placeholder:font-normal placeholder:text-slate-400
+                                                    bg-transparent transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {formError && <p
+                                                className="text-red-500 text-xs font-medium mb-4 animate-fade-in-up">
+                                                {formError}</p>}
+
+                                            <button onClick={handleNextStep}
+                                                className="w-full bg-[#0f172a] hover:bg-slate-800 text-white py-4 rounded-xl text-xs font-bold uppercase tracking-widest transition-all hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center gap-2 group">
+                                                Lanjutkan
+                                                <ArrowRight
+                                                    className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                            </button>
+                                        </div>
+
+                                        ) : (
+                                        /* --- STEP 2: DETAILS & PAYMENT --- */
+                                        <form onSubmit={handleSubmit} className="animate-fade-in">
+
+                                            <div
+                                                className="mb-8 flex items-center justify-between border-b border-slate-100 pb-6">
+                                                <div>
+                                                    <p
+                                                        className="text-[10px] font-bold text-[#c09c53] uppercase tracking-widest mb-1">
+                                                        Total Donasi</p>
+                                                    <h3 className="font-serif text-2xl text-[#0f172a]">
+                                                        {formatRp(getNominal())} <span
+                                                            className="text-sm font-sans text-slate-400">{donationType
+                                                            === 'monthly' ? '/ Bulan' : ''}</span>
+                                                    </h3>
+                                                </div>
+                                                <button type="button" onClick={()=> setFormStep(1)}
+                                                    className="text-[10px] font-bold text-slate-400 uppercase
+                                                    tracking-widest hover:text-[#0f172a] transition-colors border
+                                                    border-slate-200 px-3 py-1.5 rounded-full hover:bg-slate-50">
+                                                    Ubah
+                                                </button>
+                                            </div>
+
+                                            <div className="space-y-5 mb-10">
+                                                <div>
+                                                    <label
+                                                        className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Nama
+                                                        Lengkap *</label>
+                                                    <input type="text" value={nama} onChange={e=>
+                                                    setNama(e.target.value)}
+                                                    required
+                                                    className="w-full py-3.5 px-4 border border-slate-200 rounded-xl
+                                                    text-sm text-[#0f172a] outline-none focus:border-[#0f172a]
+                                                    bg-slate-50 focus:bg-white transition-all focus:ring-4
+                                                    focus:ring-[#0f172a]/5"
+                                                    />
+                                                    <label
+                                                        className="flex items-center gap-2 mt-3 cursor-pointer w-fit group">
+                                                        <input type="checkbox" checked={isAnonim} onChange={e=>
+                                                        setIsAnonim(e.target.checked)}
+                                                        className="w-4 h-4 border-slate-300 rounded accent-[#0f172a]"
+                                                        />
+                                                        <span
+                                                            className="text-xs text-slate-500 group-hover:text-slate-800 transition-colors">Donasi
+                                                            Tanpa Nama (Hamba Allah)</span>
+                                                    </label>
+                                                </div>
+
+                                                <div>
+                                                    <label
+                                                        className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">No.
+                                                        WhatsApp <span className="font-normal">(Opsional)</span></label>
+                                                    <input type="tel" value={noWa} onChange={e=>
+                                                    setNoWa(e.target.value)}
+                                                    className="w-full py-3.5 px-4 border border-slate-200 rounded-xl
+                                                    text-sm text-[#0f172a] outline-none focus:border-[#0f172a]
+                                                    bg-slate-50 focus:bg-white transition-all focus:ring-4
+                                                    focus:ring-[#0f172a]/5"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label
+                                                        className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Pesan
+                                                        & Doa <span className="font-normal">(Opsional)</span></label>
+                                                    <textarea value={pesanDoa} onChange={e=> setPesanDoa(e.target.value)}
+                                                  rows={3}
+                                                  placeholder="Tuliskan hajat Anda agar diaminkan para santri..."
+                                                  className="w-full py-3.5 px-4 border border-slate-200 rounded-xl text-sm text-[#0f172a] outline-none focus:border-[#0f172a] bg-slate-50 focus:bg-white transition-all focus:ring-4 focus:ring-[#0f172a]/5 resize-none"
+                                              />
+                                          </div>
+                                      </div>
+
+                                      <div className="mb-10">
+                                          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Instruksi Transfer</h3>
+                                          
+                                          {MOCK_REKENING.map(r => (
+                                              <div key={r.id} className="bg-slate-50 border border-slate-200 p-5 mb-5 rounded-xl relative overflow-hidden group">
+                                                  <div className="absolute top-0 left-0 w-1 h-full bg-[#c09c53]"></div>
+                                                  <div className="flex justify-between items-center mb-1">
+                                                      <p className="text-xs font-bold text-[#0f172a] uppercase tracking-widest">{r.nama_bank}</p>
+                                                  </div>
+                                                  <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-4">A.N {r.atas_nama}</p>
+                                                  
+                                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                      <p className="text-xl font-mono text-[#0f172a] tracking-wider font-bold bg-white px-3 py-1 rounded-md border border-slate-100 select-all">{r.nomor_rekening}</p>
+                                                      <button 
+                                                          type="button" 
+                                                          onClick={() => copyRekening(r.nomor_rekening)}
+                                                          className={`text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-1.5 w-fit px-3 py-2 rounded-lg ${copiedRek ? 'bg-green-50 text-green-600' : 'bg-white text-[#c09c53] hover:bg-[#c09c53] hover:text-white border border-slate-200 hover:border-[#c09c53]'}`}
+                                                      >
+                                                          {copiedRek ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                                          {copiedRek ? 'Tersalin' : 'Salin'}
+                                                      </button>
+                                                  </div>
+                                              </div>
+                                          ))}
+
+                                          {buktiPreview ? (
+                                              <div className="relative border border-slate-200 rounded-xl overflow-hidden group shadow-sm">
+                                                  <img src={buktiPreview} alt="Bukti" className="w-full h-32 object-cover" />
+                                                  <div className="absolute inset-0 bg-[#0f172a]/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                                      <button
+                                                          type="button"
+                                                          onClick={() => { setBuktiFile(null); setBuktiPreview(''); }}
+                                                          className="text-xs font-bold text-white uppercase tracking-widest border-2 border-white px-6 py-2 rounded-full hover:bg-white hover:text-[#0f172a] transition-colors"
+                                                      >
+                                                          Ubah Foto
+                                                      </button>
+                                                  </div>
+                                              </div>
+                                          ) : (
+                                              <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl py-8 cursor-pointer hover:border-[#0f172a] bg-slate-50 hover:bg-slate-50/50 transition-colors group">
+                                                  <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-sm">
+                                                    <Upload className="w-5 h-5 text-slate-400 group-hover:text-[#0f172a] transition-colors" />
+                                                  </div>
+                                                  <span className="text-xs font-bold text-slate-600 uppercase tracking-widest group-hover:text-[#0f172a] transition-colors">Unggah Bukti Transfer</span>
+                                                  <span className="text-[10px] text-slate-400 mt-1">JPG/PNG (Max 5MB)</span>
+                                                  <input type="file" accept="image/*" className="hidden" onChange={handleBuktiChange} />
+                                              </label>
+                                          )}
+                                      </div>
+
+                                      {formError && (
+                                          <div className="mb-6 p-4 bg-red-50 text-red-600 text-xs font-bold uppercase tracking-widest border border-red-100 rounded-xl flex items-center gap-3 animate-fade-in">
+                                              <X className="w-4 h-4" /> {formError}
+                                          </div>
+                                      )}
+
+                                      <button
+                                          type="submit"
+                                          disabled={isPending}
+                                          className="w-full bg-[#0f172a] text-white py-4 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-slate-800 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                                      >
+                                          {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                                          {isPending ? 'Memproses Data...' : 'Selesaikan Donasi'}
+                                      </button>
+                                      
+                                      <div className="mt-5 flex items-center justify-center gap-2 text-slate-400">
+                                          <Shield className="w-3 h-3 text-green-500" />
+                                          <p className="text-[9px] uppercase tracking-widest font-bold">Transaksi Aman & Terenkripsi</p>
+                                      </div>
+                                  </form>
+                              )}
+                          </div>
+                      </div>
+                  </div>
+
+              </div>
+          </section>
+
+        </main>
+      </div>
+
+      <style dangerouslySetInnerHTML={{__html: `
+        /* Pattern Background */
+        .page-bg-pattern {
+            background-color: #fafafa;
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+        
+        /* Subtle Glow in Hero */
+        .hero-glow {
+            background: radial-gradient(circle at 50% -20%, rgba(192, 156, 83, 0.1) 0%, rgba(15, 23, 42, 0.02) 40%, transparent 70%);
         }
 
-        function selectAmount(btn, amount) {
-            document.querySelectorAll('.amount-btn').forEach(el => {
-                el.classList.remove('border-2', 'border-navy-900', 'text-navy-900', 'font-bold', 'bg-surface-50', 'active-amount');
-                el.classList.add('border', 'border-slate-200', 'text-slate-600', 'font-semibold', 'bg-white');
-            });
-
-            document.getElementById('custom-amount').value = '';
-
-            btn.classList.remove('border', 'border-slate-200', 'text-slate-600', 'font-semibold', 'bg-white');
-            btn.classList.add('border-2', 'border-navy-900', 'text-navy-900', 'font-bold', 'bg-surface-50', 'active-amount');
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-
-        function clearAmountSelection() {
-            document.querySelectorAll('.amount-btn').forEach(el => {
-                el.classList.remove('border-2', 'border-navy-900', 'text-navy-900', 'font-bold', 'bg-surface-50', 'active-amount');
-                el.classList.add('border', 'border-slate-200', 'text-slate-600', 'font-semibold', 'bg-white');
-            });
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
-
-        function handleFileUpload(event) {
-            const file = event.target.files[0];
-            const placeholder = document.getElementById('upload-placeholder');
-            const area = document.getElementById('upload-area');
-
-            if (file) {
-                area.classList.replace('border-slate-200', 'border-navy-900');
-                area.classList.replace('border-dashed', 'border-solid');
-                area.classList.add('bg-surface-50');
-
-                placeholder.innerHTML = `
-                    <i data-lucide="check-circle" class="w-6 h-6 text-green-500"></i>
-                    <div>
-                        <p class="text-sm font-bold text-navy-900 truncate w-32 md:w-48">${file.name}</p>
-                        <p class="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">Siap Diunggah</p>
-                    </div>
-                `;
-                lucide.createIcons();
-            }
+        
+        .animate-fade-in-up { 
+            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
+            opacity: 0; 
         }
-
-        function submitForm() {
-            const btn = document.querySelector('button[type="submit"]');
-            const originalContent = btn.innerHTML;
-
-            btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Memproses...`;
-            lucide.createIcons();
-
-            setTimeout(() => {
-                btn.innerHTML = `<i data-lucide="check" class="w-5 h-5"></i> Berhasil`;
-                btn.classList.replace('bg-gold-500', 'bg-navy-900');
-                btn.classList.replace('hover:bg-gold-600', 'hover:bg-navy-950');
-                lucide.createIcons();
-
-                setTimeout(() => {
-                    alert('Data donasi berhasil disubmit (Simulasi).');
-                    btn.innerHTML = originalContent;
-                    btn.classList.replace('bg-navy-900', 'bg-gold-500');
-                    btn.classList.replace('hover:bg-navy-950', 'hover:bg-gold-600');
-                }, 1000);
-            }, 1500);
+        .animate-fade-in { 
+            animation: fadeIn 0.5s ease-out forwards; 
         }
-    </script>
-</body>
+        
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
 
-</html>
+        /* Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+        .custom-scrollbar:hover::-webkit-scrollbar-thumb { background: #cbd5e1; }
+      `}} />
+    </div>
+  );
+}
