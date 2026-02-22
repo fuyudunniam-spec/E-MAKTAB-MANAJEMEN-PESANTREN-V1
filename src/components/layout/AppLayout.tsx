@@ -143,7 +143,7 @@ const SidebarContent = () => {
       icon: Heart,
       items: [
         { icon: Heart, label: 'Donasi', path: '/pms/donasi' },
-        { icon: UserIcon, label: 'Master Donatur', path: '/donasi/master-donatur' }
+        { icon: UserIcon, label: 'Master Donatur', path: '/pms/donasi/master-donatur' }
         // Modul Kebutuhan Layanan Santri - DINONAKTIFKAN
         // { icon: Target, label: 'Kebutuhan Layanan Santri', path: '/donasi/kebutuhan-layanan' },
         // ...(showModuleDashboards ? [{ icon: LayoutDashboard, label: 'Dashboard Kebutuhan', path: '/donasi/kebutuhan-layanan/dashboard' }] : [])
@@ -175,20 +175,18 @@ const SidebarContent = () => {
       title: 'KELOLA USER',
       icon: Users,
       items: [
-        { icon: Users, label: 'Daftar User', path: '/admin/users' }
+        { icon: Users, label: 'Daftar User', path: '/admin/users' },
+        ...(user?.role === 'superadmin' || user?.roles?.includes('superadmin')
+          ? [{ icon: FileText, label: 'Audit Log', path: '/admin/audit-log' }]
+          : []
+        )
       ]
     },
     {
       title: 'MANAJEMEN WEBSITE',
       icon: Globe,
       items: [
-        { icon: LayoutDashboard, label: 'Dashboard Web', path: '/admin/website/homepage' },
         { icon: Store, label: 'Content Studio', path: '/admin/studio' },
-        { icon: Settings2, label: 'Pengaturan', path: '/admin/website/settings' },
-        { icon: FileText, label: 'Berita/Artikel', path: '/admin/website/posts' },
-        { icon: BookOpen, label: 'Halaman Statis', path: '/admin/website/pages' },
-        { icon: Heart, label: 'Testimoni', path: '/admin/website/testimonials' },
-        { icon: Package, label: 'Media Library', path: '/admin/website/media' }
       ]
     }
   ], [showModuleDashboards, user?.role, user?.roles]);

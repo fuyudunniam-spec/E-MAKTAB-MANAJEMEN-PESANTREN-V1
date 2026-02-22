@@ -1,28 +1,135 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { Layers, ArrowDownLeft, ArrowUpRight, Check, ChevronDown, CheckCircle2, Loader2, ArrowRight, X, Menu, Download } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { Layers, ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronLeft, ChevronRight, Loader2, ArrowRight, Download, FileText, ShieldCheck, BookOpen, Home, Zap } from 'lucide-react';
 import { Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { useQuery } from '@tanstack/react-query';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
-import { DonasiTransparansiService, type DonasiTransparansiData } from '@/modules/donasi/services/donasi.service';
+import { DnsTransparansiService, type DnsTransparansiData } from '@/modules/donasi/services/dns.service';
 
 // Register ChartJS components
 ChartJS.register(ArcElement, ChartTooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
+// ================================================
+// KATEGORI SLIDER COMPONENT
+// ================================================
+
+interface KategoriItem { nama: string; jumlah: number; persen?: number }
+
+const KATEGORI_ICONS = [Zap, BookOpen, Home, ShieldCheck];
+const KATEGORI_COLORS = [
+  'bg-amber-50 text-amber-600',
+  'bg-emerald-50 text-emerald-600',
+  'bg-sky-50 text-sky-600',
+  'bg-violet-50 text-violet-600',
+  'bg-rose-50 text-rose-600',
+  'bg-orange-50 text-orange-600',
+];
+
+const formatRpCompact = (v: number) =>
+  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, notation: 'compact' }).format(v);
+
+const KategoriCard = ({ k, i }: { k: KategoriItem; i: number }) => {
+  const Icon = KATEGORI_ICONS[i % KATEGORI_ICONS.length];
+  const colorClass = KATEGORI_COLORS[i % KATEGORI_COLORS.length];
+  return (
+    <div className="bg-white rounded-2xl border border-stone-100 p-6 shadow-sm h-full flex flex-col">
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 ${colorClass}`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-1">{k.nama}</p>
+      <p className="text-2xl font-display font-bold text-royal-950 mb-auto">{formatRpCompact(k.jumlah)}</p>
+      <div className="mt-4">
+        <div className="flex justify-between text-xs text-stone-400 mb-1.5">
+          <span>Proporsi</span>
+          <span className="font-bold text-royal-900">{k.persen ?? 0}%</span>
+        </div>
+        <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+          <div className="h-full bg-gold-500 rounded-full transition-all duration-700" style={{ width: `${k.persen ?? 0}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const KategoriSlider = ({ items }: { items: KategoriItem[] }) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  const onScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const cardW = el.scrollWidth / items.length;
+    setActiveIdx(Math.round(el.scrollLeft / cardW));
+  }, [items.length]);
+
+  const scrollTo = (idx: number) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const cardW = el.scrollWidth / items.length;
+    el.scrollTo({ left: idx * cardW, behavior: 'smooth' });
+  };
+
+  return (
+    <>
+      {/* MOBILE: swipe slider */}
+      <div className="md:hidden">
+        {/* Hint */}
+        <div className="flex items-center gap-1.5 text-stone-400 text-[10px] font-semibold uppercase tracking-wider mb-3">
+          <ChevronRight className="w-3.5 h-3.5" />
+          <span>Geser untuk melihat semua</span>
+        </div>
+
+        {/* Scrollable track */}
+        <div
+          ref={scrollRef}
+          onScroll={onScroll}
+          className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-2 -mx-6 px-6"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {items.map((k, i) => (
+            <div key={k.nama} className="snap-center shrink-0 w-[72vw] max-w-[260px]">
+              <KategoriCard k={k} i={i} />
+            </div>
+          ))}
+        </div>
+
+        {/* Dot indicators */}
+        {items.length > 1 && (
+          <div className="flex justify-center gap-2 mt-4">
+            {items.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => scrollTo(i)}
+                className={`rounded-full transition-all duration-300 ${i === activeIdx
+                  ? 'w-6 h-2 bg-gold-500'
+                  : 'w-2 h-2 bg-stone-200 hover:bg-stone-300'
+                  }`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* DESKTOP: 2–4 grid */}
+      <div className={`hidden md:grid gap-4 ${items.length <= 2 ? 'grid-cols-2' : items.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
+        {items.map((k, i) => (
+          <KategoriCard key={k.nama} k={k} i={i} />
+        ))}
+      </div>
+    </>
+  );
+};
+
 const TransparansiPage: React.FC = () => {
   const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1;
 
-  // Default to previous year since many pesantren operate on academic year calendars
-  // Users can switch to current year via the dropdown if needed
-  const [selectedYear, setSelectedYear] = useState<number>(currentYear - 1);
-  const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
 
-  // Data Fetching — scoped to donation program akun_kas only
-  const { data: impactData, isLoading } = useQuery<DonasiTransparansiData>({
-    queryKey: ['donasi-transparansi', selectedYear],
-    queryFn: () => DonasiTransparansiService.getData(selectedYear)
+  // Data Fetching — scoped to donation-linked akun_kas (dns_ filtered)
+  const { data: impactData, isLoading } = useQuery<DnsTransparansiData>({
+    queryKey: ['dns-transparansi', selectedYear],
+    queryFn: () => DnsTransparansiService.getSummary(selectedYear)
   });
 
   useEffect(() => {
@@ -41,15 +148,20 @@ const TransparansiPage: React.FC = () => {
   // Prepare Chart Data
   const compositionData = useMemo(() => {
     if (!impactData) return null;
-    // Build composition from income vs expense
-    const labels = ['Pemasukan', 'Penyaluran'];
-    const designColors = ['#020617', '#d4af37'];
-
+    // Build donut from breakdown kategori pengeluaran
+    const breakdown = impactData.breakdownKategori;
+    if (!breakdown || breakdown.length === 0) {
+      return {
+        labels: ['Pemasukan', 'Penyaluran'],
+        datasets: [{ data: [impactData.totalPemasukan, impactData.totalPengeluaran], backgroundColor: ['#020617', '#d4af37'], borderWidth: 0, hoverOffset: 10 }]
+      };
+    }
+    const colors = ['#020617', '#d4af37', '#64748b', '#94a3b8', '#e7e5e4'];
     return {
-      labels,
+      labels: breakdown.map(k => k.nama),
       datasets: [{
-        data: [impactData.totalPemasukan, impactData.totalPengeluaran],
-        backgroundColor: designColors,
+        data: breakdown.map(k => k.jumlah),
+        backgroundColor: colors.slice(0, breakdown.length),
         borderWidth: 0,
         hoverOffset: 10
       }]
@@ -60,8 +172,8 @@ const TransparansiPage: React.FC = () => {
     if (!impactData) return null;
 
     const labels = impactData.trendBulanan.map(d => d.month);
-    const incomeData = impactData.trendBulanan.map(d => d.pemasukan);
-    const expenseData = impactData.trendBulanan.map(d => d.pengeluaran);
+    const incomeData = impactData.trendBulanan.map(d => (d.pemasukan || 0) / 1_000_000);
+    const expenseData = impactData.trendBulanan.map(d => (d.pengeluaran || 0) / 1_000_000);
 
     return {
       labels,
@@ -189,10 +301,9 @@ const TransparansiPage: React.FC = () => {
             <div className="border-l-2 border-gold-500/30 pl-6 py-2">
               <div className="flex items-center gap-3 mb-2">
                 <Layers className="w-4 h-4 text-gold-500" />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Saldo Program Donasi</p>
-
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Saldo Bersih Donasi</p>
               </div>
-              <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.totalSaldoProgram || 0)}</h3>
+              <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.saldoDonasi || 0)}</h3>
             </div>
 
             {/* Card 2 */}
@@ -239,23 +350,36 @@ const TransparansiPage: React.FC = () => {
             </div>
 
             <div className="space-y-3 pt-6 border-t border-stone-100">
-              {impactData && [
-                { name: 'Pemasukan', value: impactData.totalPemasukan, color: 'bg-royal-950' },
-                { name: 'Penyaluran', value: impactData.totalPengeluaran, color: 'bg-gold-500' },
-              ].map((item, idx) => {
-                const total = impactData.totalPemasukan + impactData.totalPengeluaran;
-                const percentage = total > 0 ? Math.round((item.value / total) * 100) : 0;
-
-                return (
-                  <div key={idx} className="flex justify-between items-center text-xs">
-                    <span className="flex items-center gap-3 text-stone-600 font-medium">
-                      <div className={`w-2 h-2 rounded-full ${item.color}`}></div>
-                      {item.name}
-                    </span>
-                    <span className="font-bold text-royal-950">{percentage}%</span>
-                  </div>
-                )
-              })}
+              {impactData && impactData.breakdownKategori.length > 0
+                ? impactData.breakdownKategori.map((item, idx) => {
+                  const colors = ['bg-royal-950', 'bg-gold-500', 'bg-slate-400', 'bg-stone-300', 'bg-slate-200'];
+                  return (
+                    <div key={idx} className="flex justify-between items-center text-xs">
+                      <span className="flex items-center gap-3 text-stone-600 font-medium">
+                        <div className={`w-2 h-2 rounded-full ${colors[idx % colors.length]}`}></div>
+                        {item.nama}
+                      </span>
+                      <span className="font-bold text-royal-950">{item.persen ?? 0}%</span>
+                    </div>
+                  );
+                })
+                : [
+                  { name: 'Pemasukan', value: impactData?.totalPemasukan ?? 0, color: 'bg-royal-950' },
+                  { name: 'Penyaluran', value: impactData?.totalPengeluaran ?? 0, color: 'bg-gold-500' },
+                ].map((item, idx) => {
+                  const total = (impactData?.totalPemasukan ?? 0) + (impactData?.totalPengeluaran ?? 0);
+                  const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
+                  return (
+                    <div key={idx} className="flex justify-between items-center text-xs">
+                      <span className="flex items-center gap-3 text-stone-600 font-medium">
+                        <div className={`w-2 h-2 rounded-full ${item.color}`}></div>
+                        {item.name}
+                      </span>
+                      <span className="font-bold text-royal-950">{pct}%</span>
+                    </div>
+                  );
+                })
+              }
             </div>
           </div>
 
@@ -285,103 +409,79 @@ const TransparansiPage: React.FC = () => {
         </div>
       </section>
 
-      {/* PROGRESS PROGRAM */}
+      {/* BREAKDOWN KATEGORI PENGELUARAN */}
       <section className="py-12 px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-12 flex items-end justify-between">
-            <div>
-              <span className="text-gold-600 text-[9px] font-bold uppercase tracking-[0.2em] mb-2 block">Program Unggulan</span>
-              <h3 className="font-display text-3xl text-royal-900">Progres Realisasi Program</h3>
-            </div>
-            <a href="/donasi" className="hidden sm:flex text-xs font-bold uppercase tracking-widest text-royal-900 hover:text-gold-600 items-center gap-2 transition-colors">
-              Lihat Semua Program <ArrowRight className="w-4 h-4 ml-1" />
-            </a>
+          <div className="mb-8">
+            <span className="text-gold-600 text-[9px] font-bold uppercase tracking-[0.2em] mb-2 block">Penyaluran Dana</span>
+            <h3 className="font-display text-3xl text-royal-900">Rincian Kategori Pengeluaran</h3>
           </div>
 
-          {/* Programs from donation data are not fetched here — link to /donasi instead */}
-          <div className="text-center py-8 bg-white rounded-2xl border border-stone-100">
-            <p className="text-stone-500 font-light mb-4">Lihat detail progres setiap program donasi</p>
-            <a href="/donasi" className="inline-flex items-center gap-2 px-6 py-3 bg-royal-950 text-white rounded-full text-sm font-bold uppercase tracking-widest hover:bg-gold-600 transition-all">
-              Buka Halaman Donasi <ArrowRight className="w-4 h-4" />
-            </a>
-          </div>
+          {impactData && impactData.breakdownKategori.length > 0 ? (
+            <KategoriSlider items={impactData.breakdownKategori} />
+          ) : (
+            <div className="text-center py-10 bg-white rounded-2xl border border-stone-100">
+              <p className="text-stone-400 font-light">Belum ada data penyaluran untuk periode ini.</p>
+            </div>
+          )}
         </div>
       </section>
 
-      {/* TABEL RINCIAN */}
-      <section id="transaksi" className="py-20 px-6 bg-stone-100 rounded-t-[3rem]">
+      {/* DOKUMEN RESMI */}
+      <section className="py-16 px-6 bg-stone-100 rounded-t-[3rem]">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-white rounded-[2rem] shadow-sm border border-stone-200 overflow-hidden">
-            <div className="p-8 border-b border-stone-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h3 className="font-display text-xl font-bold text-royal-900">Rincian Mutasi Dana</h3>
-                <p className="text-xs text-stone-400 mt-1 font-light">Data transaksi terbaru tahun {selectedYear}</p>
+          <div className="mb-8">
+            <span className="text-gold-600 text-[9px] font-bold uppercase tracking-[0.2em] mb-2 block">Akuntabilitas</span>
+            <h3 className="font-display text-3xl text-royal-900">Dokumen Resmi</h3>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              {
+                title: `Laporan Keuangan ${selectedYear}`,
+                desc: 'Rekap pemasukan dan penyaluran dana donasi tahunan yang telah diaudit internal.',
+                icon: <FileText className="w-5 h-5" />,
+                href: null,
+                soon: true,
+              },
+              {
+                title: 'Laporan Dampak Santri',
+                desc: 'Data perkembangan jumlah santri, lulusan, dan program beasiswa aktif.',
+                icon: <BookOpen className="w-5 h-5" />,
+                href: null,
+                soon: true,
+              },
+              {
+                title: 'Akta & Legalitas Yayasan',
+                desc: 'Dokumen pendirian yayasan, NPWP, dan sertifikat lembaga.',
+                icon: <ShieldCheck className="w-5 h-5" />,
+                href: null,
+                soon: true,
+              },
+            ].map((doc) => (
+              <div key={doc.title} className="bg-white rounded-2xl border border-stone-100 p-6 shadow-sm flex flex-col gap-3">
+                <div className="w-10 h-10 bg-royal-950/5 rounded-xl flex items-center justify-center text-royal-950">
+                  {doc.icon}
+                </div>
+                <div>
+                  <h4 className="font-display font-bold text-royal-900 text-base">{doc.title}</h4>
+                  <p className="text-xs text-stone-400 font-light mt-1 leading-relaxed">{doc.desc}</p>
+                </div>
+                {doc.soon ? (
+                  <span className="mt-auto text-[10px] uppercase tracking-widest text-stone-400 border border-stone-200 rounded-full px-3 py-1 self-start">
+                    Segera Tersedia
+                  </span>
+                ) : (
+                  <a
+                    href={doc.href!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-auto inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-royal-900 border border-royal-200 px-4 py-2 rounded-full hover:bg-royal-950 hover:text-white transition-all self-start"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Unduh
+                  </a>
+                )}
               </div>
-              <button className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-royal-900 border border-royal-200 px-5 py-3 rounded-full hover:bg-royal-950 hover:text-white transition-all">
-                <Download className="w-4 h-4" /> Download Excel
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[800px]">
-                <thead>
-                  <tr className="bg-stone-50 border-b border-stone-100 text-[10px] font-bold uppercase tracking-widest text-stone-400">
-                    <th className="p-6 font-medium">Tanggal</th>
-                    <th className="p-6 font-medium">Uraian Transaksi</th>
-                    <th className="p-6 font-medium">Kategori</th>
-                    <th className="p-6 font-medium text-right">Nominal</th>
-                    <th className="p-6 font-medium text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm bg-white">
-                  {(impactData?.recentTransactions || []).map((row, i) => (
-                    <tr key={i} className={`border-b border-stone-50 transition-colors group ${row.type === 'Pemasukan' ? 'hover:bg-gold-50/10' : 'hover:bg-stone-50'}`}>
-
-                      <td className="p-6 font-medium text-stone-500">
-                        {new Date(row.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                      </td>
-                      <td className="p-6">
-                        <p className="font-display font-medium text-royal-900 text-base">{row.description}</p>
-                        {row.program_nama && (
-                          <p className="text-xs text-stone-400 font-light mt-0.5">
-                            Program: {row.program_nama}
-                          </p>
-                        )}
-                      </td>
-                      <td className="p-6">
-                        <span className={`text-[10px] uppercase tracking-wider border px-3 py-1 rounded-full font-bold ${row.type === 'Pemasukan' ? 'text-gold-700 border-gold-200 bg-gold-50' : 'text-stone-500 border-stone-200 bg-stone-50'}`}>
-                          {row.category}
-                        </span>
-                      </td>
-
-                      <td className={`p-6 text-right font-display text-lg ${row.type === 'Pemasukan' ? 'text-gold-700 font-bold' : 'text-royal-900'}`}>
-                        {row.type === 'Pemasukan' ? '+' : '-'} {formatCurrency(row.amount)}
-                      </td>
-
-                      <td className="p-6 text-center">
-                        {row.type === 'Pemasukan' ? (
-                          <div className="flex items-center justify-center w-8 h-8 bg-gold-50 rounded-full mx-auto text-gold-700">
-                            <ArrowDownLeft className="w-4 h-4" />
-                          </div>
-                        ) : (
-
-                          <div className="flex items-center justify-center w-8 h-8 bg-stone-100 rounded-full mx-auto text-stone-400">
-                            <Check className="w-4 h-4" />
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {(!impactData?.recentTransactions || impactData.recentTransactions.length === 0) && (
-                    <tr>
-                      <td colSpan={5} className="p-12 text-center text-stone-400 italic font-light">
-                        Belum ada data transaksi untuk periode ini.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            ))}
           </div>
         </div>
       </section>
