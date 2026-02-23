@@ -1,202 +1,379 @@
 import React, { useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { SanityService } from '../services/sanity.service';
+import {
+    HeartHandshake, BookOpen, GraduationCap, Home,
+    Clock, ArrowRight, CheckCircle2, Quote, Sun, Moon,
+    Users, TrendingUp, ShieldCheck, BookMarked
+} from 'lucide-react';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
-import { CheckCircle2, ArrowRight, Clock, Moon, Sun } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const SCHEDULE = [
-    { time: '03.30', label: 'Tahajjud & Subuh Berjamaah', category: 'ibadah' },
-    { time: '05.00', label: 'Tahsin & Setoran Hafalan', category: 'diniyah' },
-    { time: '06.30', label: 'Sarapan & Persiapan', category: 'umum' },
-    { time: '07.00', label: 'Sekolah / Kuliah', category: 'formal' },
-    { time: '13.00', label: 'Dzuhur Berjamaah & Makan Siang', category: 'ibadah' },
-    { time: '14.00', label: 'Madrasah Diniyah (Kitab Kuning)', category: 'diniyah' },
-    { time: '17.00', label: 'Ashar Berjamaah & Olahraga', category: 'ibadah' },
-    { time: '18.15', label: 'Maghrib & Kajian Qur\'an', category: 'diniyah' },
-    { time: '19.30', label: 'Isya & Belajar Mandiri / Ekstra', category: 'formal' },
-    { time: '22.00', label: 'Istirahat', category: 'umum' },
-];
-
-const CAT_STYLES: any = {
-    ibadah: 'bg-[#c09c53]/10 text-[#c09c53] border-[#c09c53]/20',
-    diniyah: 'bg-[#0f172a]/10 text-[#0f172a] border-[#0f172a]/10',
-    formal: 'bg-blue-50 text-blue-700 border-blue-100',
-    umum: 'bg-slate-100 text-slate-500 border-slate-100',
-};
+// ============================================
+// MAIN PAGE COMPONENT
+// ============================================
 
 const PublicProgramPage: React.FC = () => {
-    const { data: psbData, isLoading } = useQuery({
-        queryKey: ['psbPage'],
-        queryFn: SanityService.getPsbPageData
-    });
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, []);
 
-    useEffect(() => { window.scrollTo(0, 0); }, []);
-
-    const programs = psbData?.programs || [];
+    const SCHEDULE = [
+        { time: "04:00 - 04:30", act: "Qiyamullail & Shalat Subuh Berjamaah", icon: Moon },
+        { time: "04:30 - 05:30", act: "Madrasah Diniyah & Kajian Kitab Salaf (Senin-Jumat)", icon: BookOpen, isCore: true },
+        { time: "05:30 - 06:20", act: "Bersih Diri, Sarapan & Persiapan Berangkat", icon: Home },
+        { time: "06:20 - 15:30", act: "Sekolah Formal di Sekolah Mitra (Waktu Menyesuaikan Jenjang)", icon: GraduationCap },
+        { time: "15:30 - 16:00", act: "Shalat Ashar Berjamaah (Kondisional Kepulangan)", icon: Sun },
+        { time: "16:00 - 16:45", act: "Taman Pendidikan Al-Qur'an (TPQ) (Senin-Jumat)", icon: BookMarked, isCore: true },
+        { time: "18:10 - 18:30", act: "Shalat Maghrib & Doa Bersama Khusus Donatur", icon: HeartHandshake },
+        { time: "18:30 - 19:40", act: "Tahsin & Tahfidz Al-Qur'an (Senin-Rabu)", icon: BookOpen, isCore: true },
+        { time: "19:40 - 20:00", act: "Shalat Isya Berjamaah & Makan Malam", icon: Home },
+        { time: "20:00 - 22:00", act: "Belajar Bersama & Muroja'ah", icon: BookOpen, note: "* Batas akhir kunjungan tamu adalah pukul 21:00 WIB." },
+        { time: "22:00 - 04:00", act: "Istirahat / Jam Malam", icon: Moon },
+    ];
 
     return (
-        <div className="min-h-screen bg-[#fafafa] font-jakarta">
+        <div className="min-h-screen bg-white font-sans text-slate-800 selection:bg-[#c09c53]/20 selection:text-[#0f172a] flex flex-col">
             <PublicNavbar />
 
-            {/* ── HERO ── */}
-            <header className="pt-24 lg:pt-32 pb-16 px-6 bg-white text-center">
-                <div className="max-w-4xl mx-auto animate-fade-in-up">
-                    <h4 className="text-[#c09c53] text-[10px] font-bold uppercase tracking-[0.2em] mb-6">Program &amp; Layanan</h4>
-                    <h1 className="text-5xl md:text-6xl lg:text-[5rem] font-serif text-[#0f172a] leading-[1.1] mb-8 tracking-tight">
-                        Sinergi Pembinaan,<br />
-                        <span className="italic text-slate-400 font-light">Merajut Masa Depan.</span>
-                    </h1>
-                    <p className="text-slate-500 text-lg max-w-3xl mx-auto leading-relaxed font-light mb-12">
-                        Kami hadir untuk memberikan solusi pendidikan yang utuh. Menjamin pengasuhan dan adab di dalam pesantren, sekaligus memberikan beasiswa penuh untuk pendidikan formal di sekolah-sekolah mitra pilihan.
-                    </p>
-                </div>
-            </header>
+            <main className="flex-1 w-full overflow-hidden">
 
-            {/* ── PILAR 1: DINIYAH & TAHFIDZ ── */}
-            <section className="py-24 px-6 bg-white">
-                <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
-                    <div className="relative order-2 lg:order-1">
-                        <div className="absolute -top-4 -left-4 w-full h-full border border-[#c09c53]/20 pointer-events-none" />
-                        <div className="overflow-hidden aspect-[4/3] bg-slate-100">
-                            <img src="https://images.unsplash.com/photo-1577896851231-70ef18881754?q=80&w=1000&auto=format&fit=crop" alt="Diniyah" className="w-full h-full object-cover hover:scale-105 transition duration-700" />
-                        </div>
-                    </div>
-                    <div className="order-1 lg:order-2">
-                        <span className="text-[9px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4 block">Pilar Pertama</span>
-                        <h2 className="text-4xl font-serif text-[#0f172a] mb-6 leading-tight">Pendidikan Diniyah<br /><span className="italic text-slate-300 font-normal">& Tahfidz Al-Qur'an</span></h2>
-                        <p className="text-slate-500 text-sm leading-relaxed mb-8">
-                            Madrasah Diniyah Al-Bisri mengajarkan kitab-kitab klasik ahlussunnah—dari Fiqh, Aqidah, hingga Tasawuf—dengan sanad keilmuan yang terjaga. Program Tahfidz yang fleksibel memungkinkan santri menghafal Al-Qur'an tanpa harus merobohkan jadwal akademik formal.
+                {/* ========================================== */}
+                {/* HERO SECTION                               */}
+                {/* ========================================== */}
+                <header className="pt-24 lg:pt-32 pb-16 px-6 bg-white text-center">
+                    <div className="max-w-4xl mx-auto animate-fade-in-up">
+                        <h4 className="text-[#c09c53] text-[10px] font-bold uppercase tracking-[0.2em] mb-6">Program & Layanan</h4>
+                        <h1 className="text-5xl md:text-6xl lg:text-[5rem] font-serif text-[#0f172a] leading-[1.1] mb-8 tracking-tight">
+                            Sinergi Pembinaan,<br />
+                            <span className="italic text-slate-400 font-light">Merajut Masa Depan.</span>
+                        </h1>
+                        <p className="text-slate-500 text-lg max-w-3xl mx-auto leading-relaxed font-light mb-12">
+                            Kami hadir memberikan solusi pendidikan utuh. Menjamin pengasuhan adab di dalam pesantren, sekaligus memberikan akses pendidikan formal berkualitas bagi generasi mandiri.
                         </p>
-                        <ul className="space-y-3 mb-8">
-                            {['Kajian Kitab Kuning (Fiqh, Aqidah, Tasawuf)', 'Program Tahsin & Tahfidz bersanad', 'Bahasa Arab aktif & komunikasi', 'Mentoring langsung dari Asatidz berpengalaman'].map((f, i) => (
-                                <li key={i} className="flex items-start gap-3 text-sm text-slate-600">
-                                    <CheckCircle2 className="w-4 h-4 text-[#c09c53] shrink-0 mt-0.5" />
-                                    {f}
-                                </li>
-                            ))}
-                        </ul>
-                        <Link to="/psb" className="inline-flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-[#0f172a] border-b border-[#0f172a]/20 pb-1 hover:border-[#c09c53] hover:text-[#c09c53] transition-colors">
-                            Informasi Pendaftaran <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
                     </div>
-                </div>
-            </section>
+                </header>
 
-            {/* ── PILAR 2: BEASISWA SEKOLAH ── */}
-            <section className="py-24 px-6 bg-[#fafafa]">
-                <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
-                    <div>
-                        <span className="text-[9px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4 block">Pilar Kedua</span>
-                        <h2 className="text-4xl font-serif text-[#0f172a] mb-6 leading-tight">Beasiswa<br /><span className="italic text-slate-300 font-normal">Sekolah Formal</span></h2>
-                        <p className="text-slate-500 text-sm leading-relaxed mb-8">
-                            Bagi santri yatim dan dhuafa, Al-Bisri menjamin seluruh biaya pendidikan formal—dari SD hingga SMA—melalui kemitraan dengan sekolah-sekolah terpilih di sekitar pesantren. Antar-jemput harian disediakan agar santri dapat fokus belajar.
-                        </p>
-                        <div className="grid grid-cols-3 gap-4">
-                            {[{ v: '5+', l: 'Sekolah Mitra' }, { v: '100%', l: 'Biaya Ditanggung' }, { v: 'SD–SMA', l: 'Semua Jenjang' }].map((s, i) => (
-                                <div key={i} className="bg-white border border-slate-100 p-5 text-center">
-                                    <p className="text-2xl font-serif text-[#c09c53] mb-1">{s.v}</p>
-                                    <p className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">{s.l}</p>
+                {/* ========================================== */}
+                {/* PILAR 1: PENDIDIKAN DINIYAH (INTERNAL)     */}
+                {/* ========================================== */}
+                <section className="py-20 lg:py-32 bg-[#fafafa] border-y border-slate-200">
+                    <div className="max-w-7xl mx-auto px-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
+
+                            <div className="order-2 lg:order-1 relative group animate-fade-in-up">
+                                <div className="aspect-[4/5] sm:aspect-[4/3] lg:aspect-[4/5] rounded-[2rem] overflow-hidden shadow-2xl relative">
+                                    <img src="https://images.unsplash.com/photo-1609599006353-e629aaab31bf?auto=format&fit=crop&q=80" alt="Kajian Diniyah" className="w-full h-full object-cover transition duration-[2000ms] group-hover:scale-105" />
+                                    <div className="absolute inset-0 bg-[#0f172a]/20 mix-blend-multiply"></div>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="relative">
-                        <div className="absolute -top-4 -right-4 w-full h-full border border-[#c09c53]/20 pointer-events-none" />
-                        <div className="overflow-hidden aspect-[4/3] bg-slate-100">
-                            <img src="https://images.unsplash.com/photo-1590012314607-cda9d9b699ae?q=80&w=1000&auto=format&fit=crop" alt="Sekolah Formal" className="w-full h-full object-cover hover:scale-105 transition duration-700" />
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* ── PILAR 3: ASRAMA (from Sanity programs, or static) ── */}
-            <section className="py-24 px-6 bg-[#0f172a] text-white">
-                <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-16">
-                        <span className="text-[9px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4 block">Pilar Ketiga</span>
-                        <h2 className="text-4xl font-serif leading-tight">Asrama &<br /><span className="italic text-slate-400 font-normal">Pengasuhan Santri</span></h2>
-                    </div>
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                        {(programs.length > 0 ? programs : [
-                            { title: 'Santri Yatim Reguler', description: 'Asrama & makan 3x sehari, antar-jemput sekolah mitra, laundry, dan layanan kesehatan dasar.', price: 'Gratis 100%', paymentPeriod: '' },
-                            { title: 'Santri Berbayar', description: 'Fasilitas setara dengan subsidi silang dari yayasan. Termasuk semua layanan asrama dan diniyah.', price: 'Rp 850rb', paymentPeriod: '/bln' },
-                        ]).map((p: any, i: number) => (
-                            <div key={i} className="border border-white/10 p-8 hover:border-[#c09c53]/40 hover:bg-white/5 transition-all duration-300 group">
-                                <h3 className="font-serif text-xl mb-3">{p.title}</h3>
-                                <p className="text-slate-400 text-sm leading-relaxed mb-6">{p.description}</p>
-                                <div className="border-t border-white/10 pt-5 flex items-baseline gap-1">
-                                    <span className="font-serif text-[#c09c53] text-2xl">{p.price}</span>
-                                    <span className="text-slate-500 text-xs">{p.paymentPeriod}</span>
+                                <div className="absolute -bottom-8 -right-4 lg:-right-12 bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-slate-100 max-w-[280px]">
+                                    <BookOpen className="w-8 h-8 text-[#c09c53] mb-4" />
+                                    <p className="font-serif text-xl text-[#0f172a] mb-2 leading-tight">Kurikulum Salaf & Tahfidz</p>
+                                    <p className="text-xs text-slate-500">Membentuk fondasi tauhid dan akhlak mulia santri mukim.</p>
                                 </div>
                             </div>
-                        ))}
-                        {/* Pesantren Mahasiswa card */}
-                        <div className="border border-[#c09c53]/30 bg-[#c09c53]/5 p-8 group">
-                            <span className="text-[9px] font-bold text-[#c09c53] uppercase tracking-widest mb-3 block">Spesial</span>
-                            <h3 className="font-serif text-xl mb-3">Pesantren Mahasiswa</h3>
-                            <p className="text-slate-400 text-sm leading-relaxed mb-6">Hunian strategis & edukatif untuk mahasantri. WiFi high speed, AC, co-working area, dan kajian turats mendalam.</p>
-                            <div className="border-t border-[#c09c53]/20 pt-5 flex items-baseline gap-1">
-                                <span className="font-serif text-[#c09c53] text-2xl">Rp 650rb</span>
-                                <span className="text-slate-500 text-xs">/bln</span>
+
+                            <div className="order-1 lg:order-2 animate-fade-in-up delay-100">
+                                <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4 flex items-center gap-3">
+                                    <span className="w-8 h-px bg-[#c09c53]"></span> Fokus Internal
+                                </h4>
+                                <h2 className="text-4xl lg:text-5xl font-serif text-[#0f172a] mb-8 leading-[1.15]">
+                                    Kajian Diniyah & <br /><span className="italic text-slate-400">Pembinaan Karakter.</span>
+                                </h2>
+                                <div className="space-y-6 text-slate-600 leading-relaxed font-light mb-8">
+                                    <p>
+                                        Santri mukim mendapatkan bimbingan intensif setiap harinya. Pengasuhan berfokus pada kedisiplinan ibadah, perbaikan bacaan (tahsin), dan hafalan Al-Qur'an sebagai kurikulum utama.
+                                    </p>
+                                    <p>
+                                        Penanaman adab dan akhlakul karimah menjadi prioritas kami, memastikan setiap santri memiliki karakter yang kuat dalam menghadapi tantangan zaman.
+                                    </p>
+                                </div>
+                                <ul className="space-y-4">
+                                    {['Halaqah Tahfidz & Tahsin Harian', 'Pengkajian Fiqih & Akhlak', 'Pembiasaan Ibadah Sunnah Bersama'].map((item, i) => (
+                                        <li key={i} className="flex items-center gap-3 text-sm font-medium text-[#0f172a]">
+                                            <CheckCircle2 className="w-5 h-5 text-[#c09c53]" /> {item}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                        </div>
+                    </div>
+                </section>
+
+                {/* ========================================== */}
+                {/* PILAR 2: BEASISWA SEKOLAH (EKSTERNAL)      */}
+                {/* ========================================== */}
+                <section className="py-20 lg:py-32 bg-white">
+                    <div className="max-w-7xl mx-auto px-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
+
+                            <div className="animate-fade-in-up">
+                                <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4 flex items-center gap-3">
+                                    <span className="w-8 h-px bg-[#c09c53]"></span> Kemitraan Strategis
+                                </h4>
+                                <h2 className="text-4xl lg:text-5xl font-serif text-[#0f172a] mb-8 leading-[1.15]">
+                                    Beasiswa Penuh <br /><span className="italic text-slate-400">Sekolah Formal.</span>
+                                </h2>
+                                <div className="space-y-6 text-slate-600 leading-relaxed font-light mb-8">
+                                    <p>
+                                        Seluruh santri yatim Al-Bisri dijamin akses pendidikan formalnya melalui kemitraan dengan sekolah-sekolah unggulan di area Surabaya.
+                                    </p>
+                                    <p>
+                                        Beasiswa mencakup seluruh biaya SPP, uang pangkal, hingga keperluan buku dan seragam. Kami memastikan mereka siap secara akademik untuk bersaing di dunia profesional kelak.
+                                    </p>
+                                </div>
+                                <div className="bg-[#fafafa] border border-slate-200 p-6 rounded-2xl">
+                                    <div className="flex gap-4">
+                                        <GraduationCap className="w-8 h-8 text-[#c09c53] shrink-0" />
+                                        <div>
+                                            <h4 className="font-bold text-[#0f172a] mb-1">100% Bebas Biaya Sekolah</h4>
+                                            <p className="text-xs text-slate-500 leading-relaxed">Donasi disalurkan untuk menjamin kelangsungan ijazah formal santri yatim.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="relative group animate-fade-in-up delay-100">
+                                <div className="aspect-[4/5] sm:aspect-[4/3] lg:aspect-[4/5] rounded-[2rem] overflow-hidden shadow-2xl relative">
+                                    <img src="https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?auto=format&fit=crop&q=80" alt="Sekolah Formal" className="w-full h-full object-cover transition duration-[2000ms] group-hover:scale-105" />
+                                    <div className="absolute inset-0 bg-[#0f172a]/10"></div>
+                                </div>
+                                <div className="absolute top-8 -left-4 lg:-left-12 bg-[#0f172a] text-white p-6 md:p-8 rounded-3xl shadow-xl max-w-[260px]">
+                                    <Quote className="w-6 h-6 text-[#c09c53] mb-4 opacity-50" />
+                                    <p className="font-serif text-lg mb-2 italic">"Pendidikan adalah paspor menuju masa depan."</p>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </section>
+
+                {/* ========================================== */}
+                {/* PILAR 3: ASRAMA & PENGASUHAN (INTERNAL)    */}
+                {/* ========================================== */}
+                <section className="py-20 lg:py-32 bg-[#0f172a] text-white relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10"></div>
+                    <div className="max-w-7xl mx-auto px-6 relative z-10 text-center">
+                        <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4">Rumah Harapan</h4>
+                        <h2 className="text-4xl lg:text-5xl font-serif mb-16">Pengasuhan & Asrama Santri</h2>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+                            <div className="bg-white/5 border border-white/10 p-10 rounded-[2rem] hover:bg-white/10 transition-colors backdrop-blur-sm">
+                                <Home className="w-10 h-10 text-[#c09c53] mb-6" />
+                                <h3 className="text-xl font-serif mb-3">Hunian yang Nyaman</h3>
+                                <p className="text-sm text-slate-300 font-light leading-relaxed">
+                                    Asrama yang bersih dan kondusif untuk beristirahat serta muroja'ah hafalan setelah beraktivitas sekolah.
+                                </p>
+                            </div>
+                            <div className="bg-white/5 border border-white/10 p-10 rounded-[2rem] hover:bg-white/10 transition-colors backdrop-blur-sm">
+                                <HeartHandshake className="w-10 h-10 text-[#c09c53] mb-6" />
+                                <h3 className="text-xl font-serif mb-3">Kebutuhan Gizi Terjamin</h3>
+                                <p className="text-sm text-slate-300 font-light leading-relaxed">
+                                    Pemberian makan bergizi 3x sehari guna mendukung pertumbuhan fisik dan konsentrasi santri dalam belajar.
+                                </p>
+                            </div>
+                            <div className="bg-white/5 border border-white/10 p-10 rounded-[2rem] hover:bg-white/10 transition-colors backdrop-blur-sm">
+                                <Clock className="w-10 h-10 text-[#c09c53] mb-6" />
+                                <h3 className="text-xl font-serif mb-3">Pendampingan 24 Jam</h3>
+                                <p className="text-sm text-slate-300 font-light leading-relaxed">
+                                    Pengawasan asatidz/musyrif yang senantiasa membimbing ibadah dan perkembangan psikologis santri setiap saat.
+                                </p>
                             </div>
                         </div>
                     </div>
-                </div>
-            </section>
+                </section>
 
-            {/* ── JADWAL AKTIVITAS ── */}
-            <section className="py-24 px-6 bg-white">
-                <div className="max-w-4xl mx-auto">
-                    <div className="text-center mb-16">
-                        <span className="text-[9px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4 block">Rutinitas Harian</span>
-                        <h2 className="text-4xl font-serif text-[#0f172a]">Jadwal Aktivitas Santri</h2>
-                        <p className="text-slate-400 text-sm mt-4 font-light">Setiap hari terstruktur untuk membangun kebiasaan, disiplin, dan cinta ilmu.</p>
-                    </div>
+                {/* ========================================== */}
+                {/* PILAR 4: PESANTREN MAHASISWA               */}
+                {/* ========================================== */}
+                <section className="py-20 lg:py-32 bg-white">
+                    <div className="max-w-7xl mx-auto px-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
 
-                    <div className="space-y-0">
-                        {SCHEDULE.map((item, i) => (
-                            <div
-                                key={i}
-                                className="grid grid-cols-12 gap-4 items-center group border-b border-slate-50 py-4 hover:bg-[#fafafa] transition-colors px-2"
-                            >
-                                <div className="col-span-2 flex items-center gap-2">
-                                    {i < 2 || i === 9 ? <Moon className="w-3.5 h-3.5 text-[#c09c53]/60" /> : <Sun className="w-3.5 h-3.5 text-[#c09c53]/40" />}
-                                    <span className="font-mono text-sm font-bold text-slate-400">{item.time}</span>
+                            <div className="lg:col-span-5 order-2 lg:order-1 animate-fade-in-up">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-4">
+                                        <img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&q=80" alt="Mahasiswa" className="w-full h-48 object-cover rounded-2xl shadow-md" />
+                                        <div className="bg-[#fafafa] p-6 rounded-2xl border border-slate-100">
+                                            <TrendingUp className="w-6 h-6 text-[#c09c53] mb-3" />
+                                            <p className="text-xs font-bold text-[#0f172a] uppercase tracking-widest mb-1">Subsidi Silang</p>
+                                            <p className="text-[10px] text-slate-500">Menopang biaya beasiswa yatim.</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4 pt-8">
+                                        <div className="bg-[#0f172a] p-6 rounded-2xl text-white">
+                                            <Users className="w-6 h-6 text-[#c09c53] mb-3" />
+                                            <p className="text-xs font-bold uppercase tracking-widest mb-1">Kakak Asuh</p>
+                                            <p className="text-[10px] text-slate-400">Menjadi teladan bagi adik yatim.</p>
+                                        </div>
+                                        <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&q=80" alt="Diskusi" className="w-full h-48 object-cover rounded-2xl shadow-md" />
+                                    </div>
                                 </div>
-                                <div className="col-span-8">
-                                    <span className="text-sm text-[#0f172a] font-medium">{item.label}</span>
+                            </div>
+
+                            <div className="lg:col-span-7 order-1 lg:order-2 animate-fade-in-up delay-100">
+                                <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4 flex items-center gap-3">
+                                    <span className="w-8 h-px bg-[#c09c53]"></span> Pesantren Mahasiswa
+                                </h4>
+                                <h2 className="text-4xl lg:text-5xl font-serif text-[#0f172a] mb-8 leading-[1.15]">
+                                    Program Reguler <br /><span className="italic text-slate-400">Sinergi Pembinaan.</span>
+                                </h2>
+                                <div className="space-y-6 text-slate-600 leading-relaxed font-light mb-8">
+                                    <p>
+                                        Al-Bisri membuka jalur reguler berbayar bagi mahasiswa aktif yang ingin memperdalam ilmu agama di lingkungan asrama yang islami di kawasan strategis Rungkut.
+                                    </p>
+                                    <p>
+                                        Selain mendapatkan fasilitas asrama dan pembinaan diniyah, mahasiswa dalam program ini diproyeksikan sebagai <em>Musyrif</em> (Kakak Asuh) bagi santri yatim, menciptakan ekosistem belajar yang harmonis.
+                                    </p>
                                 </div>
-                                <div className="col-span-2 text-right">
-                                    <span className={`inline-block text-[8px] font-bold uppercase tracking-wider border px-2 py-0.5 ${CAT_STYLES[item.category]}`}>
-                                        {item.category}
+                                <div className="flex flex-wrap gap-3">
+                                    <span className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-2 rounded-lg text-xs font-bold text-[#0f172a]">
+                                        <ShieldCheck className="w-4 h-4 text-[#c09c53]" /> Kuota Terbatas
                                     </span>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
 
-            {/* ── CTA ── */}
-            <section className="py-20 px-6 bg-[#0f172a] text-white text-center relative overflow-hidden">
-                <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }} />
-                <div className="max-w-2xl mx-auto relative z-10">
-                    <h2 className="text-4xl md:text-5xl font-serif mb-6">Bergabung Bersama Kami</h2>
-                    <p className="text-slate-300 mb-10 font-light text-lg">Daftarkan diri sekarang atau dukung program kami melalui donasi.</p>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                        <Link to="/psb" className="bg-[#c09c53] text-[#0f172a] px-8 py-4 text-[10px] font-bold uppercase tracking-widest hover:bg-[#b08a42] transition-colors inline-flex items-center gap-2 justify-center">
-                            Daftar Sekarang <ArrowRight className="w-4 h-4" />
-                        </Link>
-                        <Link to="/donasi" className="border border-white/20 text-white px-8 py-4 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors inline-flex items-center justify-center">
-                            Donasi Program
-                        </Link>
+                        </div>
                     </div>
-                </div>
-            </section>
+                </section>
+
+                {/* ========================================== */}
+                {/* PILAR 5: TPQ ANAK & SORE (NEW SECTION)      */}
+                {/* ========================================== */}
+                <section className="py-20 lg:py-32 bg-[#f9f5ec] border-y border-[#c09c53]/10">
+                    <div className="max-w-7xl mx-auto px-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-24 items-center">
+
+                            <div className="lg:col-span-7 animate-fade-in-up">
+                                <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4 flex items-center gap-3">
+                                    <span className="w-8 h-px bg-[#c09c53]"></span> Khidmah Masyarakat
+                                </h4>
+                                <h2 className="text-4xl lg:text-5xl font-serif text-[#0f172a] mb-8 leading-[1.15]">
+                                    TPQ Anak & Remaja <br /><span className="italic text-slate-400">Cahaya Lingkungan.</span>
+                                </h2>
+                                <div className="space-y-6 text-slate-600 leading-relaxed font-light mb-8">
+                                    <p>
+                                        Sebagai bentuk pengabdian kepada warga sekitar (Medokan Asri & Rungkut), Al-Bisri menyelenggarakan program <strong>TPQ Sore</strong> bagi anak-anak usia dini hingga jenjang SMP.
+                                    </p>
+                                    <p>
+                                        Kami berfokus pada pengajaran Tahsin (perbaikan bacaan) dengan metode yang menyenangkan, hafalan surat-surat pendek, serta penanaman adab harian agar anak-anak tumbuh dengan karakter islami sejak dini.
+                                    </p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-white border border-[#c09c53]/20 flex items-center justify-center shrink-0">
+                                            <BookMarked className="w-5 h-5 text-[#c09c53]" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-[#0f172a]">Metode Tahsin</p>
+                                            <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Pembinaan Tartil Al-Qur'an</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-white border border-[#c09c53]/20 flex items-center justify-center shrink-0">
+                                            <HeartHandshake className="w-5 h-5 text-[#c09c53]" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-[#0f172a]">Infaq Terjangkau</p>
+                                            <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Mendukung Pendidikan Umat</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="lg:col-span-5 relative group animate-fade-in-up delay-100">
+                                <div className="aspect-square rounded-[3rem] overflow-hidden shadow-2xl relative border-8 border-white">
+                                    <img src="https://images.unsplash.com/photo-1540317580384-e5d43616b9aa?auto=format&fit=crop&q=80" alt="Anak-anak TPQ" className="w-full h-full object-cover transition duration-1000 group-hover:scale-110" />
+                                    <div className="absolute inset-0 bg-[#0f172a]/5"></div>
+                                </div>
+                                {/* Decorative Tag */}
+                                <div className="absolute -bottom-6 -right-6 bg-[#0f172a] text-white p-6 rounded-2xl shadow-xl">
+                                    <p className="text-[10px] text-[#c09c53] font-bold uppercase tracking-widest mb-1">Jadwal Kelas</p>
+                                    <p className="font-serif text-lg">Pukul 16:00 WIB</p>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </section>
+
+                {/* ========================================== */}
+                {/* A DAY IN THE LIFE (SCHEDULE)               */}
+                {/* ========================================== */}
+                <section className="py-24 lg:py-32 bg-white">
+                    <div className="max-w-4xl mx-auto px-6">
+                        <div className="text-center mb-16">
+                            <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4">Disiplin Harian</h4>
+                            <h2 className="text-4xl lg:text-5xl font-serif text-[#0f172a]">Aktivitas Santri</h2>
+                            <p className="text-slate-500 font-light mt-4 mb-8">Keseimbangan waktu antara ibadah, sekolah formal, dan istirahat.</p>
+
+                            <div className="inline-flex items-start gap-3 bg-amber-50/80 border border-amber-200/60 p-4 rounded-xl text-amber-900 text-xs font-medium max-w-2xl mx-auto text-left shadow-sm">
+                                <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0 mt-1.5 animate-pulse"></div>
+                                <p className="leading-relaxed">
+                                    <strong className="font-bold text-amber-950">Catatan:</strong> Bagian dengan sorotan <span className="font-bold text-[#c09c53]">Emas (Agenda Wajib)</span> adalah waktu sakral belajar diniyah. Batas maksimal kunjungan tamu adalah <strong>pukul 21:00 WIB</strong>.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="relative border-l-2 border-slate-200 ml-4 md:ml-0 md:border-l-0 mt-8">
+                            <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-0.5 bg-slate-200 -translate-x-1/2"></div>
+
+                            <div className="space-y-12 md:space-y-0">
+                                {SCHEDULE.map((item, i) => {
+                                    const isEven = i % 2 === 0;
+                                    return (
+                                        <div key={i} className={`relative flex flex-col md:flex-row items-start md:items-center ${isEven ? 'md:flex-row-reverse' : ''} group`}>
+                                            <div className={`absolute left-[-21px] md:left-1/2 top-1 md:top-1/2 w-10 h-10 rounded-full border-[3px] transition-colors flex items-center justify-center -translate-y-1/2 md:-translate-x-1/2 z-10 shadow-sm ${item.isCore ? 'bg-[#c09c53] border-white' : 'bg-white border-slate-200 group-hover:border-[#c09c53]'}`}>
+                                                <item.icon className={`w-4 h-4 transition-colors ${item.isCore ? 'text-white' : 'text-slate-400 group-hover:text-[#c09c53]'}`} />
+                                            </div>
+                                            <div className={`ml-8 md:ml-0 w-full md:w-1/2 ${isEven ? 'md:pl-16' : 'md:pr-16 text-left md:text-right'}`}>
+                                                <div className={`p-6 rounded-2xl border transition-all ${item.isCore ? 'bg-[#c09c53]/5 border-[#c09c53]/30 shadow-md ring-1 ring-[#c09c53]/20' : 'bg-white border-slate-100 shadow-sm'}`}>
+                                                    <div className={`flex items-center gap-3 mb-2 ${isEven ? 'justify-start' : 'md:justify-end justify-start'}`}>
+                                                        <p className="text-[#c09c53] font-mono text-xs font-bold">{item.time}</p>
+                                                        {item.isCore && <span className="text-[9px] font-bold uppercase tracking-widest text-white bg-[#c09c53] px-2 py-0.5 rounded-md shadow-sm">Agenda Wajib</span>}
+                                                    </div>
+                                                    <p className={`font-serif leading-tight ${item.isCore ? 'text-[#0f172a] font-bold text-xl mb-2' : 'text-slate-600 text-lg'}`}>{item.act}</p>
+                                                    {item.note && <p className={`text-xs mt-1 ${item.isCore ? 'text-[#c09c53] font-medium' : 'text-slate-400'}`}>{item.note}</p>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* ========================================== */}
+                {/* CALL TO ACTION                             */}
+                {/* ========================================== */}
+                <section className="py-20 border-t border-slate-200 bg-white text-center px-6">
+                    <div className="max-w-3xl mx-auto">
+                        <h2 className="text-3xl md:text-4xl font-serif text-[#0f172a] mb-6">Ambil Bagian dalam Mencetak Generasi Peradaban</h2>
+                        <p className="text-slate-500 mb-10 leading-relaxed font-light">
+                            Setiap dukungan yang Anda berikan memastikan tidak ada satu pun santri yatim kami yang putus sekolah. Anda juga dapat bergabung sebagai Mahasiswa Reguler atau Santri TPQ.
+                        </p>
+                        <div className="flex flex-col sm:flex-row justify-center gap-4">
+                            <Link to="/donasi" className="bg-[#0f172a] hover:bg-slate-800 text-white px-8 py-4 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg hover:-translate-y-1 flex items-center justify-center gap-2">
+                                Donasi Program <HeartHandshake className="w-4 h-4" />
+                            </Link>
+                            <Link to="/psb" className="bg-white hover:bg-slate-50 border border-slate-200 text-[#0f172a] px-8 py-4 rounded-xl text-xs font-bold uppercase tracking-widest transition-all hover:-translate-y-1 flex items-center justify-center gap-2">
+                                Portal Pendaftaran Santri
+                            </Link>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
 
             <PublicFooter />
+
+            <style dangerouslySetInnerHTML={{
+                __html: `
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in-up { animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .delay-100 { animation-delay: 100ms; }
+      `}} />
         </div>
     );
 };

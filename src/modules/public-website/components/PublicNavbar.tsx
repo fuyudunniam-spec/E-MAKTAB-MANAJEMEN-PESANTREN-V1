@@ -105,7 +105,11 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({ theme = 'landing' }) => {
           <div className={`hidden lg:flex items-center gap-8 xl:gap-12 text-[10px] font-bold uppercase tracking-[0.2em] font-jakarta ${isLightMode ? 'text-navy-900/70' : 'text-white/70'}`}>
             {/* Standard Text Links */}
             {menuItems.filter((m: any) => !['PSB', 'Login', 'Donasi'].includes(m.title)).map((item: any) => (
-              <Link key={item._key} to={item.link} className={`hover:${hoverColorClass} transition-colors relative group`}>
+              <Link
+                key={item._key}
+                to={item.title?.toLowerCase() === 'program' ? '/program' : item.link}
+                className={`hover:${hoverColorClass} transition-colors relative group`}
+              >
                 {item.title}
                 <span className="absolute -bottom-2 left-0 w-0 h-[1px] bg-accent-gold transition-all duration-300 group-hover:w-full"></span>
               </Link>
@@ -114,7 +118,7 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({ theme = 'landing' }) => {
             {!menuItems.length && (
               <>
                 <Link to="/tentang-kami" className={`hover:${hoverColorClass} transition-colors relative group`}>Profil</Link>
-                <Link to="/#program" className={`hover:${hoverColorClass} transition-colors relative group`}>Program</Link>
+                <Link to="/program" className={`hover:${hoverColorClass} transition-colors relative group`}>Program</Link>
                 <Link to="/transparansi" className={`hover:${hoverColorClass} transition-colors relative group`}>Transparansi</Link>
               </>
             )}
@@ -168,12 +172,19 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({ theme = 'landing' }) => {
               <div className="flex flex-col gap-4">
                 <Link to="/" onClick={closeMenu} className="text-xl text-white font-playfair hover:text-accent-gold transition-colors">Beranda</Link>
                 {menuItems.filter((m: any) => !['PSB', 'Login', 'Donasi'].includes(m.title)).map((item: any) => (
-                  <Link key={item._key} to={item.link} onClick={closeMenu} className="text-xl text-white font-playfair hover:text-accent-gold transition-colors">{item.title}</Link>
+                  <Link
+                    key={item._key}
+                    to={item.title?.toLowerCase() === 'program' ? '/program' : item.link}
+                    onClick={closeMenu}
+                    className="text-xl text-white font-playfair hover:text-accent-gold transition-colors"
+                  >
+                    {item.title}
+                  </Link>
                 ))}
                 {!menuItems.length && (
                   <>
                     <Link to="/tentang-kami" onClick={closeMenu} className="text-xl text-white font-playfair hover:text-accent-gold transition-colors">Profil & Sejarah</Link>
-                    <Link to="/akademik" onClick={closeMenu} className="text-xl text-white font-playfair hover:text-accent-gold transition-colors">Program Pendidikan</Link>
+                    <Link to="/program" onClick={closeMenu} className="text-xl text-white font-playfair hover:text-accent-gold transition-colors">Program Pendidikan</Link>
                     <Link to="/transparansi" onClick={closeMenu} className="text-xl text-white font-playfair hover:text-accent-gold transition-colors">Transparansi</Link>
                   </>
                 )}
