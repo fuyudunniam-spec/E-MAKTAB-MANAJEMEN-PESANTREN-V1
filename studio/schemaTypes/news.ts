@@ -50,21 +50,16 @@ export default defineType({
         defineField({
             name: 'category',
             title: 'Category',
-            type: 'string',
-            options: {
-                list: [
-                    { title: 'Berita', value: 'berita' },
-                    { title: 'Artikel', value: 'artikel' },
-                    { title: 'Pengumuman', value: 'pengumuman' },
-                    { title: 'Kegiatan', value: 'kegiatan' }
-                ]
-            }
+            type: 'reference',
+            to: [{ type: 'category' }],
+            validation: (rule) => rule.required(),
         }),
         defineField({
             name: 'author',
             title: 'Author',
             type: 'reference',
-            to: [{ type: 'teamMember' }]
+            to: [{ type: 'teamMember' }],
+            validation: (rule) => rule.required(),
         }),
         // SEO Fields
         defineField({

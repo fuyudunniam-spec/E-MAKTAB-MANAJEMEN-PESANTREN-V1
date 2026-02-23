@@ -32,7 +32,7 @@ export const SanityService = {
                 description,
                 socialLinks
             },
-            category,
+            "category": category->title,
             "content": body,
             "readingTime": round(length(pt::text(body)) / 5 / 180 + 1) + " Menit Baca",
             metaKeywords,
@@ -42,7 +42,7 @@ export const SanityService = {
                 publishedAt,
                 "slug": slug.current,
                 mainImage,
-                category
+                "category": category->title
             }
         }`;
         return await client.fetch(query, { slug })

@@ -5,7 +5,23 @@ export const structure = (S: StructureBuilder) =>
     S.list()
         .title('Konten Website')
         .items([
-            // 1. Site Settings (Singleton)
+            // 1. News Management (Centralized)
+            S.listItem()
+                .title('Pusat Berita & Artikel')
+                .child(
+                    S.list()
+                        .title('Manajemen Konten Berita')
+                        .items([
+                            S.documentTypeListItem('news').title('Semua Artikel'),
+                            S.divider(),
+                            S.documentTypeListItem('category').title('Kategori Berita'),
+                            S.documentTypeListItem('teamMember').title('Daftar Penulis'),
+                        ])
+                ),
+
+            S.divider(),
+
+            // 2. Site Settings (Singleton)
             S.listItem()
                 .title('Pengaturan Situs')
                 .child(
@@ -17,7 +33,7 @@ export const structure = (S: StructureBuilder) =>
 
             S.divider(),
 
-            // 2. Group by Pages
+            // 3. Group by Pages
             S.listItem()
                 .title('Halaman Beranda')
                 .child(
@@ -40,16 +56,6 @@ export const structure = (S: StructureBuilder) =>
                         .schemaType('psbPage')
                         .documentId('psbPage')
                         .title('Konten PSB')
-                ),
-
-            S.listItem()
-                .title('Halaman Berita')
-                .child(
-                    S.list()
-                        .title('Manajemen Berita')
-                        .items([
-                            S.documentTypeListItem('news').title('Artikel Berita'),
-                        ])
                 ),
 
             S.listItem()
