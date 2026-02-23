@@ -115,7 +115,7 @@ const NewsDetailPage: React.FC = () => {
                             alt={post.author?.name}
                         />
                         <div>
-                            <p className="text-[11px] font-bold text-navy-950 uppercase tracking-widest">Post oleh {post.author?.name || 'Redaksi'}</p>
+                            <p className="text-[11px] font-bold text-navy-950 uppercase tracking-widest">{post.author?.name || 'Redaksi'}</p>
                             <p className="text-[10px] text-slate-400 uppercase tracking-widest">{post.author?.role || 'Jurnalis'}</p>
                         </div>
                     </div>
@@ -138,7 +138,11 @@ const NewsDetailPage: React.FC = () => {
                     {/* LEFT SIDEBAR: Sticky Social Share (Media International Style) */}
                     <aside className="hidden md:block md:col-span-1 border-r border-slate-50">
                         <div className="sticky top-32 flex flex-col gap-5 py-4">
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-300 transform -rotate-90 origin-left mb-8 block translate-x-[4px]">Bagikan Konten</span>
+                            <div className="relative h-32 mb-12">
+                                <span className="absolute left-1/2 -translate-x-1/2 top-0 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-300 vertical-text whitespace-nowrap">
+                                    Bagikan Konten
+                                </span>
+                            </div>
 
                             <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(post.title + ' ' + window.location.href)}`, '_blank')} className="w-10 h-10 bg-white border border-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:text-[#25D366] hover:border-[#25D366] transition-all shadow-sm hover:shadow-md">
                                 <MessageCircle className="w-4 h-4" />
@@ -197,6 +201,10 @@ const NewsDetailPage: React.FC = () => {
                                 color: #B59461;
                                 opacity: 0.2;
                             }
+                            .vertical-text {
+                                writing-mode: vertical-rl;
+                                text-orientation: mixed;
+                            }
                         `}</style>
 
                         <div className="article-body">
@@ -223,7 +231,7 @@ const NewsDetailPage: React.FC = () => {
                                         <div className="absolute -bottom-3 -right-3 w-12 h-12 bg-accent-gold/10 -z-0"></div>
                                     </div>
                                     <div className="flex-1">
-                                        <h4 className="text-[10px] font-bold text-accent-gold uppercase tracking-[0.2em] mb-2">Ditulis Oleh Tokoh</h4>
+                                        <h4 className="text-[10px] font-bold text-accent-gold uppercase tracking-[0.2em] mb-2">Tentang Penulis</h4>
                                         <h3 className="text-2xl font-playfair font-bold text-navy-950 mb-1">{post.author?.name}</h3>
                                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">{post.author?.role || 'Visi & Pemikir Al-Bisri'}</p>
                                         <p className="text-base font-lora text-slate-600 leading-relaxed mb-6">
@@ -266,9 +274,9 @@ const NewsDetailPage: React.FC = () => {
                         <div className="sticky top-32 space-y-10">
                             {/* MINI CTA */}
                             <div className="bg-[#0F172A] p-8 text-white rounded-[2px] shadow-2xl">
-                                <h5 className="font-playfair text-xl mb-4">Wujudkan Harapan</h5>
+                                <h5 className="font-playfair text-xl mb-4 leading-snug">Gotong Royong Pendidikan Umat</h5>
                                 <p className="text-xs text-slate-400 leading-relaxed mb-6 font-lora italic">
-                                    Kisah di atas adalah bagian dari perjuangan kami. Bantu kami melanjutkan senyuman mereka.
+                                    Jadilah bagian dari senyum dan cerita kesuksesan mereka.
                                 </p>
                                 <Link to="/donasi" className="block text-center bg-accent-gold py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#0F172A] hover:bg-white transition-all">
                                     Donasi Sekarang
@@ -289,7 +297,7 @@ const NewsDetailPage: React.FC = () => {
                                 </div>
                                 <div className="relative z-10 flex flex-col items-center text-center">
                                     <h3 className="font-playfair text-white text-3xl mb-4">Mari Berbagi Kebaikan</h3>
-                                    <p className="text-slate-400 text-sm mb-8 max-w-sm leading-relaxed">Dana yang terkumpul akan digunakan sepenuhnya untuk menunjang fasilitas dan operasional pendidikan santri yatim.</p>
+                                    <p className="text-slate-400 text-sm mb-8 max-w-sm leading-relaxed">Dana yang terkumpul akan digunakan sepenuhnya untuk menunjang fasilitas dan operasional pendidikan santri di Pesantren Anak Yatim Al-Bisri.</p>
                                     <Link to="/donasi" className="bg-accent-gold text-navy-950 px-8 py-3.5 text-[10px] font-bold uppercase tracking-[0.2em] hover:scale-105 transition-transform">
                                         Pusat Donasi
                                     </Link>
