@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Helmet } from 'react-helmet';
 import { useParams, Link } from 'react-router-dom';
 import {
     Calendar,
@@ -32,49 +33,7 @@ const NewsDetailPage: React.FC = () => {
 
     useEffect(() => {
         window.scrollTo(0, 0);
-
-        // Update SEO meta tags
-        if (post) {
-            document.title = `${post.title} | Pesantren Al-Bisri`;
-
-            const updateMetaTag = (attr: string, value: string, content: string, isProperty = false) => {
-                const selector = isProperty ? `meta[property="${value}"]` : `meta[name="${value}"]`;
-                let element = document.querySelector(selector);
-                if (!element) {
-                    element = document.createElement('meta');
-                    element.setAttribute(isProperty ? 'property' : 'name', value);
-                    document.head.appendChild(element);
-                }
-                element.setAttribute('content', content);
-            };
-
-            const description = post.metaDescription || post.excerpt || post.title;
-
-            // Standard SEO
-            updateMetaTag('name', 'description', description);
-            if (post.metaKeywords && Array.isArray(post.metaKeywords)) {
-                updateMetaTag('name', 'keywords', post.metaKeywords.join(', '));
-            }
-
-            // Open Graph
-            updateMetaTag('property', 'og:title', post.title, true);
-            updateMetaTag('property', 'og:description', description, true);
-            updateMetaTag('property', 'og:type', 'article', true);
-            updateMetaTag('property', 'og:url', window.location.href, true);
-
-            if (post.ogImage || post.mainImage) {
-                updateMetaTag('property', 'og:image', SanityService.imageUrl(post.ogImage || post.mainImage), true);
-            }
-
-            // Twitter
-            updateMetaTag('name', 'twitter:card', 'summary_large_image');
-            updateMetaTag('name', 'twitter:title', post.title);
-            updateMetaTag('name', 'twitter:description', description);
-            if (post.ogImage || post.mainImage) {
-                updateMetaTag('name', 'twitter:image', SanityService.imageUrl(post.ogImage || post.mainImage));
-            }
-        }
-    }, [slug, post]);
+    }, [slug]);
 
     if (isLoading) return (
         <div className="min-h-screen bg-[#FBFBFA] flex items-center justify-center">
@@ -90,9 +49,32 @@ const NewsDetailPage: React.FC = () => {
     );
 
     const relatedPosts = post?.relatedPosts || [];
+    const description = post?.metaDescription || post?.excerpt || post?.title;
 
     return (
         <div className="min-h-screen bg-[#FBFBFA] font-jakarta selection:bg-accent-gold selection:text-white">
+            <Helmet>
+                <title>{post?.title} | Pesantren Al-Bisri</title>
+                <meta name="description" content={description} />
+                {post?.metaKeywords && <meta name="keywords" content={post.metaKeywords.join(', ')} />}
+
+                {/* Open Graph */}
+                <meta property="og:title" content={post?.title} />
+                <meta property="og:description" content={description} />
+                <meta property="og:type" content="article" />
+                <meta property="og:url" content={window.location.href} />
+                {(post?.ogImage || post?.mainImage) && (
+                    <meta property="og:image" content={SanityService.imageUrl(post.ogImage || post.mainImage)} />
+                )}
+
+                {/* Twitter */}
+                <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:title" content={post?.title} />
+                <meta name="twitter:description" content={description} />
+                {(post?.ogImage || post?.mainImage) && (
+                    <meta name="twitter:image" content={SanityService.imageUrl(post.ogImage || post.mainImage)} />
+                )}
+            </Helmet>
             <PublicNavbar />
 
             {/* 1. NAVIGATION SPACER (Navbar is fixed/sticky usually, assuming PublicNavbar handles it or we need padding) */}
