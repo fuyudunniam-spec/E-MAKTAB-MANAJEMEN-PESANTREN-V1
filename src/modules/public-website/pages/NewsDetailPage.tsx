@@ -37,40 +37,41 @@ const NewsDetailPage: React.FC = () => {
         if (post) {
             document.title = `${post.title} | Pesantren Al-Bisri`;
 
-            // Meta description
-            const metaDesc = document.querySelector('meta[name="description"]');
-            if (metaDesc) {
-                metaDesc.setAttribute('content', post.metaDescription || post.excerpt || post.title);
-            }
+            const updateMetaTag = (attr: string, value: string, content: string, isProperty = false) => {
+                const selector = isProperty ? `meta[property="${value}"]` : `meta[name="${value}"]`;
+                let element = document.querySelector(selector);
+                if (!element) {
+                    element = document.createElement('meta');
+                    element.setAttribute(isProperty ? 'property' : 'name', value);
+                    document.head.appendChild(element);
+                }
+                element.setAttribute('content', content);
+            };
 
-            // Meta keywords
-            let metaKeywords = document.querySelector('meta[name="keywords"]');
-            if (!metaKeywords) {
-                metaKeywords = document.createElement('meta');
-                metaKeywords.setAttribute('name', 'keywords');
-                document.head.appendChild(metaKeywords);
-            }
+            const description = post.metaDescription || post.excerpt || post.title;
+
+            // Standard SEO
+            updateMetaTag('name', 'description', description);
             if (post.metaKeywords && Array.isArray(post.metaKeywords)) {
-                metaKeywords.setAttribute('content', post.metaKeywords.join(', '));
+                updateMetaTag('name', 'keywords', post.metaKeywords.join(', '));
             }
 
-            // Open Graph tags
-            let ogTitle = document.querySelector('meta[property="og:title"]');
-            if (!ogTitle) {
-                ogTitle = document.createElement('meta');
-                ogTitle.setAttribute('property', 'og:title');
-                document.head.appendChild(ogTitle);
-            }
-            ogTitle.setAttribute('content', post.title);
+            // Open Graph
+            updateMetaTag('property', 'og:title', post.title, true);
+            updateMetaTag('property', 'og:description', description, true);
+            updateMetaTag('property', 'og:type', 'article', true);
+            updateMetaTag('property', 'og:url', window.location.href, true);
 
-            let ogImage = document.querySelector('meta[property="og:image"]');
-            if (!ogImage) {
-                ogImage = document.createElement('meta');
-                ogImage.setAttribute('property', 'og:image');
-                document.head.appendChild(ogImage);
-            }
             if (post.ogImage || post.mainImage) {
-                ogImage.setAttribute('content', SanityService.imageUrl(post.ogImage || post.mainImage));
+                updateMetaTag('property', 'og:image', SanityService.imageUrl(post.ogImage || post.mainImage), true);
+            }
+
+            // Twitter
+            updateMetaTag('name', 'twitter:card', 'summary_large_image');
+            updateMetaTag('name', 'twitter:title', post.title);
+            updateMetaTag('name', 'twitter:description', description);
+            if (post.ogImage || post.mainImage) {
+                updateMetaTag('name', 'twitter:image', SanityService.imageUrl(post.ogImage || post.mainImage));
             }
         }
     }, [slug, post]);
