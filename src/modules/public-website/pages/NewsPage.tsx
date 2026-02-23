@@ -185,11 +185,15 @@ const NewsPage: React.FC = () => {
                                     </div>
                                     <div className="flex items-center justify-between pt-6 border-t border-slate-100">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-[#0f172a] flex items-center justify-center text-white text-[10px] font-bold">
-                                                {(featuredPost.author?.name || 'A').charAt(0)}
+                                            <div className="w-8 h-8 rounded-full overflow-hidden border border-white shadow-sm bg-slate-100">
+                                                <img
+                                                    src={featuredPost.author?.photo ? SanityService.imageUrl(featuredPost.author.photo) : `https://ui-avatars.com/api/?name=${encodeURIComponent(featuredPost.author?.name || 'A')}&background=0f172a&color=fff`}
+                                                    className="w-full h-full object-cover"
+                                                    alt={featuredPost.author?.name}
+                                                />
                                             </div>
                                             <div>
-                                                <p className="text-xs font-bold text-[#0f172a]">{featuredPost.author?.name || 'Tim Redaksi'}</p>
+                                                <p className="text-xs font-bold text-[#0f172a] uppercase tracking-tight">{featuredPost.author?.name || 'Tim Redaksi'}</p>
                                                 <p className="text-[9px] text-slate-400">{formatDate(featuredPost.publishedAt)}</p>
                                             </div>
                                         </div>
@@ -257,10 +261,14 @@ const NewsPage: React.FC = () => {
 
                                             {/* Author */}
                                             <div className="flex items-center gap-2 pt-4 border-t border-slate-100">
-                                                <div className="w-6 h-6 rounded-full bg-[#0f172a] flex items-center justify-center text-white text-[8px] font-bold shrink-0">
-                                                    {(post.author?.name || 'A').charAt(0)}
+                                                <div className="w-6 h-6 rounded-full overflow-hidden border border-white shadow-sm bg-slate-100">
+                                                    <img
+                                                        src={post.author?.photo ? SanityService.imageUrl(post.author.photo) : `https://ui-avatars.com/api/?name=${encodeURIComponent(post.author?.name || 'A')}&background=0f172a&color=fff`}
+                                                        className="w-full h-full object-cover"
+                                                        alt={post.author?.name}
+                                                    />
                                                 </div>
-                                                <span className="text-[9px] text-slate-400 font-bold">{post.author?.name || 'Tim Redaksi'}</span>
+                                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{post.author?.name || 'Tim Redaksi'}</span>
                                             </div>
                                         </Link>
                                     ))}

@@ -86,9 +86,21 @@ const PublicNews: React.FC = () => {
                   <p className="text-slate-400 text-xs leading-relaxed line-clamp-2 mb-5">
                     {item.excerpt}
                   </p>
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-slate-300 flex items-center gap-2 group-hover:text-[#0f172a] group-hover:gap-4 transition-all duration-300">
-                    Baca Selengkapnya <ArrowRight className="w-3 h-3" />
-                  </span>
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-50 mt-auto">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full overflow-hidden border border-slate-100 bg-slate-50">
+                        <img
+                          src={item.author?.photo ? SanityService.imageUrl(item.author.photo) : `https://ui-avatars.com/api/?name=${encodeURIComponent(item.author?.name || 'A')}&background=c09c53&color=fff`}
+                          className="w-full h-full object-cover"
+                          alt={item.author?.name}
+                        />
+                      </div>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.author?.name || 'Redaksi'}</span>
+                    </div>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-300 group-hover:text-[#0f172a] transition-colors">
+                      Baca →
+                    </span>
+                  </div>
                 </div>
               </Link>
             ))}

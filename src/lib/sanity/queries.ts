@@ -18,7 +18,12 @@ export const NEWS_QUERY = groq`*[_type == "news"] | order(publishedAt desc)[0...
     publishedAt,
     excerpt,
     mainImage,
-    "category": category->title
+    "category": category->title,
+    "author": author->{
+      name,
+      role,
+      photo
+    }
 }`
 
 // About Us Page Queries
