@@ -1,52 +1,69 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight, ArrowLeft, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getPublicImpactData } from '../services/publicKeuangan.service';
 import { SanityService } from '../../public-website/services/sanity.service';
 
 interface PublicHeroProps {
-    data?: any;
+    data?: any[];
 }
 
-const SLIDES = [
+const STATIC_SLIDES = [
     {
         id: 1,
-        image: "https://images.unsplash.com/photo-1585036156171-384164a8c675?q=80&w=2000",
-        badge: "Binaan Pesantren Mahasiswa An-Nur",
-        title: "Memuliakan",
-        titleItalic: "Harkat Kemanusiaan.",
-        desc: "Ikhtiar tulus untuk mengangkat derajat sesama melalui pendidikan dan kasih sayang, memastikan setiap jiwa mendapatkan kesempatan yang setara.",
-        ctaText: "Tentang Kami",
-        ctaLink: "/tentang-kami",
-        ctaStyle: "bg-white text-navy-950"
+        tag: 'Binaan Pesantren Mahasiswa An-Nur',
+        titleA: 'Memuliakan',
+        titleB: 'Harkat',
+        titleC: 'Kemanusiaan.',
+        desc: 'Ikhtiar tulus untuk mengangkat derajat sesama melalui pendidikan dan kasih sayang, memastikan setiap jiwa mendapatkan kesempatan yang setara.',
+        ctaText: 'Tentang Kami',
+        ctaLink: '/tentang-kami',
+        quote: 'Barangsiapa memelihara seorang anak yatim, ia bersamaku di surga.',
+        quoteAuthor: 'Nabi Muhammad ﷺ',
+        images: [
+            'https://images.unsplash.com/photo-1590012314607-cda9d9b699ae?q=80&w=800&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1577896851231-70ef18881754?q=80&w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1518005020951-eccb494ad742?q=80&w=400&auto=format&fit=crop',
+        ]
     },
     {
         id: 2,
-        image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=2000",
-        subBadge: "Sinergi & Transparansi",
-        title: "Dikelola dengan",
-        titleItalic: "Amanah Profesional.",
-        desc: "Kolaborasi manajemen kelembagaan bersama Pesantren Mahasiswa An-Nur serta pengelolaan transparansi informasi memastikan setiap amanah publik terlaporkan dengan jujur dan akuntabel.",
-        ctaText: "Laporan Transparansi",
-        ctaLink: "/transparansi",
-        ctaStyle: "bg-white text-navy-950"
+        tag: 'Sinergi & Transparansi',
+        titleA: 'Dikelola dengan',
+        titleB: 'Amanah',
+        titleC: 'Profesional.',
+        desc: 'Kolaborasi manajemen kelembagaan bersama Pesantren Mahasiswa An-Nur memastikan setiap amanah publik terlaporkan dengan jujur dan akuntabel.',
+        ctaText: 'Laporan Transparansi',
+        ctaLink: '/transparansi',
+        quote: 'Sesungguhnya Allah mencintai orang yang jika bekerja, ia lakukan dengan itqan (profesional).',
+        quoteAuthor: 'HR. Al-Baihaqi',
+        images: [
+            'https://images.unsplash.com/photo-1585036156171-384164a8c675?q=80&w=800&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1590012314607-cda9d9b699ae?q=80&w=400&auto=format&fit=crop',
+        ]
     },
     {
         id: 3,
-        image: "https://images.unsplash.com/photo-1577896851231-70ef18881754?q=80&w=2000",
-        subBadge: "Pendidikan Holistik",
-        title: "Mencetak Generasi",
-        titleItalic: "Berhati Mulia.",
-        desc: "Kurikulum yang menyeimbangkan kecerdasan intelektual dan kematangan spiritual. Membekali santri yatim agar mandiri dan berdaya saing.",
-        ctaText: "Lihat Program",
-        ctaLink: "/akademik",
-        ctaStyle: "bg-accent-gold text-navy-950"
-    }
+        tag: 'Pendidikan Holistik',
+        titleA: 'Mencetak Generasi',
+        titleB: 'Berhati',
+        titleC: 'Mulia.',
+        desc: 'Kurikulum yang menyeimbangkan kecerdasan intelektual dan kematangan spiritual. Membekali santri yatim agar mandiri dan berdaya saing.',
+        ctaText: 'Lihat Program',
+        ctaLink: '/akademik',
+        quote: 'Ilmu tanpa adab bagaikan api tanpa cahaya.',
+        quoteAuthor: 'Hikmah Salaf',
+        images: [
+            'https://images.unsplash.com/photo-1577896851231-70ef18881754?q=80&w=800&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1518005020951-eccb494ad742?q=80&w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1585036156171-384164a8c675?q=80&w=400&auto=format&fit=crop',
+        ]
+    },
 ];
 
 const PublicHero: React.FC<PublicHeroProps> = ({ data }) => {
-    // We keep this to show we haven't lost the capability, even if we just use static for now as per design
     const { data: impactData } = useQuery({
         queryKey: ['public-impact-data'],
         queryFn: () => getPublicImpactData()
@@ -55,125 +72,188 @@ const PublicHero: React.FC<PublicHeroProps> = ({ data }) => {
     const [currentSlide, setCurrentSlide] = useState(0);
     const [isAnimating, setIsAnimating] = useState(false);
 
+    // Build slides: from Sanity if available, fallback to static
+    const slides = (data && data.length > 0)
+        ? data.map((s: any) => ({
+            id: s._id,
+            tag: s.badge || s.subBadge || 'Al-Bisri',
+            titleA: s.title || '',
+            titleB: s.titleItalic || '',
+            titleC: '',
+            desc: s.subtitle || '',
+            ctaText: s.ctaText || 'Selengkapnya',
+            ctaLink: s.ctaLink || '/',
+            quote: 'Barangsiapa memelihara seorang anak yatim, ia bersamaku di surga.',
+            quoteAuthor: 'Nabi Muhammad ﷺ',
+            images: [
+                s.externalImageUrl || (s.backgroundImage ? SanityService.imageUrl(s.backgroundImage) : STATIC_SLIDES[0].images[0]),
+                STATIC_SLIDES[0].images[1],
+                STATIC_SLIDES[0].images[2],
+            ]
+        }))
+        : STATIC_SLIDES;
+
     useEffect(() => {
         const interval = setInterval(() => {
-            const length = data?.length || 1;
-            handleSlideChange((currentSlide + 1) % length);
-        }, 8000);
+            goNext();
+        }, 7000);
         return () => clearInterval(interval);
-    }, [currentSlide]);
+    }, [currentSlide, slides.length]);
 
-    const handleSlideChange = (index: number) => {
-        if (isAnimating) return; // Prevent rapid clicking
-        // setIsAnimating(true); // Optional: if we want to lock controls
-        setCurrentSlide(index);
-        // setTimeout(() => setIsAnimating(false), 1000); 
+    const goNext = () => {
+        if (isAnimating) return;
+        setIsAnimating(true);
+        setCurrentSlide(prev => (prev + 1) % slides.length);
+        setTimeout(() => setIsAnimating(false), 700);
     };
 
+    const goPrev = () => {
+        if (isAnimating) return;
+        setIsAnimating(true);
+        setCurrentSlide(prev => (prev - 1 + slides.length) % slides.length);
+        setTimeout(() => setIsAnimating(false), 700);
+    };
+
+    const slide = slides[currentSlide];
+
     return (
-        <section className="relative h-screen w-full bg-navy-950 overflow-hidden font-jakarta">
-            {/* Slides Container */}
-            <div id="hero-slider" className="relative h-full w-full">
-                {(data || []).map((slide: any, index: number) => {
-                    const isActive = index === currentSlide;
-                    // Fallback for image
-                    const bgImage = slide.externalImageUrl || (slide.backgroundImage ? SanityService.imageUrl(slide.backgroundImage) : '');
+        <section className="relative pt-20 pb-16 lg:pt-28 lg:pb-28 overflow-hidden bg-[#fafafa] min-h-[88vh] flex items-center">
+            {/* Subtle background texture */}
+            <div className="absolute inset-0 opacity-[0.025]" style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%230f172a' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+            }} />
 
-                    return (
-                        <div
-                            key={slide._id || index}
-                            className={`absolute inset-0 w-full h-full transition-all duration-1000 ease-in-out ${isActive ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-                            style={{ visibility: isActive ? 'visible' : 'hidden' }}
+            {/* Gold accent blobs */}
+            <div className="absolute top-20 right-[5%] w-72 h-72 bg-[#c09c53]/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-10 left-[5%] w-48 h-48 bg-[#0f172a]/5 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center relative z-10 w-full">
+
+                {/* LEFT: Text Content */}
+                <div
+                    key={`text-${currentSlide}`}
+                    className="lg:col-span-5 flex flex-col justify-center order-2 lg:order-1 mt-6 lg:mt-0"
+                    style={{ animation: 'heroFadeUp 0.7s ease forwards' }}
+                >
+                    <h4 className="text-[10px] md:text-[11px] font-bold tracking-[0.25em] text-[#c09c53] uppercase mb-6 flex items-center gap-4">
+                        <span className="w-10 h-px bg-[#c09c53]" />
+                        {slide.tag}
+                    </h4>
+
+                    <h1 className="text-4xl md:text-5xl lg:text-[3.8rem] font-serif text-[#0f172a] leading-[1.08] mb-6 tracking-tight">
+                        {slide.titleA}<br />
+                        <span className="italic text-slate-400">{slide.titleB}</span>{slide.titleC && ` ${slide.titleC}`}
+                    </h1>
+
+                    <p className="text-slate-500 leading-relaxed mb-10 text-sm md:text-[0.95rem] max-w-md">
+                        {slide.desc}
+                    </p>
+
+                    <div className="flex flex-wrap gap-4">
+                        <Link
+                            to={slide.ctaLink}
+                            className="bg-[#0f172a] text-white px-8 py-4 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-3 shadow-lg shadow-[#0f172a]/10 hover:-translate-y-0.5 duration-300"
                         >
-                            {/* Overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-navy-950/90 via-navy-950/60 to-transparent z-10"></div>
-
-                            {/* Background Image with Scale Animation */}
-                            <img
-                                src={bgImage}
-                                className={`absolute inset-0 w-full h-full object-cover transition-transform duration-[10000ms] ease-linear ${isActive ? 'scale-100' : 'scale-110'}`}
-                                alt={slide.title}
-                            />
-
-                            {/* Content */}
-                            <div className="relative z-20 h-full max-w-[1440px] mx-auto px-6 md:px-10 flex flex-col justify-center">
-                                <div className={`max-w-3xl transition-all duration-1000 delay-300 transform ${isActive ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
-
-                                    {slide.badge && (
-                                        <div className="inline-flex items-center gap-3 mb-8 bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-2 rounded-full">
-                                            <span className="w-2 h-2 rounded-full bg-accent-gold animate-pulse"></span>
-                                            <span className="text-[10px] text-white uppercase tracking-widest">{slide.badge}</span>
-                                        </div>
-                                    )}
-
-                                    {slide.subBadge && (
-                                        <span className="text-accent-gold text-xs font-bold uppercase tracking-[0.3em] mb-6 block border-l-2 border-accent-gold pl-4">
-                                            {slide.subBadge}
-                                        </span>
-                                    )}
-
-                                    <h1 className="font-playfair text-5xl md:text-7xl text-white leading-[1.1] mb-8">
-                                        {slide.title} <br />
-                                        <span className="italic text-accent-gold">{slide.titleItalic}</span>
-                                    </h1>
-
-                                    <p className="text-lg text-white/80 font-light leading-relaxed mb-10 max-w-xl">
-                                        {slide.subtitle}
-                                    </p>
-
-                                    <div className="flex gap-6">
-                                        {slide.ctaText && (
-                                            <Link
-                                                to={slide.ctaLink || '#'}
-                                                className={`${slide.ctaStyle || 'bg-white text-navy-950'} relative overflow-hidden px-10 py-4 font-bold uppercase tracking-widest text-xs transition-all hover:scale-105 group`}
-                                            >
-                                                <span className="relative z-10">{slide.ctaText}</span>
-                                            </Link>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-
-            {/* Slider Navigation Controls */}
-            <div className="absolute bottom-12 left-6 md:left-10 z-30 flex items-center gap-10">
-                <div id="slider-dots" className="flex gap-4">
-                    {(data || []).map((_: any, idx: number) => (
-                        <button
-                            key={idx}
-                            onClick={() => handleSlideChange(idx)}
-                            className={`w-3 h-3 rounded-full transition-all duration-500 ${currentSlide === idx ? 'bg-accent-gold scale-125' : 'bg-white/30 hover:bg-white/50'}`}
-                            aria-label={`Go to slide ${idx + 1}`}
-                        ></button>
-                    ))}
-                </div>
-                <div className="hidden md:block h-[1px] w-24 bg-white/20"></div>
-                <div className="hidden md:block text-white/50 text-[10px] font-bold uppercase tracking-widest">
-                    Jelajahi Profil
-                </div>
-            </div>
-
-            {/* Floating Quick Stats */}
-            <div className="absolute bottom-12 right-6 md:right-10 z-30 hidden lg:flex gap-12 text-white border-l border-white/20 pl-12">
-                <div>
-                    <p className="text-2xl font-playfair text-accent-gold">100%</p>
-                    <p className="text-[8px] uppercase tracking-widest font-bold opacity-60">Beasiswa Penuh</p>
-                </div>
-                <div>
-                    <p className="text-2xl font-playfair text-accent-gold">An-Nur</p>
-                    <p className="text-[8px] uppercase tracking-widest font-bold opacity-60">Mitra Strategis</p>
-                </div>
-                {/* Dynamically loaded data if available */}
-                {impactData && (
-                    <div className="animate-fade-in">
-                        <p className="text-2xl font-playfair text-accent-gold">{impactData.totalPenerima}+</p>
-                        <p className="text-[8px] uppercase tracking-widest font-bold opacity-60">Penerima Manfaat</p>
+                            {slide.ctaText} <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                        <Link
+                            to="/donasi"
+                            className="border border-[#0f172a]/20 text-[#0f172a] px-8 py-4 text-[10px] font-bold uppercase tracking-widest hover:border-[#c09c53] hover:text-[#c09c53] transition-all"
+                        >
+                            Tunaikan Sedekah
+                        </Link>
                     </div>
-                )}
+
+                    {/* Slider Controls */}
+                    <div className="flex items-center gap-6 mt-12 pt-8 border-t border-slate-200/60">
+                        <button onClick={goPrev} className="w-9 h-9 flex items-center justify-center border border-slate-200 text-slate-400 hover:border-[#0f172a] hover:text-[#0f172a] transition-colors rounded-full">
+                            <ArrowLeft className="w-4 h-4" />
+                        </button>
+                        <div className="flex gap-2">
+                            {slides.map((_, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setCurrentSlide(i)}
+                                    className={`h-[3px] rounded-full transition-all duration-500 ${i === currentSlide ? 'w-8 bg-[#c09c53]' : 'w-3 bg-slate-300 hover:bg-slate-400'}`}
+                                />
+                            ))}
+                        </div>
+                        <button onClick={goNext} className="w-9 h-9 flex items-center justify-center border border-slate-200 text-slate-400 hover:border-[#0f172a] hover:text-[#0f172a] transition-colors rounded-full">
+                            <ArrowRight className="w-4 h-4" />
+                        </button>
+                        <span className="text-[10px] font-bold text-slate-300 tracking-widest uppercase ml-2">
+                            {String(currentSlide + 1).padStart(2, '0')} / {String(slides.length).padStart(2, '0')}
+                        </span>
+                    </div>
+                </div>
+
+                {/* RIGHT: Image Frame */}
+                <div
+                    key={`img-${currentSlide}`}
+                    className="lg:col-span-7 relative order-1 lg:order-2 w-full"
+                    style={{ animation: 'heroFadeUp 0.7s ease 0.1s forwards', opacity: 0 }}
+                >
+                    {/* Main large frame */}
+                    <div className="grid grid-cols-12 grid-rows-2 gap-3 h-[420px] md:h-[520px]">
+                        {/* Primary image */}
+                        <div className="col-span-8 row-span-2 rounded-2xl overflow-hidden relative">
+                            <img
+                                src={slide.images[0]}
+                                alt="Hero Al-Bisri"
+                                className="w-full h-full object-cover transition-transform duration-[10s] hover:scale-105"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a]/30 to-transparent" />
+                        </div>
+                        {/* Secondary images */}
+                        <div className="col-span-4 row-span-1 rounded-2xl overflow-hidden">
+                            <img src={slide.images[1]} alt="" className="w-full h-full object-cover" />
+                        </div>
+                        <div className="col-span-4 row-span-1 rounded-2xl overflow-hidden">
+                            <img src={slide.images[2]} alt="" className="w-full h-full object-cover" />
+                        </div>
+                    </div>
+
+                    {/* Gold accent border */}
+                    <div className="absolute -top-3 -right-3 w-32 h-32 border border-[#c09c53]/30 rounded-2xl pointer-events-none" />
+                    <div className="absolute -bottom-3 -left-3 w-20 h-20 border border-[#c09c53]/20 rounded-xl pointer-events-none" />
+
+                    {/* Floating hadith badge */}
+                    <div
+                        key={`quote-${currentSlide}`}
+                        className="absolute -bottom-8 left-4 lg:-bottom-10 lg:-left-10 bg-white p-5 lg:p-6 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] border border-slate-100 rounded-2xl max-w-[300px] z-30"
+                        style={{ animation: 'heroFadeUp 0.6s ease 0.3s forwards', opacity: 0 }}
+                    >
+                        <p className="text-[11px] text-slate-600 leading-relaxed italic mb-3">
+                            "{slide.quote}"
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <span className="w-5 h-px bg-[#c09c53]" />
+                            <p className="text-[9px] font-bold text-[#c09c53] uppercase tracking-widest">{slide.quoteAuthor}</p>
+                        </div>
+                    </div>
+
+                    {/* Floating impact stats */}
+                    {impactData && (
+                        <div className="absolute -top-6 -right-4 lg:-top-5 lg:-right-8 bg-[#0f172a] text-white px-5 py-4 rounded-2xl shadow-xl z-30">
+                            <p className="text-2xl font-serif text-[#c09c53] leading-none">{impactData.totalPenerima}+</p>
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-white/60 mt-1">Penerima Manfaat</p>
+                        </div>
+                    )}
+                </div>
             </div>
+
+            {/* Scroll hint */}
+            <div className="hidden lg:flex absolute bottom-6 left-1/2 -translate-x-1/2 flex-col items-center gap-2 text-slate-400 z-10">
+                <span className="text-[9px] uppercase tracking-[0.25em] font-bold">Scroll</span>
+                <ChevronDown className="w-4 h-4 animate-bounce" />
+            </div>
+
+            <style>{`
+                @keyframes heroFadeUp {
+                    from { opacity: 0; transform: translateY(20px); }
+                    to   { opacity: 1; transform: translateY(0); }
+                }
+            `}</style>
         </section>
     );
 };

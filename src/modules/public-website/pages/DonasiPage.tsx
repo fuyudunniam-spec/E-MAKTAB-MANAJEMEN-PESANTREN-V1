@@ -186,53 +186,71 @@ export default function DonasiPage() {
       <div className="relative z-10 flex flex-col min-h-screen">
         <PublicNavbar />
 
-        <main className="flex-1 w-full pt-16 pb-24">
+        <main className="flex-1 w-full pb-24">
 
           {/* ========================================== */}
-          {/* SECTION 1: NARRATIVE & IMPACT (TOP)        */}
+          {/* EDITORIAL HERO HEADER                      */}
           {/* ========================================== */}
-          <section className="max-w-5xl mx-auto px-6 mb-24 text-center">
-            <div className="animate-fade-in-up">
-              <h4 className="inline-flex items-center gap-2 text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-6 bg-white/50 backdrop-blur-sm border border-[#c09c53]/20 px-4 py-2 rounded-full shadow-sm">
-                <Sparkles className="w-3.5 h-3.5" /> Gotong Royong Pendidikan Umat
+          <header className="pt-24 pb-20 px-6 bg-[#0f172a] text-white text-center relative overflow-hidden">
+            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }} />
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#c09c53]/5 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 pointer-events-none" />
+            <div className="max-w-3xl mx-auto relative z-10 animate-fade-in-up">
+              <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-6 flex items-center justify-center gap-3">
+                <span className="w-8 h-px bg-[#c09c53]" /> Gotong Royong Pendidikan Umat <span className="w-8 h-px bg-[#c09c53]" />
               </h4>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif text-[#0f172a] leading-[1.15] mb-8 drop-shadow-sm">
-                Berikan Hadiah Ilmu<br />& Masa Depan.
+              <h1 className="text-4xl md:text-5xl lg:text-[4.5rem] font-serif text-white leading-[1.1] mb-8 tracking-tight">
+                Berikan Hadiah Ilmu<br />
+                <span className="italic text-[#c09c53]">&amp; Masa Depan.</span>
               </h1>
-              <p className="text-slate-600 text-sm md:text-base leading-relaxed max-w-3xl mx-auto mb-16">
-                Di balik setiap lantunan doa bakda Maghrib, ada <strong>50 santri yatim dan dhuafa</strong> di Pesantren Al-Bisri yang menggantungkan cita-citanya. Sebagian menetap di asrama, sebagian lagi berjuang dari rumah. Uluran tangan Anda bukan sekadar angka, melainkan kepastian bahwa mereka bisa makan bergizi hari ini, menghafal Al-Qur'an esok hari, dan meraih masa depan tanpa takut putus sekolah.
+              <p className="text-slate-300 text-lg leading-relaxed font-light mb-10 max-w-xl mx-auto">
+                Di balik setiap lantunan doa bakda Maghrib, ada santri yatim dan dhuafa yang menggantungkan cita-citanya. Uluran tangan Anda bukan sekadar angka — melainkan kepastian bahwa mereka bisa makan bergizi hari ini dan meraih masa depan tanpa takut putus sekolah.
               </p>
+              <button
+                onClick={() => formRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                className="inline-flex items-center gap-2 bg-[#c09c53] text-[#0f172a] px-8 py-4 text-xs font-bold uppercase tracking-widest hover:bg-[#b08a42] transition-colors"
+              >
+                <HeartHandshake className="w-4 h-4" /> Donasikan Sekarang
+              </button>
             </div>
+          </header>
 
-            {/* Impact Pillars - Horizontal Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left border-t border-slate-200/60 pt-16 animate-fade-in-up delay-100">
-              <div className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
-                <div className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
-                  <Home className="w-5 h-5 text-[#0f172a]" />
+          {/* ========================================== */}
+          {/* SECTION 1: IMPACT PILLARS                  */}
+          {/* ========================================== */}
+          <section className="max-w-5xl mx-auto px-6 py-20 text-center">
+            <div className="animate-fade-in-up">
+
+
+              {/* Impact Pillars - Horizontal Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left border-t border-slate-200/60 pt-16 animate-fade-in-up delay-100">
+                <div className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
+                  <div className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                    <Home className="w-5 h-5 text-[#0f172a]" />
+                  </div>
+                  <h3 className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">Asrama &<br />Pangan Santri</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">Menjamin tempat tinggal yang aman dan gizi 3x sehari. Memastikan tak ada satupun santri yatim yang belajar dalam keadaan lapar.</p>
                 </div>
-                <h3 className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">Asrama &<br />Pangan Santri</h3>
-                <p className="text-xs text-slate-500 leading-relaxed">Menjamin tempat tinggal yang aman dan gizi 3x sehari. Memastikan tak ada satupun santri yatim yang belajar dalam keadaan lapar.</p>
-              </div>
-              <div className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
-                <div className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
-                  <BookMarked className="w-5 h-5 text-[#0f172a]" />
+                <div className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
+                  <div className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                    <BookMarked className="w-5 h-5 text-[#0f172a]" />
+                  </div>
+                  <h3 className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">Pendidikan<br />Diniyah & Tahfidz</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">Fokus membina akhlak mulia dan mendampingi hafalan Al-Qur'an mereka siang dan malam, mencetak generasi Rabbani.</p>
                 </div>
-                <h3 className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">Pendidikan<br />Diniyah & Tahfidz</h3>
-                <p className="text-xs text-slate-500 leading-relaxed">Fokus membina akhlak mulia dan mendampingi hafalan Al-Qur'an mereka siang dan malam, mencetak generasi Rabbani.</p>
-              </div>
-              <div className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
-                <div className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
-                  <GraduationCap className="w-5 h-5 text-[#0f172a]" />
+                <div className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
+                  <div className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                    <GraduationCap className="w-5 h-5 text-[#0f172a]" />
+                  </div>
+                  <h3 className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">Pendidikan<br />Formal (Sekolah)</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">Membiayai akses sekolah 100% gratis. Membekali mereka dengan ijazah dan ilmu umum agar siap mandiri dan bersaing di masa depan.</p>
                 </div>
-                <h3 className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">Pendidikan<br />Formal (Sekolah)</h3>
-                <p className="text-xs text-slate-500 leading-relaxed">Membiayai akses sekolah 100% gratis. Membekali mereka dengan ijazah dan ilmu umum agar siap mandiri dan bersaing di masa depan.</p>
-              </div>
-              <div className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
-                <div className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
-                  <Building className="w-5 h-5 text-[#0f172a]" />
+                <div className="space-y-4 group hover:-translate-y-2 transition-transform duration-500 ease-out bg-white/40 p-6 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-[#0f172a]/5 border border-transparent hover:border-slate-100">
+                  <div className="w-12 h-12 rounded border border-slate-200 bg-white flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform duration-500">
+                    <Building className="w-5 h-5 text-[#0f172a]" />
+                  </div>
+                  <h3 className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">Operasional<br />& Khidmah</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">Menopang fasilitas pesantren serta memberikan apresiasi yang layak bagi para asatidz yang mengabdi 24 jam merawat santri.</p>
                 </div>
-                <h3 className="text-xs font-bold text-[#0f172a] uppercase tracking-widest leading-relaxed">Operasional<br />& Khidmah</h3>
-                <p className="text-xs text-slate-500 leading-relaxed">Menopang fasilitas pesantren serta memberikan apresiasi yang layak bagi para asatidz yang mengabdi 24 jam merawat santri.</p>
               </div>
             </div>
           </section>

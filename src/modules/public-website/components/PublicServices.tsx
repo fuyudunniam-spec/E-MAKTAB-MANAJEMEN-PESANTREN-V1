@@ -1,69 +1,104 @@
 import React from 'react';
-import { GraduationCap, BookOpen, Home, Briefcase } from 'lucide-react';
+import { Home, BookMarked, GraduationCap, Building } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface PublicServicesProps {
     data?: any[];
 }
 
+const STATIC_SERVICES = [
+    {
+        icon: Home,
+        title: 'Asrama & Pangan',
+        desc: 'Tempat tinggal yang layak dan makan bergizi tiga kali sehari untuk setiap santri yatim.',
+        impactText: 'Aktif',
+    },
+    {
+        icon: BookMarked,
+        title: 'Diniyah & Tahfidz',
+        desc: 'Kurikulum salaf: kajian kitab kuning, tahsin, dan program hafal Al-Qur\'an dengan sanad terpercaya.',
+        impactText: 'Rutin',
+    },
+    {
+        icon: GraduationCap,
+        title: 'Pendidikan Formal',
+        desc: 'Antar-jemput ke sekolah formal mitra terpilih, pengawalan akademik, dan subsidi biaya sekolah.',
+        impactText: 'Mitra 5+',
+    },
+    {
+        icon: Building,
+        title: 'Operasional Khidmah',
+        desc: 'Pemeliharaan fasilitas, kegiatan organisasi santri, dan program pengembangan karakter kepemimpinan.',
+        impactText: 'Berkelanjutan',
+    },
+];
+
 const PublicServices: React.FC<PublicServicesProps> = ({ data }) => {
-
-    const getIcon = (iconName: string) => {
-        const icons: any = { GraduationCap, BookOpen, Home, Briefcase };
-        const IconComponent = icons[iconName] || GraduationCap;
-        return IconComponent;
-    };
-
-    const services = data || []; // Fallback empty if no data yet
-
-    if (!services || services.length === 0) return null; // Or skeleton
+    const services = (data && data.length > 0)
+        ? data.map((s: any) => ({
+            icon: STATIC_SERVICES.find(st => st.title.toLowerCase().includes(s.title?.toLowerCase().split(' ')[0]?.toLowerCase()))?.icon || Home,
+            title: s.title,
+            desc: s.description,
+            impactText: s.impactText || 'Aktif',
+        }))
+        : STATIC_SERVICES;
 
     return (
-        <section id="transparansi" className="py-24 lg:py-32 px-6 lg:px-10 bg-navy-950 text-white relative border-t border-white/5">
-            <div className="max-w-7xl mx-auto relative z-10">
+        <section id="transparansi" className="py-24 bg-[#fafafa]">
+            <div className="max-w-7xl mx-auto px-6">
 
-                {/* Header Section */}
-                <div className="flex flex-col md:flex-row justify-between items-end mb-12 lg:mb-20 gap-8 animate-fade-in">
-                    <div className="max-w-2xl">
-                        <span className="text-accent-gold text-xs font-bold uppercase tracking-[0.3em] mb-4 block">Realisasi Layanan</span>
-                        <h2 className="font-playfair text-4xl lg:text-6xl leading-tight mb-6">Pilar Layanan Pesantren</h2>
-                        <p className="text-slate-400 font-light text-base lg:text-lg">
-                            Setiap rupiah wakaf Anda dikonversi menjadi layanan pendidikan dan pengasuhan terbaik bagi yatim penghafal Qur'an.
-                        </p>
-                    </div>
-                    <button className="hidden lg:block btn-luxury px-8 py-4 border border-white/20 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-white hover:text-navy-950 hover:border-white transition-all">
-                        Laporan Detail
-                    </button>
+                {/* Header */}
+                <div className="text-center max-w-2xl mx-auto mb-16">
+                    <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4">
+                        Empat Pilar Pelayanan
+                    </h4>
+                    <h2 className="text-3xl md:text-4xl font-serif text-[#0f172a] leading-tight">
+                        Fokus Penyaluran Amanah
+                    </h2>
+                    <p className="text-slate-500 mt-4 text-sm leading-relaxed">
+                        Setiap rupiah yang Anda amanahkan dikanalkan ke empat pilar layanan utama yang terukur dan transparan.
+                    </p>
                 </div>
 
-                {/* Cards Container (Slider on Mobile, Grid on Desktop) */}
-                <div className="mobile-slider lg:grid-cols-4 lg:gap-6 animate-slide-in">
-
-                    {services.map((service: any, index: number) => {
-                        const Icon = getIcon(service.icon);
+                {/* Cards Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                    {services.map((s: any, i: number) => {
+                        const Icon = s.icon;
                         return (
-                            <div key={service._id || index} className="p-8 rounded-2xl flex flex-col h-full min-h-[320px] lg:min-h-0 border border-white/5 bg-white/5 hover:bg-white/10 transition-colors duration-300">
-                                <div className="w-12 h-12 text-accent-gold mb-6 border border-accent-gold/30 rounded-lg flex items-center justify-center">
-                                    <Icon className="w-6 h-6" />
+                            <div
+                                key={i}
+                                className="bg-white p-8 border border-slate-200 hover:border-[#0f172a] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group cursor-pointer"
+                            >
+                                <div className="w-12 h-12 rounded bg-slate-50 flex items-center justify-center mb-6 group-hover:bg-[#0f172a] transition-colors duration-300">
+                                    <Icon className="w-5 h-5 text-[#0f172a] group-hover:text-white transition-colors" />
                                 </div>
-                                <h3 className="font-playfair text-xl mb-4">{service.title}</h3>
-                                <p className="text-slate-400 text-xs leading-relaxed mb-auto">
-                                    {service.description}
+                                <h3 className="text-[11px] font-bold text-[#0f172a] uppercase tracking-widest mb-3 leading-relaxed">
+                                    {s.title}
+                                </h3>
+                                <p className="text-xs text-slate-500 leading-relaxed mb-6">
+                                    {s.desc}
                                 </p>
-                                <div className="mt-8 pt-6 border-t border-white/10 flex justify-between items-center">
-                                    <span className="text-[10px] font-bold text-accent-gold uppercase tracking-widest">Impact</span>
-                                    <span className="text-[10px] font-bold bg-white/10 px-3 py-1 rounded-full">{service.impactText || 'Active'}</span>
+                                <div className="pt-5 border-t border-slate-100 flex items-center justify-between">
+                                    <span className="text-[9px] font-bold text-[#c09c53] uppercase tracking-widest">
+                                        Status
+                                    </span>
+                                    <span className="text-[9px] font-bold bg-slate-100 text-slate-600 px-3 py-1">
+                                        {s.impactText}
+                                    </span>
                                 </div>
                             </div>
                         );
                     })}
-
                 </div>
 
-                {/* Mobile Report Button */}
-                <div className="mt-8 flex justify-center lg:hidden">
-                    <button className="btn-luxury px-8 py-4 border border-white/20 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-white hover:text-navy-950 hover:border-white transition-all">
-                        Laporan Detail
-                    </button>
+                {/* CTA */}
+                <div className="text-center mt-12">
+                    <Link
+                        to="/transparansi"
+                        className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-[#0f172a] transition-colors border-b border-slate-200 pb-1"
+                    >
+                        Lihat Laporan Transparansi
+                    </Link>
                 </div>
             </div>
         </section>

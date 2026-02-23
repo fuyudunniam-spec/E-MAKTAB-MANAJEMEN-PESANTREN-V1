@@ -1,66 +1,87 @@
 import React from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
-
 import { SanityService } from '../services/sanity.service';
 
 interface PublicHistoryProps {
     data?: any;
 }
 
+const STATS = [
+    { value: '2010', label: 'Tahun Transformasi', suffix: '' },
+    { value: '200+', label: 'Santri Aktif', suffix: '' },
+    { value: '100%', label: 'Beasiswa Penuh', suffix: '' },
+    { value: '1.2k+', label: 'Alumni Tersebar', suffix: '' },
+];
+
 const PublicHistory: React.FC<PublicHistoryProps> = ({ data }) => {
-    // Description text handling
     const descriptionText = data?.description
         ? data.description.map((block: any) => block.children.map((c: any) => c.text).join('')).join(' ')
-        : "Pendidikan di Al-Bisri bukan sekadar transfer ilmu, melainkan pewarisan nilai. Kami memadukan kemurnian turats (kitab klasik) dengan wawasan global, disokong oleh kemandirian ekonomi yang memastikan pelita ilmu ini terus menyala bagi siapa saja, tanpa terkecuali.";
+        : null;
+
+    const stats = data?.stats || STATS;
 
     return (
-        <section id="jejak" className="py-32 px-6 lg:px-10 bg-white overflow-hidden">
-            <div className="max-w-7xl mx-auto">
-                <div className="grid lg:grid-cols-2 gap-12 lg:gap-24 items-center">
+        <section id="jejak" className="py-24 bg-[#0f172a] text-white relative overflow-hidden">
+            {/* Subtle background pattern */}
+            <div className="absolute inset-0 opacity-[0.04]" style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+            }} />
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#c09c53]/5 rounded-full blur-3xl" />
 
-                    <div className="relative animate-slide-in order-2 lg:order-1">
-                        <div className="relative rounded-sm overflow-hidden shadow-2xl aspect-[4/5] lg:aspect-square group bg-slate-100">
-                            {/* UPDATED IMAGE URL: Architecture/Mosque Interior */}
-                            <img
-                                src={data?.image ? SanityService.imageUrl(data.image) : "https://images.unsplash.com/photo-1564121211835-e88c852648ab?q=80&w=1000"}
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                                alt="Arsitektur Pesantren"
-                            />
-                            <div className="absolute inset-0 bg-navy-950/20"></div>
+            <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 relative z-10">
 
-                            <div className="absolute bottom-8 right-8 bg-white p-6 shadow-xl rounded-sm border-t-4 border-accent-gold z-20 max-w-[200px]">
-                                <h4 className="font-playfair text-2xl text-navy-900 mb-1">TRADISI</h4>
-                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Sanad Keilmuan</p>
-                            </div>
-                        </div>
-                        <div className="absolute -top-10 -left-10 w-full h-full border border-slate-200 -z-10"></div>
+                {/* Left: Text Content */}
+                <div>
+                    <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4 flex items-center gap-3">
+                        <span className="w-8 h-px bg-[#c09c53]" />
+                        {data?.badge || 'Sejarah & Dedikasi'}
+                    </h4>
+
+                    <h2 className="text-3xl md:text-5xl font-serif leading-tight mb-8">
+                        {data?.title || 'Merawat Fitrah,'}<br />
+                        <span className="italic text-slate-400 font-normal">{data?.subtitle || 'Membangun Peradaban.'}</span>
+                    </h2>
+
+                    <div className="space-y-5 text-slate-400 leading-relaxed text-sm md:text-[0.95rem] border-l border-[#c09c53]/30 pl-6">
+                        {descriptionText ? (
+                            <p>{descriptionText}</p>
+                        ) : (
+                            <>
+                                <p>
+                                    Bermula dari sebuah rumah wakaf sederhana, KH. Bisri Mustofa (Alm) memulai majelis taklim kecil dengan lima orang santri yatim. Niat beliau sederhana: memberikan hak pendidikan bagi mereka yang kurang beruntung.
+                                </p>
+                                <p>
+                                    Pada tahun 2010, Yayasan Al-Bisri resmi bertransformasi menjadi lembaga pendidikan terpadu yang memadukan kurikulum salaf dengan sistem sekolah formal modern, di bawah pembinaan Pesantren Mahasiswa An-Nur.
+                                </p>
+                            </>
+                        )}
                     </div>
 
-                    <div className="animate-fade-in order-1 lg:order-2">
-                        <span className="text-accent-gold text-xs font-bold uppercase tracking-[0.3em] mb-4 block">{data?.badge || "Filosofi & Sejarah"}</span>
+                    <Link
+                        to="/tentang-kami"
+                        className="mt-10 group inline-flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-white hover:text-[#c09c53] transition-colors border-b border-white/20 pb-1 hover:border-[#c09c53]"
+                    >
+                        Selami Sejarah Kami
+                        <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-2" />
+                    </Link>
+                </div>
 
-                        <h2 className="font-playfair text-4xl lg:text-6xl text-navy-900 leading-[1.1] mb-8">
-                            {data?.title || "Menjaga Tradisi,"} <br />
-                            <span className="italic text-slate-400 font-normal">{data?.subtitle || "Membangun Peradaban."}</span>
-                        </h2>
-
-                        <p className="text-slate-600 text-base lg:text-lg font-light leading-relaxed mb-8">
-                            {descriptionText}
-                        </p>
-
-                        <div className="border-l-4 border-accent-gold pl-8 py-2 mb-10">
-                            <p className="text-navy-900 font-playfair text-xl italic leading-relaxed">
-                                "{data?.quote || "Setiap anak yatim yang kami asuh adalah aset umat. Kemandirian lembaga adalah kunci untuk menjaga martabat dan keberlanjutan masa depan mereka."}"
+                {/* Right: Stat Cards */}
+                <div className="grid grid-cols-2 gap-4 content-center">
+                    {stats.map((stat: any, i: number) => (
+                        <div
+                            key={i}
+                            className="border border-white/10 p-7 hover:border-[#c09c53]/40 hover:bg-white/5 transition-all duration-300 group"
+                        >
+                            <p className="text-3xl md:text-4xl font-serif text-white mb-2 group-hover:text-[#c09c53] transition-colors">
+                                {stat.value}
+                            </p>
+                            <p className="text-[9px] text-slate-500 uppercase tracking-[0.2em] font-bold">
+                                {stat.label}
                             </p>
                         </div>
-
-                        <Link to="/tentang-kami" className="group inline-flex items-center gap-4 text-xs font-bold uppercase tracking-widest text-navy-900 hover:text-accent-gold transition-colors border-b border-navy-900 pb-1 hover:border-accent-gold">
-                            SELAMI SEJARAH KAMI
-                            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-2" />
-                        </Link>
-                    </div>
-
+                    ))}
                 </div>
             </div>
         </section>

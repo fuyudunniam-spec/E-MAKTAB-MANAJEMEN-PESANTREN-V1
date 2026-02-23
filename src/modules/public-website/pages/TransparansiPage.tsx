@@ -253,43 +253,38 @@ const TransparansiPage: React.FC = () => {
       <PublicNavbar />
 
       {/* HEADER: IMPACT STATEMENT */}
-      <header className="pt-32 pb-16 lg:pt-40 lg:pb-24 px-6 bg-royal-950 text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "url('https://www.transparenttextures.com/patterns/arabesque.png')" }}></div>
-        <div className="absolute top-0 right-0 w-2/3 h-full bg-gradient-to-l from-royal-900/50 to-transparent pointer-events-none"></div>
-        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-gold-500/10 rounded-full blur-3xl"></div>
+      <header className="pt-32 pb-16 lg:pt-40 lg:pb-24 px-6 bg-[#0f172a] text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#c09c53]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
 
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8 mb-16">
             <div className="animate-fade-in w-full md:max-w-3xl">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-8 h-[1px] bg-gold-500"></div>
-                <span className="text-gold-500 text-xs font-bold uppercase tracking-[0.3em]">Transparansi Publik</span>
-              </div>
-              <h1 className="font-display text-4xl lg:text-6xl leading-tight mb-6">
-                Jejak Kebaikan & <br /><span className="text-gold-500 italic font-serif">Realisasi Amanah.</span>
+              <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-6 flex items-center gap-3">
+                <span className="w-8 h-px bg-[#c09c53]" /> Transparansi Publik
+              </h4>
+              <h1 className="font-serif text-4xl lg:text-[3.5rem] text-white leading-[1.1] mb-6 tracking-tight">
+                Jejak Kebaikan &amp; <br /><span className="italic text-[#c09c53] font-light">Realisasi Amanah.</span>
               </h1>
-              <p className="text-slate-300 font-light max-w-xl text-lg leading-relaxed">
-
+              <p className="text-slate-400 font-light max-w-xl text-base leading-relaxed">
                 Setiap rupiah yang Anda titipkan bertransformasi menjadi ilmu yang bermanfaat, makanan yang bergizi, dan senyum anak-anak yatim.
               </p>
             </div>
 
-            {/* Elegant Filter */}
-            <div className="flex flex-col gap-2 w-full md:w-auto">
+            {/* Year Filter */}
+            <div className="flex flex-col gap-2 w-full md:w-auto shrink-0">
               <label className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Periode Laporan</label>
-
-              <div className="flex items-center bg-white/5 border border-white/10 p-1 rounded-lg backdrop-blur-sm w-full md:w-auto">
+              <div className="flex items-center bg-white/5 border border-white/10 p-1 rounded-lg backdrop-blur-sm">
                 <div className="relative flex-1 md:flex-none">
                   <select
                     value={selectedYear}
                     onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                    className="w-full md:w-auto appearance-none bg-transparent border-none text-white px-4 py-2 pr-10 text-sm font-display cursor-pointer focus:ring-0 focus:outline-none"
+                    className="w-full md:w-auto appearance-none bg-transparent border-none text-white px-4 py-2 pr-10 text-sm cursor-pointer focus:ring-0 focus:outline-none"
                   >
                     {Array.from({ length: 5 }, (_, i) => currentYear - i).map(y => (
-                      <option key={y} value={y} className="bg-royal-950 text-white">{y}</option>
+                      <option key={y} value={y} className="bg-[#0f172a] text-white">{y}</option>
                     ))}
                   </select>
-                  <ChevronDown className="w-4 h-4 text-gold-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <ChevronDown className="w-4 h-4 text-[#c09c53] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
               </div>
             </div>
@@ -298,34 +293,31 @@ const TransparansiPage: React.FC = () => {
           {/* KEY METRICS */}
           <div className="grid md:grid-cols-3 gap-8">
             {/* Card 1 */}
-            <div className="border-l-2 border-gold-500/30 pl-6 py-2">
+            <div className="border-l-2 border-[#c09c53]/30 pl-6 py-2">
               <div className="flex items-center gap-3 mb-2">
-                <Layers className="w-4 h-4 text-gold-500" />
+                <Layers className="w-4 h-4 text-[#c09c53]" />
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Saldo Bersih Donasi</p>
               </div>
-              <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.saldoDonasi || 0)}</h3>
+              <h3 className="font-serif text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.saldoDonasi || 0)}</h3>
             </div>
 
             {/* Card 2 */}
-            <div className="border-l-2 border-gold-500/30 pl-6 py-2">
+            <div className="border-l-2 border-[#c09c53]/30 pl-6 py-2">
               <div className="flex items-center gap-3 mb-2">
-                <ArrowDownLeft className="w-4 h-4 text-gold-500" />
+                <ArrowDownLeft className="w-4 h-4 text-[#c09c53]" />
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Donasi Diterima</p>
-
               </div>
-              <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.totalPemasukan || 0)}</h3>
+              <h3 className="font-serif text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.totalPemasukan || 0)}</h3>
             </div>
 
             {/* Card 3 */}
-            <div className="border-l-2 border-gold-500/30 pl-6 py-2">
+            <div className="border-l-2 border-[#c09c53]/30 pl-6 py-2">
               <div className="flex items-center gap-3 mb-2">
-                <ArrowUpRight className="w-4 h-4 text-gold-500" />
+                <ArrowUpRight className="w-4 h-4 text-[#c09c53]" />
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Penyaluran</p>
-
               </div>
-              <h3 className="font-display text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.totalPengeluaran || 0)}</h3>
+              <h3 className="font-serif text-3xl lg:text-4xl text-white">{formatCurrency(impactData?.totalPengeluaran || 0)}</h3>
             </div>
-
           </div>
         </div>
       </header>

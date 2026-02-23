@@ -1,0 +1,586 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+    ArrowRight, HeartHandshake, BookMarked, Users, Home,
+    ChevronRight, Calculator, Quote, ArrowUpRight, ChevronLeft,
+    Building, GraduationCap, ArrowLeft
+} from 'lucide-react';
+
+// ============================================
+// MOCK COMPONENTS FOR PREVIEW (SANITY COMPATIBLE)
+// ============================================
+
+const PublicNavbar = () => (
+    <nav className="w-full bg-white/90 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div className="flex items-center gap-4 group cursor-pointer">
+                <div className="flex flex-col">
+                    <span className="font-serif font-bold text-2xl text-[#0f172a] leading-none group-hover:text-[#c09c53] transition-colors duration-300">Al-Bisri.</span>
+                    <span className="text-[9px] tracking-[0.2em] text-[#c09c53] uppercase font-bold mt-1">Pesantren Yatim</span>
+                </div>
+            </div>
+            <div className="hidden md:flex items-center gap-8 text-xs font-bold tracking-widest uppercase text-slate-500">
+                <a href="#" className="text-[#0f172a] relative after:absolute after:-bottom-2 after:left-0 after:w-full after:h-0.5 after:bg-[#c09c53]">Beranda</a>
+                <a href="#" className="hover:text-[#c09c53] transition-colors">Profil</a>
+                <a href="#" className="hover:text-[#c09c53] transition-colors">Layanan</a>
+                <a href="#" className="hover:text-[#c09c53] transition-colors">Berita</a>
+            </div>
+            <div className="flex items-center gap-4">
+                <a href="#" className="hidden lg:block text-xs font-bold uppercase tracking-widest text-[#0f172a] hover:text-[#c09c53] transition-colors">Login</a>
+                <button className="bg-[#0f172a] hover:bg-slate-800 text-white px-6 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2">
+                    Donasi <HeartHandshake className="w-3.5 h-3.5" />
+                </button>
+            </div>
+        </div>
+    </nav>
+);
+
+const HERO_SLIDES = [
+    {
+        tag: 'Gotong Royong Pendidikan Umat',
+        titleA: 'Berikan Hadiah',
+        titleB: 'Ilmu',
+        titleC: '& Masa Depan.',
+        desc: 'Di balik setiap lantunan doa, ada 50 santri yatim dan dhuafa yang menggantungkan cita-citanya. Bersama, kita pastikan mereka meraih masa depan tanpa takut putus sekolah.',
+        img: 'https://images.unsplash.com/photo-1544531585-9847b68c8c86?auto=format&fit=crop&q=80',
+        quote: '"Sebaik-baik rumah adalah yang di dalamnya ada anak yatim..."',
+        author: 'HR. Ibnu Majah'
+    },
+    {
+        tag: 'Pendidikan Diniyah & Tahfidz',
+        titleA: 'Mencetak',
+        titleB: 'Generasi',
+        titleC: 'Rabbani.',
+        desc: 'Fokus membina akhlak mulia dan mendampingi hafalan Al-Qur\'an mereka siang dan malam. Mencetak pribadi yang mandiri dan siap menjadi cahaya bagi umat.',
+        img: 'https://images.unsplash.com/photo-1609599006353-e629aaab31bf?auto=format&fit=crop&q=80',
+        quote: '"Sebaik-baik kalian adalah yang mempelajari Al-Qur\'an dan mengajarkannya."',
+        author: 'HR. Bukhari'
+    },
+    {
+        tag: 'Pendidikan Formal 100% Gratis',
+        titleA: 'Memutus Rantai',
+        titleB: 'Kemiskinan',
+        titleC: 'Umat.',
+        desc: 'Menjamin akses asrama, gizi harian, serta pendidikan formal sekolah gratis. Membekali santri yatim dengan ijazah dan ilmu umum agar siap bersaing.',
+        img: 'https://images.unsplash.com/photo-1577891742292-4545a695bb37?auto=format&fit=crop&q=80',
+        quote: '"Barangsiapa menempuh jalan menuntut ilmu, maka Allah mudahkan jalannya menuju Surga."',
+        author: 'HR. Muslim'
+    }
+];
+
+const PublicHero = () => {
+    const [currentSlide, setCurrentSlide] = useState(0);
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+        }, 6000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const slide = HERO_SLIDES[currentSlide];
+
+    return (
+        <section className="relative pt-12 lg:pt-24 pb-20 lg:pb-32 overflow-hidden bg-[#fafafa] page-bg-pattern min-h-[auto] lg:min-h-[85vh] flex items-center">
+
+            {/* Subtle Ambience */}
+            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#c09c53]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none transition-all duration-1000"></div>
+
+            <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center relative z-10 w-full">
+
+                {/* LEFT CONTENT (Grid Span 5) */}
+                <div key={`text-${currentSlide}`} className="lg:col-span-5 animate-fade-in-up flex flex-col justify-center order-2 lg:order-1 mt-6 lg:mt-0">
+
+                    <h4 className="text-[10px] md:text-xs font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-5 lg:mb-8 flex items-center gap-4">
+                        <span className="w-10 h-px bg-[#c09c53]"></span> {slide.tag}
+                    </h4>
+
+                    <h1 className="text-4xl md:text-5xl lg:text-[4rem] font-serif text-[#0f172a] leading-[1.1] mb-6 lg:mb-8 tracking-tight">
+                        {slide.titleA}<br />
+                        <span className="italic text-slate-500">{slide.titleB}</span> {slide.titleC}
+                    </h1>
+
+                    <p className="text-slate-500 leading-relaxed mb-10 lg:mb-12 text-sm md:text-base pr-4">
+                        {slide.desc}
+                    </p>
+
+                    <button className="bg-[#0f172a] text-white px-8 py-4 text-xs font-bold uppercase tracking-widest hover:bg-slate-800 transition-colors flex items-center justify-center gap-4 w-fit shadow-lg shadow-[#0f172a]/10 hover:-translate-y-0.5 duration-300">
+                        Tunaikan Sedekah <ArrowRight className="w-4 h-4" />
+                    </button>
+
+                    {/* Integrated Minimalist Slider Controls */}
+                    <div className="flex items-center gap-6 mt-16 pt-8 border-t border-slate-200/60 w-max">
+                        <div className="flex gap-2">
+                            <button onClick={() => setCurrentSlide((prev) => (prev === 0 ? HERO_SLIDES.length - 1 : prev - 1))} className="w-8 h-8 rounded-full border border-slate-300 flex items-center justify-center text-slate-400 hover:text-[#0f172a] hover:border-[#0f172a] hover:bg-slate-50 transition-colors">
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length)} className="w-8 h-8 rounded-full border border-slate-300 flex items-center justify-center text-slate-400 hover:text-[#0f172a] hover:border-[#0f172a] hover:bg-slate-50 transition-colors">
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="flex gap-2">
+                            {HERO_SLIDES.map((_, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => setCurrentSlide(idx)}
+                                    className={`h-1 transition-all duration-500 ease-out rounded-full ${currentSlide === idx ? 'w-8 bg-[#c09c53]' : 'w-2 bg-slate-300 hover:bg-slate-400'}`}
+                                />
+                            ))}
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-400 font-mono tracking-widest">
+                            0{currentSlide + 1} / 0{HERO_SLIDES.length}
+                        </span>
+                    </div>
+
+                </div>
+
+                {/* RIGHT IMAGE (Grid Span 7 - Framed Gallery Approach) */}
+                <div className="lg:col-span-7 relative order-1 lg:order-2 w-full animate-fade-in-up">
+
+                    {/* The "Frame" */}
+                    <div className="bg-white p-3 md:p-4 rounded-[2.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] border border-slate-100 relative z-10 group">
+
+                        {/* The Image Mask */}
+                        <div className="aspect-[4/3] lg:aspect-[1.15/1] bg-slate-100 overflow-hidden relative rounded-[2rem]">
+                            {HERO_SLIDES.map((s, idx) => (
+                                <img
+                                    key={idx}
+                                    src={s.img}
+                                    alt="Pesantren Activity"
+                                    className={`absolute inset-0 w-full h-full object-cover transition-all duration-[2000ms] ease-out ${currentSlide === idx ? 'opacity-100 scale-100 z-10' : 'opacity-0 scale-110 z-0'}`}
+                                />
+                            ))}
+                            <div className="absolute inset-0 bg-[#0f172a]/10 mix-blend-multiply z-20 pointer-events-none transition-opacity duration-500 group-hover:opacity-0"></div>
+                        </div>
+
+                    </div>
+
+                    {/* Floating Quote Badge - overlapping the frame */}
+                    <div key={`quote-${currentSlide}`} className="absolute -bottom-6 left-4 right-4 lg:right-auto lg:-bottom-10 lg:-left-12 bg-white p-5 lg:p-7 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] border border-slate-100 rounded-3xl flex items-start gap-4 lg:max-w-[320px] z-30 animate-fade-in-up delay-200">
+                        <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-[#f9f5ec] flex items-center justify-center shrink-0">
+                            <Quote className="w-4 h-4 lg:w-5 lg:h-5 text-[#c09c53]" />
+                        </div>
+                        <div>
+                            <p className="font-serif text-[#0f172a] text-sm lg:text-base leading-relaxed mb-3 italic">
+                                {slide.quote}
+                            </p>
+                            <p className="text-[8px] lg:text-[10px] uppercase tracking-[0.2em] text-[#c09c53] font-bold">{slide.author}</p>
+                        </div>
+                    </div>
+
+                    {/* Decorative element behind the frame */}
+                    <div className="absolute -top-6 -right-6 w-32 h-32 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20 z-0 pointer-events-none"></div>
+
+                </div>
+
+            </div>
+        </section>
+    );
+};
+
+// COMPONENT UPDATE: Infinite Scroll Marquee
+const PublicPartners = () => {
+    const PARTNERS = [
+        { name: "Pesantren An-Nur", type: "serif" },
+        { name: "Kemenag RI", type: "sans" },
+        { name: "LAZNAS", type: "italic" },
+        { name: "BSI Wakaf", type: "sans" },
+        { name: "Kitabisa", type: "serif" },
+        { name: "Dompet Dhuafa", type: "sans" }
+    ];
+
+    return (
+        <div className="bg-white border-y border-slate-200 py-10 relative z-20 overflow-hidden">
+            <div className="max-w-7xl mx-auto px-6 mb-6">
+                <p className="text-[10px] font-bold text-center text-slate-400 uppercase tracking-widest">Mendukung Perjalanan Kami</p>
+            </div>
+            {/* Marquee Wrapper */}
+            <div className="relative flex overflow-x-hidden w-full group">
+                <div className="animate-marquee flex whitespace-nowrap gap-16 md:gap-32 px-8 opacity-60 group-hover:opacity-100 transition-opacity duration-500">
+                    {PARTNERS.map((p, i) => (
+                        <div key={i} className={`text-xl text-slate-400 hover:text-[#c09c53] transition-colors cursor-default ${p.type === 'serif' ? 'font-serif font-bold' :
+                            p.type === 'italic' ? 'font-serif italic' :
+                                'font-sans font-bold tracking-wider'
+                            }`}>
+                            {p.name}
+                        </div>
+                    ))}
+                </div>
+                {/* Duplicated for seamless loop */}
+                <div className="absolute top-0 animate-marquee2 flex whitespace-nowrap gap-16 md:gap-32 px-8 opacity-60 group-hover:opacity-100 transition-opacity duration-500">
+                    {PARTNERS.map((p, i) => (
+                        <div key={`dup-${i}`} className={`text-xl text-slate-400 hover:text-[#c09c53] transition-colors cursor-default ${p.type === 'serif' ? 'font-serif font-bold' :
+                            p.type === 'italic' ? 'font-serif italic' :
+                                'font-sans font-bold tracking-wider'
+                            }`}>
+                            {p.name}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const PublicHistory = () => (
+    <section className="py-24 bg-[#0f172a] text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10"></div>
+        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 relative z-10">
+            <div>
+                <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4 flex items-center gap-3">
+                    <span className="w-8 h-px bg-[#c09c53]"></span> Sejarah & Dedikasi
+                </h4>
+                <h2 className="text-3xl md:text-5xl font-serif leading-tight mb-8">
+                    Merawat Fitrah,<br />Membangun Peradaban.
+                </h2>
+                <div className="space-y-6 text-slate-400 leading-relaxed text-sm md:text-base border-l border-[#c09c53]/30 pl-6">
+                    <p>
+                        Lahir pada tahun 2010, Pesantren Anak Yatim Al-Bisri bermula dari sebuah azam sederhana: memastikan setiap anak yatim dan dhuafa memiliki tempat bernaung yang layak dan hak pendidikan yang setara.
+                    </p>
+                    <p>
+                        Kini, di bawah bimbingan dan pengawasan Pesantren Mahasiswa An-Nur, kami telah melangkah lebih jauh. Al-Bisri bukan sekadar panti asuhan, melainkan pusat kaderisasi generasi Qur'ani yang memadukan kedalaman ilmu agama (Diniyah) dengan keunggulan akademik sekolah formal.
+                    </p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6 content-center">
+                <div className="bg-white/5 border border-white/10 p-8 hover:bg-white/10 transition-colors">
+                    <p className="text-4xl font-serif text-white mb-2">50</p>
+                    <p className="text-[10px] font-bold text-[#c09c53] uppercase tracking-widest">Santri Aktif</p>
+                </div>
+                <div className="bg-white/5 border border-white/10 p-8 hover:bg-white/10 transition-colors">
+                    <p className="text-4xl font-serif text-white mb-2">100<span className="text-[#c09c53]">%</span></p>
+                    <p className="text-[10px] font-bold text-[#c09c53] uppercase tracking-widest">Beasiswa Penuh</p>
+                </div>
+                <div className="bg-white/5 border border-white/10 p-8 hover:bg-white/10 transition-colors">
+                    <p className="text-4xl font-serif text-white mb-2">12</p>
+                    <p className="text-[10px] font-bold text-[#c09c53] uppercase tracking-widest">Asatidz Pengabdi</p>
+                </div>
+                <div className="bg-[#c09c53] text-[#0f172a] p-8 shadow-lg shadow-[#c09c53]/20">
+                    <p className="text-4xl font-serif mb-2">14<span className="text-white">th</span></p>
+                    <p className="text-[10px] font-bold text-[#0f172a] uppercase tracking-widest">Tahun Berdiri</p>
+                </div>
+            </div>
+        </div>
+    </section>
+);
+
+const PublicServices = () => (
+    <section className="py-24 bg-[#fafafa]">
+        <div className="max-w-7xl mx-auto px-6">
+            <div className="text-center max-w-2xl mx-auto mb-16">
+                <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4">Empat Pilar Pelayanan</h4>
+                <h2 className="text-3xl md:text-4xl font-serif text-[#0f172a] leading-tight">Fokus Penyaluran Amanah</h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                    { icon: Home, title: 'Asrama & Konsumsi', desc: 'Menjamin tempat tinggal aman dan gizi 3x sehari. Tak ada santri yang belajar dalam keadaan lapar.' },
+                    { icon: BookMarked, title: 'Diniyah & Tahfidz', desc: 'Fokus membina akhlak mulia dan mendampingi hafalan Al-Qur\'an siang dan malam.' },
+                    { icon: GraduationCap, title: 'Pendidikan Formal', desc: 'Akses sekolah gratis untuk ijazah formal demi kemandirian dan daya saing masa depan.' },
+                    { icon: Building, title: 'Operasional Khidmah', desc: 'Menopang fasilitas dan memberi apresiasi layak bagi para guru yang mengabdi 24 jam.' },
+                ].map((s, i) => (
+                    <div key={i} className="bg-white p-8 border border-slate-200 hover:border-[#0f172a] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group cursor-pointer">
+                        <div className="w-12 h-12 rounded bg-slate-50 flex items-center justify-center mb-6 group-hover:bg-[#0f172a] transition-colors duration-300">
+                            <s.icon className="w-5 h-5 text-[#0f172a] group-hover:text-white transition-colors" />
+                        </div>
+                        <h3 className="text-sm font-bold text-[#0f172a] uppercase tracking-widest mb-3 leading-relaxed">{s.title}</h3>
+                        <p className="text-xs text-slate-500 leading-relaxed mb-6">{s.desc}</p>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </section>
+);
+
+// COMPONENT UPDATE: Snap Slider for Testimonials
+const PublicTestimonials = () => {
+    const scrollRef = useRef(null);
+
+    const TESTIMONIALS = [
+        { quote: "Melihat langsung bagaimana anak-anak yatim ini menghafal Al-Qur'an sangat menyentuh hati. Laporan keuangannya juga selalu tepat waktu dan transparan.", name: "Bpk. H. Abdullah", role: "Donatur Rutin" },
+        { quote: "Pesantren ini tidak hanya mengasuh, tapi mendidik mereka untuk siap terjun ke masyarakat dengan sekolah formalnya. Program yang sangat komprehensif.", name: "Ibu dr. Fatimah", role: "Donatur Pendidikan" },
+        { quote: "Berbagi di Al-Bisri memberikan ketenangan tersendiri. Mengetahui bahwa setiap rupiah benar-benar sampai pada mereka yang paling membutuhkan.", name: "Keluarga Rahman", role: "Donatur Wakaf" },
+        { quote: "Sistem pendataannya sangat modern dan pengurusnya sangat amanah. Semoga Allah selalu merahmati keluarga besar pesantren Al-Bisri.", name: "Siti Aminah", role: "Muhsinin" }
+    ];
+
+    const scroll = (direction) => {
+        if (scrollRef.current) {
+            const scrollAmount = direction === 'left' ? -350 : 350;
+            scrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+        }
+    };
+
+    return (
+        <section className="py-24 bg-white border-y border-slate-200 overflow-hidden">
+            <div className="max-w-7xl mx-auto px-6">
+                <div className="flex flex-col md:flex-row gap-12 lg:gap-16 items-center">
+                    {/* Title & Controls */}
+                    <div className="w-full md:w-1/3 shrink-0">
+                        <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4 flex items-center gap-3">
+                            <span className="w-8 h-px bg-[#c09c53]"></span> Saksi Kebaikan
+                        </h4>
+                        <h2 className="text-3xl font-serif text-[#0f172a] leading-tight mb-6">
+                            Jejak Nyata<br />Sebuah Amanah.
+                        </h2>
+                        <p className="text-sm text-slate-500 leading-relaxed mb-8">
+                            Kepercayaan donatur adalah denyut nadi perjuangan kami. Dengarkan kesan mereka yang telah turut serta merawat masa depan santri Al-Bisri.
+                        </p>
+
+                        {/* Custom Slider Arrows */}
+                        <div className="flex gap-3">
+                            <button onClick={() => scroll('left')} className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-[#0f172a] hover:border-[#0f172a] hover:bg-slate-50 transition-colors">
+                                <ArrowLeft className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => scroll('right')} className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-[#0f172a] hover:border-[#0f172a] hover:bg-slate-50 transition-colors">
+                                <ArrowRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Sliding Track */}
+                    <div className="w-full md:w-2/3">
+                        <div
+                            ref={scrollRef}
+                            className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-6 pb-8 -mb-8 pt-4 px-4 -mx-4"
+                        >
+                            {TESTIMONIALS.map((t, idx) => (
+                                <div key={idx} className="snap-center shrink-0 w-[85%] sm:w-[350px] bg-slate-50 p-8 border border-slate-100 rounded-2xl relative hover:-translate-y-2 hover:shadow-xl hover:shadow-[#0f172a]/5 transition-all duration-300">
+                                    <Quote className="w-8 h-8 text-[#c09c53]/20 absolute top-6 right-6" />
+                                    <p className="text-sm text-slate-600 italic leading-relaxed mb-8 relative z-10 min-h-[80px]">
+                                        "{t.quote}"
+                                    </p>
+                                    <div>
+                                        <p className="text-xs font-bold text-[#0f172a] uppercase tracking-widest">{t.name}</p>
+                                        <p className="text-[10px] text-[#c09c53] font-bold mt-1 uppercase tracking-widest">{t.role}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+};
+
+// COMPONENT UPDATE: Snap Slider for News
+const PublicNews = () => {
+    const scrollRef = useRef(null);
+
+    const NEWS = [
+        { id: 1, date: "12 Feb 2026", title: "Ujian Tasmi' 5 Juz Al-Qur'an Santri Angkatan ke-14", desc: "Alhamdulillah, bulan ini sebanyak 15 santri telah berhasil menyelesaikan ujian tasmi hafalan dengan predikat Mumtaz..." },
+        { id: 2, date: "08 Feb 2026", title: "Penyaluran Santunan Pendidikan Bulanan", desc: "Berkat donasi Anda, biaya SPP sekolah formal untuk 50 santri telah lunas terbayarkan untuk periode ini..." },
+        { id: 3, date: "25 Jan 2026", title: "Kegiatan Ekstrakurikuler: Pelatihan IT Santri", desc: "Membekali keterampilan masa depan, santri jenjang Aliyah mulai mempelajari dasar-dasar pemrograman web..." },
+        { id: 4, date: "15 Jan 2026", title: "Kunjungan Silaturahmi LAZNAS BSI", desc: "Evaluasi dan penyerahan simbolis dana wakaf produktif untuk perluasan fasilitas asrama putra..." }
+    ];
+
+    const scroll = (direction) => {
+        if (scrollRef.current) {
+            const scrollAmount = direction === 'left' ? -350 : 350;
+            scrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+        }
+    };
+
+    return (
+        <section className="py-24 bg-[#fafafa]">
+            <div className="max-w-7xl mx-auto px-6">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+                    <div>
+                        <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4">Kabar Pesantren</h4>
+                        <h2 className="text-3xl md:text-4xl font-serif text-[#0f172a] leading-tight">Jendela Kegiatan</h2>
+                    </div>
+
+                    <div className="flex items-center gap-6">
+                        {/* Slider Controls */}
+                        <div className="flex gap-2">
+                            <button onClick={() => scroll('left')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-[#0f172a] hover:border-[#0f172a] transition-colors shadow-sm">
+                                <ArrowLeft className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => scroll('right')} className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-[#0f172a] hover:border-[#0f172a] transition-colors shadow-sm">
+                                <ArrowRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <button className="hidden md:block text-xs font-bold text-[#0f172a] uppercase tracking-widest border-b border-[#0f172a] pb-1 hover:text-[#c09c53] hover:border-[#c09c53] transition-colors">
+                            Lihat Semua
+                        </button>
+                    </div>
+                </div>
+
+                {/* Sliding Track */}
+                <div
+                    ref={scrollRef}
+                    className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-8 pb-10 -mb-10 px-2 -mx-2"
+                >
+                    {NEWS.map((n) => (
+                        <div key={n.id} className="snap-start shrink-0 w-[85%] sm:w-[350px] lg:w-[calc(33.333%-1.5rem)] group cursor-pointer">
+                            <div className="aspect-[4/3] bg-slate-200 overflow-hidden mb-6 relative rounded-2xl">
+                                <img src={`https://images.unsplash.com/photo-1577891742292-4545a695bb37?auto=format&fit=crop&q=80&w=600&sig=${n.id}`} alt="Berita" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
+                                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-[#0f172a] shadow-sm rounded-md">
+                                    {n.date}
+                                </div>
+                            </div>
+                            <h3 className="font-serif text-xl text-[#0f172a] mb-3 group-hover:text-[#c09c53] transition-colors line-clamp-2">
+                                {n.title}
+                            </h3>
+                            <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed">
+                                {n.desc}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+};
+
+const PublicZakatCalc = () => {
+    const [harta, setHarta] = useState('');
+    const zakat = parseInt(harta.replace(/\D/g, '') || '0') * 0.025;
+
+    return (
+        <section className="py-24 bg-[#0f172a] relative overflow-hidden border-t-4 border-[#c09c53]">
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10"></div>
+            <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
+
+                <div>
+                    <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4 flex items-center gap-3">
+                        <span className="w-8 h-px bg-[#c09c53]"></span> Kalkulator Zakat
+                    </h4>
+                    <h2 className="text-3xl md:text-5xl font-serif text-white leading-tight mb-6">
+                        Sucikan Harta,<br />Berdayakan Sesama.
+                    </h2>
+                    <p className="text-slate-400 leading-relaxed mb-10 text-sm">
+                        Zakat Anda disalurkan 100% kepada asnaf yang berhak, memprioritaskan biaya pendidikan dan asrama bagi anak-anak yatim dhuafa di pesantren kami.
+                    </p>
+                    <div className="flex items-center gap-4 text-white">
+                        <div className="w-12 h-12 border border-white/20 rounded-full flex items-center justify-center">
+                            <Calculator className="w-5 h-5 text-[#c09c53]" />
+                        </div>
+                        <div>
+                            <p className="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">Nisab Saat Ini</p>
+                            <p className="font-mono font-bold text-lg tracking-wider">Rp 82.312.725 / <span className="text-sm">Tahun</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-white p-8 md:p-10 shadow-2xl rounded-2xl md:rounded-none">
+                    <h3 className="font-serif text-2xl text-[#0f172a] mb-8">Hitung Zakat Maal</h3>
+
+                    <div className="space-y-6 mb-8">
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Total Harta Tersimpan (1 Tahun)</label>
+                            <div className="relative border border-slate-200 focus-within:border-[#0f172a] transition-colors">
+                                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">Rp</span>
+                                <input
+                                    type="text"
+                                    placeholder="0"
+                                    value={harta ? new Intl.NumberFormat('id-ID').format(harta.replace(/\D/g, '')) : ''}
+                                    onChange={(e) => setHarta(e.target.value)}
+                                    className="w-full py-4 pl-14 pr-5 text-lg font-bold text-[#0f172a] outline-none bg-transparent"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-100 p-6 mb-8">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Kewajiban Zakat (2.5%)</p>
+                        <p className="text-3xl font-mono text-[#0f172a] font-bold tracking-wider transition-all duration-300">
+                            Rp {new Intl.NumberFormat('id-ID').format(zakat)}
+                        </p>
+                    </div>
+
+                    <button className="w-full bg-[#c09c53] hover:bg-[#a38240] text-white py-4 text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2 shadow-lg shadow-[#c09c53]/20 hover:-translate-y-0.5">
+                        Tunaikan Zakat Sekarang <ArrowUpRight className="w-4 h-4" />
+                    </button>
+                </div>
+
+            </div>
+        </section>
+    )
+};
+
+const PublicFooter = () => (
+    <footer className="bg-white py-16 border-t border-slate-200">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex flex-col items-center md:items-start">
+                <span className="font-serif font-bold text-2xl text-[#0f172a] leading-none mb-2">Al-Bisri.</span>
+                <p className="text-xs text-slate-500 font-medium tracking-wide">Pendidikan Islami untuk Generasi Mandiri.</p>
+            </div>
+            <div className="flex gap-8 text-xs font-bold uppercase tracking-widest text-slate-400">
+                <a href="#" className="hover:text-[#0f172a] transition-colors">Legalitas</a>
+                <a href="#" className="hover:text-[#0f172a] transition-colors">Kontak</a>
+            </div>
+        </div>
+    </footer>
+);
+
+export default function LandingPage() {
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, []);
+
+    return (
+        <div className="min-h-screen bg-[#fafafa] font-sans text-slate-800 selection:bg-[#c09c53]/20 selection:text-[#0f172a] flex flex-col relative">
+            <PublicNavbar />
+
+            <main className="flex-1 w-full overflow-hidden">
+                <PublicHero />
+                <PublicPartners />
+                <PublicHistory />
+                <PublicServices />
+                <PublicTestimonials />
+                <PublicNews />
+                <PublicZakatCalc />
+            </main>
+
+            <PublicFooter />
+
+            <style dangerouslySetInnerHTML={{
+                __html: `
+        /* Pattern Background */
+        .page-bg-pattern {
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+
+        /* Standard Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animate-fade-in-up { 
+            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
+            opacity: 0; 
+        }
+        
+        .delay-200 { animation-delay: 200ms; }
+
+        /* INFINITE MARQUEE ANIMATIONS */
+        .animate-marquee {
+            animation: marquee 30s linear infinite;
+        }
+        .animate-marquee2 {
+            animation: marquee2 30s linear infinite;
+        }
+        @keyframes marquee {
+            0% { transform: translateX(0%); }
+            100% { transform: translateX(-100%); }
+        }
+        @keyframes marquee2 {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(0%); }
+        }
+
+        /* HIDE SCROLLBAR FOR SLIDERS */
+        .hide-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none; /* Chrome, Safari and Opera */
+        }
+      `}} />
+        </div>
+    );
+}

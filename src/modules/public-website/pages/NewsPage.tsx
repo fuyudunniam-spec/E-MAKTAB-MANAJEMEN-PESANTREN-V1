@@ -1,154 +1,333 @@
-import React, { useEffect } from 'react';
-import { Search, ArrowRight, Play, HeartHandshake, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import PublicNavbar from '../components/PublicNavbar';
-import PublicFooter from '../components/PublicFooter';
 import { useQuery } from '@tanstack/react-query';
 import { SanityService } from '../services/sanity.service';
+import PublicNavbar from '../components/PublicNavbar';
+import PublicFooter from '../components/PublicFooter';
+import { ArrowRight, Search, Clock, HeartHandshake } from 'lucide-react';
+
+const CATEGORIES = [
+    { key: 'all', label: 'Semua' },
+    { key: 'prestasi', label: 'Prestasi' },
+    { key: 'laporan-wakaf', label: 'Laporan Wakaf' },
+    { key: 'opini', label: 'Opini' },
+];
+
+const ITEMS_PER_PAGE = 6;
 
 const NewsPage: React.FC = () => {
-    const { data: postsData } = useQuery({
-        queryKey: ['news-list'],
-        queryFn: SanityService.getNews
+    const { data: newsData, isLoading } = useQuery({
+        queryKey: ['news-all'],
+        queryFn: SanityService.getNews,
     });
 
-    const posts = postsData || [];
-    const featuredPost = posts.length > 0 ? posts[0] : null;
-    const regularPosts = posts.length > 0 ? posts.slice(1) : [];
+    const [activeCategory, setActiveCategory] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [page, setPage] = useState(1);
 
-    useEffect(() => {
-        window.scrollTo(0, 0);
-    }, []);
+    useEffect(() => { window.scrollTo(0, 0); }, []);
+    useEffect(() => { setPage(1); }, [activeCategory, searchQuery]);
 
+    const allPosts: any[] = newsData || [];
+
+    // Filter
+    const filtered = allPosts.filter(post => {
+        const matchesCategory = activeCategory === 'all' || (post.category?.toLowerCase() === activeCategory);
+        const matchesSearch = !searchQuery
+            || post.title?.toLowerCase().includes(searchQuery.toLowerCase())
+            || post.excerpt?.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesCategory && matchesSearch;
+    });
+
+    // Split: first post = featured, rest = articles
+    const featuredPost = filtered[0] || null;
+    const gridPosts = filtered.slice(1);
+
+    // Pagination on gridPosts
+    const totalPages = Math.ceil(gridPosts.length / ITEMS_PER_PAGE);
+    const paginatedPosts = gridPosts.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
+    const formatDate = (dateStr: string) =>
+        dateStr ? new Date(dateStr).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
+
+    const estimateReadTime = (text?: string) => {
+        if (!text) return '3';
+        const words = text.split(' ').length;
+        return Math.max(1, Math.ceil(words / 200)).toString();
+    };
 
     return (
-        <div className="min-h-screen bg-paper font-jakarta selection:bg-gold-200 selection:text-navy-950">
+        <div className="min-h-screen bg-[#fafafa] font-jakarta">
             <PublicNavbar />
 
-            {/* HEADER - Luxury Navy Theme */}
-            <header className="relative py-32 px-6 bg-navy-950 text-white overflow-hidden text-center">
-                {/* Background Patterns */}
-                <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "url('https://www.transparenttextures.com/patterns/arabesque.png')" }}></div>
-                <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+            {/* ── HEADER ── */}
+            <header className="bg-[#0f172a] text-white pt-36 pb-16 px-6 relative overflow-hidden">
+                <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }} />
+                <div className="absolute top-0 right-1/4 w-[400px] h-[400px] bg-[#c09c53]/5 rounded-full blur-3xl" />
 
-                <div className="max-w-4xl mx-auto relative z-10 animate-fade-in">
-                    <span className="text-accent-gold font-bold uppercase tracking-[0.2em] text-xs mb-4 block">Jendela Informasi & Pemikiran</span>
-                    <h1 className="text-4xl md:text-6xl font-display text-white mb-8">Kabar Al-Bisri</h1>
+                <div className="max-w-7xl mx-auto relative z-10">
+                    <div className="grid lg:grid-cols-12 gap-8 items-end">
+                        {/* Title Block */}
+                        <div className="lg:col-span-7">
+                            <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-5 flex items-center gap-3">
+                                <span className="w-8 h-px bg-[#c09c53]" />
+                                Kabar Pesantren
+                            </h4>
+                            <h1 className="text-5xl md:text-6xl font-serif leading-[1.05] mb-4">
+                                Berita &<br />
+                                <span className="italic text-[#c09c53]">Pemikiran</span>
+                            </h1>
+                            <p className="text-slate-400 font-light text-lg max-w-lg leading-relaxed">
+                                Laporan perkembangan terkini, kisah inspirasi, dan refleksi pemikiran dari keluarga besar Al-Bisri.
+                            </p>
+                        </div>
 
-                    {/* Category Filter - Luxury Style */}
-                    <div className="flex flex-wrap justify-center gap-3 mt-8">
-                        <button className="px-8 py-3 rounded-full bg-accent-gold text-navy-950 text-xs font-bold uppercase tracking-widest shadow-lg hover:bg-gold-400 transition transform hover:-translate-y-0.5">Semua</button>
-                        <button className="px-8 py-3 rounded-full border border-white/10 text-slate-200 hover:text-white hover:border-accent-gold hover:bg-white/5 text-xs font-bold uppercase tracking-widest transition">Prestasi</button>
-                        <button className="px-8 py-3 rounded-full border border-white/10 text-slate-200 hover:text-white hover:border-accent-gold hover:bg-white/5 text-xs font-bold uppercase tracking-widest transition">Laporan Wakaf</button>
-                        <button className="px-8 py-3 rounded-full border border-white/10 text-slate-200 hover:text-white hover:border-accent-gold hover:bg-white/5 text-xs font-bold uppercase tracking-widest transition">Opini</button>
+                        {/* Search & Stats */}
+                        <div className="lg:col-span-5 flex flex-col gap-5">
+                            {/* Search Bar */}
+                            <div className="relative">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    placeholder="Cari artikel..."
+                                    className="w-full bg-white/5 border border-white/10 text-white placeholder-slate-500 py-3.5 pl-11 pr-4 text-sm focus:outline-none focus:border-[#c09c53]/50 transition-colors"
+                                />
+                            </div>
+                            <p className="text-slate-500 text-[10px] uppercase tracking-widest text-right">
+                                {filtered.length} artikel ditemukan
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Category Pills */}
+                    <div className="flex flex-wrap gap-2 mt-10 pt-8 border-t border-white/[0.06]">
+                        {CATEGORIES.map(cat => (
+                            <button
+                                key={cat.key}
+                                onClick={() => setActiveCategory(cat.key)}
+                                className={`px-5 py-2 text-[9px] font-bold uppercase tracking-widest transition-all duration-200 ${activeCategory === cat.key
+                                    ? 'bg-[#c09c53] text-[#0f172a]'
+                                    : 'border border-white/20 text-slate-400 hover:border-white/40 hover:text-white'
+                                    }`}
+                            >
+                                {cat.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
             </header>
 
-            {/* MAIN CONTENT */}
-            <main className="max-w-7xl mx-auto px-6 py-20 lg:py-24">
+            {/* ── MAIN CONTENT ── */}
+            <main className="max-w-7xl mx-auto px-6 py-16 lg:py-20">
 
-                {/* Featured Post (Big Card) */}
-                {featuredPost && (
-                    <Link to={`/berita/${featuredPost.slug?.current}`} className="group block relative rounded-[2.5rem] overflow-hidden shadow-2xl mb-20 aspect-[4/3] md:aspect-[21/9]">
-                        <img
-                            src={featuredPost.mainImage ? SanityService.imageUrl(featuredPost.mainImage) : "https://placehold.co/1200x600?text=Featured+News"}
-                            className="absolute inset-0 w-full h-full object-cover transition duration-1000 group-hover:scale-105"
-                            alt={featuredPost.title}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-navy-950/95 via-navy-950/50 to-transparent"></div>
-
-                        <div className="absolute bottom-0 left-0 p-8 md:p-16 w-full md:w-3/4">
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-gold text-navy-950 text-[10px] font-bold uppercase tracking-wider mb-6">
-                                <span className="w-1.5 h-1.5 rounded-full bg-navy-950"></span> Headline
-                            </div>
-                            <h2 className="text-3xl md:text-5xl font-display text-white mb-6 leading-tight group-hover:text-gold-200 transition duration-300">
-                                {featuredPost.title}
-                            </h2>
-                            <p className="text-slate-300 text-sm md:text-lg line-clamp-2 mb-8 font-light leading-relaxed max-w-2xl">
-                                {featuredPost.excerpt}
-                            </p>
-                            <span className="text-accent-gold text-xs font-bold uppercase tracking-widest flex items-center gap-3 group-hover:gap-6 transition-all">
-                                Baca Selengkapnya <ArrowRight className="w-4 h-4" />
-                            </span>
+                {isLoading ? (
+                    // Loading skeleton
+                    <div className="space-y-12">
+                        <div className="w-full aspect-[21/9] bg-slate-200 animate-pulse" />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {[1, 2, 3].map(i => (
+                                <div key={i} className="space-y-3">
+                                    <div className="aspect-[4/3] bg-slate-200 animate-pulse" />
+                                    <div className="h-2 bg-slate-200 rounded w-24 animate-pulse" />
+                                    <div className="h-4 bg-slate-200 rounded animate-pulse" />
+                                </div>
+                            ))}
                         </div>
-                    </Link>
-                )}
+                    </div>
+                ) : filtered.length === 0 ? (
+                    <div className="text-center py-32">
+                        <p className="text-slate-300 text-6xl mb-6">✦</p>
+                        <h3 className="font-serif text-2xl text-[#0f172a] mb-3">Artikel tidak ditemukan</h3>
+                        <p className="text-slate-400 text-sm">Coba kata kunci lain atau pilih kategori yang berbeda.</p>
+                        <button onClick={() => { setSearchQuery(''); setActiveCategory('all'); }} className="mt-6 text-[10px] font-bold uppercase tracking-widest text-[#c09c53] hover:text-[#0f172a] transition-colors border-b border-[#c09c53]">
+                            Reset Filter
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        {/* ── FEATURED / HERO POST ── */}
+                        {featuredPost && (
+                            <Link
+                                to={`/berita/${featuredPost.slug?.current}`}
+                                className="group grid lg:grid-cols-12 gap-0 mb-16 overflow-hidden border border-slate-100 hover:border-slate-200 hover:shadow-2xl transition-all duration-500 bg-white"
+                            >
+                                {/* Image */}
+                                <div className="lg:col-span-7 aspect-[4/3] lg:aspect-auto relative overflow-hidden bg-slate-200">
+                                    <img
+                                        src={featuredPost.mainImage
+                                            ? SanityService.imageUrl(featuredPost.mainImage)
+                                            : 'https://images.unsplash.com/photo-1590012314607-cda9d9b699ae?q=80&w=1200&auto=format&fit=crop'}
+                                        alt={featuredPost.title}
+                                        className="w-full h-full object-cover transition-transform duration-[8s] group-hover:scale-105"
+                                    />
+                                    {featuredPost.category && (
+                                        <span className="absolute top-5 left-5 bg-white text-[#0f172a] text-[9px] font-bold uppercase tracking-widest px-3 py-1.5">
+                                            {featuredPost.category}
+                                        </span>
+                                    )}
+                                </div>
 
-                {/* Latest Posts Grid - Clean & Minimalist */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-16">
-                    {regularPosts.map((post: any) => (
-                        <Link to={`/berita/${post.slug?.current}`} key={post._id} className="group cursor-pointer block">
-                            <div className="aspect-[4/3] rounded-2xl overflow-hidden relative mb-6">
-                                <img
-                                    src={post.mainImage ? SanityService.imageUrl(post.mainImage) : "https://placehold.co/800x600?text=Kabar+Al-Bisri"}
-                                    className="w-full h-full object-cover transition duration-700 group-hover:scale-110 grayscale/[0.1] group-hover:grayscale-0"
-                                    alt={post.title}
-                                />
-                                {post.isVideo && (
-                                    <div className="absolute inset-0 bg-royal-950/30 flex items-center justify-center group-hover:bg-royal-950/20 transition">
-                                        <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white border border-white/30 group-hover:scale-110 transition duration-300">
-                                            <Play className="w-5 h-5 fill-current ml-1" />
+                                {/* Content */}
+                                <div className="lg:col-span-5 p-8 md:p-10 lg:p-12 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex items-center gap-4 mb-6">
+                                            <span className="h-px w-6 bg-[#c09c53]" />
+                                            <span className="text-[9px] font-bold text-[#c09c53] uppercase tracking-[0.2em]">Artikel Utama</span>
+                                        </div>
+                                        <h2 className="font-serif text-3xl md:text-4xl text-[#0f172a] leading-snug mb-5 group-hover:text-[#c09c53] transition-colors">
+                                            {featuredPost.title}
+                                        </h2>
+                                        <p className="text-slate-400 text-sm leading-relaxed line-clamp-3 mb-8">
+                                            {featuredPost.excerpt}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center justify-between pt-6 border-t border-slate-100">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-[#0f172a] flex items-center justify-center text-white text-[10px] font-bold">
+                                                {(featuredPost.author?.name || 'A').charAt(0)}
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-[#0f172a]">{featuredPost.author?.name || 'Tim Redaksi'}</p>
+                                                <p className="text-[9px] text-slate-400">{formatDate(featuredPost.publishedAt)}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[9px] text-slate-300 font-bold uppercase tracking-wider group-hover:text-[#c09c53] group-hover:gap-4 transition-all duration-300">
+                                            <Clock className="w-3 h-3" />
+                                            {estimateReadTime(featuredPost.excerpt)} mnt baca
                                         </div>
                                     </div>
-                                )}
-                                <span className={`absolute top-4 left-4 ${post.category === 'Video' ? 'bg-navy-950 text-white' : 'bg-white/90 text-navy-950'} backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm`}>
-                                    {post.category}
-                                </span>
-                            </div>
-                            <div className="pr-4">
-                                <div className="flex items-center gap-3 mb-3">
-                                    <span className="text-xs text-accent-gold font-bold uppercase tracking-widest">
-                                        {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
-                                    </span>
                                 </div>
-                                <h3 className="text-xl font-display text-navy-950 mb-3 leading-snug group-hover:text-accent-gold transition duration-300 line-clamp-2">
-                                    {post.title}
-                                </h3>
-                                <p className="text-slate-500 text-sm line-clamp-3 font-light leading-relaxed">
-                                    {post.excerpt}
-                                </p>
+                            </Link>
+                        )}
+
+                        {/* ── GRID POSTS ── */}
+                        {paginatedPosts.length > 0 && (
+                            <>
+                                <div className="flex items-center gap-4 mb-8">
+                                    <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-300">Artikel Lainnya</h2>
+                                    <div className="flex-1 h-px bg-slate-100" />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12 mb-16">
+                                    {paginatedPosts.map((post: any) => (
+                                        <Link
+                                            key={post._id}
+                                            to={`/berita/${post.slug?.current}`}
+                                            className="group cursor-pointer block"
+                                        >
+                                            {/* Image */}
+                                            <div className="aspect-[4/3] overflow-hidden bg-slate-100 mb-5 relative">
+                                                <img
+                                                    src={post.mainImage
+                                                        ? SanityService.imageUrl(post.mainImage)
+                                                        : 'https://images.unsplash.com/photo-1518005020951-eccb494ad742?q=80&w=800&auto=format&fit=crop'}
+                                                    alt={post.title}
+                                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                                />
+                                                {post.category && (
+                                                    <span className="absolute top-3 left-3 bg-white/90 text-[#0f172a] text-[9px] font-bold uppercase tracking-wider px-2.5 py-1">
+                                                        {post.category}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Meta */}
+                                            <div className="flex items-center gap-3 mb-3">
+                                                <span className="text-[9px] font-bold text-[#c09c53] uppercase tracking-[0.15em]">
+                                                    {formatDate(post.publishedAt)}
+                                                </span>
+                                                <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                                <span className="text-[9px] text-slate-400 flex items-center gap-1">
+                                                    <Clock className="w-2.5 h-2.5" />
+                                                    {estimateReadTime(post.excerpt)} mnt
+                                                </span>
+                                            </div>
+
+                                            {/* Title */}
+                                            <h3 className="font-serif text-xl text-[#0f172a] group-hover:text-[#c09c53] transition-colors leading-snug mb-3 line-clamp-2">
+                                                {post.title}
+                                            </h3>
+
+                                            {/* Excerpt */}
+                                            <p className="text-slate-400 text-xs leading-relaxed line-clamp-2 mb-4">
+                                                {post.excerpt}
+                                            </p>
+
+                                            {/* Author */}
+                                            <div className="flex items-center gap-2 pt-4 border-t border-slate-100">
+                                                <div className="w-6 h-6 rounded-full bg-[#0f172a] flex items-center justify-center text-white text-[8px] font-bold shrink-0">
+                                                    {(post.author?.name || 'A').charAt(0)}
+                                                </div>
+                                                <span className="text-[9px] text-slate-400 font-bold">{post.author?.name || 'Tim Redaksi'}</span>
+                                            </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        {/* ── PAGINATION ── */}
+                        {totalPages > 1 && (
+                            <div className="flex justify-center items-center gap-2 border-t border-slate-100 pt-10">
+                                <button
+                                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                                    disabled={page === 1}
+                                    className="w-10 h-10 border border-slate-200 text-slate-400 hover:border-[#0f172a] hover:text-[#0f172a] disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
+                                >
+                                    ←
+                                </button>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                                    <button
+                                        key={p}
+                                        onClick={() => setPage(p)}
+                                        className={`w-10 h-10 text-sm font-bold transition-colors ${page === p
+                                            ? 'bg-[#0f172a] text-white'
+                                            : 'border border-slate-200 text-slate-400 hover:border-[#0f172a] hover:text-[#0f172a]'
+                                            }`}
+                                    >
+                                        {p}
+                                    </button>
+                                ))}
+                                <button
+                                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={page === totalPages}
+                                    className="w-10 h-10 border border-slate-200 text-slate-400 hover:border-[#0f172a] hover:text-[#0f172a] disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
+                                >
+                                    →
+                                </button>
                             </div>
-                        </Link>
-                    ))}
-                </div>
+                        )}
+                    </>
+                )}
 
-                {/* Pagination - Luxury Style */}
-                <div className="mt-24 flex justify-center gap-3">
-                    <button className="w-12 h-12 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-navy-950 hover:text-white hover:border-navy-950 transition duration-300">
-                        <ChevronLeft className="w-5 h-5" />
-                    </button>
-                    <button className="w-12 h-12 rounded-full bg-navy-950 text-white flex items-center justify-center text-sm font-bold shadow-lg shadow-navy-900/20">1</button>
-                    <button className="w-12 h-12 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-100 transition text-sm font-bold">2</button>
-                    <button className="w-12 h-12 rounded-full border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-100 transition text-sm font-bold">3</button>
-                    <span className="w-12 h-12 flex items-center justify-center text-slate-400 tracking-widest">...</span>
-                    <button className="w-12 h-12 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-navy-950 hover:text-white hover:border-navy-950 transition duration-300">
-                        <ChevronRight className="w-5 h-5" />
-                    </button>
-                </div>
-
-                {/* Support Us Banner */}
-                <div className="mt-32">
-                    <div className="bg-navy-950 rounded-[3rem] p-12 lg:p-20 text-white relative overflow-hidden text-center group">
-                        <div className="absolute inset-0 opacity-10 transition duration-1000 group-hover:scale-105" style={{ backgroundImage: "url('https://www.transparenttextures.com/patterns/arabesque.png')" }}></div>
-                        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gold-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-
-                        <div className="relative z-10 max-w-3xl mx-auto">
-                            <div className="w-20 h-20 bg-white/5 border border-white/10 rounded-full flex items-center justify-center mx-auto mb-8 text-accent-gold shadow-2xl ring-4 ring-white/5">
-                                <HeartHandshake className="w-10 h-10" />
-                            </div>
-                            <h3 className="font-display text-4xl lg:text-5xl mb-6">Dukung Peradaban Ilmu</h3>
-                            <p className="text-slate-300 mb-10 leading-relaxed text-lg font-light max-w-xl mx-auto">
-
-                                Jadilah bagian dari gerakan mencetak 1000 ulama dan teknokrat muslim masa depan.
-                            </p>
-                            <Link to="/donasi" className="inline-flex items-center px-10 py-5 bg-accent-gold text-navy-950 rounded-full font-bold text-sm uppercase tracking-[0.2em] hover:bg-white hover:text-navy-950 transition-all duration-300 shadow-xl hover:shadow-2xl">
-                                Support Us
+                {/* ── SUPPORT BANNER ── */}
+                <div className="mt-20 bg-white border border-slate-200 p-10 md:p-14 relative overflow-hidden">
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
+                        <div>
+                            <span className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-3 block">Ambil Bagian</span>
+                            <h3 className="font-serif text-3xl md:text-4xl text-[#0f172a]">
+                                Dukung Pendidikan<br />
+                                <span className="italic text-slate-400 font-normal">Santri Yatim Al-Bisri.</span>
+                            </h3>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-4 shrink-0">
+                            <Link
+                                to="/donasi"
+                                className="bg-[#0f172a] text-white px-8 py-4 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition-colors inline-flex items-center gap-2 justify-center"
+                            >
+                                <HeartHandshake className="w-4 h-4" /> Donasi Sekarang
+                            </Link>
+                            <Link
+                                to="/psb"
+                                className="border border-slate-300 text-[#0f172a] px-8 py-4 text-[10px] font-bold uppercase tracking-widest hover:bg-slate-50 transition-colors inline-flex items-center gap-2 justify-center"
+                            >
+                                Daftar Santri <ArrowRight className="w-3.5 h-3.5" />
                             </Link>
                         </div>
                     </div>
                 </div>
-
             </main>
 
             <PublicFooter />

@@ -1,49 +1,100 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
+
+const TESTIMONIALS = [
+  {
+    quote: "Alhamdulillah, melihat perkembangan anak-anak di sini sangat mengharukan. Mereka tidak hanya hafal Qur'an, tapi juga punya adab yang sangat santun.",
+    name: 'Hj. Fatimah',
+    role: 'Donatur Tetap',
+  },
+  {
+    quote: "Transparansi laporan keuangan Al-Bisri membuat saya percaya. Setiap rupiah benar-benar terlihat dampaknya untuk pendidikan adik-adik yatim.",
+    name: 'Bpk. Hendarman',
+    role: 'Wali Santri',
+  },
+  {
+    quote: "Lingkungan pesantren yang kondusif membuat kuliah saya tidak terganggu. Justru kajian kitab di sini menambah wawasan yang tidak saya dapatkan di kampus.",
+    name: 'Ahmad Fauzi',
+    role: 'Mahasantri',
+  },
+  {
+    quote: "Program beasiswa kader benar-benar mengubah hidup saya. Dari tidak tahu harus kemana, sekarang saya bisa hafal Qur'an dan lulus SMA dengan beasiswa penuh.",
+    name: 'Abdurrauf',
+    role: 'Alumni Santri Yatim',
+  },
+];
 
 const PublicTestimonials: React.FC = () => {
-  const testimonials = [
-    {
-      quote: "Alhamdulillah, melihat perkembangan anak-anak di sini sangat mengharukan. Mereka tidak hanya hafal Qur'an, tapi juga punya adab yang sangat santun.",
-      name: "Hj. Fatimah",
-      role: "Donatur Tetap",
-      // avatar: "https://placehold.co/100x100/e2e8f0/64748b?text=HF" // Placeholder or empty div as per design
-    },
-    {
-      quote: "Transparansi laporan keuangan Al-Bisri membuat saya percaya. Setiap rupiah benar-benar terlihat dampaknya untuk pendidikan adik-adik yatim.",
-      name: "Bpk. Hendarman",
-      role: "Wali Santri",
-      // avatar: "https://placehold.co/100x100/e2e8f0/64748b?text=BH"
-    }
-  ];
+  const sliderRef = useRef<HTMLDivElement>(null);
+
+  const scroll = (dir: 'left' | 'right') => {
+    if (!sliderRef.current) return;
+    const amount = 380;
+    sliderRef.current.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
+  };
 
   return (
-    <section id="testimoni" className="py-24 lg:py-32 px-6 lg:px-10 bg-parchment">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-16 animate-fade-in">
-          <span className="text-accent-gold text-xs font-bold uppercase tracking-[0.3em] mb-4 block">Suara Hati</span>
-          <h2 className="font-playfair text-4xl lg:text-5xl text-navy-900">Apa Kata Mereka?</h2>
-        </div>
+    <section id="testimoni" className="py-24 bg-white border-y border-slate-100 overflow-hidden">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex flex-col md:flex-row gap-12 lg:gap-20 items-start md:items-center">
 
-        {/* Mobile Slider / Desktop Grid */}
-        <div className="mobile-slider md:grid-cols-2 lg:gap-10 animate-slide-in">
-          {testimonials.map((item, index) => (
-            <div key={index} className="bg-white p-10 shadow-sm border border-slate-100 relative min-h-[280px]">
-              <div className="text-accent-gold text-6xl font-serif absolute top-4 left-6 opacity-20">"</div>
-              <p className="text-slate-600 italic mb-6 relative z-10 font-light leading-relaxed">
-                {item.quote}
-              </p>
-              <div className="flex items-center gap-4 mt-auto">
-                <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center text-slate-400 font-bold overflow-hidden">
-                  {/* Placeholder Avatar */}
-                  <span className="text-xs">{item.name.charAt(0)}</span>
-                </div>
-                <div>
-                  <h5 className="text-navy-900 font-bold text-sm">{item.name}</h5>
-                  <p className="text-slate-400 text-[10px] uppercase tracking-wider">{item.role}</p>
+          {/* Left: Title + Controls */}
+          <div className="w-full md:w-1/3 shrink-0">
+            <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4 flex items-center gap-3">
+              <span className="w-8 h-px bg-[#c09c53]" />
+              Saksi Kebaikan
+            </h4>
+            <h2 className="text-3xl font-serif text-[#0f172a] leading-tight mb-5">
+              Jejak Nyata<br />
+              <span className="italic text-slate-400 font-normal">Sebuah Amanah.</span>
+            </h2>
+            <p className="text-sm text-slate-500 leading-relaxed mb-8">
+              Kepercayaan donatur dan kepuasan santri adalah amanah utama yang kami jaga sepenuh hati.
+            </p>
+            {/* Arrow Controls */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => scroll('left')}
+                className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-[#0f172a] hover:border-[#0f172a] hover:bg-slate-50 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => scroll('right')}
+                className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:text-[#0f172a] hover:border-[#0f172a] hover:bg-slate-50 transition-colors"
+              >
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Right: Scrollable Slider */}
+          <div
+            ref={sliderRef}
+            className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-4 scrollbar-none flex-1"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {TESTIMONIALS.map((t, i) => (
+              <div
+                key={i}
+                className="snap-start shrink-0 w-[320px] bg-[#fafafa] border border-slate-100 p-8 hover:border-slate-200 hover:shadow-lg transition-all duration-300"
+              >
+                <div className="text-[#c09c53] text-5xl font-serif leading-none mb-4 opacity-30">"</div>
+                <p className="text-sm text-slate-600 italic leading-relaxed mb-8">
+                  {t.quote}
+                </p>
+                <div className="flex items-center gap-3 pt-5 border-t border-slate-100">
+                  <div className="w-9 h-9 rounded-full bg-[#0f172a] flex items-center justify-center text-white text-[11px] font-bold shrink-0">
+                    {t.name.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-[#0f172a]">{t.name}</p>
+                    <p className="text-[9px] text-[#c09c53] font-bold uppercase tracking-widest">{t.role}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </section>
