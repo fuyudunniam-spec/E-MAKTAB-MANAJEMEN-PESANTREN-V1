@@ -150,65 +150,55 @@ const AboutUsPage: React.FC = () => {
         </section>
 
         {/* ========================================== */}
-        {/* SECTION 3: BENTO GRID VISI & MISI          */}
+        {/* SECTION 3: EDITORIAL VISI & MISI           */}
         {/* ========================================== */}
-        <section className="py-24 lg:py-32 bg-white">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="mb-16 text-center max-w-2xl mx-auto">
-              <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4">Arah Perjuangan</h4>
-              <h2 className="text-4xl lg:text-5xl font-serif text-[#0f172a] mb-4">Visi &amp; Misi</h2>
-              <p className="text-slate-500 font-light text-lg">
-                Membangun fondasi ilmu dan akhlak untuk mencetak individu yang berdaya guna bagi masyarakat.
-              </p>
-            </div>
+        <section className="py-24 lg:py-40 bg-white relative overflow-hidden">
+          {/* Decorative Elements */}
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#c09c53]/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-slate-100 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
 
-            {/* BENTO GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-2 gap-4 lg:gap-6">
+          <div className="max-w-7xl mx-auto px-6 relative z-10">
+            <div className="grid lg:grid-cols-2 gap-20 lg:gap-32 items-center">
 
-              {/* Main Vision — wide & tall */}
-              <div className="md:col-span-2 md:row-span-2 bg-[#0f172a] text-white p-10 lg:p-14 rounded-[2rem] relative overflow-hidden group">
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10" />
-                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[#c09c53]/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 transition-transform duration-1000 group-hover:scale-150" />
+              {/* LEFT: VISI (Large Serif Quote style) */}
+              <div className="relative animate-fade-in-up">
+                <div className="flex items-center gap-4 mb-8">
+                  <span className="h-px w-12 bg-[#c09c53]" />
+                  <span className="text-[10px] font-bold text-[#c09c53] uppercase tracking-[0.3em]">Masa Depan Kami</span>
+                </div>
 
-                <div className="relative z-10 h-full flex flex-col justify-between">
-                  <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mb-16 backdrop-blur-md">
-                    <Eye className="w-6 h-6 text-[#c09c53]" />
-                  </div>
-                  <div>
-                    <h3 className="text-[10px] font-bold text-[#c09c53] uppercase tracking-widest mb-4">Visi Utama</h3>
-                    <p className="text-3xl lg:text-4xl xl:text-5xl font-serif leading-[1.2] italic text-white/90">
-                      "{sanityData?.aboutPage?.vision?.mainVision || 'Menjadi pusat pendidikan Islam terpadu yang melahirkan generasi muslim mandiri, berakhlak mulia, dan berwawasan luas.'}"
-                    </p>
-                  </div>
+                <div className="relative">
+                  <span className="absolute -top-12 -left-8 text-[12rem] font-serif text-slate-100 leading-none select-none pointer-events-none">“</span>
+                  <h2 className="text-4xl md:text-5xl lg:text-6xl font-serif text-[#0f172a] leading-[1.2] italic relative z-10">
+                    {sanityData?.aboutPage?.vision?.mainVision || 'Menjadi pusat pendidikan Islam terpadu yang melahirkan generasi muslim mandiri, berakhlak mulia, dan berwawasan luas.'}
+                  </h2>
+                  <h3 className="mt-8 text-xl text-slate-400 font-light">— Visi Utama Al-Bisri</h3>
                 </div>
               </div>
 
-              {/* Mission Point 1 */}
-              <div className="bg-[#fafafa] p-8 lg:p-10 rounded-[2rem] border border-slate-100 hover:border-[#c09c53]/50 hover:bg-white transition-colors shadow-sm">
-                <div className="w-10 h-10 bg-white border border-slate-200 rounded-full flex items-center justify-center mb-6 shadow-sm">
-                  <span className="font-serif font-bold text-[#0f172a]">1</span>
+              {/* RIGHT: MISI (Staggered elegant list) */}
+              <div className="flex flex-col gap-12 animate-fade-in-up delay-200">
+                <div className="space-y-16">
+                  {(sanityData?.aboutPage?.mission?.points || [
+                    'Menyelenggarakan pendidikan yang mengintegrasikan tradisi keilmuan klasik dan pengetahuan modern.',
+                    'Membangun kemandirian hidup santri melalui program keterampilan dan kewirausahaan.',
+                    'Menjadi lembaga yang amanah dan profesional dalam mengelola kontribusi umat untuk pendidikan anak yatim.'
+                  ]).map((point: string, idx: number) => (
+                    <div key={idx} className={`flex gap-8 group ${idx % 2 !== 0 ? 'lg:pl-12' : ''}`}>
+                      <div className="shrink-0">
+                        <div className="w-16 h-16 rounded-full border border-slate-100 flex items-center justify-center text-2xl font-serif text-[#c09c53] group-hover:bg-[#c09c53] group-hover:text-white transition-all duration-500 shadow-sm bg-white">
+                          0{idx + 1}
+                        </div>
+                      </div>
+                      <div className="pt-2">
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Misi ke-{idx + 1}</h4>
+                        <p className="text-lg md:text-xl text-slate-600 leading-relaxed font-light group-hover:text-[#0f172a] transition-colors duration-500">
+                          {point}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <p className="text-sm lg:text-base text-slate-600 leading-relaxed font-light">
-                  {sanityData?.aboutPage?.mission?.points?.[0] ||
-                    'Menyelenggarakan pendidikan yang mengintegrasikan tradisi keilmuan klasik dan pengetahuan modern.'}
-                </p>
-              </div>
-
-              {/* Mission Point 2 & 3 */}
-              <div className="bg-[#c09c53] text-[#0f172a] p-8 lg:p-10 rounded-[2rem] shadow-lg shadow-[#c09c53]/20">
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center mb-6">
-                  <Target className="w-5 h-5" />
-                </div>
-                <ul className="space-y-4">
-                  <li className="text-sm font-medium leading-relaxed">
-                    {sanityData?.aboutPage?.mission?.points?.[1] ||
-                      'Membangun kemandirian hidup santri melalui program keterampilan dan kewirausahaan.'}
-                  </li>
-                  <li className="text-sm font-medium leading-relaxed pt-4 border-t border-[#0f172a]/10">
-                    {sanityData?.aboutPage?.mission?.points?.[2] ||
-                      'Menjadi lembaga yang amanah dan profesional dalam mengelola kontribusi umat untuk pendidikan anak yatim.'}
-                  </li>
-                </ul>
               </div>
 
             </div>

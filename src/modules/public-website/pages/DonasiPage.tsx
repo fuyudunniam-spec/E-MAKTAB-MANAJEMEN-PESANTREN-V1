@@ -259,65 +259,80 @@ export default function DonasiPage() {
           {/* ========================================== */}
           {/* SECTION 2: BUKTI DOA & FORM (SIDE BY SIDE) */}
           {/* ========================================== */}
-          <section className="max-w-7xl mx-auto px-6 animate-fade-in-up delay-200" ref={formRef}>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
+          <section className="max-w-7xl mx-auto px-6 relative z-10 -mt-10 mb-24 animate-fade-in-up delay-200" ref={formRef}>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch">
 
-              {/* LEFT: BUKU DOA SANTRI */}
-              <div className="lg:col-span-5 bg-white/80 backdrop-blur-md border border-slate-200 p-8 md:p-10 shadow-lg shadow-slate-200/40 rounded-2xl hover:shadow-xl transition-shadow duration-500">
-                <div className="flex items-center gap-3 mb-8 border-b border-slate-100 pb-4">
-                  <div className="w-8 h-8 rounded bg-slate-50 border border-slate-100 flex items-center justify-center relative shadow-inner">
-                    <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                    <BookOpen className="w-4 h-4 text-[#0f172a]" />
-                  </div>
-                  <h3 className="font-serif text-xl text-[#0f172a]">Buku Doa Santri</h3>
-                </div>
+              {/* LEFT: BUKU DOA SANTRI (Sacred parchment look) */}
+              <div className="lg:col-span-5 bg-[#fdfaf3] border border-[#e8dfc9] p-8 md:p-12 shadow-2xl shadow-[#0f172a]/10 rounded-[2.5rem] relative overflow-hidden flex flex-col group">
+                {/* Parchment Texture Overlay */}
+                <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/natural-paper.png')]" />
 
-                <p className="text-xs text-slate-500 leading-relaxed mb-8 bg-[#fafafa] p-4 border-l-2 border-[#c09c53] rounded-r-lg">
-                  Setiap donasi dan titipan doa Anda akan dicatat dan diaminkan secara khusus oleh para santri ba'da shalat Maghrib berjamaah.
-                </p>
-
-                <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar" style={{ scrollbarWidth: 'thin', scrollbarColor: '#d6d3d1 transparent' }}>
-                  {socialProof.length === 0 ? (
-                    <div className="text-center py-8 text-slate-400 text-xs">
-                      Belum ada doa hari ini.
-                    </div>
-                  ) : (
-                    socialProof.map((item) => (
-                      <div key={item.id} className="border-b border-slate-100 pb-6 last:border-0 last:pb-0 hover:bg-slate-50/50 p-2 -mx-2 rounded-lg transition-colors">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-bold text-[#0f172a] flex items-center gap-2">
-                            {item.nama_tampil}
-                            {item.tipe === 'donasi' && <Check className="w-3 h-3 text-[#c09c53]" />}
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{timeAgo(item.created_at)}</span>
-                        </div>
-                        {item.tipe === 'donasi' && item.nominal && (
-                          <span className="inline-block px-2 py-1 bg-[#f9f5ec] text-[#a38240] text-[10px] font-bold uppercase tracking-widest mb-3 rounded-sm">
-                            Mendukung {formatRp(item.nominal)}
-                          </span>
-                        )}
-                        {item.pesan_doa && (
-                          <div className="flex items-start gap-3 mt-1 bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
-                            <MessageCircle className="w-3.5 h-3.5 text-slate-300 mt-0.5 shrink-0" />
-                            <p className="text-xs text-slate-600 italic leading-relaxed">
-                              "{item.pesan_doa}"
-                            </p>
-                          </div>
-                        )}
+                <div className="relative z-10 flex-1 flex flex-col">
+                  <div className="flex items-center justify-between mb-8 pb-6 border-b border-[#e8dfc9]">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-white border border-[#e8dfc9] flex items-center justify-center shadow-sm">
+                        <BookMarked className="w-6 h-6 text-[#c09c53]" />
                       </div>
-                    ))
-                  )}
-                </div>
+                      <div>
+                        <h3 className="font-serif text-2xl text-[#0f172a] leading-none mb-1">Buku Doa Santri</h3>
+                        <p className="text-[9px] uppercase tracking-widest text-[#a38240] font-bold">Khidmah & Doa Bersama</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1 bg-white/50 rounded-full border border-[#e8dfc9]">
+                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Live</span>
+                    </div>
+                  </div>
 
-                <div className="mt-8 pt-8 border-t border-slate-100">
-                  <DoandaloneForm />
+                  <div className="bg-white/40 p-5 rounded-2xl border border-[#e8dfc9] mb-10 italic text-[#0f172a]/80 text-sm leading-relaxed font-light relative">
+                    <span className="absolute -top-3 left-4 bg-[#fdfaf3] px-2 text-[9px] font-bold text-[#c09c53] uppercase tracking-widest">Amanah Kami</span>
+                    "Setiap titipan doa Anda akan dicatat dan dilantunkan secara khusus oleh para santri ba'da shalat Maghrib berjamaah."
+                  </div>
+
+                  <div className="space-y-6 flex-1 overflow-y-auto pr-4 custom-scrollbar max-h-[450px]" style={{ scrollbarWidth: 'thin', scrollbarColor: '#c09c53 transparent' }}>
+                    {socialProof.length === 0 ? (
+                      <div className="text-center py-12 text-stone-400 text-sm font-light italic">
+                        Menunggu lantunan doa pertama hari ini...
+                      </div>
+                    ) : (
+                      socialProof.map((item) => (
+                        <div key={item.id} className="relative pl-6 border-l border-[#e8dfc9] pb-8 last:pb-0 group/item">
+                          <div className="absolute -left-[5px] top-1 w-2 h-2 rounded-full bg-[#c09c53] border-4 border-[#fdfaf3] group-hover/item:scale-150 transition-transform" />
+
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-bold text-[#0f172a] font-serif">
+                              {item.nama_tampil}
+                            </span>
+                            <span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">{timeAgo(item.created_at)}</span>
+                          </div>
+
+                          {item.tipe === 'donasi' && item.nominal && (
+                            <div className="mb-3 inline-flex items-center gap-2 text-[9px] font-bold text-[#c09c53] uppercase tracking-widest bg-[#c09c53]/5 px-2 py-1 rounded">
+                              <Sparkles className="w-3 h-3" /> Mendukung {formatRp(item.nominal)}
+                            </div>
+                          )}
+
+                          {item.pesan_doa && (
+                            <div className="bg-white/60 p-4 rounded-xl border border-[#e8dfc9]/50 shadow-sm group-hover/item:border-[#c09c53]/30 transition-colors">
+                              <p className="text-sm text-stone-600 italic leading-relaxed font-light">
+                                "{item.pesan_doa}"
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="mt-10 pt-8 border-t border-[#e8dfc9]">
+                    <DoandaloneForm />
+                  </div>
                 </div>
               </div>
 
-
-              {/* RIGHT: DONATION WIDGET */}
-              <div className="lg:col-span-7">
-                <div className="bg-white border border-slate-200 shadow-2xl shadow-[#0f172a]/5 rounded-2xl overflow-hidden transform hover:-translate-y-1 transition-transform duration-500">
+              {/* RIGHT: DONATION WIDGET (Clean professional card) */}
+              <div className="lg:col-span-7 flex flex-col">
+                <div className="bg-white border border-slate-200 shadow-[0_32px_64px_-16px_rgba(15,23,42,0.1)] rounded-[2.5rem] overflow-hidden flex-1 flex flex-col h-full transform hover:-translate-y-1 transition-transform duration-500">
 
                   {/* Widget Header Progress */}
                   {!submitSuccess && (

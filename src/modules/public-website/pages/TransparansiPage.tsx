@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { Layers, ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronLeft, ChevronRight, Loader2, ArrowRight, Download, FileText, ShieldCheck, BookOpen, Home, Zap } from 'lucide-react';
+import { Layers, ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronLeft, ChevronRight, Loader2, ArrowRight, Download, FileText, ShieldCheck, BookOpen, Utensils, GraduationCap, HeartHandshake, Settings2 } from 'lucide-react';
 import { Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { useQuery } from '@tanstack/react-query';
@@ -16,14 +16,14 @@ ChartJS.register(ArcElement, ChartTooltip, Legend, CategoryScale, LinearScale, B
 
 interface KategoriItem { nama: string; jumlah: number; persen?: number }
 
-const KATEGORI_ICONS = [Zap, BookOpen, Home, ShieldCheck];
+// More elegant & specific icons matching the categories
+const KATEGORI_ICONS = [Utensils, Settings2, GraduationCap, HeartHandshake];
+// Unified elegant colors
 const KATEGORI_COLORS = [
-  'bg-amber-50 text-amber-600',
-  'bg-emerald-50 text-emerald-600',
-  'bg-sky-50 text-sky-600',
-  'bg-violet-50 text-violet-600',
-  'bg-rose-50 text-rose-600',
-  'bg-orange-50 text-orange-600',
+  'bg-[#c09c53]/10 text-[#c09c53]',
+  'bg-slate-100 text-slate-600',
+  'bg-[#c09c53]/10 text-[#c09c53]',
+  'bg-slate-100 text-slate-600',
 ];
 
 const formatRpCompact = (v: number) =>
@@ -33,8 +33,8 @@ const KategoriCard = ({ k, i }: { k: KategoriItem; i: number }) => {
   const Icon = KATEGORI_ICONS[i % KATEGORI_ICONS.length];
   const colorClass = KATEGORI_COLORS[i % KATEGORI_COLORS.length];
   return (
-    <div className="bg-white rounded-2xl border border-stone-100 p-6 shadow-sm h-full flex flex-col">
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 ${colorClass}`}>
+    <div className="bg-white rounded-2xl border border-stone-100 p-6 shadow-sm h-full flex flex-col group hover:shadow-md transition-shadow">
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 ${colorClass}`}>
         <Icon className="w-5 h-5" />
       </div>
       <p className="text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-1">{k.nama}</p>
@@ -254,6 +254,7 @@ const TransparansiPage: React.FC = () => {
 
       {/* HEADER: IMPACT STATEMENT */}
       <header className="pt-32 pb-16 lg:pt-40 lg:pb-24 px-6 bg-[#0f172a] text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }} />
         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#c09c53]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
 
         <div className="max-w-7xl mx-auto relative z-10">
