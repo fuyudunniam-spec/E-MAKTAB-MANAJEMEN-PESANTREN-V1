@@ -35,44 +35,53 @@ async function uploadImage(filePath) {
 const siteSettingsData = {
     _id: 'siteSettings',
     _type: 'siteSettings',
+    title: 'Pesantren Al-Bisri',
+    description: 'Pusat pendidikan terpadu yang memadukan khazanah keilmuan Islam klasik dengan wawasan modern, mencetak santri yatim yang mandiri, berkarakter, dan berdaya saing.',
     brand: {
-        title: 'Al-Bisri',
-        subtitle: 'Foundation',
-        description: 'Mewujudkan peradaban ilmu dan kemandirian ekonomi umat melalui sinergi pendidikan berkualitas.'
+        title: 'Al-Bisri.',
+        subtitle: 'Yayasan Pesantren Yatim',
+        description: 'Berdedikasi untuk melahirkan generasi muslim yang mandiri, beradab, dan berwawasan global melalui sinergi pendidikan salaf dan kurikulum modern.'
     },
     supervision: {
-        label: 'Supervisi',
+        label: 'Di bawah Pembinaan',
         value: 'Pesantren Mahasiswa An-Nur'
     },
     headerMenu: [
         { _key: 'menu1', title: 'Profil', link: '/tentang-kami' },
-        { _key: 'menu2', title: 'Program', link: '/#program' },
+        { _key: 'menu2', title: 'Program', link: '/program' },
         { _key: 'menu3', title: 'Transparansi', link: '/transparansi' },
         { _key: 'menu4', title: 'PSB', link: '/psb' },
         { _key: 'menu5', title: 'Login', link: '/emaktab' },
         { _key: 'menu6', title: 'Donasi', link: '/donasi' },
     ],
     footerMenu: [
-        { _key: 'fmenu1', title: 'Profil Lembaga', link: '/tentang-kami' },
-        { _key: 'fmenu2', title: 'Filosofi & Visi', link: '/tentang-kami#filosofi' },
-        { _key: 'fmenu3', title: 'Struktur Pengurus', link: '/tentang-kami#struktur' },
-        { _key: 'fmenu4', title: 'Penerimaan Santri', link: '/psb' },
-        { _key: 'fmenu5', title: 'Laporan Keuangan', link: '/transparansi' },
+        { _key: 'fmenu1', title: 'Beranda', link: '/' },
+        { _key: 'fmenu2', title: 'Profil Lembaga', link: '/tentang-kami' },
+        { _key: 'fmenu3', title: 'Program Pendidikan', link: '/program' },
+        { _key: 'fmenu4', title: 'Berita & Pemikiran', link: '/berita' },
+        { _key: 'fmenu5', title: 'Transparansi Keuangan', link: '/transparansi' },
+    ],
+    admisiMenu: [
+        { _key: 'amenu1', title: 'Santri Yatim (Beasiswa)', link: '/psb?jalur=yatim' },
+        { _key: 'amenu2', title: 'Pesantren Mahasiswa', link: '/psb?jalur=mahasiswa' },
+        { _key: 'amenu3', title: 'Program TPQ', link: '/psb?jalur=tpq' },
+        { _key: 'amenu4', title: 'Donasi & Wakaf', link: '/donasi' },
+        { _key: 'amenu5', title: 'Login E-Maktab', link: '/emaktab' },
     ],
     location: {
         title: 'Lokasi Kami',
         mapUrl: 'https://maps.google.com',
         mapEmbedUrl: 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3952.999789332214!2d110.3695!3d-7.7956!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zN8KwNDcnNDQuMiJTIDExMMKwMjInMTAuMiJF!5e0!3m2!1sen!2sid!4v1625634589000!5m2!1sen!2sid',
-        address: 'Jl. Contoh Pesantren No. 123, Kelurahan Ngrukem,\nSewon, Bantul, D.I. Yogyakarta 55188'
+        address: 'Perum IKIP C-92, Gunung Anyar\nSurabaya, Jawa Timur 60294'
     },
     socialMedia: [
-        { _key: 'soc1', platform: 'Instagram', url: 'https://instagram.com' },
-        { _key: 'soc2', platform: 'Youtube', url: 'https://youtube.com' },
-        { _key: 'soc3', platform: 'Email', url: 'mailto:info@albisri.com' },
+        { _key: 'soc1', platform: 'Instagram', url: '#' },
+        { _key: 'soc2', platform: 'Youtube', url: '#' },
+        { _key: 'soc3', platform: 'Email', url: 'mailto:info@albisri.id' },
     ],
     contactInfo: {
-        phone: '',
-        email: 'info@albisri.com'
+        phone: '+62 812-XXXX-XXXX',
+        email: 'info@albisri.id'
     }
 }
 

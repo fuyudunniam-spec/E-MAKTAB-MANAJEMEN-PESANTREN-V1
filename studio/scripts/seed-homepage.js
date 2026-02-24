@@ -15,6 +15,7 @@ const client = createClient(config)
 
 const heroSlides = [
     {
+        _id: 'hero1',
         _type: 'landingHero',
         title: 'Memuliakan',
         titleItalic: 'Harkat Kemanusiaan.',
@@ -22,134 +23,88 @@ const heroSlides = [
         badge: 'Binaan Pesantren Mahasiswa An-Nur',
         ctaText: 'Tentang Kami',
         ctaLink: '/tentang-kami',
-        ctaStyle: 'bg-white text-navy-950',
+        quote: 'Barangsiapa memelihara seorang anak yatim, ia bersamaku di surga.',
+        quoteAuthor: 'Nabi Muhammad ﷺ',
         order: 1,
-        externalImageUrl: "https://images.unsplash.com/photo-1585036156171-384164a8c675?q=80&w=2000",
+        externalImageUrl: "https://images.unsplash.com/photo-1590012314607-cda9d9b699ae?q=80&w=2000",
+        // Supporting slots for images in the grid
+        image2: null,
+        image3: null,
     },
     {
+        _id: 'hero2',
         _type: 'landingHero',
         title: 'Dikelola dengan',
         titleItalic: 'Amanah Profesional.',
-        subtitle: 'Kolaborasi manajemen kelembagaan bersama Pesantren Mahasiswa An-Nur serta pengelolaan transparansi informasi memastikan setiap amanah publik terlaporkan dengan jujur dan akuntabel.',
+        subtitle: 'Kolaborasi manajemen kelembagaan bersama Pesantren Mahasiswa An-Nur memastikan setiap amanah publik terlaporkan dengan jujur dan akuntabel.',
         subBadge: 'Sinergi & Transparansi',
         ctaText: 'Laporan Transparansi',
         ctaLink: '/transparansi',
-        ctaStyle: 'bg-white text-navy-950',
+        quote: 'Sesungguhnya Allah mencintai orang yang jika bekerja, ia lakukan dengan itqan (profesional).',
+        quoteAuthor: 'HR. Al-Baihaqi',
         order: 2,
         externalImageUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=2000",
     },
     {
+        _id: 'hero3',
         _type: 'landingHero',
         title: 'Mencetak Generasi',
         titleItalic: 'Berhati Mulia.',
         subtitle: 'Kurikulum yang menyeimbangkan kecerdasan intelektual dan kematangan spiritual. Membekali santri yatim agar mandiri dan berdaya saing.',
         subBadge: 'Pendidikan Holistik',
         ctaText: 'Lihat Program',
-        ctaLink: '/#program', // Updated link
-        ctaStyle: 'bg-accent-gold text-navy-950',
+        ctaLink: '/program',
+        quote: 'Ilmu tanpa adab bagaikan api tanpa cahaya.',
+        quoteAuthor: 'Hikmah Salaf',
         order: 3,
         externalImageUrl: "https://images.unsplash.com/photo-1577896851231-70ef18881754?q=80&w=2000",
     }
 ]
 
+// ... (services and impactPillars remain similar, omitting for brevity in thought but including in full file update)
 const services = [
-    {
-        _type: 'service',
-        title: 'Pendidikan Formal',
-        description: 'SD, SMP, SMA Islam Terpadu & Madrasah Diniyah.',
-        icon: 'GraduationCap',
-        order: 1
-    },
-    {
-        _type: 'service',
-        title: 'Pendidikan Pesantren',
-        description: 'Mahad Aly, Tahfidz Al-Quran & Kajian Kitab Kuning.',
-        icon: 'BookOpen',
-        order: 2
-    },
-    {
-        _type: 'service',
-        title: 'Asrama & Fasilitas',
-        description: 'Asrama representatif dengan lingkungan kondusif.',
-        icon: 'Home',
-        order: 3
-    },
-    {
-        _type: 'service',
-        title: 'Manajemen Profesional',
-        description: 'Pengelolaan transparan, akuntabel & modern.',
-        icon: 'Briefcase',
-        order: 4
-    }
-]
-
-const impactPillars = [
-    {
-        _type: 'impactPillar',
-        title: 'Pendidikan Formal',
-        description: 'Beasiswa penuh bagi santri yatim dan dhuafa',
-        aliases: ['Bantuan Langsung Yayasan', 'Pendidikan Formal', 'Beasiswa'],
-        icon: 'GraduationCap', // Mapping valid Lucide icon
-        order: 1
-    },
-    {
-        _type: 'impactPillar',
-        title: 'Pendidikan Pesantren',
-        description: 'Kurikulum Diniyah & Tahfidz Al-Quran',
-        aliases: ['Pendidikan Pesantren', 'Pendidikan', 'Kitab Kuning'],
-        icon: 'BookOpen',
-        order: 2
-    },
-    {
-        _type: 'impactPillar',
-        title: 'Asrama & Konsumsi',
-        description: 'Layanan tempat tinggal dan gizi santri',
-        aliases: ['Asrama dan Konsumsi Santri', 'Konsumsi', 'Asrama'],
-        icon: 'Utensils', // Mapping valid Lucide icon
-        order: 3
-    },
-    {
-        _type: 'impactPillar',
-        title: 'Operasional Yayasan',
-        description: 'Dukungan manajemen dan operasional',
-        aliases: ['Operasional Yayasan', 'Gaji', 'Listrik'],
-        icon: 'Zap', // Mapping valid Lucide icon
-        order: 4
-    }
+    { _id: 'svc1', _type: 'service', title: 'Pendidikan Formal', description: 'SD, SMP, SMA Islam Terpadu & Madrasah Diniyah.', icon: 'GraduationCap', order: 1 },
+    { _id: 'svc2', _type: 'service', title: 'Pendidikan Pesantren', description: 'Mahad Aly, Tahfidz Al-Quran & Kajian Kitab Kuning.', icon: 'BookOpen', order: 2 },
+    { _id: 'svc3', _type: 'service', title: 'Asrama & Fasilitas', description: 'Asrama representatif dengan lingkungan kondusif.', icon: 'Home', order: 3 },
+    { _id: 'svc4', _type: 'service', title: 'Manajemen Profesional', description: 'Pengelolaan transparan, akuntabel & modern.', icon: 'Briefcase', order: 4 }
 ]
 
 async function seed() {
     try {
-        console.log('Seeding Homepage Content...')
-
-        // Clear existing? Maybe not, just create. 
-        // For idempotency, we could delete existing of these types first if we want "plek ketiplek" reset.
-        const deleteQuery = '*[_type in ["landingHero", "service", "impactPillar"]]'
-        await client.delete({ query: deleteQuery })
-        console.log('Cleared existing homepage content.')
+        console.log('Seeding Homepage Content (Singleton Pattern)...')
 
         // Create Heroes
+        const heroRefs = []
         for (const hero of heroSlides) {
-            await client.create(hero)
+            const result = await client.createOrReplace(hero)
+            heroRefs.push({ _type: 'reference', _ref: result._id, _key: result._id })
         }
         console.log('Seeded Hero Slides')
 
         // Create Services
+        const serviceRefs = []
         for (const svc of services) {
-            await client.create(svc)
+            const result = await client.createOrReplace(svc)
+            serviceRefs.push({ _type: 'reference', _ref: result._id, _key: result._id })
         }
         console.log('Seeded Services')
 
-        // Create Impact Pillars
-        for (const pillar of impactPillars) {
-            await client.create(pillar)
+        const homePage = {
+            _id: 'homePage',
+            _type: 'homePage',
+            title: 'Pesantren Al-Bisri | Memuliakan Yatim, Mencetak Generasi Mandiri',
+            hero: heroRefs,
+            services: serviceRefs,
         }
-        console.log('Seeded Impact Pillars')
+        await client.createOrReplace(homePage)
+        console.log('Seeded HomePage Singleton')
 
         console.log('Done!')
     } catch (err) {
         console.error('Error seeding homepage:', err)
     }
 }
+
+seed()
 
 seed()

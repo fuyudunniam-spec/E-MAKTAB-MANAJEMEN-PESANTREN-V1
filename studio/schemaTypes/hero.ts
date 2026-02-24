@@ -34,15 +34,36 @@ export default defineType({
         }),
         defineField({
             name: 'backgroundImage',
-            title: 'Background Image',
+            title: 'Background Image 1 (Large)',
             type: 'image',
-            options: {
-                hotspot: true,
-            },
+            options: { hotspot: true },
+        }),
+        defineField({
+            name: 'image2',
+            title: 'Background Image 2 (Small Top)',
+            type: 'image',
+            options: { hotspot: true },
+        }),
+        defineField({
+            name: 'image3',
+            title: 'Background Image 3 (Small Bottom)',
+            type: 'image',
+            options: { hotspot: true },
         }),
         defineField({
             name: 'externalImageUrl',
-            title: 'External Image URL (Unsplash)',
+            title: 'External Image URL (Fallback 1)',
+            type: 'url',
+        }),
+        defineField({
+            name: 'quote',
+            title: 'Quote / Hadith',
+            type: 'text',
+            rows: 2,
+        }),
+        defineField({
+            name: 'quoteAuthor',
+            title: 'Quote Author',
             type: 'string',
         }),
         defineField({
@@ -54,17 +75,6 @@ export default defineType({
             name: 'ctaLink',
             title: 'Button Link',
             type: 'string',
-        }),
-        defineField({
-            name: 'ctaStyle',
-            title: 'Button Style',
-            type: 'string',
-            options: {
-                list: [
-                    { title: 'White (Outline/Solid)', value: 'bg-white text-navy-950' },
-                    { title: 'Gold (Solid)', value: 'bg-accent-gold text-navy-950' },
-                ]
-            }
         }),
         defineField({
             name: 'order',

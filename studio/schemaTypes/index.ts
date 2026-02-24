@@ -11,6 +11,7 @@ import aboutPage from './aboutPage'
 import psbPage from './psbPage'
 import service from './service'
 import impactPillar from './impactPillar'
+import homePage from './homePage'
 
 export const schemaTypes = [
     siteSettings,
@@ -26,4 +27,5 @@ export const schemaTypes = [
     facility,
     service,
     impactPillar,
+    homePage,
 ]

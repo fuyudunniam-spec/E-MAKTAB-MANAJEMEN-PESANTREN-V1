@@ -26,12 +26,12 @@ const PublicFooter: React.FC = () => {
   const footerMenu = footerData?.footerMenu || [
     { title: 'Beranda', link: '/' },
     { title: 'Profil Lembaga', link: '/tentang-kami' },
-    { title: 'Program Pendidikan', link: '/akademik' },
+    { title: 'Program Pendidikan', link: '/program' },
     { title: 'Berita & Pemikiran', link: '/berita' },
     { title: 'Transparansi Keuangan', link: '/transparansi' },
   ];
 
-  const admisiMenu = [
+  const admisiMenu = footerData?.admisiMenu || [
     { title: 'Santri Yatim (Beasiswa)', link: '/psb?jalur=yatim' },
     { title: 'Pesantren Mahasiswa', link: '/psb?jalur=mahasiswa' },
     { title: 'Program TPQ', link: '/psb?jalur=tpq' },

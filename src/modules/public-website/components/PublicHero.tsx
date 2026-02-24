@@ -83,12 +83,12 @@ const PublicHero: React.FC<PublicHeroProps> = ({ data }) => {
             desc: s.subtitle || '',
             ctaText: s.ctaText || 'Selengkapnya',
             ctaLink: s.ctaLink || '/',
-            quote: 'Barangsiapa memelihara seorang anak yatim, ia bersamaku di surga.',
-            quoteAuthor: 'Nabi Muhammad ﷺ',
+            quote: s.quote || STATIC_SLIDES[0].quote,
+            quoteAuthor: s.quoteAuthor || STATIC_SLIDES[0].quoteAuthor,
             images: [
-                s.externalImageUrl || (s.backgroundImage ? SanityService.imageUrl(s.backgroundImage) : STATIC_SLIDES[0].images[0]),
-                STATIC_SLIDES[0].images[1],
-                STATIC_SLIDES[0].images[2],
+                s.backgroundImage ? SanityService.imageUrl(s.backgroundImage) : (s.externalImageUrl || STATIC_SLIDES[0].images[0]),
+                s.image2 ? SanityService.imageUrl(s.image2) : STATIC_SLIDES[0].images[1],
+                s.image3 ? SanityService.imageUrl(s.image3) : STATIC_SLIDES[0].images[2],
             ]
         }))
         : STATIC_SLIDES;

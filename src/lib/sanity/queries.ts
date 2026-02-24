@@ -1,13 +1,13 @@
 import groq from 'groq'
 
 // Landing Page Queries
-export const LANDING_PAGE_QUERY = groq`{
-  "hero": *[_type == "landingHero"] | order(order asc),
-  "services": *[_type == "service"] | order(order asc),
-  "impactPillars": *[_type == "impactPillar"] | order(order asc),
+export const LANDING_PAGE_QUERY = groq`*[_type == "homePage"][0]{
+  title,
+  "hero": hero[]->,
   "history": *[_type == "aboutPage"][0].history,
+  "services": services[]->,
+  "impactPillars": *[_type == "impactPillar"] | order(order asc),
   "partners": *[_type == "partner"],
-
   "testimonials": *[_type == "testimonial"]
 }`
 

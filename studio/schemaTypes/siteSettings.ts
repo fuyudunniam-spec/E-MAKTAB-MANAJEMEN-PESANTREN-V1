@@ -75,6 +75,22 @@ export default defineType({
             ],
         }),
         defineField({
+            name: 'admisiMenu',
+            title: 'Menu Footer (Admisi)',
+            type: 'array',
+            of: [
+                {
+                    type: 'object',
+                    name: 'menuItem',
+                    title: 'Menu Item',
+                    fields: [
+                        { name: 'title', type: 'string', title: 'Judul' },
+                        { name: 'link', type: 'string', title: 'Link / URL' },
+                    ],
+                },
+            ],
+        }),
+        defineField({
             name: 'location',
             title: 'Lokasi (Footer)',
             type: 'object',
