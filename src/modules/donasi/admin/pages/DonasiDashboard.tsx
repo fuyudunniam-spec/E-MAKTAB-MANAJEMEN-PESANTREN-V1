@@ -16,6 +16,14 @@ import {
 } from '@/modules/donasi/services/donasi.service';
 import { DnsSubmissionService, type DnsSubmission, DnsDoaAdminService, type DnsDoaPublik } from '@/modules/donasi/services/dns.service';
 import { AkunKasService } from '@/modules/keuangan/services/akunKas.service';
+import { DonasiInputForm } from '@/modules/donasi/admin/components/DonasiInputForm';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog';
 
 // ================================================
 // HELPERS
@@ -65,120 +73,7 @@ function MetricCard({ label, value, icon: Icon, colorClass, borderClass }: any) 
 // QUICK OFFLINE FORM
 // ================================================
 
-function QuickOfflineForm({ akunKasList, onSuccess }: { akunKasList: any[]; onSuccess: (result: any) => void }) {
-  const [nama, setNama] = useState('');
-  const [noWa, setNoWa] = useState('');
-  const [nominal, setNominal] = useState('');
-  const [catatan, setCatatan] = useState('');
-  const [pesanDoa, setPesanDoa] = useState('');
-  const [akunKasId, setAkunKasId] = useState('');
-  const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
-  const [expanded, setExpanded] = useState(false);
-
-  const mOffline = useMutation({
-    mutationFn: () => DnsSubmissionService.postOffline({
-      nama: nama.trim(),
-      no_wa: noWa.trim() || undefined,
-      nominal: parseInt(nominal.replace(/\D/g, ''), 10),
-      catatan: catatan.trim() || undefined,
-      pesan_doa: pesanDoa.trim() || undefined,
-      akun_kas_id: akunKasId || undefined,
-      tanggal,
-    }),
-    onSuccess: (data) => {
-      toast.success(`Donasi offline ${nama} dicatat!`);
-      onSuccess(data);
-      setNama(''); setNoWa(''); setNominal(''); setCatatan(''); setPesanDoa(''); setAkunKasId('');
-      setTanggal(new Date().toISOString().slice(0, 10));
-    },
-    onError: (e: any) => toast.error(e?.message || 'Gagal mencatat donasi offline'),
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const n = parseInt(nominal.replace(/\D/g, ''), 10);
-    if (!nama.trim()) return toast.error('Nama harus diisi');
-    if (!n || n < 1000) return toast.error('Nominal minimal Rp 1.000');
-    mOffline.mutate();
-  };
-
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <button
-        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 transition-colors"
-        onClick={() => setExpanded(v => !v)}
-      >
-        <div className="flex items-center gap-2">
-          <HandCoins className="w-4 h-4 text-emerald-600" />
-          <span className="font-semibold text-slate-800 text-sm">Catat Donasi Offline / Tunai</span>
-        </div>
-        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-      </button>
-
-      {expanded && (
-        <form onSubmit={handleSubmit} className="px-5 pb-5 space-y-3 border-t border-slate-100 pt-4">
-          <p className="text-xs text-slate-400">
-            Jika No. WA sudah ada di database donatur, akan otomatis terhubung ke profil donatur yang sama.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-slate-600 mb-1 block">Nama *</label>
-              <Input value={nama} onChange={e => setNama(e.target.value)} placeholder="Nama donatur" className="rounded-xl border-slate-200 h-9 text-sm" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 mb-1 block">No. WhatsApp</label>
-              <Input value={noWa} onChange={e => setNoWa(e.target.value)} placeholder="08xx..." className="rounded-xl border-slate-200 h-9 text-sm" type="tel" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 mb-1 block">Nominal (Rp) *</label>
-              <Input
-                value={nominal}
-                onChange={e => setNominal(e.target.value.replace(/\D/g, ''))}
-                placeholder="500000"
-                className="rounded-xl border-slate-200 h-9 text-sm font-mono"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 mb-1 block">Tanggal</label>
-              <Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="rounded-xl border-slate-200 h-9 text-sm" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 mb-1 block">Akun Kas</label>
-              <select value={akunKasId} onChange={e => setAkunKasId(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-3 h-9 text-sm text-slate-700 outline-none focus:border-emerald-400 bg-white">
-                <option value="">Default (rekening aktif)</option>
-                {akunKasList.map((ak: any) => (
-                  <option key={ak.id} value={ak.id}>{ak.nama}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 mb-1 block">Catatan</label>
-              <Input value={catatan} onChange={e => setCatatan(e.target.value)} placeholder="Keterangan (opsional)" className="rounded-xl border-slate-200 h-9 text-sm" />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-slate-600 mb-1 block">Doa / Hajat (ditampilkan di website)</label>
-            <textarea
-              value={pesanDoa}
-              onChange={e => setPesanDoa(e.target.value)}
-              placeholder="Mohon doakan santri yatim agar istiqamah..."
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400 bg-white resize-none h-20"
-            />
-          </div>
-          <div className="flex justify-end pt-1">
-            <Button
-              type="submit" disabled={mOffline.isPending}
-              className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl h-9 px-6 text-sm"
-            >
-              {mOffline.isPending ? 'Menyimpan...' : <><Send className="w-3.5 h-3.5 mr-1.5" />Catat Donasi</>}
-            </Button>
-          </div>
-        </form>
-      )}
-    </div>
-  );
-}
+// QuickOfflineForm removed in favor of DonasiInputForm
 
 // ================================================
 // HISTORY TABLE
@@ -373,6 +268,7 @@ const DonasiDashboard: React.FC = () => {
   const [previewBukti, setPreviewBukti] = useState<string | null>(null);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'pending' | 'riwayat' | 'doa'>('pending');
+  const [isInputModalOpen, setIsInputModalOpen] = useState(false);
 
   // Queries
   const { data: stats } = useQuery({
@@ -441,23 +337,10 @@ const DonasiDashboard: React.FC = () => {
   });
 
 
-
-  const handleOfflineSuccess = (result: any) => {
+  const handleOfflineSuccess = () => {
+    qc.invalidateQueries({ queryKey: ['dnsSubmissions'] });
     qc.invalidateQueries({ queryKey: ['dnsHistory'] });
-    qc.invalidateQueries({ queryKey: ['donasiTransparansi'] });
-    const waLink = toWaLink(result.no_wa, buildWaMessage(result.nama, result.nominal));
-    if (waLink) {
-      toast.success(
-        <div className="flex flex-col gap-2">
-          <span className="font-semibold">✅ Donasi offline dicatat!</span>
-          <a href={waLink} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg w-fit hover:bg-emerald-700 transition-colors">
-            <MessageCircle className="w-3.5 h-3.5" /> Kirim Nota ke {result.nama}
-          </a>
-        </div>,
-        { duration: 8000 }
-      );
-    }
+    qc.invalidateQueries({ queryKey: ['dnsStats'] });
   };
 
   return (
@@ -498,21 +381,31 @@ const DonasiDashboard: React.FC = () => {
 
         <div className="space-y-10">
 
-          {/* VERIFICATION + HISTORY + OFFLINE */}
-          <div className="space-y-10">
+          {/* 3. MAIN CONTENT: Side-by-Side on Desktop */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-            {/* A. DONASI ONLINE — Tabs: Pending | Riwayat */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
+            {/* LEFT: Tables & Moderation (col-span-8) */}
+            <div className="lg:col-span-8 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <Globe className="w-5 h-5 text-blue-600" />
                   Donasi Online
                   {dnsSubmissions.length > 0 && (
-                    <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                    <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
                       {dnsSubmissions.length} PENDING
                     </span>
                   )}
                 </h2>
+
+                <div className="flex lg:hidden">
+                  <Button
+                    onClick={() => setIsInputModalOpen(true)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-10 w-full sm:w-auto"
+                  >
+                    <HandCoins className="w-4 h-4 mr-2" />
+                    Catat Donasi Baru
+                  </Button>
+                </div>
               </div>
 
               {/* Tab bar */}
@@ -521,7 +414,7 @@ const DonasiDashboard: React.FC = () => {
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors capitalize flex items-center gap-2 ${activeTab === tab ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors capitalize flex items-center gap-2 ${activeTab === tab ? 'bg-white shadow-sm text-slate-900 border border-slate-200/50' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                     {tab === 'pending' ? 'Pending' : tab === 'riwayat' ? 'Riwayat' : 'Moderasi Doa'}
                     {tab === 'doa' && pendingDoas.length > 0 && (
@@ -533,13 +426,13 @@ const DonasiDashboard: React.FC = () => {
                 ))}
               </div>
 
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
                 {activeTab === 'pending' ? (
                   isDnsLoading ? (
-                    <div className="p-8 text-center text-slate-400 text-sm">Memuat data...</div>
+                    <div className="p-12 text-center text-slate-400 text-sm">Memuat data...</div>
                   ) : dnsSubmissions.length === 0 ? (
-                    <div className="p-10 text-center">
-                      <BadgeCheck className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                    <div className="p-20 text-center">
+                      <BadgeCheck className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                       <p className="text-slate-400 text-sm">Tidak ada donasi online yang menunggu verifikasi.</p>
                     </div>
                   ) : (
@@ -650,14 +543,16 @@ const DonasiDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* B. DONASI OFFLINE (QUICK INPUT) */}
-            <div className="space-y-4">
+            {/* RIGHT: Sidebar Input (lg:col-span-4) - Hidden on mobile, shown on desktop */}
+            <aside className="hidden lg:block lg:col-span-4 space-y-4 sticky top-10">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <HandCoins className="w-5 h-5 text-slate-600" />
-                Input Donasi Offline
+                Input Offline
               </h2>
-              <QuickOfflineForm akunKasList={akunKasList} onSuccess={handleOfflineSuccess} />
-            </div>
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                <DonasiInputForm onSuccess={handleOfflineSuccess} />
+              </div>
+            </aside>
 
           </div>
 
@@ -666,23 +561,23 @@ const DonasiDashboard: React.FC = () => {
 
 
 
-      {/* Bukti Transfer Preview */}
-      {previewBukti && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setPreviewBukti(null)}
-        >
-          <div className="relative max-w-2xl w-full" onClick={e => e.stopPropagation()}>
-            <button
-              className="absolute -top-10 right-0 text-white/70 hover:text-white text-sm flex items-center gap-1"
-              onClick={() => setPreviewBukti(null)}
-            >
-              <X className="w-4 h-4" /> Tutup
-            </button>
-            <img src={previewBukti} alt="Bukti Transfer" className="w-full rounded-2xl shadow-2xl object-contain max-h-[80vh]" />
+      {/* Modal for Mobile Input */}
+      <Dialog open={isInputModalOpen} onOpenChange={setIsInputModalOpen}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-emerald-900">
+              <HandCoins className="w-5 h-5" />
+              Catat Donasi / Doa Baru
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <DonasiInputForm onSuccess={() => {
+              setIsInputModalOpen(false);
+              handleOfflineSuccess();
+            }} />
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

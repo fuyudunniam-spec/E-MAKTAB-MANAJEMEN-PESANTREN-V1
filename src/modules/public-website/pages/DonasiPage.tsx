@@ -306,9 +306,9 @@ export default function DonasiPage() {
                             <span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">{timeAgo(item.created_at)}</span>
                           </div>
 
-                          {item.tipe === 'donasi' && item.nominal && (
+                          {item.tipe === 'donasi' && Number(item.nominal || 0) > 0 && (
                             <div className="mb-3 inline-flex items-center gap-2 text-[9px] font-bold text-[#c09c53] uppercase tracking-widest bg-[#c09c53]/5 px-2 py-1 rounded">
-                              <Sparkles className="w-3 h-3" /> Mendukung {formatRp(item.nominal)}
+                              <Sparkles className="w-3 h-3" /> Mendukung {formatRp(item.nominal || 0)}
                             </div>
                           )}
 

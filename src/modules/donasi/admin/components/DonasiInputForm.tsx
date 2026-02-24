@@ -7,22 +7,23 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Heart, HandCoins, Search } from 'lucide-react';
-import { ProgramDonasiService } from '@/modules/donasi/services/donasi.service';
 import { DonorService, type DonorSearchResult } from '@/modules/donasi/services/donor.service';
+import { AkunKasService } from '@/modules/keuangan/services/akunKas.service';
 import { supabase } from '@/integrations/supabase/client';
 import { DnsSubmissionService } from '@/modules/donasi/services/dns.service';
-import { MessageSquareQuote } from 'lucide-react';
+import { MessageSquareQuote, Sparkles, Wallet } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 
 const formatCurrency = (val: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
 
 interface DonasiInputFormProps {
     onSuccess?: () => void;
-    defaultProgramId?: string;
 }
 
-export const DonasiInputForm: React.FC<DonasiInputFormProps> = ({ onSuccess, defaultProgramId }) => {
-    const [programId, setProgramId] = useState(defaultProgramId || '');
+export const DonasiInputForm: React.FC<DonasiInputFormProps> = ({ onSuccess }) => {
+    const qc = useQueryClient();
+    const [akunKasId, setAkunKasId] = useState('');
     const [nominal, setNominal] = useState('');
     const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
     const [deskripsi, setDeskripsi] = useState('');
@@ -33,9 +34,9 @@ export const DonasiInputForm: React.FC<DonasiInputFormProps> = ({ onSuccess, def
     const [showDonorResults, setShowDonorResults] = useState(false);
     const [saving, setSaving] = useState(false);
 
-    const { data: programs = [] } = useQuery({
-        queryKey: ['programDonasi'],
-        queryFn: ProgramDonasiService.getAll,
+    const { data: akunKasList = [] } = useQuery({
+        queryKey: ['akunKasAll'],
+        queryFn: AkunKasService.getAllActive,
     });
 
     const { data: donorResults = [] } = useQuery({
@@ -44,10 +45,7 @@ export const DonasiInputForm: React.FC<DonasiInputFormProps> = ({ onSuccess, def
         enabled: donorSearch.length >= 2,
     });
 
-    const selectedProgram = useMemo(
-        () => programs.find(p => p.id === programId),
-        [programs, programId]
-    );
+    // programs query removed
 
     const handleDonorSelect = (d: DonorSearchResult) => {
         setDonorId(d.id);
@@ -57,22 +55,19 @@ export const DonasiInputForm: React.FC<DonasiInputFormProps> = ({ onSuccess, def
     };
 
     const handleSubmit = async () => {
-        if (!programId || !tanggal) {
-            toast.error('Program dan tanggal wajib diisi');
-            return;
-        }
-
         const nominalVal = parseFloat(nominal) || 0;
 
-        if (nominalVal === 0 && !pesanDoa) {
-            toast.error('Jika nominal 0, pesan doa/hajat wajib diisi');
+        if (nominalVal > 0 && !akunKasId) {
+            toast.error('Pilih akun kas untuk donasi nominal > 0');
             return;
         }
 
-        if (!selectedProgram) return;
+        if (nominalVal === 0 && !pesanDoa) {
+            toast.error('Tuliskan pesan doa/hajat jika tidak ada nominal donasi');
+            return;
+        }
 
         setSaving(true);
-        const qc = useQueryClient();
         try {
             // Gunakan DnsSubmissionService.postOffline agar tersinkron ke social proof
             await DnsSubmissionService.postOffline({
@@ -80,24 +75,25 @@ export const DonasiInputForm: React.FC<DonasiInputFormProps> = ({ onSuccess, def
                 no_wa: donorResults.find(d => d.id === donorId)?.nomor_telepon || undefined,
                 nominal: nominalVal,
                 catatan: deskripsi,
-                akun_kas_id: selectedProgram.akun_kas_id || undefined,
+                akun_kas_id: nominalVal > 0 ? akunKasId : undefined,
                 tanggal: tanggal,
                 pesan_doa: pesanDoa || undefined
             });
 
             // Jika ada donatur terpilih, simpan juga di tabel donations (opsional, karena postOffline mungkin sudah handle donor profile)
+            // Jika ada donatur terpilih, simpan juga di tabel donations (v1 legacy support if needed)
             if (donorId && nominalVal > 0) {
                 await supabase.from('donations').insert({
                     donor_id: donorId,
                     amount: nominalVal,
                     donation_date: tanggal,
-                    notes: `Program: ${selectedProgram.nama}. ${deskripsi}${pesanDoa ? ` | Doa: ${pesanDoa}` : ''}`,
+                    notes: `${deskripsi}${pesanDoa ? ` | Doa: ${pesanDoa}` : ''}`,
                     payment_method: 'cash',
                     status: 'completed',
                 });
             }
 
-            toast.success('Pesan doa/donasi berhasil dicatat');
+            toast.success(nominalVal > 0 ? 'Donasi & Doa berhasil dicatat' : 'Pesan doa berhasil dicatata');
             setNominal(''); setDeskripsi(''); setDonorSearch(''); setDonorId(''); setDonorNama(''); setPesanDoa('');
             qc.invalidateQueries({ queryKey: ['dns_social_proof'] });
             if (onSuccess) onSuccess();
@@ -110,29 +106,24 @@ export const DonasiInputForm: React.FC<DonasiInputFormProps> = ({ onSuccess, def
 
     return (
         <div className="space-y-5">
-            {/* Program */}
+            {/* Akun Kas */}
             <div>
-                <Label>Program Donasi *</Label>
-                <Select value={programId} onValueChange={setProgramId}>
-                    <SelectTrigger>
-                        <SelectValue placeholder="Pilih program..." />
+                <Label>Penerimaan ke Akun (Kas/Bank)</Label>
+                <Select value={akunKasId} onValueChange={setAkunKasId}>
+                    <SelectTrigger className="border-emerald-100 focus:ring-emerald-200">
+                        <SelectValue placeholder="Pilih akun kas (wajib jika > 0)" />
                     </SelectTrigger>
                     <SelectContent>
-                        {programs.filter(p => p.is_active).map(p => (
-                            <SelectItem key={p.id} value={p.id}>
+                        {akunKasList.map(ak => (
+                            <SelectItem key={ak.id} value={ak.id}>
                                 <div className="flex items-center gap-2">
-                                    <Heart className="w-3.5 h-3.5 text-emerald-500" />
-                                    <span>{p.nama}</span>
+                                    <Wallet className="w-3.5 h-3.5 text-blue-500" />
+                                    <span>{ak.nama}</span>
                                 </div>
                             </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
-                {selectedProgram && (
-                    <p className="text-xs text-gray-400 mt-1">
-                        Akun Kas: {selectedProgram.akun_kas_nama} — Saldo: {formatCurrency(selectedProgram.akun_kas_saldo || 0)}
-                    </p>
-                )}
             </div>
 
             {/* Donor (optional) */}
@@ -174,7 +165,7 @@ export const DonasiInputForm: React.FC<DonasiInputFormProps> = ({ onSuccess, def
                     onChange={e => setNominal(e.target.value)}
                     placeholder="0"
                 />
-                <p className="text-[10px] text-slate-400 mt-1 italic">Isi 0 jika hanya ingin mencatat Hajat/Pesan Doa saja.</p>
+                <p className="text-[10px] text-slate-400 mt-1 italic">Kosongkan/Isi 0 jika hanya ingin mencatat Hajat/Doa saja.</p>
             </div>
 
             {/* Tanggal */}
@@ -212,7 +203,7 @@ export const DonasiInputForm: React.FC<DonasiInputFormProps> = ({ onSuccess, def
 
             <Button onClick={handleSubmit} disabled={saving} className="w-full bg-emerald-600 hover:bg-emerald-700">
                 <HandCoins className="w-4 h-4 mr-2" />
-                {saving ? 'Menyimpan...' : 'Catat Donasi'}
+                {saving ? 'Menyimpan...' : 'Simpan Data'}
             </Button>
         </div>
     );
