@@ -92,10 +92,10 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({ theme = 'landing' }) => {
               </span>
               <div className="flex flex-col md:flex-row md:items-center gap-0.5 md:gap-1 mt-1">
                 <span className={`text-[7px] md:text-[8px] ${subTextColorClass} font-medium uppercase tracking-[0.1em] font-jakarta`}>
-                  Under Supervision of
+                  {siteSettings?.supervision?.label || 'Under Supervision of'}
                 </span>
                 <span className="text-[7px] md:text-[8px] text-accent-gold font-bold uppercase tracking-[0.1em] font-jakarta">
-                  Pesantren Mahasiswa An-Nur
+                  {siteSettings?.supervision?.value || 'Pesantren Mahasiswa An-Nur'}
                 </span>
               </div>
             </div>

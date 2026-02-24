@@ -48,6 +48,13 @@ export default defineType({
             of: [{ type: 'block' }, { type: 'image' }],
         }),
         defineField({
+            name: 'justify',
+            title: 'Justify Text',
+            type: 'boolean',
+            description: 'Align article text to justify',
+            initialValue: true,
+        }),
+        defineField({
             name: 'category',
             title: 'Category',
             type: 'reference',

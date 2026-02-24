@@ -34,6 +34,7 @@ export const SanityService = {
             },
             "category": category->title,
             "content": body,
+            justify,
             "readingTime": round(length(pt::text(body)) / 5 / 180 + 1) + " Menit Baca",
             metaKeywords,
             ogImage,

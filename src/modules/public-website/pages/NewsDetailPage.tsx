@@ -163,20 +163,22 @@ const NewsDetailPage: React.FC = () => {
                     <article className="md:col-span-8 lg:col-span-7 md:col-start-2 lg:col-start-3 mb-24">
                         <style>{`
                             .article-body p {
-                                margin-bottom: 2rem;
-                                line-height: 1.9;
+                                margin-bottom: 2.5rem;
+                                line-height: 2;
                                 font-family: 'Lora', serif;
                                 color: #1F2937;
                                 font-size: 1.25rem;
+                                text-align: ${post.justify ? 'justify' : 'left'};
                             }
                             .article-body h2, .article-body h3 {
                                 font-family: 'Playfair Display', serif;
                                 color: #0F172A;
                                 font-weight: 700;
-                                margin: 3rem 0 1.5rem;
+                                margin: 4rem 0 1.5rem;
                                 line-height: 1.2;
                             }
-                            .article-body h2 { font-size: 2.25rem; }
+                            .article-body h2 { font-size: 2.5rem; }
+                            .article-body h3 { font-size: 1.85rem; }
                             .article-body blockquote {
                                 position: relative;
                                 padding: 3rem 0;
@@ -209,7 +211,17 @@ const NewsDetailPage: React.FC = () => {
 
                         <div className="article-body">
                             {Array.isArray(post.content) ? (
-                                <PortableText value={post.content} />
+                                <PortableText
+                                    value={post.content}
+                                    components={{
+                                        block: {
+                                            h2: ({ children }) => <h2 className="text-3xl md:text-4xl font-playfair font-bold mb-6 mt-12">{children}</h2>,
+                                            h3: ({ children }) => <h3 className="text-2xl md:text-3xl font-playfair font-bold mb-4 mt-10">{children}</h3>,
+                                            normal: ({ children }) => <p>{children}</p>,
+                                            blockquote: ({ children }) => <blockquote className="italic border-l-4 border-accent-gold pl-6 my-8 text-2xl font-serif">{children}</blockquote>,
+                                        }
+                                    }}
+                                />
                             ) : (
                                 <div dangerouslySetInnerHTML={{ __html: post.content || '' }} />
                             )}

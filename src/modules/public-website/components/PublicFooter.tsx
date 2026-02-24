@@ -174,7 +174,7 @@ const PublicFooter: React.FC = () => {
             {/* Address & Contact */}
             <div className="flex gap-3">
               <MapPin className="w-3.5 h-3.5 text-[#c09c53] shrink-0 mt-0.5" />
-              <p className="text-sm text-slate-400 leading-relaxed font-light whitespace-pre-line">
+              <p className="text-sm text-slate-400 leading-relaxed font-light whitespace-pre-line text-justify">
                 {location.address}
               </p>
             </div>
