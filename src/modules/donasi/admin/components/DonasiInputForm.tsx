@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,8 @@ import { Heart, HandCoins, Search } from 'lucide-react';
 import { ProgramDonasiService } from '@/modules/donasi/services/donasi.service';
 import { DonorService, type DonorSearchResult } from '@/modules/donasi/services/donor.service';
 import { supabase } from '@/integrations/supabase/client';
+import { DnsSubmissionService } from '@/modules/donasi/services/dns.service';
+import { MessageSquareQuote } from 'lucide-react';
 
 const formatCurrency = (val: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
@@ -27,6 +29,7 @@ export const DonasiInputForm: React.FC<DonasiInputFormProps> = ({ onSuccess, def
     const [donorSearch, setDonorSearch] = useState('');
     const [donorId, setDonorId] = useState('');
     const [donorNama, setDonorNama] = useState('');
+    const [pesanDoa, setPesanDoa] = useState('');
     const [showDonorResults, setShowDonorResults] = useState(false);
     const [saving, setSaving] = useState(false);
 
@@ -54,46 +57,52 @@ export const DonasiInputForm: React.FC<DonasiInputFormProps> = ({ onSuccess, def
     };
 
     const handleSubmit = async () => {
-        if (!programId || !nominal || !tanggal) {
-            toast.error('Program, nominal, dan tanggal wajib diisi');
+        if (!programId || !tanggal) {
+            toast.error('Program dan tanggal wajib diisi');
             return;
         }
+
+        const nominalVal = parseFloat(nominal) || 0;
+
+        if (nominalVal === 0 && !pesanDoa) {
+            toast.error('Jika nominal 0, pesan doa/hajat wajib diisi');
+            return;
+        }
+
         if (!selectedProgram) return;
 
         setSaving(true);
+        const qc = useQueryClient();
         try {
-            // Insert ke keuangan sebagai pemasukan
-            const { error } = await supabase.from('keuangan').insert({
-                tanggal,
-                kategori: 'Donasi',
-                sub_kategori: selectedProgram.nama,
-                jumlah: parseFloat(nominal),
-                akun_kas_id: selectedProgram.akun_kas_id,
-                deskripsi: `Donasi ${selectedProgram.nama}${donorNama ? ` — ${donorNama}` : ''}${deskripsi ? `. ${deskripsi}` : ''}`,
-                penerima_pembayar: donorNama || 'Hamba Allah',
-                jenis_transaksi: 'Pemasukan',
-                status: 'posted',
+            // Gunakan DnsSubmissionService.postOffline agar tersinkron ke social proof
+            await DnsSubmissionService.postOffline({
+                nama: donorNama || donorSearch || 'Hamba Allah',
+                no_wa: donorResults.find(d => d.id === donorId)?.nomor_telepon || undefined,
+                nominal: nominalVal,
+                catatan: deskripsi,
+                akun_kas_id: selectedProgram.akun_kas_id || undefined,
+                tanggal: tanggal,
+                pesan_doa: pesanDoa || undefined
             });
 
-            if (error) throw error;
-
-            // Also store in donations table if donor selected
-            if (donorId) {
+            // Jika ada donatur terpilih, simpan juga di tabel donations (opsional, karena postOffline mungkin sudah handle donor profile)
+            if (donorId && nominalVal > 0) {
                 await supabase.from('donations').insert({
                     donor_id: donorId,
-                    amount: parseFloat(nominal),
+                    amount: nominalVal,
                     donation_date: tanggal,
-                    notes: `Program: ${selectedProgram.nama}. ${deskripsi}`,
+                    notes: `Program: ${selectedProgram.nama}. ${deskripsi}${pesanDoa ? ` | Doa: ${pesanDoa}` : ''}`,
                     payment_method: 'cash',
                     status: 'completed',
-                }).select();
+                });
             }
 
-            toast.success('Donasi berhasil dicatat');
-            setNominal(''); setDeskripsi(''); setDonorSearch(''); setDonorId(''); setDonorNama('');
+            toast.success('Pesan doa/donasi berhasil dicatat');
+            setNominal(''); setDeskripsi(''); setDonorSearch(''); setDonorId(''); setDonorNama(''); setPesanDoa('');
+            qc.invalidateQueries({ queryKey: ['dns_social_proof'] });
             if (onSuccess) onSuccess();
         } catch (e: any) {
-            toast.error(e.message || 'Gagal mencatat donasi');
+            toast.error(e.message || 'Gagal mencatat data');
         } finally {
             setSaving(false);
         }
@@ -158,8 +167,14 @@ export const DonasiInputForm: React.FC<DonasiInputFormProps> = ({ onSuccess, def
 
             {/* Nominal */}
             <div>
-                <Label>Nominal (Rp) *</Label>
-                <Input type="number" value={nominal} onChange={e => setNominal(e.target.value)} placeholder="0" />
+                <Label>Nominal (Rp)</Label>
+                <Input
+                    type="number"
+                    value={nominal}
+                    onChange={e => setNominal(e.target.value)}
+                    placeholder="0"
+                />
+                <p className="text-[10px] text-slate-400 mt-1 italic">Isi 0 jika hanya ingin mencatat Hajat/Pesan Doa saja.</p>
             </div>
 
             {/* Tanggal */}
@@ -168,10 +183,31 @@ export const DonasiInputForm: React.FC<DonasiInputFormProps> = ({ onSuccess, def
                 <Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} />
             </div>
 
-            {/* Keterangan */}
+            {/* Pesan Doa / Hajat */}
+            <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100/50 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-2 opacity-5">
+                    <MessageSquareQuote size={48} />
+                </div>
+                <Label className="text-emerald-900 flex items-center gap-2 mb-2">
+                    <MessageSquareQuote className="w-4 h-4" />
+                    Pesan Doa / Hajat Donatur
+                </Label>
+                <Textarea
+                    value={pesanDoa}
+                    onChange={e => setPesanDoa(e.target.value)}
+                    rows={3}
+                    placeholder="Tuliskan titipan doa atau hajat di sini..."
+                    className="bg-white/80 border-emerald-100 focus:border-emerald-300 focus:ring-emerald-200"
+                />
+                <p className="text-[10px] text-emerald-600/70 mt-2 italic">
+                    Akan otomatis tampil di "Buku Doa Santri" pada halaman publik.
+                </p>
+            </div>
+
+            {/* Keterangan Internal */}
             <div>
-                <Label>Keterangan</Label>
-                <Textarea value={deskripsi} onChange={e => setDeskripsi(e.target.value)} rows={2} placeholder="Keterangan tambahan..." />
+                <Label>Catatan Admin (Internal)</Label>
+                <Textarea value={deskripsi} onChange={e => setDeskripsi(e.target.value)} rows={2} placeholder="Keterangan tambahan untuk admin..." />
             </div>
 
             <Button onClick={handleSubmit} disabled={saving} className="w-full bg-emerald-600 hover:bg-emerald-700">

@@ -14,7 +14,7 @@ import {
 import {
   DonasiTransparansiService,
 } from '@/modules/donasi/services/donasi.service';
-import { DnsSubmissionService, type DnsSubmission } from '@/modules/donasi/services/dns.service';
+import { DnsSubmissionService, type DnsSubmission, DnsDoaAdminService, type DnsDoaPublik } from '@/modules/donasi/services/dns.service';
 import { AkunKasService } from '@/modules/keuangan/services/akunKas.service';
 
 // ================================================
@@ -272,6 +272,96 @@ function HistoryTable() {
 }
 
 // ================================================
+// MODERASI DOA TABLE
+// ================================================
+
+function ModerasiDoaTable() {
+  const qc = useQueryClient();
+  const { data: doas = [], isLoading } = useQuery({
+    queryKey: ['dnsDoaPending'],
+    queryFn: () => DnsDoaAdminService.getAll('pending'),
+    staleTime: 30_000,
+  });
+
+  const mApprove = useMutation({
+    mutationFn: (id: string) => DnsDoaAdminService.approve(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dnsDoaPending'] });
+      qc.invalidateQueries({ queryKey: ['dns_social_proof'] });
+      toast.success('Doa disetujui untuk tampil di website');
+    },
+    onError: () => toast.error('Gagal menyetujui doa'),
+  });
+
+  const mReject = useMutation({
+    mutationFn: (id: string) => DnsDoaAdminService.reject(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dnsDoaPending'] });
+      toast.success('Doa ditolak');
+    },
+    onError: () => toast.error('Gagal menolak doa'),
+  });
+
+  if (isLoading) return <div className="text-center py-8 text-slate-400 text-sm">Memuat doa...</div>;
+  if (doas.length === 0) return (
+    <div className="text-center py-10">
+      <MessageCircle className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+      <p className="text-slate-400 text-sm">Tidak ada doa yang menunggu moderasi.</p>
+    </div>
+  );
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-100">
+            <th className="text-left text-[10px] uppercase tracking-widest text-slate-400 font-bold pb-3 pr-4 pl-5">Pengirim</th>
+            <th className="text-left text-[10px] uppercase tracking-widest text-slate-400 font-bold pb-3 pr-4">Pesan Doa / Hajat</th>
+            <th className="text-left text-[10px] uppercase tracking-widest text-slate-400 font-bold pb-3 pr-4">Tanggal</th>
+            <th className="text-left text-[10px] uppercase tracking-widest text-slate-400 font-bold pb-3">Aksi</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {doas.map(item => (
+            <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+              <td className="py-4 pr-4 pl-5 align-top">
+                <div className="font-medium text-slate-800">{item.is_anonim ? 'Hamba Allah' : item.nama}</div>
+                {item.no_wa && <div className="text-xs text-slate-400">{item.no_wa}</div>}
+              </td>
+              <td className="py-4 pr-4 align-top">
+                <p className="text-slate-600 leading-relaxed max-w-md italic">"{item.pesan_doa}"</p>
+              </td>
+              <td className="py-4 pr-4 align-top text-xs text-slate-500">{formatDate(item.created_at)}</td>
+              <td className="py-4 align-top">
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => mApprove.mutate(item.id)}
+                    disabled={mApprove.isPending}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-8 text-xs px-3"
+                  >
+                    Setujui
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { if (confirm('Tolak doa ini?')) mReject.mutate(item.id); }}
+                    disabled={mReject.isPending}
+                    className="border-slate-200 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg h-8 text-xs px-3"
+                  >
+                    Tolak
+                  </Button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ================================================
 // MAIN DASHBOARD
 // ================================================
 
@@ -282,7 +372,7 @@ const DonasiDashboard: React.FC = () => {
   // State
   const [previewBukti, setPreviewBukti] = useState<string | null>(null);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'pending' | 'riwayat'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'riwayat' | 'doa'>('pending');
 
   // Queries
   const { data: stats } = useQuery({
@@ -301,6 +391,12 @@ const DonasiDashboard: React.FC = () => {
   const { data: akunKasList = [] } = useQuery({
     queryKey: ['akunKasAll'],
     queryFn: AkunKasService.getAllActive,
+  });
+
+  const { data: pendingDoas = [] } = useQuery({
+    queryKey: ['dnsDoaPendingCount'],
+    queryFn: () => DnsDoaAdminService.getAll('pending'),
+    refetchInterval: 30_000,
   });
 
   // DNS Mutations
@@ -421,13 +517,18 @@ const DonasiDashboard: React.FC = () => {
 
               {/* Tab bar */}
               <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-                {(['pending', 'riwayat'] as const).map(tab => (
+                {(['pending', 'riwayat', 'doa'] as const).map(tab => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors capitalize ${activeTab === tab ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors capitalize flex items-center gap-2 ${activeTab === tab ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
                   >
-                    {tab === 'pending' ? 'Pending' : 'Riwayat'}
+                    {tab === 'pending' ? 'Pending' : tab === 'riwayat' ? 'Riwayat' : 'Moderasi Doa'}
+                    {tab === 'doa' && pendingDoas.length > 0 && (
+                      <span className="bg-blue-100 text-blue-700 text-[9px] px-1.5 py-0.5 rounded-full">
+                        {pendingDoas.length}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -541,8 +642,10 @@ const DonasiDashboard: React.FC = () => {
                       ))}
                     </div>
                   )
-                ) : (
+                ) : activeTab === 'riwayat' ? (
                   <HistoryTable />
+                ) : (
+                  <ModerasiDoaTable />
                 )}
               </div>
             </div>
