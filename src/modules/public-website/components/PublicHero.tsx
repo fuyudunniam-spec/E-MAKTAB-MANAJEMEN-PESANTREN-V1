@@ -7,6 +7,10 @@ import { SanityService } from '../../public-website/services/sanity.service';
 
 interface PublicHeroProps {
     data?: any[];
+    impactOverride?: {
+        value?: string;
+        label?: string;
+    };
 }
 
 const STATIC_SLIDES = [
@@ -63,7 +67,7 @@ const STATIC_SLIDES = [
     },
 ];
 
-const PublicHero: React.FC<PublicHeroProps> = ({ data }) => {
+const PublicHero: React.FC<PublicHeroProps> = ({ data, impactOverride }) => {
     const { data: impactData } = useQuery({
         queryKey: ['public-impact-data'],
         queryFn: () => getPublicImpactData()
@@ -233,10 +237,14 @@ const PublicHero: React.FC<PublicHeroProps> = ({ data }) => {
                     </div>
 
                     {/* Floating impact stats */}
-                    {impactData && (
+                    {(impactOverride || impactData) && (
                         <div className="absolute -top-6 -right-4 lg:-top-5 lg:-right-8 bg-[#0f172a] text-white px-5 py-4 rounded-2xl shadow-xl z-30">
-                            <p className="text-2xl font-serif text-[#c09c53] leading-none">{impactData.totalPenerima}+</p>
-                            <p className="text-[9px] font-bold uppercase tracking-widest text-white/60 mt-1">Penerima Manfaat</p>
+                            <p className="text-2xl font-serif text-[#c09c53] leading-none">
+                                {impactOverride?.value || (impactData ? `${impactData.totalPenerima}+` : '0')}
+                            </p>
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-white/60 mt-1">
+                                {impactOverride?.label || 'Penerima Manfaat'}
+                            </p>
                         </div>
                     )}
                 </div>

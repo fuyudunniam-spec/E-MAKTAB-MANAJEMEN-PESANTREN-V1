@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Eye, Target, ArrowDown, MapPin, ChevronLeft, ChevronRight, ArrowRight, HeartHandshake } from 'lucide-react';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
+import PublicPartners from '../components/PublicPartners';
 import { useQuery } from '@tanstack/react-query';
 import { SanityService } from '../services/sanity.service';
 import { Link } from 'react-router-dom';
@@ -259,6 +260,22 @@ const AboutUsPage: React.FC = () => {
             </div>
           </section>
         )}
+
+        {/* ========================================== */}
+        {/* SECTION: STRATEGIC PARTNERS (GRID)         */}
+        {/* ========================================== */}
+        <section className="py-24 bg-white border-t border-slate-100">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="text-center max-w-2xl mx-auto mb-16">
+              <h4 className="text-[10px] font-bold tracking-[0.2em] text-[#c09c53] uppercase mb-4">Membangun Bersama</h4>
+              <h2 className="text-3xl md:text-5xl font-serif text-[#0f172a]">Kemitraan Strategis</h2>
+              <p className="text-slate-500 mt-4 text-sm leading-relaxed">
+                Keberlanjutan misi Al-Bisri terwujud berkat dukungan dan kolaborasi dengan berbagai lembaga serta komunitas yang memiliki visi serupa.
+              </p>
+            </div>
+            <PublicPartners data={sanityData?.partners} variant="grid" />
+          </div>
+        </section>
 
         {/* ========================================== */}
         {/* CTA STRIP — Elegan, tidak norak            */}

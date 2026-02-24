@@ -69,9 +69,15 @@ const services = [
     { _id: 'svc4', _type: 'service', title: 'Manajemen Profesional', description: 'Pengelolaan transparan, akuntabel & modern.', icon: 'Briefcase', order: 4 }
 ]
 
+const testimonials = [
+    { _id: 'testi1', _type: 'testimonial', name: 'Hj. Fatimah', role: 'Donatur Tetap', content: "Alhamdulillah, melihat perkembangan anak-anak di sini sangat mengharukan. Mereka tidak hanya hafal Qur'an, tapi juga punya adab yang sangat santun." },
+    { _id: 'testi2', _type: 'testimonial', name: 'Bpk. Hendarman', role: 'Wali Santri', content: "Transparansi laporan keuangan Al-Bisri membuat saya percaya. Setiap rupiah benar-benar terlihat dampaknya untuk pendidikan adik-adik yatim." },
+    { _id: 'testi3', _type: 'testimonial', name: 'Ahmad Fauzi', role: 'Mahasantri', content: "Lingkungan pesantren yang kondusif membuat kuliah saya tidak terganggu. Justru kajian kitab di sini menambah wawasan yang tidak saya dapatkan di kampus." }
+]
+
 async function seed() {
     try {
-        console.log('Seeding Homepage Content (Singleton Pattern)...')
+        console.log('Seeding Homepage Content (Full Consolidation)...')
 
         // Create Heroes
         const heroRefs = []
@@ -80,6 +86,14 @@ async function seed() {
             heroRefs.push({ _type: 'reference', _ref: result._id, _key: result._id })
         }
         console.log('Seeded Hero Slides')
+
+        // Create Testimonials
+        const testiRefs = []
+        for (const testi of testimonials) {
+            const result = await client.createOrReplace(testi)
+            testiRefs.push({ _type: 'reference', _ref: result._id, _key: result._id })
+        }
+        console.log('Seeded Testimonial Docs')
 
         // Create Services
         const serviceRefs = []
@@ -95,6 +109,32 @@ async function seed() {
             title: 'Pesantren Al-Bisri | Memuliakan Yatim, Mencetak Generasi Mandiri',
             hero: heroRefs,
             services: serviceRefs,
+            testimonials: testiRefs,
+            heroImpact: {
+                value: '50+',
+                label: 'Santri Binaan'
+            },
+            partners: [
+                { _key: 'p1', name: 'Pesantren An-Nur', description: 'Mitra Utama Pengembangan Akademik' },
+                { _key: 'p2', name: 'BAZNAS', description: 'Lembaga Amil Zakat Nasional' },
+                { _key: 'p3', name: 'Bank Syariah Indonesia', description: 'Mitra Transaksi Perbankan Syariah' },
+                { _key: 'p4', name: 'Dompet Dhuafa', description: 'Sinergi Penyaluran Donasi' },
+                { _key: 'p5', name: 'KEMENAG RI', description: 'Instansi Pembina Keagamaan' }
+            ],
+            aboutSummary: {
+                badge: 'Ikhtiar dan Amanah',
+                title: 'Yayasan Pesantren Anak Yatim Al-Bisri',
+                subtitle: 'Membangun Peradaban dari Rahim Kepedulian.',
+                description: 'Pesantren Anak Yatim Al-Bisri adalah lembaga pendidikan Islam yang berkomitmen mencetak generasi berakhlak mulia, mandiri, dan berdaya saing. Kami hadir untuk memberikan hak pendidikan dan kasih sayang kepada anak-anak yatim, agar mereka tumbuh menjadi pribadi yang bermanfaat bagi agama, bangsa, dan negara.',
+                ctaText: 'Selami Sejarah Kami',
+                ctaLink: '/tentang-kami',
+                stats: [
+                    { _key: 's1', value: '2010', label: 'Tahun Berdiri' },
+                    { _key: 's2', value: '200+', label: 'Santri Aktif' },
+                    { _key: 's3', value: '100%', label: 'Beasiswa Penuh' },
+                    { _key: 's4', value: '1.2k+', label: 'Alumni Tersebar' }
+                ]
+            }
         }
         await client.createOrReplace(homePage)
         console.log('Seeded HomePage Singleton')

@@ -24,8 +24,20 @@ const TESTIMONIALS = [
   },
 ];
 
-const PublicTestimonials: React.FC = () => {
+interface PublicTestimonialsProps {
+  data?: any[];
+}
+
+const PublicTestimonials: React.FC<PublicTestimonialsProps> = ({ data }) => {
   const sliderRef = useRef<HTMLDivElement>(null);
+
+  const testimonials = (data && data.length > 0)
+    ? data.map(t => ({
+      quote: t.content || t.quote || '',
+      name: t.name || '',
+      role: t.role || '',
+    }))
+    : TESTIMONIALS;
 
   const scroll = (dir: 'left' | 'right') => {
     if (!sliderRef.current) return;
@@ -74,7 +86,7 @@ const PublicTestimonials: React.FC = () => {
             className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-4 scrollbar-none flex-1"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {TESTIMONIALS.map((t, i) => (
+            {testimonials.map((t, i) => (
               <div
                 key={i}
                 className="snap-start shrink-0 w-[320px] bg-[#fafafa] border border-slate-100 p-8 hover:border-slate-200 hover:shadow-lg transition-all duration-300"

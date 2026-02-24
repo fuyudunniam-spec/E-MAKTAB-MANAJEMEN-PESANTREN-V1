@@ -1,14 +1,15 @@
 import groq from 'groq'
 
 // Landing Page Queries
-export const LANDING_PAGE_QUERY = groq`*[_type == "homePage"][0]{
+export const LANDING_PAGE_QUERY = groq`*[_id == "homePage"][0]{
   title,
   "hero": hero[]->,
-  "history": *[_type == "aboutPage"][0].history,
+  "heroImpact": heroImpact,
+  "history": coalesce(aboutSummary, *[_type == "aboutPage"][0].history),
   "services": services[]->,
+  "partners": partners,
+  "testimonials": testimonials[]->,
   "impactPillars": *[_type == "impactPillar"] | order(order asc),
-  "partners": *[_type == "partner"],
-  "testimonials": *[_type == "testimonial"]
 }`
 
 export const NEWS_QUERY = groq`*[_type == "news"] | order(publishedAt desc)[0...6] {
@@ -41,7 +42,7 @@ export const ABOUT_PAGE_QUERY = groq`{
       scopusId
   },
   "facilities": *[_type == "facility"],
-
+  "partners": *[_id == "homePage"][0].partners
 }`
 
 // Donation Page Queries

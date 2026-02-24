@@ -29,11 +29,11 @@ const LandingPage: React.FC = () => {
       <PublicNavbar />
 
       <main>
-        <PublicHero data={heroData} />
-        <PublicPartners />
+        <PublicHero data={heroData} impactOverride={sanityData?.heroImpact} />
+        <PublicPartners data={sanityData?.partners} />
         <PublicHistory data={sanityData?.history} />
         <PublicServices data={sanityData?.services} />
-        <PublicTestimonials />
+        <PublicTestimonials data={sanityData?.testimonials} />
         <PublicNews />
         <PublicZakatCalc />
       </main>

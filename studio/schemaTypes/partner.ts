@@ -20,5 +20,11 @@ export default defineType({
             title: 'Website URL',
             type: 'url',
         }),
+        defineField({
+            name: 'description',
+            title: 'Description',
+            type: 'text',
+            rows: 2,
+        }),
     ],
 })

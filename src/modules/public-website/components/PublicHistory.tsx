@@ -15,9 +15,16 @@ const STATS = [
 ];
 
 const PublicHistory: React.FC<PublicHistoryProps> = ({ data }) => {
-    const descriptionText = data?.description
-        ? data.description.map((block: any) => block.children.map((c: any) => c.text).join('')).join(' ')
-        : null;
+    const descriptionText = React.useMemo(() => {
+        if (!data?.description) return null;
+        if (typeof data.description === 'string') return data.description;
+        if (Array.isArray(data.description)) {
+            return data.description
+                .map((block: any) => block.children?.map((c: any) => c.text).join('') || '')
+                .join(' ');
+        }
+        return null;
+    }, [data?.description]);
 
     const stats = data?.stats || STATS;
 
@@ -59,10 +66,10 @@ const PublicHistory: React.FC<PublicHistoryProps> = ({ data }) => {
                     </div>
 
                     <Link
-                        to="/tentang-kami"
+                        to={data?.ctaLink || "/tentang-kami"}
                         className="mt-10 group inline-flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-white hover:text-[#c09c53] transition-colors border-b border-white/20 pb-1 hover:border-[#c09c53]"
                     >
-                        Selami Sejarah Kami
+                        {data?.ctaText || "Selami Sejarah Kami"}
                         <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-2" />
                     </Link>
                 </div>

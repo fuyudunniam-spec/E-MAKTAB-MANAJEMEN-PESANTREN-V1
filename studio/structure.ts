@@ -1,100 +1,101 @@
 import type { StructureBuilder } from 'sanity/structure'
+import { Home, Settings, FileText, Users, MapPin, Layers, Layout, MessageSquare, Handshake } from 'lucide-react'
 
-// Define the hierarchy of the dashboard
 export const structure = (S: StructureBuilder) =>
     S.list()
         .title('Konten Website')
         .items([
-            // 1. News Management (Centralized)
+            // 1. PUSAT KENDALI (LANDING PAGE)
+            S.listItem()
+                .title('Landing Page (Pusat Kendali)')
+                .icon(Home)
+                .child(
+                    S.document()
+                        .schemaType('homePage')
+                        .documentId('homePage')
+                        .title('Pengaturan Halaman Utama')
+                ),
+
+            S.divider(),
+
+            // 2. BERITA & ARTIKEL
             S.listItem()
                 .title('Pusat Berita & Artikel')
+                .icon(FileText)
                 .child(
                     S.list()
-                        .title('Manajemen Konten Berita')
+                        .title('Manajemen Konten')
                         .items([
-                            S.documentTypeListItem('news').title('Semua Artikel'),
-                            S.divider(),
-                            S.documentTypeListItem('category').title('Kategori Berita'),
-                            S.documentTypeListItem('teamMember').title('Daftar Penulis'),
+                            S.documentTypeListItem('news').title('Semua Artikel').icon(FileText),
+                            S.documentTypeListItem('category').title('Kategori Berita').icon(Layers),
+                            S.documentTypeListItem('teamMember').title('Penulis & Pengurus').icon(Users),
                         ])
                 ),
 
-            S.divider(),
-
-            // 2. Site Settings (Singleton)
+            // 3. PENGATURAN GLOBAL & HALAMAN STATIS
             S.listItem()
-                .title('Pengaturan Situs')
-                .child(
-                    S.document()
-                        .schemaType('siteSettings')
-                        .documentId('siteSettings')
-                        .title('Pengaturan Situs')
-                ),
-
-            S.divider(),
-
-            // 3. Group by Pages
-            S.listItem()
-                .title('Halaman Beranda')
+                .title('Halaman & Pengaturan Global')
+                .icon(Settings)
                 .child(
                     S.list()
-                        .title('Komponen Beranda')
-                        .items([
-                            S.documentTypeListItem('landingHero').title('Hero Section'),
-                            S.documentTypeListItem('service').title('Layanan (4 Utama)'),
-                            S.documentTypeListItem('impactPillar').title('Pilar Impact'),
-
-                            S.documentTypeListItem('partner').title('Partners'),
-                            S.documentTypeListItem('testimonial').title('Testimonials'),
-                        ])
-                ),
-
-            S.listItem()
-                .title('Halaman PSB')
-                .child(
-                    S.document()
-                        .schemaType('psbPage')
-                        .documentId('psbPage')
-                        .title('Konten PSB')
-                ),
-
-            S.listItem()
-                .title('Halaman Tentang Kami')
-                .child(
-                    S.list()
-                        .title('Komponen Tentang Kami')
+                        .title('Halaman Statis & Global')
                         .items([
                             S.listItem()
-                                .title('Konten Halaman (Profil)')
+                                .title('Info Yayasan (Site Settings)')
+                                .icon(Settings)
+                                .child(
+                                    S.document()
+                                        .schemaType('siteSettings')
+                                        .documentId('siteSettings')
+                                        .title('Informasi Dasar Website')
+                                ),
+                            S.divider(),
+                            S.listItem()
+                                .title('Halaman Tentang Kami')
+                                .icon(Users)
                                 .child(
                                     S.document()
                                         .schemaType('aboutPage')
                                         .documentId('aboutPage')
-                                        .title('Konten Halaman Profil')
+                                        .title('Konten Tentang Kami')
+                                ),
+                            S.listItem()
+                                .title('Halaman PSB')
+                                .icon(FileText)
+                                .child(
+                                    S.document()
+                                        .schemaType('psbPage')
+                                        .documentId('psbPage')
+                                        .title('Konten Pendaftaran')
                                 ),
                             S.divider(),
-                            S.documentTypeListItem('teamMember').title('Tim & Pengurus'),
-                            S.documentTypeListItem('facility').title('Fasilitas'),
+                            S.documentTypeListItem('facility').title('Fasilitas Yayasan').icon(MapPin),
                         ])
                 ),
 
             S.divider(),
 
-            // 3. Fallback for other items, EXCLUDING the ones we already handled AND the ones we want to hide (Donation)
+            // HIDE ALL INDIVIDUAL COMPONENTS
+            // These are now managed inside homePage or are secondary
             ...S.documentTypeListItems().filter(
                 (listItem) =>
                     ![
+                        'homePage',
                         'siteSettings',
+                        'aboutPage',
                         'psbPage',
-                        'landingHero',
-
-                        'partner',
-                        'testimonial',
                         'news',
+                        'category',
                         'teamMember',
                         'facility',
-                        'donationProgram', // Explicitly excluded as per user request
-                        'media.tag', // Often auto-generated by plugins, can keep or hide. keeping for now if it exists.
+                        // Hide these from root:
+                        'landingHero',
+                        'service',
+                        'impactPillar',
+                        'partner',
+                        'testimonial',
+                        'donationProgram',
+                        'media.tag',
                     ].includes(listItem.getId() || '')
             ),
         ])
