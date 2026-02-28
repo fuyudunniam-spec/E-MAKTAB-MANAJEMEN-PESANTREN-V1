@@ -58,21 +58,24 @@ const NewsDetailPage: React.FC = () => {
                 <meta name="description" content={description} />
                 {post?.metaKeywords && <meta name="keywords" content={post.metaKeywords.join(', ')} />}
 
-                {/* Open Graph */}
-                <meta property="og:title" content={post?.title} />
-                <meta property="og:description" content={description} />
-                <meta property="og:type" content="article" />
-                <meta property="og:url" content={window.location.href} />
-                {(post?.ogImage || post?.mainImage) && (
-                    <meta property="og:image" content={SanityService.imageUrl(post.ogImage || post.mainImage)} />
-                )}
+                {/* Open Graph & Twitter (Conditionally hidden based on CMS setting) */}
+                {!post?.hideSocialPreview && (
+                    <>
+                        <meta property="og:title" content={post?.title} />
+                        <meta property="og:description" content={description} />
+                        <meta property="og:type" content="article" />
+                        <meta property="og:url" content={window.location.href} />
+                        {(post?.ogImage || post?.mainImage) && (
+                            <meta property="og:image" content={SanityService.imageUrl(post.ogImage || post.mainImage)} />
+                        )}
 
-                {/* Twitter */}
-                <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:title" content={post?.title} />
-                <meta name="twitter:description" content={description} />
-                {(post?.ogImage || post?.mainImage) && (
-                    <meta name="twitter:image" content={SanityService.imageUrl(post.ogImage || post.mainImage)} />
+                        <meta name="twitter:card" content="summary_large_image" />
+                        <meta name="twitter:title" content={post?.title} />
+                        <meta name="twitter:description" content={description} />
+                        {(post?.ogImage || post?.mainImage) && (
+                            <meta name="twitter:image" content={SanityService.imageUrl(post.ogImage || post.mainImage)} />
+                        )}
+                    </>
                 )}
             </Helmet>
 

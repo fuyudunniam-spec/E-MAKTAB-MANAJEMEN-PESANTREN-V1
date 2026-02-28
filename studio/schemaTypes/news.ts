@@ -70,6 +70,13 @@ export default defineType({
         }),
         // SEO Fields
         defineField({
+            name: 'hideSocialPreview',
+            title: 'Sembunyikan Preview Sosial Media',
+            type: 'boolean',
+            description: 'Aktifkan ini jika tidak ingin memunculkan judul, deskripsi, ataupun gambar saat link dibagikan/copy (misal: WhatsApp/Facebook).',
+            initialValue: false,
+        }),
+        defineField({
             name: 'metaDescription',
             title: 'Meta Description',
             type: 'text',

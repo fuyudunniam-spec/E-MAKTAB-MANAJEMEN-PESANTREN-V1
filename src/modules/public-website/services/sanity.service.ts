@@ -36,6 +36,8 @@ export const SanityService = {
             "content": body,
             justify,
             "readingTime": round(length(pt::text(body)) / 5 / 180 + 1) + " Menit Baca",
+            hideSocialPreview,
+            metaDescription,
             metaKeywords,
             ogImage,
             "relatedPosts": *[_type == "news" && slug.current != $slug] | order(publishedAt desc)[0...3]{
